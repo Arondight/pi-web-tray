@@ -296,8 +296,11 @@ command-line output and the generated configuration comments.
 - The application is Windows-only.
 - On Windows 7 and 8.1, the tray is compatible, but pi-web's terminal requires ConPTY
   and Node.js 22.19 or later may not support those systems.
-- npm 12 blocks dependency install scripts by default. The application re-checks the
-  installation and reports failures; it does not modify the npm configuration.
+- npm 12 blocks dependency install scripts by default. The pi-web install step passes a
+  one-off `--allow-scripts` allowlist (the existing npm entries plus `@agegr/pi-web` and
+  `node-pty`), while the pi CLI is installed with `--ignore-scripts` as its documentation
+  recommends. The application re-checks the installation and reports failures; it does not
+  modify the npm configuration.
 - Node.js is not installed automatically.
 - A listener already using the configured port is treated as a running pi-web service.
   Change `Port` if the port is occupied by another program.

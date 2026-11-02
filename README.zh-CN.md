@@ -281,8 +281,10 @@ $env:PI_WEB_TRAY_LANG='en'
 - 仅支持 Windows。
 - 在 Windows 7 和 8.1 上，托盘程序兼容，但 pi-web 终端需要 ConPTY，且 Node.js
   22.19 或更新版本可能不支持这些系统。
-- npm 12 默认阻止依赖的 install 脚本。程序会重新检查安装结果并报告失败，不会修改
-  npm 配置。
+- npm 12 默认阻止依赖的 install 脚本。安装 pi-web 时会一次性传入
+  `--allow-scripts`（保留已有的 npm 条目，并加入 `@agegr/pi-web` 和 `node-pty`），
+  pi CLI 则按其文档使用 `--ignore-scripts`。程序会重新检查安装结果并报告失败，
+  不会修改 npm 配置。
 - 不会自动安装 Node.js。
 - 如果配置端口已被其他程序监听，程序会将端口视为正在运行的 pi-web 服务。端口被其他
   程序占用时，请修改 `Port`。

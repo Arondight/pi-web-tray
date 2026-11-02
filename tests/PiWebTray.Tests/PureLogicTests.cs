@@ -249,18 +249,51 @@ namespace PiWebTray
             config.InstallTag = "latest";
             config.NpmRegistry = "";
 
-            List<string> packages = new List<string>(new string[] { "@agegr/pi-web@latest" });
-            string args = Installer.BuildArguments(config, "C:\\Program Files\\nodejs\\npm-cli.js", packages);
+            List<string> web = new List<string>(new string[] { "@agegr/pi-web@latest" });
+            List<string> cli = new List<string>(new string[] { "@earendil-works/pi-coding-agent@latest" });
+            string path = "C:\\Program Files\\nodejs\\npm-cli.js";
 
-            Check("npm args quote the cli path", args.StartsWith("\"C:\\Program Files\\nodejs\\npm-cli.js\"", StringComparison.Ordinal));
-            Check("npm args install globally", args.Contains(" install -g "));
-            Check("npm args keep package", args.Contains("@agegr/pi-web@latest"));
-            Check("npm args quiet audit/fund", args.Contains("--no-fund --no-audit"));
-            Check("npm args without registry", !args.Contains("--registry"));
+            string webArgs = Installer.BuildArguments(config, path, web, "12.2.1", false, Installer.PiWebScriptPackages);
+            Check("npm args quote the cli path", webArgs.StartsWith("\"C:\\Program Files\\nodejs\\npm-cli.js\"", StringComparison.Ordinal));
+            Check("npm args install globally", webArgs.Contains(" install -g "));
+            Check("npm args keep package", webArgs.Contains("@agegr/pi-web@latest"));
+            Check("npm args quiet audit/fund", webArgs.Contains("--no-fund --no-audit"));
+            Check("npm args without registry", !webArgs.Contains("--registry"));
 
             config.NpmRegistry = "https://registry.npmmirror.com";
-            string withRegistry = Installer.BuildArguments(config, "npm-cli.js", packages);
+            string withRegistry = Installer.BuildArguments(config, "npm-cli.js", web, "12.2.1", false, Installer.PiWebScriptPackages);
             Check("npm args include quoted registry", withRegistry.Contains("--registry \"https://registry.npmmirror.com\""));
+
+            Check("pi-web never ignores scripts", !webArgs.Contains("--ignore-scripts"));
+            Check("npm 12 allows pi-web scripts", webArgs.Contains("--allow-scripts \"@agegr/pi-web,node-pty\""));
+            string web11 = Installer.BuildArguments(config, path, web, "11.6.0", false, Installer.PiWebScriptPackages);
+            Check("npm 11 has no allow-scripts flag", !web11.Contains("--allow-scripts"));
+
+            string cliArgs = Installer.BuildArguments(config, path, cli, "12.2.1", true, "");
+            Check("pi cli installs with --ignore-scripts", cliArgs.Contains(" --ignore-scripts"));
+            Check("pi cli never allows scripts", !cliArgs.Contains("--allow-scripts"));
+
+            CheckEqual("npm major 12", 12, Installer.NpmMajor("12.2.1"));
+            CheckEqual("npm major 11", 11, Installer.NpmMajor("11.6.0"));
+            CheckEqual("npm major unknown", 0, Installer.NpmMajor(""));
+            CheckEqual("allowlist keeps user packages",
+                "@google/genai,protobufjs,@agegr/pi-web,node-pty",
+                Installer.MergeAllowScripts("@google/genai, protobufjs", Installer.PiWebScriptPackages));
+            CheckEqual("allowlist deduplicates",
+                "@agegr/pi-web,node-pty",
+                Installer.MergeAllowScripts("@agegr/pi-web", Installer.PiWebScriptPackages));
+            CheckEqual("allowlist drops unsafe entries",
+                "@agegr/pi-web,node-pty",
+                Installer.MergeAllowScripts("evil --registry x,\"bad\",@agegr/pi-web,node-pty", Installer.PiWebScriptPackages));
+
+            ProbeResult missing = new ProbeResult();
+            config.InstallPiCli = true;
+            List<InstallStep> steps = Installer.StepsToInstall(missing, config, false);
+            CheckEqual("missing deps need two npm runs", 2, steps.Count);
+            Check("pi-web runs first", steps[0].Packages.Contains("@agegr/pi-web@latest"));
+            Check("pi-web step allows scripts", steps[0].AllowScripts && !steps[0].IgnoreScripts);
+            Check("pi cli runs second", steps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
+            Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
 
             ProbeResult installed = new ProbeResult();
             installed.PiWebFound = true;

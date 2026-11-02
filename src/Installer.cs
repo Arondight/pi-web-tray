@@ -5,8 +5,10 @@
 //   2. Run it streaming in the background: log to install.log, publish the last line/step to the tray
 //   3. Re-probe afterwards; only a verified install counts as success
 //
-// npm 12 blocks dependency install scripts by default (node-pty and friends). We do not touch the
-// user's global npm config; we verify for real instead: file present, version readable, or fail loudly.
+// pi-web and the pi CLI need different script policies: pi-web's postinstall and node-pty's build
+// scripts are required, while the pi CLI is installed with --ignore-scripts as its own docs recommend.
+// npm 12 blocks dependency scripts by default, so the pi-web step opts in with a one-off
+// --allow-scripts allowlist. We never write the user's global npm config.
 
 using System;
 using System.Collections.Generic;
@@ -34,8 +36,21 @@ namespace PiWebTray
         internal TimeSpan Elapsed;
     }
 
+    // One npm invocation: the two packages need different install-script policies.
+    internal sealed class InstallStep
+    {
+        internal List<string> Packages = new List<string>();
+        internal bool IgnoreScripts;
+        internal bool AllowScripts;
+    }
+
     internal static class Installer
     {
+        // pi-web's postinstall prepares the terminal; node-pty's install/postinstall scripts fetch
+        // or build its native addon. Both must be allowed on npm 12. Names are matched by npm
+        // against the resolved dependency identity.
+        internal const string PiWebScriptPackages = "@agegr/pi-web,node-pty";
+
         private static readonly object Sync = new object();
         private static InstallProgress _progress = new InstallProgress();
 
@@ -109,24 +124,152 @@ namespace PiWebTray
         internal static List<string> PackagesToInstall(ProbeResult probe, Config config, bool force)
         {
             List<string> packages = new List<string>();
-            if (force || !probe.PiWebFound) packages.Add(Config.InstallerPackage + "@" + SafeTag(config.InstallTag));
-            if (config.InstallPiCli && (force || !probe.PiCliFound))
-                packages.Add(Config.PiCliPackage + "@" + SafeTag(config.InstallTag));
+            foreach (InstallStep step in StepsToInstall(probe, config, force))
+                packages.AddRange(step.Packages);
             return packages;
         }
 
+        // pi-web and the pi CLI must be installed separately: pi-web needs its lifecycle scripts,
+        // while the pi CLI is documented to be installed with --ignore-scripts. Combining them in
+        // one npm command cannot express that difference.
+        internal static List<InstallStep> StepsToInstall(ProbeResult probe, Config config, bool force)
+        {
+            List<InstallStep> steps = new List<InstallStep>();
+            string tag = SafeTag(config.InstallTag);
+
+            if (force || !probe.PiWebFound)
+            {
+                InstallStep web = new InstallStep();
+                web.Packages.Add(Config.InstallerPackage + "@" + tag);
+                web.AllowScripts = true;
+                steps.Add(web);
+            }
+
+            if (config.InstallPiCli && (force || !probe.PiCliFound))
+            {
+                InstallStep cli = new InstallStep();
+                cli.Packages.Add(Config.PiCliPackage + "@" + tag);
+                cli.IgnoreScripts = true;
+                steps.Add(cli);
+            }
+
+            return steps;
+        }
+
+        // npm 12 introduced the allow-scripts policy; older npm rejects --allow-scripts.
+        internal static int NpmMajor(string version)
+        {
+            if (string.IsNullOrEmpty(version)) return 0;
+            int major = 0;
+            int digits = 0;
+            foreach (char c in version.Trim())
+            {
+                if (c < '0' || c > '9') break;
+                major = major * 10 + (c - '0');
+                digits++;
+            }
+            return digits > 0 ? major : 0;
+        }
+
         // Build the full node + npm-cli.js command line (no cmd.exe, no quoting hell)
-        internal static string BuildArguments(Config config, string npmCliPath, List<string> packages)
+        internal static string BuildArguments(Config config, string npmCliPath, List<string> packages,
+            string npmVersion, bool ignoreScripts, string allowScripts)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append(Shell.Quote(npmCliPath));
             sb.Append(" install -g ").Append(string.Join(" ", packages.ToArray()));
             sb.Append(" --no-fund --no-audit --loglevel=http");
 
+            if (ignoreScripts) sb.Append(" --ignore-scripts");
+            else if (!string.IsNullOrEmpty(allowScripts) && NpmMajor(npmVersion) >= 12)
+                sb.Append(" --allow-scripts ").Append(Shell.Quote(allowScripts));
+
             if (!string.IsNullOrEmpty(config.NpmRegistry))
                 sb.Append(" --registry ").Append(Shell.Quote(config.NpmRegistry));
 
             return sb.ToString();
+        }
+
+        // npm accepts only package names and optional version selectors here. Reject anything
+        // else so a malformed .npmrc value cannot inject extra command-line arguments.
+        private static bool IsSafeAllowScriptEntry(string name)
+        {
+            if (name.Length == 0) return false;
+            foreach (char c in name)
+            {
+                bool ascii = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+                if (ascii) continue;
+                if ("@/._-+^~*=<>|:".IndexOf(c) >= 0) continue;
+                return false;
+            }
+            return true;
+        }
+
+        private static List<string> ParseAllowScripts(string value)
+        {
+            List<string> names = new List<string>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string part in (value ?? "").Split(','))
+            {
+                string name = part.Trim();
+                if (name == "undefined" || name == "null") continue;
+                if (!IsSafeAllowScriptEntry(name)) continue;
+                if (seen.Add(name)) names.Add(name);
+            }
+            return names;
+        }
+
+        // A command-line --allow-scripts value replaces the user's .npmrc allowlist, so keep the
+        // entries the user already approved and add the ones pi-web needs.
+        internal static string MergeAllowScripts(string configured, string required)
+        {
+            List<string> names = ParseAllowScripts(configured);
+            HashSet<string> seen = new HashSet<string>(names, StringComparer.OrdinalIgnoreCase);
+            foreach (string name in ParseAllowScripts(required))
+            {
+                if (seen.Add(name)) names.Add(name);
+            }
+            return string.Join(",", names.ToArray());
+        }
+
+        // Read the effective npm allowlist so a one-off --allow-scripts does not drop packages the
+        // user already approved. Best effort: an unreadable config falls back to our required list.
+        private static string ReadConfiguredAllowScripts(ProbeResult probe, IDictionary<string, string> env,
+            string workingDir)
+        {
+            try
+            {
+                ProcessResult run = ProcessRunner.Run(
+                    probe.NodePath,
+                    Shell.Quote(probe.NpmCliPath) + " config get allow-scripts",
+                    workingDir, 20000, null, env);
+                if (!run.Started || run.ExitCode != 0) return "";
+
+                string[] lines = run.Output.Replace("\r", "").Split('\n');
+                for (int i = lines.Length - 1; i >= 0; i--)
+                {
+                    string line = lines[i].Trim();
+                    if (line.Length == 0) continue;
+                    if (line.StartsWith("npm warn", StringComparison.OrdinalIgnoreCase)
+                        || line.StartsWith("npm error", StringComparison.OrdinalIgnoreCase)
+                        || line.StartsWith("npm notice", StringComparison.OrdinalIgnoreCase)) continue;
+                    return line;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return "";
+        }
+
+        // Best effort list for npm 12: keep the user's approved packages and add pi-web's required
+        // ones. Returns an empty string on older npm, where --allow-scripts does not exist.
+        private static string AllowScriptsFor(List<InstallStep> steps, ProbeResult probe,
+            IDictionary<string, string> env, string workingDir)
+        {
+            if (NpmMajor(probe.NpmVersion) < 12) return "";
+            if (!steps.Exists(delegate (InstallStep step) { return step.AllowScripts; })) return "";
+            return MergeAllowScripts(ReadConfiguredAllowScripts(probe, env, workingDir), PiWebScriptPackages);
         }
 
         // Synchronous install; the caller runs it on a background thread
@@ -136,8 +279,8 @@ namespace PiWebTray
             result.LogPath = config.InstallLogFile;
             DateTime started = DateTime.Now;
 
-            List<string> packages = PackagesToInstall(probe, config, force);
-            if (packages.Count == 0)
+            List<InstallStep> steps = StepsToInstall(probe, config, force);
+            if (steps.Count == 0)
             {
                 result.Success = true;
                 result.Message = L.T("install.none");
@@ -151,14 +294,6 @@ namespace PiWebTray
                 return result;
             }
 
-            string arguments = BuildArguments(config, probe.NpmCliPath, packages);
-
-            AppendLog(config, "==== " + started.ToString("yyyy-MM-dd HH:mm:ss") + " install start ====");
-            AppendLog(config, "node    : " + probe.NodePath + " " + probe.NodeVersion);
-            AppendLog(config, "npm     : " + probe.NpmCliPath + " " + probe.NpmVersion);
-            AppendLog(config, "packages: " + string.Join(", ", packages.ToArray()));
-            AppendLog(config, "command : " + Shell.Quote(probe.NodePath) + " " + arguments);
-
             string nodeDir = Path.GetDirectoryName(probe.NodePath);
             IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
             try
@@ -171,51 +306,80 @@ namespace PiWebTray
             {
             }
 
-            Update(1, 1, L.T("install.stepTitle"), "", TimeSpan.Zero, true);
+            ProcessResult last = null;
+            bool ok = true;
+            int lastStepNo = 0;
+            string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
 
-            ProcessResult run;
-            try
+            for (int i = 0; i < steps.Count; i++)
             {
-                run = ProcessRunner.Run(
-                    probe.NodePath,
-                    arguments,
-                    config.WorkingDir,
-                    45 * 60 * 1000,
-                    delegate (string line)
-                    {
-                        AppendLog(config, line);
-                        Update(1, 1, L.T("install.stepTitle"), line, DateTime.Now - started, true);
-                        if (onLine != null)
+                InstallStep step = steps[i];
+                int stepNo = i + 1;
+                lastStepNo = stepNo;
+                string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
+                    probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
+
+                AppendLog(config, "==== " + started.ToString("yyyy-MM-dd HH:mm:ss") + " install start (step "
+                    + stepNo + "/" + steps.Count + ") ====");
+                AppendLog(config, "node    : " + probe.NodePath + " " + probe.NodeVersion);
+                AppendLog(config, "npm     : " + probe.NpmCliPath + " " + probe.NpmVersion);
+                AppendLog(config, "packages: " + string.Join(", ", step.Packages.ToArray()));
+                AppendLog(config, "command : " + Shell.Quote(probe.NodePath) + " " + arguments);
+                if (step.AllowScripts && allowScripts.Length > 0) AppendLog(config, "scripts : " + allowScripts);
+
+                Update(stepNo, steps.Count, L.T("install.stepTitle"), "", DateTime.Now - started, true);
+
+                ProcessResult run;
+                try
+                {
+                    run = ProcessRunner.Run(
+                        probe.NodePath,
+                        arguments,
+                        config.WorkingDir,
+                        45 * 60 * 1000,
+                        delegate (string line)
                         {
-                            try { onLine(line); } catch (Exception) { }
-                        }
-                    },
-                    env,
-                    delegate (int pid) { SetRunningPid(pid); });
-            }
-            finally
-            {
-                SetRunningPid(0);
-            }
+                            AppendLog(config, line);
+                            Update(stepNo, steps.Count, L.T("install.stepTitle"), line, DateTime.Now - started, true);
+                            if (onLine != null)
+                            {
+                                try { onLine(line); } catch (Exception) { }
+                            }
+                        },
+                        env,
+                        delegate (int pid) { SetRunningPid(pid); });
+                }
+                finally
+                {
+                    SetRunningPid(0);
+                }
 
-            bool ok = run.Started && !run.TimedOut && run.ExitCode == 0;
+                last = run;
 
-            if (run.TimedOut)
-            {
-                AppendLog(config, "==== timed out, aborted ====");
-                result.Success = false;
-                result.Message = L.T("install.timeout");
-                Update(1, 1, L.T("install.timeoutTitle"), "", DateTime.Now - started, false);
-                result.Elapsed = DateTime.Now - started;
-                return result;
+                if (run.TimedOut)
+                {
+                    AppendLog(config, "==== timed out, aborted ====");
+                    result.Success = false;
+                    result.Message = L.T("install.timeout");
+                    Update(stepNo, steps.Count, L.T("install.timeoutTitle"), "", DateTime.Now - started, false);
+                    result.Elapsed = DateTime.Now - started;
+                    return result;
+                }
+
+                AppendLog(config, "==== npm exit code " + run.ExitCode + " ====");
+
+                if (!run.Started || run.ExitCode != 0)
+                {
+                    ok = false;
+                    break;
+                }
             }
-
-            AppendLog(config, "==== npm exit code " + run.ExitCode + " ====");
 
             // Exit code 0 does not prove anything (npm 12 can exit 0 while blocking install scripts), so re-probe
             ProbeResult after = EnvironmentProbe.Detect(config);
-            bool piWebOk = !packages.Contains(Config.InstallerPackage + "@" + SafeTag(config.InstallTag)) || after.PiWebFound;
-            bool piCliOk = !config.InstallPiCli || !packages.Contains(Config.PiCliPackage + "@" + SafeTag(config.InstallTag)) || after.PiCliFound;
+            string tag = SafeTag(config.InstallTag);
+            bool piWebOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.InstallerPackage + "@" + tag); }) || after.PiWebFound;
+            bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + tag); }) || after.PiCliFound;
 
             if (ok && piWebOk && piCliOk)
             {
@@ -225,25 +389,26 @@ namespace PiWebTray
                     ? L.T("install.donePi", after.PiCliVersion.Length > 0 ? after.PiCliVersion : L.T("install.ready"))
                     : "";
                 result.Message = L.T("install.doneBody", piWebVersion, piCliPart);
-                Update(1, 1, L.T("install.okTitle"), "", DateTime.Now - started, false);
+                Update(lastStepNo, steps.Count, L.T("install.okTitle"), "", DateTime.Now - started, false);
             }
             else if (ok && !piWebOk)
             {
                 result.Success = false;
                 result.Message = L.T("install.unverifiedBody", config.InstallLogFile);
-                Update(1, 1, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
+                Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
             }
             else if (ok && !piCliOk)
             {
                 result.Success = false;
                 result.Message = L.T("install.unverifiedPiBody", config.InstallLogFile);
-                Update(1, 1, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
+                Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
             }
             else
             {
                 result.Success = false;
-                result.Message = L.T("install.failedBody", run.ExitCode, config.InstallLogFile);
-                Update(1, 1, L.T("install.failedTitle"), "", DateTime.Now - started, false);
+                int exitCode = last != null && last.Started ? last.ExitCode : -1;
+                result.Message = L.T("install.failedBody", exitCode, config.InstallLogFile);
+                Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
             }
 
             result.Elapsed = DateTime.Now - started;
@@ -283,8 +448,8 @@ namespace PiWebTray
             ConsoleHost.WriteLine(L.T("install.envHeader"));
             ConsoleHost.WriteLine(probe.Summary());
 
-            List<string> packages = PackagesToInstall(probe, config, false);
-            if (packages.Count == 0)
+            List<InstallStep> steps = StepsToInstall(probe, config, false);
+            if (steps.Count == 0)
             {
                 ConsoleHost.WriteLine(L.T("install.none"));
                 return 0;
@@ -297,9 +462,15 @@ namespace PiWebTray
                 return 2;
             }
 
-            string arguments = BuildArguments(config, probe.NpmCliPath, packages);
             ConsoleHost.WriteLine(L.T("install.willRun"));
-            ConsoleHost.WriteLine("  " + Shell.Quote(probe.NodePath) + " " + arguments);
+            IDictionary<string, string> env = ProcessRunner.WithPathPrefix(Path.GetDirectoryName(probe.NodePath));
+            string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
+            foreach (InstallStep step in steps)
+            {
+                string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
+                    probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
+                ConsoleHost.WriteLine("  " + Shell.Quote(probe.NodePath) + " " + arguments);
+            }
 
             if (dryRun)
             {

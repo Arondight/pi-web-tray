@@ -1105,43 +1105,31 @@ namespace PiWebTray
             }
         }
 
-        // Returns false when the file is locked and cannot be rewritten
-        private bool EnsureUtf8Bom(string path)
-        {
-            try
-            {
-                if (!File.Exists(path)) return true;
-                byte[] bytes = File.ReadAllBytes(path);
-                if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return true;
-                byte[] withBom = new byte[bytes.Length + 3];
-                withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
-                Buffer.BlockCopy(bytes, 0, withBom, 3, bytes.Length);
-                File.WriteAllBytes(path, withBom);
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
+        // cmd's ">>" keeps the log open for writing. File.ReadAllBytes opens with
+        // FileShare.Read, which conflicts with that writer, so it fails with a sharing
+        // violation. File.Copy uses share-all and can snapshot the live file; open the
+        // snapshot in Notepad instead of the log the service is still writing.
         private void OpenLog(string path, string name)
         {
             try
             {
                 if (!File.Exists(path)) File.WriteAllText(path, "");
 
-                string target = path;
-                if (!EnsureUtf8Bom(path))
+                string target = Path.Combine(Path.GetTempPath(), "pi-web-tray-" + name);
+                try
                 {
-                    // The file is locked (service or install still writing), so write a BOM-prefixed snapshot instead
-                    byte[] bytes = File.ReadAllBytes(path);
-                    byte[] withBom = new byte[bytes.Length + 3];
-                    withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
-                    Buffer.BlockCopy(bytes, 0, withBom, 3, bytes.Length);
-                    target = Path.Combine(Path.GetTempPath(), name);
-                    File.WriteAllBytes(target, withBom);
+                    File.Copy(path, target, true);
                 }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    // A previous snapshot is still open in Notepad: use a fresh name instead.
+                    string stem = Path.GetFileNameWithoutExtension(name);
+                    string extension = Path.GetExtension(name);
+                    target = Path.Combine(Path.GetTempPath(), "pi-web-tray-" + stem + "-"
+                        + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + extension);
+                    File.Copy(path, target, true);
+                }
+                AddUtf8Bom(target);
 
                 using (Process notepad = Process.Start("notepad.exe", Shell.Quote(target)))
                 {
@@ -1151,6 +1139,16 @@ namespace PiWebTray
             {
                 NotifyError(L.T("notify.openLogFailed"), ex.Message);
             }
+        }
+
+        private static void AddUtf8Bom(string path)
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return;
+            byte[] withBom = new byte[bytes.Length + 3];
+            withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
+            Buffer.BlockCopy(bytes, 0, withBom, 3, bytes.Length);
+            File.WriteAllBytes(path, withBom);
         }
 
         // ---------------- autostart ----------------
