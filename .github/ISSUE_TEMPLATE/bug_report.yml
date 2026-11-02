@@ -1,0 +1,98 @@
+name: Bug report
+description: Report a reproducible problem with Pi Web Tray
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please attach the diagnostics output and the
+        relevant log tail. Redact user names, paths and tokens before posting.
+
+  - type: input
+    id: version
+    attributes:
+      label: Pi Web Tray version
+      description: Output of `pi-web-tray.exe --version`
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: windows
+    attributes:
+      label: Windows version
+      options:
+        - Windows 11
+        - Windows 10 22H2
+        - Windows 10 1809-21H2
+        - Windows 8.1
+        - Windows 7 SP1
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: dotnet
+    attributes:
+      label: .NET Framework version
+      description: From `HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full` (Version / Release)
+      placeholder: "4.8.03761 / 528049"
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node.js / npm / pi-web versions
+      description: Output of `node --version`, `npm --version`, and the pi-web version
+      placeholder: "v22.19.0 / 10.x / 0.x"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you click or run, in what order?
+      placeholder: |
+        1. Start ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: diag
+    attributes:
+      label: Diagnostics
+      description: Paste `pi-web-tray.exe --diag` output and/or the relevant part of server.log / install.log
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have redacted personal paths, user names and credentials.
+          required: true
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

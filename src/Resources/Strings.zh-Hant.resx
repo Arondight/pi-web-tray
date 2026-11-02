@@ -1,0 +1,657 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="status.checking" xml:space="preserve">
+    <value>檢查執行環境…</value>
+  </data>
+  <data name="status.needsNode" xml:space="preserve">
+    <value>需要安裝 Node.js</value>
+  </data>
+  <data name="status.needsDeps" xml:space="preserve">
+    <value>需要安裝 pi-web</value>
+  </data>
+  <data name="status.installing" xml:space="preserve">
+    <value>安裝中… {0}</value>
+  </data>
+  <data name="status.installingWith" xml:space="preserve">
+    <value>安裝中 {0} · {1}</value>
+  </data>
+  <data name="status.starting" xml:space="preserve">
+    <value>啟動中… {0}</value>
+  </data>
+  <data name="status.running" xml:space="preserve">
+    <value>執行中 · 127.0.0.1:{0}</value>
+  </data>
+  <data name="status.stopping" xml:space="preserve">
+    <value>停止中… {0}</value>
+  </data>
+  <data name="status.failed" xml:space="preserve">
+    <value>錯誤 · 檢視記錄檔</value>
+  </data>
+  <data name="status.stopped" xml:space="preserve">
+    <value>已停止 · 選擇圖示以啟動</value>
+  </data>
+  <data name="status.admin" xml:space="preserve">
+    <value>（系統管理員）</value>
+  </data>
+  <data name="status.adminLong" xml:space="preserve">
+    <value> · 系統管理員模式</value>
+  </data>
+  <data name="status.checkingShort" xml:space="preserve">
+    <value>（檢查中）</value>
+  </data>
+  <data name="status.tooltip" xml:space="preserve">
+    <value>Pi Web — {0}</value>
+  </data>
+  <data name="status.bulletOn" xml:space="preserve">
+    <value>● </value>
+  </data>
+  <data name="status.bulletOff" xml:space="preserve">
+    <value>○ </value>
+  </data>
+  <data name="menu.open" xml:space="preserve">
+    <value>開啟 Pi Web</value>
+  </data>
+  <data name="menu.startAndOpen" xml:space="preserve">
+    <value>啟動並開啟 Pi Web</value>
+  </data>
+  <data name="menu.setupFirst" xml:space="preserve">
+    <value>請先安裝執行環境</value>
+  </data>
+  <data name="menu.start" xml:space="preserve">
+    <value>啟動服務</value>
+  </data>
+  <data name="menu.stop" xml:space="preserve">
+    <value>停止服務</value>
+  </data>
+  <data name="menu.restart" xml:space="preserve">
+    <value>重新啟動服務</value>
+  </data>
+  <data name="menu.installDeps" xml:space="preserve">
+    <value>安裝 / 更新相依性</value>
+  </data>
+  <data name="menu.installAuto" xml:space="preserve">
+    <value>自動安裝 pi-web</value>
+  </data>
+  <data name="menu.node" xml:space="preserve">
+    <value>下載 Node.js…</value>
+  </data>
+  <data name="menu.selfCheck" xml:space="preserve">
+    <value>環境檢查</value>
+  </data>
+  <data name="menu.serverLog" xml:space="preserve">
+    <value>檢視服務記錄檔</value>
+  </data>
+  <data name="menu.installLog" xml:space="preserve">
+    <value>檢視安裝記錄檔</value>
+  </data>
+  <data name="menu.folder" xml:space="preserve">
+    <value>開啟安裝資料夾</value>
+  </data>
+  <data name="menu.shortcut" xml:space="preserve">
+    <value>建立桌面捷徑</value>
+  </data>
+  <data name="menu.autostart" xml:space="preserve">
+    <value>開機自動啟動：{0}</value>
+  </data>
+  <data name="menu.autostartBusy" xml:space="preserve">
+    <value>開機自動啟動：更新中…</value>
+  </data>
+  <data name="menu.adminAutostart" xml:space="preserve">
+    <value>自動啟動時使用系統管理員權限：{0}</value>
+  </data>
+  <data name="menu.exit" xml:space="preserve">
+    <value>結束（並停止 pi-web）</value>
+  </data>
+  <data name="bool.yes" xml:space="preserve">
+    <value>是</value>
+  </data>
+  <data name="bool.no" xml:space="preserve">
+    <value>否</value>
+  </data>
+  <data name="bool.on" xml:space="preserve">
+    <value>滿足</value>
+  </data>
+  <data name="bool.off" xml:space="preserve">
+    <value>不滿足</value>
+  </data>
+  <data name="auto.onAdmin" xml:space="preserve">
+    <value>已啟用（系統管理員權限，登入時無 UAC 提示）</value>
+  </data>
+  <data name="auto.onUser" xml:space="preserve">
+    <value>已啟用（標準使用者權限）</value>
+  </data>
+  <data name="auto.off" xml:space="preserve">
+    <value>已停用</value>
+  </data>
+  <data name="auto.enabledAdmin" xml:space="preserve">
+    <value>已啟用。登入後將自動以系統管理員權限執行，不顯示 UAC 提示。</value>
+  </data>
+  <data name="auto.enabledUser" xml:space="preserve">
+    <value>已啟用。登入後將自動顯示系統匣圖示（標準使用者權限）。</value>
+  </data>
+  <data name="auto.taskFailed" xml:space="preserve">
+    <value>無法建立排程工作（可能取消了 UAC 授權）。</value>
+  </data>
+  <data name="auto.disabled" xml:space="preserve">
+    <value>已停用。下次登入時不會自動啟動。</value>
+  </data>
+  <data name="auto.taskDeleteFailed" xml:space="preserve">
+    <value>無法刪除排程工作（可能取消了 UAC 授權），自動啟動可能仍然有效。</value>
+  </data>
+  <data name="auto.oldTaskFailed" xml:space="preserve">
+    <value>無法刪除先前的排程工作（可能取消了 UAC 授權），為避免重複啟動已中止操作。</value>
+  </data>
+  <data name="auto.runKeyFailed" xml:space="preserve">
+    <value>無法寫入 Run 登錄值。</value>
+  </data>
+  <data name="auto.failed" xml:space="preserve">
+    <value>無法更新開機自動啟動設定。</value>
+  </data>
+  <data name="probe.notInstalled" xml:space="preserve">
+    <value>（未安裝）</value>
+  </data>
+  <data name="probe.notFound" xml:space="preserve">
+    <value>（未找到）</value>
+  </data>
+  <data name="probe.unknown" xml:space="preserve">
+    <value>（未知）</value>
+  </data>
+  <data name="probe.node" xml:space="preserve">
+    <value>Node.js</value>
+  </data>
+  <data name="probe.npm" xml:space="preserve">
+    <value>npm</value>
+  </data>
+  <data name="probe.npmGlobal" xml:space="preserve">
+    <value>npm 全域目錄</value>
+  </data>
+  <data name="probe.piweb" xml:space="preserve">
+    <value>pi-web</value>
+  </data>
+  <data name="probe.picli" xml:space="preserve">
+    <value>pi 命令列</value>
+  </data>
+  <data name="probe.requirement" xml:space="preserve">
+    <value>要求 {0} 或更高：{1}</value>
+  </data>
+  <data name="probe.verdict" xml:space="preserve">
+    <value>結論</value>
+  </data>
+  <data name="probe.ready" xml:space="preserve">
+    <value>可以啟動 pi-web</value>
+  </data>
+  <data name="probe.needPiweb" xml:space="preserve">
+    <value>pi-web 尚未安裝</value>
+  </data>
+  <data name="probe.note" xml:space="preserve">
+    <value>注意</value>
+  </data>
+  <data name="probe.issue.noNode" xml:space="preserve">
+    <value>未找到 Node.js</value>
+  </data>
+  <data name="probe.issue.oldNode" xml:space="preserve">
+    <value>Node.js 版本過低（{0}），需要 {1} 或更高</value>
+  </data>
+  <data name="probe.issue.nodeBroken" xml:space="preserve">
+    <value>已找到 Node.js（{0}），但無法執行</value>
+  </data>
+  <data name="probe.issue.noNpm" xml:space="preserve">
+    <value>未找到 npm。請重新安裝 Node.js。</value>
+  </data>
+  <data name="probe.forced.noNode" xml:space="preserve">
+    <value>已使用 PI_WEB_TRAY_NO_NODE 模擬未安裝 Node.js</value>
+  </data>
+  <data name="install.none" xml:space="preserve">
+    <value>相依性已安裝，無需再次安裝。</value>
+  </data>
+  <data name="install.startTitle" xml:space="preserve">
+    <value>開始安裝相依性</value>
+  </data>
+  <data name="install.startBody" xml:space="preserve">
+    <value>正在安裝 {0}。首次安裝通常需要 10~20 分鐘，完成後將顯示通知。</value>
+  </data>
+  <data name="install.doneTitle" xml:space="preserve">
+    <value>安裝完成</value>
+  </data>
+  <data name="install.failedTitle" xml:space="preserve">
+    <value>安裝失敗</value>
+  </data>
+  <data name="install.stepTitle" xml:space="preserve">
+    <value>正在安裝相依性</value>
+  </data>
+  <data name="install.timeoutTitle" xml:space="preserve">
+    <value>安裝逾時</value>
+  </data>
+  <data name="install.okTitle" xml:space="preserve">
+    <value>安裝完成</value>
+  </data>
+  <data name="install.unverifiedTitle" xml:space="preserve">
+    <value>安裝未生效</value>
+  </data>
+  <data name="install.timeout" xml:space="preserve">
+    <value>安裝逾時（45 分鐘）。請檢查網路連線後重試。</value>
+  </data>
+  <data name="install.doneBody" xml:space="preserve">
+    <value>安裝完成：pi-web {0}{1}</value>
+  </data>
+  <data name="install.donePi" xml:space="preserve">
+    <value>，pi {0}</value>
+  </data>
+  <data name="install.ready" xml:space="preserve">
+    <value>已就緒</value>
+  </data>
+  <data name="install.unverifiedBody" xml:space="preserve">
+    <value>npm 報告成功，但未找到 pi-web。請檢查權限或全域 npm 目錄。記錄檔：{0}</value>
+  </data>
+  <data name="install.unverifiedPiBody" xml:space="preserve">
+    <value>npm 報告成功，但未找到 pi 命令列。請檢查全域 npm 目錄。記錄檔：{0}</value>
+  </data>
+  <data name="install.failedBody" xml:space="preserve">
+    <value>安裝失敗（npm 結束代碼 {0}）。記錄檔：{1}</value>
+  </data>
+  <data name="install.crashBody" xml:space="preserve">
+    <value>安裝過程中發生錯誤：{0}</value>
+  </data>
+  <data name="install.cannot" xml:space="preserve">
+    <value>無法安裝：{0}</value>
+  </data>
+  <data name="install.installNode" xml:space="preserve">
+    <value>請先安裝 Node.js {0} 或更高版本：https://nodejs.org/</value>
+  </data>
+  <data name="install.willRun" xml:space="preserve">
+    <value>將執行指令：</value>
+  </data>
+  <data name="install.dryRun" xml:space="preserve">
+    <value>（--dry-run：僅列印命令，不執行安裝）</value>
+  </data>
+  <data name="install.donePrefix" xml:space="preserve">
+    <value>[完成] </value>
+  </data>
+  <data name="install.failedPrefix" xml:space="preserve">
+    <value>[失敗] </value>
+  </data>
+  <data name="install.envHeader" xml:space="preserve">
+    <value>環境資訊：</value>
+  </data>
+  <data name="notify.readyTitle" xml:space="preserve">
+    <value>Pi Web 已就緒</value>
+  </data>
+  <data name="notify.startFailedTitle" xml:space="preserve">
+    <value>Pi Web 啟動失敗</value>
+  </data>
+  <data name="notify.startFailedExited" xml:space="preserve">
+    <value>處理程序已結束。</value>
+  </data>
+  <data name="notify.startFailedTimeout" xml:space="preserve">
+    <value>連接埠 {0} 在逾時時間內無回應。</value>
+  </data>
+  <data name="notify.startFailedBody" xml:space="preserve">
+    <value>{0}。請從系統匣功能表檢視服務記錄檔。</value>
+  </data>
+  <data name="notify.stopFailedTitle" xml:space="preserve">
+    <value>停止服務失敗</value>
+  </data>
+  <data name="notify.stopFailedBody" xml:space="preserve">
+    <value>連接埠 {0} 仍被佔用（可能是由更高權限啟動的服務）。</value>
+  </data>
+  <data name="notify.noBrowser" xml:space="preserve">
+    <value>無法開啟瀏覽器</value>
+  </data>
+  <data name="notify.noLink" xml:space="preserve">
+    <value>無法開啟連結</value>
+  </data>
+  <data name="notify.noPiwebTitle" xml:space="preserve">
+    <value>未找到 pi-web</value>
+  </data>
+  <data name="notify.noPiwebBody" xml:space="preserve">
+    <value>請從系統匣功能表選擇「安裝 / 更新相依性」。</value>
+  </data>
+  <data name="notify.cannotStart" xml:space="preserve">
+    <value>無法啟動 Pi Web</value>
+  </data>
+  <data name="notify.installBusyTitle" xml:space="preserve">
+    <value>安裝進行中</value>
+  </data>
+  <data name="exit.installingTitle" xml:space="preserve">
+    <value>安裝進行中</value>
+  </data>
+  <data name="exit.installingBody" xml:space="preserve">
+    <value>npm 仍在安裝相依性。現在結束將中斷安裝，可能導致 pi-web 處於未完成狀態。
+
+仍要結束嗎？</value>
+  </data>
+  <data name="notify.installBusyBody" xml:space="preserve">
+    <value>請等待安裝完成後再停止服務。</value>
+  </data>
+  <data name="notify.autostartTitle" xml:space="preserve">
+    <value>開機自動啟動</value>
+  </data>
+  <data name="notify.autostartFailed" xml:space="preserve">
+    <value>開機自動啟動：設定失敗</value>
+  </data>
+  <data name="notify.shortcutCreated" xml:space="preserve">
+    <value>已建立桌面捷徑</value>
+  </data>
+  <data name="notify.createFailed" xml:space="preserve">
+    <value>建立失敗</value>
+  </data>
+  <data name="notify.noShell" xml:space="preserve">
+    <value>系統中未找到 WScript.Shell。</value>
+  </data>
+  <data name="notify.openLogFailed" xml:space="preserve">
+    <value>無法開啟記錄檔</value>
+  </data>
+  <data name="notify.needsNodeTitle" xml:space="preserve">
+    <value>需要 Node.js {0} 或更高</value>
+  </data>
+  <data name="notify.needsNodeBody" xml:space="preserve">
+    <value>{0}。安裝完成後選擇系統匣圖示以繼續。</value>
+  </data>
+  <data name="notify.needsPiwebTitle" xml:space="preserve">
+    <value>pi-web 尚未安裝</value>
+  </data>
+  <data name="notify.needsPiwebBody" xml:space="preserve">
+    <value>請從系統匣功能表選擇「安裝 / 更新相依性」，系統將自動安裝。</value>
+  </data>
+  <data name="notify.noNodeInstallTitle" xml:space="preserve">
+    <value>無法安裝：缺少 Node.js</value>
+  </data>
+  <data name="notify.noNodeInstallBody" xml:space="preserve">
+    <value>{0}。請先安裝 Node.js，然後重試。</value>
+  </data>
+  <data name="notify.envCheckFailed" xml:space="preserve">
+    <value>環境檢查失敗</value>
+  </data>
+  <data name="notify.envCheckFailedBody" xml:space="preserve">
+    <value>無法讀取 Node.js / npm 資訊。請參閱 install.log。</value>
+  </data>
+  <data name="notify.selfCheckError" xml:space="preserve">
+    <value>環境檢查錯誤：{0}</value>
+  </data>
+  <data name="sc.title" xml:space="preserve">
+    <value>Pi Web 環境檢查</value>
+  </data>
+  <data name="check.component" xml:space="preserve">
+    <value>元件</value>
+  </data>
+  <data name="check.version" xml:space="preserve">
+    <value>版本</value>
+  </data>
+  <data name="check.path" xml:space="preserve">
+    <value>路徑</value>
+  </data>
+  <data name="check.status" xml:space="preserve">
+    <value>狀態</value>
+  </data>
+  <data name="check.ok" xml:space="preserve">
+    <value>正常</value>
+  </data>
+  <data name="check.missing" xml:space="preserve">
+    <value>缺少</value>
+  </data>
+  <data name="check.cannotRun" xml:space="preserve">
+    <value>無法執行</value>
+  </data>
+  <data name="check.tooOld" xml:space="preserve">
+    <value>版本過低</value>
+  </data>
+  <data name="check.optional" xml:space="preserve">
+    <value>選用</value>
+  </data>
+  <data name="check.ready" xml:space="preserve">
+    <value>執行環境完整</value>
+  </data>
+  <data name="check.notReady" xml:space="preserve">
+    <value>執行環境不完整</value>
+  </data>
+  <data name="check.copy" xml:space="preserve">
+    <value>複製</value>
+  </data>
+  <data name="check.close" xml:space="preserve">
+    <value>關閉</value>
+  </data>
+  <data name="check.copied" xml:space="preserve">
+    <value>已複製到剪貼簿。</value>
+  </data>
+  <data name="sc.config" xml:space="preserve">
+    <value>設定檔</value>
+  </data>
+  <data name="sc.dataDir" xml:space="preserve">
+    <value>資料目錄</value>
+  </data>
+  <data name="sc.port" xml:space="preserve">
+    <value>連接埠 {0}（接聽中={1}）</value>
+  </data>
+  <data name="sc.workDir" xml:space="preserve">
+    <value>工作目錄</value>
+  </data>
+  <data name="sc.admin" xml:space="preserve">
+    <value>系統管理員權限</value>
+  </data>
+  <data name="sc.serverLog" xml:space="preserve">
+    <value>服務記錄檔</value>
+  </data>
+  <data name="sc.installLog" xml:space="preserve">
+    <value>安裝記錄檔</value>
+  </data>
+  <data name="sc.language" xml:space="preserve">
+    <value>介面語言</value>
+  </data>
+  <data name="diag.title" xml:space="preserve">
+    <value>Pi Web Tray 診斷</value>
+  </data>
+  <data name="diag.time" xml:space="preserve">
+    <value>時間</value>
+  </data>
+  <data name="diag.exe" xml:space="preserve">
+    <value>exe</value>
+  </data>
+  <data name="diag.instance" xml:space="preserve">
+    <value>執行個體後綴</value>
+  </data>
+  <data name="diag.none" xml:space="preserve">
+    <value>（無）</value>
+  </data>
+  <data name="diag.runtimeSection" xml:space="preserve">
+    <value>---- 執行環境 ----</value>
+  </data>
+  <data name="diag.autostartSection" xml:space="preserve">
+    <value>---- 自動啟動 ----</value>
+  </data>
+  <data name="diag.task" xml:space="preserve">
+    <value>排程工作</value>
+  </data>
+  <data name="diag.runKey" xml:space="preserve">
+    <value>Run 登錄值</value>
+  </data>
+  <data name="diag.exists" xml:space="preserve">
+    <value>存在</value>
+  </data>
+  <data name="diag.absent" xml:space="preserve">
+    <value>不存在</value>
+  </data>
+  <data name="diag.menuAutostart" xml:space="preserve">
+    <value>功能表文字 1</value>
+  </data>
+  <data name="diag.menuAdmin" xml:space="preserve">
+    <value>功能表文字 2</value>
+  </data>
+  <data name="diag.stateFile" xml:space="preserve">
+    <value>狀態檔案</value>
+  </data>
+  <data name="diag.mutex" xml:space="preserve">
+    <value>互斥鎖</value>
+  </data>
+  <data name="diag.mutexFree" xml:space="preserve">
+    <value>閒置（無系統匣執行中）</value>
+  </data>
+  <data name="diag.mutexAdmin" xml:space="preserve">
+    <value>由具備系統管理員權限的執行個體佔用</value>
+  </data>
+  <data name="diag.mutexOther" xml:space="preserve">
+    <value>由其他系統匣執行個體佔用</value>
+  </data>
+  <data name="diag.probeFailed" xml:space="preserve">
+    <value>環境偵測失敗：{0}</value>
+  </data>
+  <data name="prog.adminAlreadyTitle" xml:space="preserve">
+    <value>pi-web 正在以系統管理員權限執行</value>
+  </data>
+  <data name="prog.adminAlreadyBody" xml:space="preserve">
+    <value>系統匣程式目前以系統管理員權限執行。
+
+要啟動服務，請使用通知區域圖示功能表，或以滑鼠右鍵按一下桌面捷徑並選擇「以系統管理員身分執行」。</value>
+  </data>
+  <data name="prog.takeoverTitle" xml:space="preserve">
+    <value>提權接管失敗</value>
+  </data>
+  <data name="prog.takeoverBody" xml:space="preserve">
+    <value>先前的系統匣執行個體未結束。
+請先從系統匣功能表選擇「結束（並停止 pi-web）」，然後重試。</value>
+  </data>
+  <data name="prog.crashBody" xml:space="preserve">
+    <value>Pi Web Tray 發生錯誤，詳細資訊已寫入 crash.log：
+
+{0}</value>
+  </data>
+  <data name="prog.unknownArg" xml:space="preserve">
+    <value>未知的命令列參數：{0}
+
+使用 --help 檢視支援的選項。</value>
+  </data>
+  <data name="prog.dryRunOnly" xml:space="preserve">
+    <value>--dry-run 只能和 --install 一起使用。</value>
+  </data>
+  <data name="help.title" xml:space="preserve">
+    <value>用法：</value>
+  </data>
+  <data name="help.args" xml:space="preserve">
+    <value>exe</value>
+  </data>
+  <data name="help.launch" xml:space="preserve">
+    <value>啟動 pi-web，安裝缺少的相依性，並開啟瀏覽器。</value>
+  </data>
+  <data name="help.autostart" xml:space="preserve">
+    <value>由開機自動啟動使用；僅啟動系統匣，不啟動服務。</value>
+  </data>
+  <data name="help.stop" xml:space="preserve">
+    <value>請求目前系統匣停止服務；系統匣繼續執行。</value>
+  </data>
+  <data name="help.quit" xml:space="preserve">
+    <value>停止服務並結束系統匣。</value>
+  </data>
+  <data name="help.check" xml:space="preserve">
+    <value>檢查執行環境（結束代碼 0 = 就緒，1 = 缺少元件）。</value>
+  </data>
+  <data name="help.install" xml:space="preserve">
+    <value>僅安裝相依性，不啟動系統匣。</value>
+  </data>
+  <data name="help.dryrun" xml:space="preserve">
+    <value>與 --install 配合使用：僅列印 npm 指令。</value>
+  </data>
+  <data name="help.diag" xml:space="preserve">
+    <value>將診斷快照寫入 diag.txt。</value>
+  </data>
+  <data name="help.makeico" xml:space="preserve">
+    <value>產生 pi-web-tray.ico（建置工具）。</value>
+  </data>
+  <data name="help.version" xml:space="preserve">
+    <value>顯示版本。</value>
+  </data>
+  <data name="help.langcheck" xml:space="preserve">
+    <value>檢查所有介面文案在各支援語言中的完整性。</value>
+  </data>
+  <data name="help.envTitle" xml:space="preserve">
+    <value>環境變數：</value>
+  </data>
+  <data name="help.envInstance" xml:space="preserve">
+    <value>使用獨立的互斥鎖、訊號、設定和資料目錄。</value>
+  </data>
+  <data name="help.envPort" xml:space="preserve">
+    <value>暫時覆寫連接埠，無需修改 ini。</value>
+  </data>
+  <data name="help.envHome" xml:space="preserve">
+    <value>覆寫資料目錄。</value>
+  </data>
+  <data name="help.envLang" xml:space="preserve">
+    <value>介面語言：auto / en / zh / zh-Hant。</value>
+  </data>
+  <data name="help.envTest" xml:space="preserve">
+    <value>測試用模擬：模擬未安裝 Node.js、pi-web 或 pi。</value>
+  </data>
+  <data name="langcheck.ok" xml:space="preserve">
+    <value>{0} 條文案，{1} 種語言，全部完整。</value>
+  </data>
+  <data name="langcheck.fail" xml:space="preserve">
+    <value>不完整的行：{0}</value>
+  </data>
+  <data name="time.seconds" xml:space="preserve">
+    <value>{0} 秒</value>
+  </data>
+  <data name="time.minutes" xml:space="preserve">
+    <value>{0} 分 {1} 秒</value>
+  </data>
+  <data name="ini.title" xml:space="preserve">
+    <value>; Pi Web 系統匣啟動器設定</value>
+  </data>
+  <data name="ini.subtitle" xml:space="preserve">
+    <value>; 修改後需重新啟動系統匣程式</value>
+  </data>
+  <data name="ini.portC" xml:space="preserve">
+    <value>; pi-web 連接埠，預設 30141</value>
+  </data>
+  <data name="ini.workdirC" xml:space="preserve">
+    <value>; 服務工作目錄（pi 的預設專案目錄）</value>
+  </data>
+  <data name="ini.autoInstallC" xml:space="preserve">
+    <value>; 缺少 pi-web 時自動安裝（首次約需 10~20 分鐘）</value>
+  </data>
+  <data name="ini.piCliC" xml:space="preserve">
+    <value>; 同時安裝 pi 命令列（終端機中的 pi，與 pi-web 共用設定）</value>
+  </data>
+  <data name="ini.tagC" xml:space="preserve">
+    <value>; 安裝的 npm 版本標籤，可改成具體版本號</value>
+  </data>
+  <data name="ini.registryC" xml:space="preserve">
+    <value>; 自訂 npm 來源，留空使用 npm 預設值（例如 https://registry.npmmirror.com）</value>
+  </data>
+  <data name="ini.lookupC" xml:space="preserve">
+    <value>; 以下兩項留空時將自動偵測，通常無需修改</value>
+  </data>
+  <data name="ini.autostartC" xml:space="preserve">
+    <value>; 開機自動啟動是否使用系統管理員權限（由系統匣功能表維護）</value>
+  </data>
+  <data name="ini.langC" xml:space="preserve">
+    <value>; 介面語言：auto（跟隨 Windows）/ en / zh / zh-Hant</value>
+  </data>
+  <data name="check.runtime" xml:space="preserve">
+    <value>執行元件</value>
+  </data>
+  <data name="check.software" xml:space="preserve">
+    <value>應用程式資訊</value>
+  </data>
+  <data name="check.item" xml:space="preserve">
+    <value>項目</value>
+  </data>
+  <data name="check.value" xml:space="preserve">
+    <value>值</value>
+  </data>
+  <data name="check.port" xml:space="preserve">
+    <value>連接埠</value>
+  </data>
+  <data name="check.listening" xml:space="preserve">
+    <value>{0}（接聽中={1}）</value>
+  </data>
+</root>

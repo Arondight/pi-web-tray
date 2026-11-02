@@ -1,0 +1,24 @@
+# Build output and generated files
+bin/
+obj/
+artifacts/
+src/bin/
+src/obj/
+tests/**/bin/
+tests/**/obj/
+assets/
+node_modules/
+
+# Source and binary files are formatted by their own tools
+*.cs
+*.csproj
+*.sln
+*.resx
+*.config
+*.manifest
+*.ini
+*.cmd
+*.ps1
+*.ico
+*.exe
+LICENSE
