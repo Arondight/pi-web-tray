@@ -1,0 +1,59 @@
+name: Feature request
+description: Suggest an improvement for Pi Web Tray
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Pi Web Tray deliberately stays small and dependency-free. Please explain the
+        problem first and keep Windows 7 SP1 compatibility in mind.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is hard or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the tray do instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Area
+      options:
+        - Tray UI / menu
+        - Installation / environment detection
+        - Service lifecycle
+        - Start at login
+        - Diagnostics / logs
+        - Documentation
+        - Build / release
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: I understand the project targets .NET Framework 4.8 and Windows 7 SP1+.
+          required: true

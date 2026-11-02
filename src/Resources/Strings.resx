@@ -1,0 +1,657 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="status.checking" xml:space="preserve">
+    <value>Checking environment…</value>
+  </data>
+  <data name="status.needsNode" xml:space="preserve">
+    <value>Node.js required</value>
+  </data>
+  <data name="status.needsDeps" xml:space="preserve">
+    <value>pi-web not installed</value>
+  </data>
+  <data name="status.installing" xml:space="preserve">
+    <value>Installing… {0}</value>
+  </data>
+  <data name="status.installingWith" xml:space="preserve">
+    <value>Installing {0} · {1}</value>
+  </data>
+  <data name="status.starting" xml:space="preserve">
+    <value>Starting… port {0}</value>
+  </data>
+  <data name="status.running" xml:space="preserve">
+    <value>Running · 127.0.0.1:{0}</value>
+  </data>
+  <data name="status.stopping" xml:space="preserve">
+    <value>Stopping… port {0}</value>
+  </data>
+  <data name="status.failed" xml:space="preserve">
+    <value>Error · view log</value>
+  </data>
+  <data name="status.stopped" xml:space="preserve">
+    <value>Stopped · select to start</value>
+  </data>
+  <data name="status.admin" xml:space="preserve">
+    <value> (administrator)</value>
+  </data>
+  <data name="status.adminLong" xml:space="preserve">
+    <value> · administrator mode</value>
+  </data>
+  <data name="status.checkingShort" xml:space="preserve">
+    <value>(checking)</value>
+  </data>
+  <data name="status.tooltip" xml:space="preserve">
+    <value>Pi Web — {0}</value>
+  </data>
+  <data name="status.bulletOn" xml:space="preserve">
+    <value>● </value>
+  </data>
+  <data name="status.bulletOff" xml:space="preserve">
+    <value>○ </value>
+  </data>
+  <data name="menu.open" xml:space="preserve">
+    <value>Open Pi Web</value>
+  </data>
+  <data name="menu.startAndOpen" xml:space="preserve">
+    <value>Start and open Pi Web</value>
+  </data>
+  <data name="menu.setupFirst" xml:space="preserve">
+    <value>Install prerequisites first</value>
+  </data>
+  <data name="menu.start" xml:space="preserve">
+    <value>Start service</value>
+  </data>
+  <data name="menu.stop" xml:space="preserve">
+    <value>Stop service</value>
+  </data>
+  <data name="menu.restart" xml:space="preserve">
+    <value>Restart service</value>
+  </data>
+  <data name="menu.installDeps" xml:space="preserve">
+    <value>Install / update dependencies</value>
+  </data>
+  <data name="menu.installAuto" xml:space="preserve">
+    <value>Install pi-web automatically</value>
+  </data>
+  <data name="menu.node" xml:space="preserve">
+    <value>Download Node.js…</value>
+  </data>
+  <data name="menu.selfCheck" xml:space="preserve">
+    <value>Environment check</value>
+  </data>
+  <data name="menu.serverLog" xml:space="preserve">
+    <value>View service log</value>
+  </data>
+  <data name="menu.installLog" xml:space="preserve">
+    <value>View install log</value>
+  </data>
+  <data name="menu.folder" xml:space="preserve">
+    <value>Open install folder</value>
+  </data>
+  <data name="menu.shortcut" xml:space="preserve">
+    <value>Create desktop shortcut</value>
+  </data>
+  <data name="menu.autostart" xml:space="preserve">
+    <value>Start at login: {0}</value>
+  </data>
+  <data name="menu.autostartBusy" xml:space="preserve">
+    <value>Start at login: updating…</value>
+  </data>
+  <data name="menu.adminAutostart" xml:space="preserve">
+    <value>Start at login as administrator: {0}</value>
+  </data>
+  <data name="menu.exit" xml:space="preserve">
+    <value>Exit (stop pi-web)</value>
+  </data>
+  <data name="bool.yes" xml:space="preserve">
+    <value>yes</value>
+  </data>
+  <data name="bool.no" xml:space="preserve">
+    <value>no</value>
+  </data>
+  <data name="bool.on" xml:space="preserve">
+    <value>on</value>
+  </data>
+  <data name="bool.off" xml:space="preserve">
+    <value>off</value>
+  </data>
+  <data name="auto.onAdmin" xml:space="preserve">
+    <value>Enabled (administrator, no UAC prompt)</value>
+  </data>
+  <data name="auto.onUser" xml:space="preserve">
+    <value>Enabled (standard user)</value>
+  </data>
+  <data name="auto.off" xml:space="preserve">
+    <value>Disabled</value>
+  </data>
+  <data name="auto.enabledAdmin" xml:space="preserve">
+    <value>Enabled. Starts at login with administrator rights and no UAC prompt.</value>
+  </data>
+  <data name="auto.enabledUser" xml:space="preserve">
+    <value>Enabled. The tray icon appears after login (standard user).</value>
+  </data>
+  <data name="auto.taskFailed" xml:space="preserve">
+    <value>The scheduled task could not be created (the UAC prompt may have been cancelled).</value>
+  </data>
+  <data name="auto.disabled" xml:space="preserve">
+    <value>Disabled. The application will not start at login.</value>
+  </data>
+  <data name="auto.taskDeleteFailed" xml:space="preserve">
+    <value>The scheduled task could not be removed (the UAC prompt may have been cancelled); autostart may still be active.</value>
+  </data>
+  <data name="auto.oldTaskFailed" xml:space="preserve">
+    <value>The previous scheduled task could not be removed (the UAC prompt may have been cancelled); the operation was aborted to avoid starting twice.</value>
+  </data>
+  <data name="auto.runKeyFailed" xml:space="preserve">
+    <value>The Run registry value could not be written.</value>
+  </data>
+  <data name="auto.failed" xml:space="preserve">
+    <value>The start-at-login settings could not be updated.</value>
+  </data>
+  <data name="probe.notInstalled" xml:space="preserve">
+    <value>(not installed)</value>
+  </data>
+  <data name="probe.notFound" xml:space="preserve">
+    <value>(not found)</value>
+  </data>
+  <data name="probe.unknown" xml:space="preserve">
+    <value>(unknown)</value>
+  </data>
+  <data name="probe.node" xml:space="preserve">
+    <value>Node.js</value>
+  </data>
+  <data name="probe.npm" xml:space="preserve">
+    <value>npm</value>
+  </data>
+  <data name="probe.npmGlobal" xml:space="preserve">
+    <value>npm global directory</value>
+  </data>
+  <data name="probe.piweb" xml:space="preserve">
+    <value>pi-web</value>
+  </data>
+  <data name="probe.picli" xml:space="preserve">
+    <value>pi command line</value>
+  </data>
+  <data name="probe.requirement" xml:space="preserve">
+    <value>Requires {0} or newer: {1}</value>
+  </data>
+  <data name="probe.verdict" xml:space="preserve">
+    <value>Result</value>
+  </data>
+  <data name="probe.ready" xml:space="preserve">
+    <value>Ready to start pi-web</value>
+  </data>
+  <data name="probe.needPiweb" xml:space="preserve">
+    <value>pi-web is not installed</value>
+  </data>
+  <data name="probe.note" xml:space="preserve">
+    <value>Note</value>
+  </data>
+  <data name="probe.issue.noNode" xml:space="preserve">
+    <value>Node.js was not found</value>
+  </data>
+  <data name="probe.issue.oldNode" xml:space="preserve">
+    <value>Node.js is too old ({0}); {1} or newer is required</value>
+  </data>
+  <data name="probe.issue.nodeBroken" xml:space="preserve">
+    <value>Node.js was found at {0} but could not be started</value>
+  </data>
+  <data name="probe.issue.noNpm" xml:space="preserve">
+    <value>npm was not found. Reinstall Node.js.</value>
+  </data>
+  <data name="probe.forced.noNode" xml:space="preserve">
+    <value>Node.js is simulated as missing (PI_WEB_TRAY_NO_NODE)</value>
+  </data>
+  <data name="install.none" xml:space="preserve">
+    <value>Dependencies are already installed.</value>
+  </data>
+  <data name="install.startTitle" xml:space="preserve">
+    <value>Installing dependencies</value>
+  </data>
+  <data name="install.startBody" xml:space="preserve">
+    <value>Installing {0}. The first installation usually takes 10–20 minutes; a notification will be shown when it completes.</value>
+  </data>
+  <data name="install.doneTitle" xml:space="preserve">
+    <value>Installation complete</value>
+  </data>
+  <data name="install.failedTitle" xml:space="preserve">
+    <value>Installation failed</value>
+  </data>
+  <data name="install.stepTitle" xml:space="preserve">
+    <value>Installing dependencies</value>
+  </data>
+  <data name="install.timeoutTitle" xml:space="preserve">
+    <value>Installation timed out</value>
+  </data>
+  <data name="install.okTitle" xml:space="preserve">
+    <value>Installation complete</value>
+  </data>
+  <data name="install.unverifiedTitle" xml:space="preserve">
+    <value>Installation did not take effect</value>
+  </data>
+  <data name="install.timeout" xml:space="preserve">
+    <value>The installation timed out after 45 minutes. Check the network connection and retry.</value>
+  </data>
+  <data name="install.doneBody" xml:space="preserve">
+    <value>Installed: pi-web {0}{1}</value>
+  </data>
+  <data name="install.donePi" xml:space="preserve">
+    <value>, pi {0}</value>
+  </data>
+  <data name="install.ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="install.unverifiedBody" xml:space="preserve">
+    <value>npm reported success, but pi-web was not found. Check permissions and the global npm directory. Log: {0}</value>
+  </data>
+  <data name="install.unverifiedPiBody" xml:space="preserve">
+    <value>npm reported success, but the pi command line was not found. Check the global npm directory. Log: {0}</value>
+  </data>
+  <data name="install.failedBody" xml:space="preserve">
+    <value>npm exited with code {0}. Log: {1}</value>
+  </data>
+  <data name="install.crashBody" xml:space="preserve">
+    <value>The installation failed unexpectedly: {0}</value>
+  </data>
+  <data name="install.cannot" xml:space="preserve">
+    <value>Cannot install: {0}</value>
+  </data>
+  <data name="install.installNode" xml:space="preserve">
+    <value>Install Node.js {0} or newer first: https://nodejs.org/</value>
+  </data>
+  <data name="install.willRun" xml:space="preserve">
+    <value>Command to be executed:</value>
+  </data>
+  <data name="install.dryRun" xml:space="preserve">
+    <value>(--dry-run: prints the command only; no installation is performed.)</value>
+  </data>
+  <data name="install.donePrefix" xml:space="preserve">
+    <value>[complete] </value>
+  </data>
+  <data name="install.failedPrefix" xml:space="preserve">
+    <value>[failed] </value>
+  </data>
+  <data name="install.envHeader" xml:space="preserve">
+    <value>Environment information:</value>
+  </data>
+  <data name="notify.readyTitle" xml:space="preserve">
+    <value>Pi Web is ready</value>
+  </data>
+  <data name="notify.startFailedTitle" xml:space="preserve">
+    <value>Pi Web failed to start</value>
+  </data>
+  <data name="notify.startFailedExited" xml:space="preserve">
+    <value>The process exited.</value>
+  </data>
+  <data name="notify.startFailedTimeout" xml:space="preserve">
+    <value>Port {0} did not respond in time.</value>
+  </data>
+  <data name="notify.startFailedBody" xml:space="preserve">
+    <value>{0}. Check the service log from the tray menu.</value>
+  </data>
+  <data name="notify.stopFailedTitle" xml:space="preserve">
+    <value>Service stop failed</value>
+  </data>
+  <data name="notify.stopFailedBody" xml:space="preserve">
+    <value>Port {0} is still in use (possibly by a service started with higher privileges).</value>
+  </data>
+  <data name="notify.noBrowser" xml:space="preserve">
+    <value>Cannot open the browser</value>
+  </data>
+  <data name="notify.noLink" xml:space="preserve">
+    <value>Cannot open the link</value>
+  </data>
+  <data name="notify.noPiwebTitle" xml:space="preserve">
+    <value>pi-web was not found</value>
+  </data>
+  <data name="notify.noPiwebBody" xml:space="preserve">
+    <value>Use the tray menu and select Install / update dependencies.</value>
+  </data>
+  <data name="notify.cannotStart" xml:space="preserve">
+    <value>Cannot start Pi Web</value>
+  </data>
+  <data name="notify.installBusyTitle" xml:space="preserve">
+    <value>Installation in progress</value>
+  </data>
+  <data name="exit.installingTitle" xml:space="preserve">
+    <value>Installation in progress</value>
+  </data>
+  <data name="exit.installingBody" xml:space="preserve">
+    <value>npm is still installing packages. Exiting now aborts the installation and may leave pi-web partially installed.
+
+Exit anyway?</value>
+  </data>
+  <data name="notify.installBusyBody" xml:space="preserve">
+    <value>Wait for the installation to finish before stopping the service.</value>
+  </data>
+  <data name="notify.autostartTitle" xml:space="preserve">
+    <value>Start at login</value>
+  </data>
+  <data name="notify.autostartFailed" xml:space="preserve">
+    <value>Start at login: update failed</value>
+  </data>
+  <data name="notify.shortcutCreated" xml:space="preserve">
+    <value>Desktop shortcut created</value>
+  </data>
+  <data name="notify.createFailed" xml:space="preserve">
+    <value>Creation failed</value>
+  </data>
+  <data name="notify.noShell" xml:space="preserve">
+    <value>WScript.Shell is not available on this system.</value>
+  </data>
+  <data name="notify.openLogFailed" xml:space="preserve">
+    <value>Cannot open the log file</value>
+  </data>
+  <data name="notify.needsNodeTitle" xml:space="preserve">
+    <value>Node.js {0} or newer is required</value>
+  </data>
+  <data name="notify.needsNodeBody" xml:space="preserve">
+    <value>{0}. Select the tray icon after installing Node.js.</value>
+  </data>
+  <data name="notify.needsPiwebTitle" xml:space="preserve">
+    <value>pi-web is not installed</value>
+  </data>
+  <data name="notify.needsPiwebBody" xml:space="preserve">
+    <value>Use the tray menu and select Install / update dependencies.</value>
+  </data>
+  <data name="notify.noNodeInstallTitle" xml:space="preserve">
+    <value>Cannot install: Node.js is missing.</value>
+  </data>
+  <data name="notify.noNodeInstallBody" xml:space="preserve">
+    <value>{0}. Install Node.js, then retry.</value>
+  </data>
+  <data name="notify.envCheckFailed" xml:space="preserve">
+    <value>Environment check failed</value>
+  </data>
+  <data name="notify.envCheckFailedBody" xml:space="preserve">
+    <value>Could not read Node.js / npm information. See install.log.</value>
+  </data>
+  <data name="notify.selfCheckError" xml:space="preserve">
+    <value>Environment check error: {0}</value>
+  </data>
+  <data name="sc.title" xml:space="preserve">
+    <value>Pi Web environment check</value>
+  </data>
+  <data name="check.component" xml:space="preserve">
+    <value>Component</value>
+  </data>
+  <data name="check.version" xml:space="preserve">
+    <value>Version</value>
+  </data>
+  <data name="check.path" xml:space="preserve">
+    <value>Path</value>
+  </data>
+  <data name="check.status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="check.ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="check.missing" xml:space="preserve">
+    <value>Missing</value>
+  </data>
+  <data name="check.cannotRun" xml:space="preserve">
+    <value>Cannot run</value>
+  </data>
+  <data name="check.tooOld" xml:space="preserve">
+    <value>Version too old</value>
+  </data>
+  <data name="check.optional" xml:space="preserve">
+    <value>Optional</value>
+  </data>
+  <data name="check.ready" xml:space="preserve">
+    <value>Prerequisites are complete</value>
+  </data>
+  <data name="check.notReady" xml:space="preserve">
+    <value>Prerequisites are incomplete</value>
+  </data>
+  <data name="check.copy" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="check.close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="check.copied" xml:space="preserve">
+    <value>Copied to clipboard.</value>
+  </data>
+  <data name="sc.config" xml:space="preserve">
+    <value>Config file</value>
+  </data>
+  <data name="sc.dataDir" xml:space="preserve">
+    <value>Data directory</value>
+  </data>
+  <data name="sc.port" xml:space="preserve">
+    <value>Port {0} (listening={1})</value>
+  </data>
+  <data name="sc.workDir" xml:space="preserve">
+    <value>Working directory</value>
+  </data>
+  <data name="sc.admin" xml:space="preserve">
+    <value>Administrator</value>
+  </data>
+  <data name="sc.serverLog" xml:space="preserve">
+    <value>Service log</value>
+  </data>
+  <data name="sc.installLog" xml:space="preserve">
+    <value>Install log</value>
+  </data>
+  <data name="sc.language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="diag.title" xml:space="preserve">
+    <value>Pi Web Tray diagnostics</value>
+  </data>
+  <data name="diag.time" xml:space="preserve">
+    <value>Time</value>
+  </data>
+  <data name="diag.exe" xml:space="preserve">
+    <value>Executable</value>
+  </data>
+  <data name="diag.instance" xml:space="preserve">
+    <value>Instance suffix</value>
+  </data>
+  <data name="diag.none" xml:space="preserve">
+    <value>(none)</value>
+  </data>
+  <data name="diag.runtimeSection" xml:space="preserve">
+    <value>---- Runtime ----</value>
+  </data>
+  <data name="diag.autostartSection" xml:space="preserve">
+    <value>---- Start at login ----</value>
+  </data>
+  <data name="diag.task" xml:space="preserve">
+    <value>Scheduled task</value>
+  </data>
+  <data name="diag.runKey" xml:space="preserve">
+    <value>Run registry value</value>
+  </data>
+  <data name="diag.exists" xml:space="preserve">
+    <value>Present</value>
+  </data>
+  <data name="diag.absent" xml:space="preserve">
+    <value>Absent</value>
+  </data>
+  <data name="diag.menuAutostart" xml:space="preserve">
+    <value>Menu text 1</value>
+  </data>
+  <data name="diag.menuAdmin" xml:space="preserve">
+    <value>Menu text 2</value>
+  </data>
+  <data name="diag.stateFile" xml:space="preserve">
+    <value>State file</value>
+  </data>
+  <data name="diag.mutex" xml:space="preserve">
+    <value>Mutex</value>
+  </data>
+  <data name="diag.mutexFree" xml:space="preserve">
+    <value>Free (no tray running)</value>
+  </data>
+  <data name="diag.mutexAdmin" xml:space="preserve">
+    <value>Held by an elevated instance</value>
+  </data>
+  <data name="diag.mutexOther" xml:space="preserve">
+    <value>Held by another tray instance</value>
+  </data>
+  <data name="diag.probeFailed" xml:space="preserve">
+    <value>Environment probe failed: {0}</value>
+  </data>
+  <data name="prog.adminAlreadyTitle" xml:space="preserve">
+    <value>pi-web is running with administrator rights</value>
+  </data>
+  <data name="prog.adminAlreadyBody" xml:space="preserve">
+    <value>The tray is running elevated.
+
+To start the service, use the tray icon menu, or right-click the desktop shortcut and choose “Run as administrator”.</value>
+  </data>
+  <data name="prog.takeoverTitle" xml:space="preserve">
+    <value>Elevation takeover failed</value>
+  </data>
+  <data name="prog.takeoverBody" xml:space="preserve">
+    <value>The previous tray instance did not exit.
+Choose “Exit (stop pi-web)” from the tray menu first, then retry.</value>
+  </data>
+  <data name="prog.crashBody" xml:space="preserve">
+    <value>Pi Web Tray encountered an error. Details were written to crash.log:
+
+{0}</value>
+  </data>
+  <data name="prog.unknownArg" xml:space="preserve">
+    <value>Unknown command-line argument: {0}
+
+Use --help to see the supported options.</value>
+  </data>
+  <data name="prog.dryRunOnly" xml:space="preserve">
+    <value>--dry-run can only be used together with --install.</value>
+  </data>
+  <data name="help.title" xml:space="preserve">
+    <value>Usage:</value>
+  </data>
+  <data name="help.args" xml:space="preserve">
+    <value>exe</value>
+  </data>
+  <data name="help.launch" xml:space="preserve">
+    <value>Start pi-web, install missing dependencies, and open the browser.</value>
+  </data>
+  <data name="help.autostart" xml:space="preserve">
+    <value>Used by start-at-login; starts the tray only.</value>
+  </data>
+  <data name="help.stop" xml:space="preserve">
+    <value>Request the running tray to stop the service; the tray remains.</value>
+  </data>
+  <data name="help.quit" xml:space="preserve">
+    <value>Stop the service and exit the tray.</value>
+  </data>
+  <data name="help.check" xml:space="preserve">
+    <value>Check the environment (exit code 0 = ready, 1 = missing component).</value>
+  </data>
+  <data name="help.install" xml:space="preserve">
+    <value>Install dependencies without starting the tray.</value>
+  </data>
+  <data name="help.dryrun" xml:space="preserve">
+    <value>With --install, print the npm command without executing it.</value>
+  </data>
+  <data name="help.diag" xml:space="preserve">
+    <value>Write a diagnostic snapshot to diag.txt.</value>
+  </data>
+  <data name="help.makeico" xml:space="preserve">
+    <value>Generate pi-web-tray.ico (build tool).</value>
+  </data>
+  <data name="help.version" xml:space="preserve">
+    <value>Print the version.</value>
+  </data>
+  <data name="help.langcheck" xml:space="preserve">
+    <value>Verify that every UI string is complete for all supported languages.</value>
+  </data>
+  <data name="help.envTitle" xml:space="preserve">
+    <value>Environment variables:</value>
+  </data>
+  <data name="help.envInstance" xml:space="preserve">
+    <value>Isolated instance (mutex, signals, configuration, data directory).</value>
+  </data>
+  <data name="help.envPort" xml:space="preserve">
+    <value>Override the port without editing the ini.</value>
+  </data>
+  <data name="help.envHome" xml:space="preserve">
+    <value>Override the data directory.</value>
+  </data>
+  <data name="help.envLang" xml:space="preserve">
+    <value>UI language: auto / en / zh / zh-Hant.</value>
+  </data>
+  <data name="help.envTest" xml:space="preserve">
+    <value>Test hooks: simulate missing Node.js / pi-web / pi.</value>
+  </data>
+  <data name="langcheck.ok" xml:space="preserve">
+    <value>All {0} strings are complete for {1} languages.</value>
+  </data>
+  <data name="langcheck.fail" xml:space="preserve">
+    <value>Incomplete rows: {0}</value>
+  </data>
+  <data name="time.seconds" xml:space="preserve">
+    <value>{0} s</value>
+  </data>
+  <data name="time.minutes" xml:space="preserve">
+    <value>{0} min {1} s</value>
+  </data>
+  <data name="ini.title" xml:space="preserve">
+    <value>; Pi Web Tray configuration</value>
+  </data>
+  <data name="ini.subtitle" xml:space="preserve">
+    <value>; Restart the tray after editing</value>
+  </data>
+  <data name="ini.portC" xml:space="preserve">
+    <value>; pi-web port (default 30141)</value>
+  </data>
+  <data name="ini.workdirC" xml:space="preserve">
+    <value>; Service working directory (pi's default project directory)</value>
+  </data>
+  <data name="ini.autoInstallC" xml:space="preserve">
+    <value>; Install pi-web automatically when missing (first installation usually takes 10-20 minutes)</value>
+  </data>
+  <data name="ini.piCliC" xml:space="preserve">
+    <value>; Also install the pi command line (shared configuration with pi-web)</value>
+  </data>
+  <data name="ini.tagC" xml:space="preserve">
+    <value>; npm dist-tag or exact version</value>
+  </data>
+  <data name="ini.registryC" xml:space="preserve">
+    <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
+  </data>
+  <data name="ini.lookupC" xml:space="preserve">
+    <value>; Leave empty for automatic detection; override only if required</value>
+  </data>
+  <data name="ini.autostartC" xml:space="preserve">
+    <value>; Start at login with administrator rights (maintained by the tray menu)</value>
+  </data>
+  <data name="ini.langC" xml:space="preserve">
+    <value>; UI language: auto (follow Windows), en, zh, zh-Hant</value>
+  </data>
+  <data name="check.runtime" xml:space="preserve">
+    <value>Runtime components</value>
+  </data>
+  <data name="check.software" xml:space="preserve">
+    <value>Application information</value>
+  </data>
+  <data name="check.item" xml:space="preserve">
+    <value>Item</value>
+  </data>
+  <data name="check.value" xml:space="preserve">
+    <value>Value</value>
+  </data>
+  <data name="check.port" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="check.listening" xml:space="preserve">
+    <value>{0} (listening={1})</value>
+  </data>
+</root>
