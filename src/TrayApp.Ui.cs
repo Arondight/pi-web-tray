@@ -111,7 +111,6 @@ namespace PiWebTray
             bool running = _phase == Phase.Running;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
-            bool needsNode = _phase == Phase.NeedsNode || (_probe != null && _probe.NeedsNode);
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
 
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
@@ -136,7 +135,9 @@ namespace PiWebTray
                 bool canCancel = _updateStage == UpdateStage.Checking || _updateStage == UpdateStage.Downloading;
                 _updateForm.SetState(label, formPercent, canCancel);
             }
-            _nodeItem.Enabled = needsNode && !updateBusy;
+            // The Node.js item is only a link to the official download page; unlike
+            // service/update actions it is safe to use at any time.
+            _nodeItem.Enabled = true;
             _checkItem.Enabled = !busy;
             _settingsItem.Enabled = !busy;
             _installLogItem.Enabled = File.Exists(_config.InstallLogFile);
