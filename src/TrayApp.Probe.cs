@@ -79,16 +79,22 @@ namespace PiWebTray
             // just supplied the paths/versions the installer needs, so run it now.
             bool installAfterCheck;
             bool installAfterCheckForce;
+            bool installAfterCheckStart;
+            bool installAfterCheckOpen;
             lock (_checkLock)
             {
                 installAfterCheck = _installAfterCheck;
                 installAfterCheckForce = _installAfterCheckForce;
+                installAfterCheckStart = _installAfterCheckStart;
+                installAfterCheckOpen = _installAfterCheckOpen;
                 _installAfterCheck = false;
                 _installAfterCheckForce = false;
+                _installAfterCheckStart = false;
+                _installAfterCheckOpen = false;
             }
             if (installAfterCheck && _phase != Phase.Installing && _phase != Phase.NeedsNode && _probe != null)
             {
-                BeginInstall(installAfterCheckForce);
+                BeginInstall(installAfterCheckForce, installAfterCheckStart, installAfterCheckOpen);
             }
 
             // A request arrived while this check was running (install finished, icon clicked, ...)
@@ -136,7 +142,7 @@ namespace PiWebTray
             {
                 if (_config.AutoInstall)
                 {
-                    BeginInstall(false);
+                    BeginInstall(false, thenStart, openBrowser);
                     return;
                 }
                 _phase = Phase.NeedsDeps;

@@ -87,6 +87,20 @@
   <data name="menu.node" xml:space="preserve">
     <value>Download Node.js…</value>
   </data>
+  <data name="node.communityTitle" xml:space="preserve">
+    <value>Node.js for Windows 7 or 8</value>
+  </data>
+  <data name="node.communityBody" xml:space="preserve">
+    <value>Windows 7 and Windows 8 have no official Node.js 22 build. The download page opens an unsigned community build that this project cannot verify.
+
+Continue?</value>
+  </data>
+  <data name="node.unsupportedTitle" xml:space="preserve">
+    <value>Node.js is not available for this system</value>
+  </data>
+  <data name="node.unsupportedBody" xml:space="preserve">
+    <value>This 32-bit Windows version has no Node.js 22 build, and pi-web requires Node.js 22.19 or newer. Use a 64-bit system, or install Node.js 22 manually from another source.</value>
+  </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>Environment check</value>
   </data>
@@ -254,6 +268,9 @@
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
     <value>npm reported success, but the pi command line was not found. Check the global npm directory. Log: {0}</value>
+  </data>
+  <data name="install.piLockedBody" xml:space="preserve">
+    <value>The pi CLI could not be replaced: pi is probably still running and holds its files. Close pi and use "Update pi-web / pi dependencies" again. See {0}.</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>npm exited with code {0}. Log: {1}</value>

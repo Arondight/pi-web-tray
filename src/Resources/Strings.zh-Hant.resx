@@ -87,6 +87,20 @@
   <data name="menu.node" xml:space="preserve">
     <value>下載 Node.js…</value>
   </data>
+  <data name="node.communityTitle" xml:space="preserve">
+    <value>Windows 7/8 的 Node.js</value>
+  </data>
+  <data name="node.communityBody" xml:space="preserve">
+    <value>Windows 7 和 Windows 8 沒有官方的 Node.js 22 建置。下載頁面將開啟一個未簽章的社群建置，本專案無法驗證其安全性。
+
+繼續？</value>
+  </data>
+  <data name="node.unsupportedTitle" xml:space="preserve">
+    <value>該系統沒有可用的 Node.js</value>
+  </data>
+  <data name="node.unsupportedBody" xml:space="preserve">
+    <value>此 32 位元 Windows 沒有 Node.js 22 建置，而 pi-web 需要 Node.js 22.19 或更高版本。請使用 64 位元系統，或從其他來源手動安裝 Node.js 22。</value>
+  </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>環境檢查</value>
   </data>
@@ -254,6 +268,9 @@
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
     <value>npm 報告成功，但未找到 pi 命令列。請檢查全域 npm 目錄。記錄檔：{0}</value>
+  </data>
+  <data name="install.piLockedBody" xml:space="preserve">
+    <value>無法取代 pi 命令列：pi 可能仍在執行並佔用了相關檔案。請結束 pi，然後再次使用「更新 pi-web / pi 相依性」。詳見 {0}。</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>安裝失敗（npm 結束代碼 {0}）。記錄檔：{1}</value>

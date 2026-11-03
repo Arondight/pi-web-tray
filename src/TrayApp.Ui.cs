@@ -181,7 +181,7 @@ namespace PiWebTray
             {
                 // The user clicked the icon, which counts as consent to install or repair
                 if (_probe == null || _probe.NeedsNode) BeginEnvironmentCheck(true, true);
-                else BeginInstall(false);
+                else BeginInstall(false, true, true);
                 return;
             }
             StartServer(true);
@@ -196,6 +196,37 @@ namespace PiWebTray
                 }
             }
             catch (Exception ex) { NotifyError(L.T("notify.noBrowser"), ex.Message); }
+        }
+
+        private void OpenNodeDownload()
+        {
+            Version version = WindowsVersion.Current;
+            if (!NodeDownloads.UsesCommunityBuild(version))
+            {
+                OpenUrl(NodeDownloads.UrlFor(version));
+                return;
+            }
+
+            // The community build exists only for 64-bit Windows; a 32-bit system has
+            // no Node.js 22 at all, so do not send the user to a page without a download.
+            if (!Environment.Is64BitOperatingSystem)
+            {
+                MessageBox.Show(
+                    L.T("node.unsupportedBody"),
+                    L.T("node.unsupportedTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            DialogResult answer = MessageBox.Show(
+                L.T("node.communityBody"),
+                L.T("node.communityTitle"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes) return;
+            OpenUrl(NodeDownloads.UrlFor(version));
         }
 
         private void OpenUrl(string url)
@@ -343,6 +374,11 @@ namespace PiWebTray
                 shortcutType.InvokeMember("IconLocation", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { Application.ExecutablePath + ",0" });
                 shortcutType.InvokeMember("Description", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { Program.AppName });
                 shortcutType.InvokeMember("Save", System.Reflection.BindingFlags.InvokeMethod, null, shortcut, null);
+
+                // Remove the shortcut created by older releases, but only when it still
+                // points at this executable; other shortcuts on the desktop are not ours.
+                RemoveOwnedShortcut(shellType, shell, Path.Combine(desktop, "Pi Web.lnk"));
+
                 Notify(L.T("notify.shortcutCreated"), path);
             }
             catch (Exception ex)
@@ -354,6 +390,36 @@ namespace PiWebTray
                 ReleaseComObject(shortcut);
                 ReleaseComObject(shell);
             }
+        }
+
+        private static void RemoveOwnedShortcut(Type shellType, object shell, string path)
+        {
+            object legacy = null;
+            try
+            {
+                if (!File.Exists(path)) return;
+                legacy = shellType.InvokeMember("CreateShortcut",
+                    System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
+                if (legacy == null) return;
+
+                object target = legacy.GetType().InvokeMember("TargetPath",
+                    System.Reflection.BindingFlags.GetProperty, null, legacy, null);
+                if (!string.Equals(Convert.ToString(target),
+                        Application.ExecutablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+            finally
+            {
+                ReleaseComObject(legacy);
+            }
+
+            try { File.Delete(path); } catch (Exception) { }
         }
 
         private static void ReleaseComObject(object value)

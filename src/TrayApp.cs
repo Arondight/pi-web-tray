@@ -104,9 +104,13 @@ namespace PiWebTray
         private bool _checkPendingOpenBrowser;
         private bool _installAfterCheck;
         private bool _installAfterCheckForce;
+        private bool _installAfterCheckStart;
+        private bool _installAfterCheckOpen;
         private bool _installAfterStop;
         private bool _installAfterStopForce;
-        private bool _installRestartService;
+        private bool _installRestartService;   // a running service was stopped and must come back
+        private bool _installStartAfter;       // start the service after a successful install
+        private bool _installOpenAfter;        // open the browser once that service is ready
 
         // install (background -> UI thread)
         private readonly object _installLock = new object();
@@ -217,7 +221,7 @@ namespace PiWebTray
             };
 
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
-            _nodeItem.Click += delegate { OpenUrl(NodeDownloads.Url()); };
+            _nodeItem.Click += delegate { OpenNodeDownload(); };
 
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
             _checkItem.Click += delegate { RunSelfCheck(); };

@@ -38,20 +38,22 @@ flowchart LR
 
 ## 兼容性
 
-| 组件         | 要求                                                                            |
-| ------------ | ------------------------------------------------------------------------------- |
-| Pi Web Tray  | Windows 7 SP1、Windows 8.1、Windows 10 或 Windows 11，且安装 .NET Framework 4.8 |
-| 推荐操作系统 | Windows 10 1809 或更新版本                                                      |
-| Node.js      | 22.19 或更新版本                                                                |
-| npm          | 随 Node.js 安装                                                                 |
-| 网络         | 可访问 npm registry；`NpmRegistry` 可指向镜像；更新时需访问 GitHub。            |
+| 组件         | 要求                                                                 |
+| ------------ | -------------------------------------------------------------------- |
+| Pi Web Tray  | Windows 7 SP1、Windows 8、8.1、10 或 11，且安装 .NET Framework 4.8   |
+| 推荐操作系统 | Windows 10 1809 或更新版本                                           |
+| Node.js      | 22.19 或更新版本                                                     |
+| npm          | 随 Node.js 安装                                                      |
+| 网络         | 可访问 npm registry；`NpmRegistry` 可指向镜像；更新时需访问 GitHub。 |
 
-托盘程序面向 Windows 7 SP1、Windows 8.1、Windows 10 和 Windows 11 构建，并使用
+托盘程序面向 Windows 7 SP1、Windows 8、8.1、10 和 11 构建，并使用
 Windows 7 可用的 API。pi-web 本身要求 Node.js 22.19 或更新版本及 `node-pty`；
-当前 Node.js 版本可能不支持 Windows 7 或 8.1，终端面板还需要 ConPTY
+当前 Node.js 版本可能不支持 Windows 7 或 8，终端面板还需要 ConPTY
 （Windows 10 1809 或更新版本）。在上述旧系统上托盘可以运行，但 pi-web 服务可能不可用。
 
 Windows 7 和 Windows 8.1 已停止微软支持，使用风险由用户自行承担。
+在 Windows 7 和 Windows 8 上，**下载 Node.js** 会在确认后打开一个未签名的社区构建；
+本项目不生产也不验证该构建。
 
 ## 相关项目
 

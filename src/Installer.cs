@@ -332,6 +332,7 @@ namespace PiWebTray
 
             ProcessResult last = null;
             bool ok = true;
+            bool piCliFailed = false;
             int lastStepNo = 0;
             string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
 
@@ -407,6 +408,7 @@ namespace PiWebTray
                 if (!run.Started || run.ExitCode != 0)
                 {
                     ok = false;
+                    piCliFailed = IsPiCliStep(step, config);
                     break;
                 }
             }
@@ -439,6 +441,14 @@ namespace PiWebTray
                 result.Message = L.T("install.unverifiedPiBody", config.InstallLogFile);
                 Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
             }
+            else if (!ok && piCliFailed)
+            {
+                // A running pi keeps its package files locked, which is the most common
+                // failure after the pi-web step succeeded. Say so instead of "npm failed".
+                result.Success = false;
+                result.Message = L.T("install.piLockedBody", config.InstallLogFile);
+                Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
+            }
             else
             {
                 result.Success = false;
@@ -449,6 +459,16 @@ namespace PiWebTray
 
             result.Elapsed = DateTime.Now - started;
             return result;
+        }
+
+        // True when this step only installs the pi CLI. A failure there usually means a
+        // running pi process still holds the package files.
+        internal static bool IsPiCliStep(InstallStep step, Config config)
+        {
+            if (step == null || step.AllowScripts) return false;
+            string tag = SafeTag(config.InstallTag);
+            return step.Packages.Count == 1
+                && string.Equals(step.Packages[0], Config.PiCliPackage + "@" + tag, StringComparison.Ordinal);
         }
 
         // stdout and stderr are read by two different threads; without the lock two appends

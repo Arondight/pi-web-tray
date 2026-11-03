@@ -42,20 +42,22 @@ flowchart LR
 
 | Component                    | Requirement                                                                                 |
 | ---------------------------- | ------------------------------------------------------------------------------------------- |
-| Pi Web Tray                  | Windows 7 SP1, Windows 8.1, Windows 10 or Windows 11 with .NET Framework 4.8                |
+| Pi Web Tray                  | Windows 7 SP1, Windows 8, 8.1, 10 or 11 with .NET Framework 4.8                             |
 | Recommended operating system | Windows 10 1809 or later                                                                    |
 | Node.js                      | 22.19 or later                                                                              |
 | npm                          | Included with Node.js                                                                       |
 | Network                      | Access to an npm registry; `NpmRegistry` may point to a mirror. GitHub is used for updates. |
 
-The tray binary is built for Windows 7 SP1, Windows 8.1, Windows 10 and Windows 11 and
+The tray binary is built for Windows 7 SP1, Windows 8, 8.1, 10 and 11 and
 uses Windows 7-compatible APIs. pi-web itself requires Node.js 22.19 or later and
-`node-pty`; current Node.js releases may not support Windows 7 or 8.1, and the terminal
+`node-pty`; current Node.js releases may not support Windows 7 or 8, and the terminal
 panel requires ConPTY (Windows 10 1809 or later). On such systems the tray may run while
 the pi-web service is unavailable.
 
 Windows 7 and Windows 8.1 are no longer supported by Microsoft. Use of these
-systems is at the user's discretion.
+systems is at the user's discretion. On Windows 7 and Windows 8, **Download Node.js**
+asks for confirmation and then opens an unsigned community build; it is not produced
+or verified by this project.
 
 ## Related projects
 

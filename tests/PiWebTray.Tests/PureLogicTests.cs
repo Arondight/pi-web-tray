@@ -134,6 +134,16 @@ namespace PiWebTray
                 NodeDownloads.Windows7Or8Url.Contains(NodeDownloads.PinnedVersion));
             Check("8.1 download uses the pinned version",
                 NodeDownloads.Windows81Url.Contains(NodeDownloads.PinnedVersion));
+            Check("Windows 7 uses the community build",
+                NodeDownloads.UsesCommunityBuild(new Version(6, 1, 7601)));
+            Check("Windows 8 uses the community build",
+                NodeDownloads.UsesCommunityBuild(new Version(6, 2, 9200)));
+            Check("Windows 8.1 does not use the community build",
+                !NodeDownloads.UsesCommunityBuild(new Version(6, 3, 9600)));
+            Check("Windows 10 does not use the community build",
+                !NodeDownloads.UsesCommunityBuild(new Version(10, 0, 19045)));
+            Check("no community build without a version",
+                !NodeDownloads.UsesCommunityBuild(null));
 
             // The console hint shown by --install must carry the same link as the tray menu.
             L.Use("en");
@@ -357,6 +367,8 @@ namespace PiWebTray
             Check("pi-web step allows scripts", steps[0].AllowScripts && !steps[0].IgnoreScripts);
             Check("pi cli runs second", steps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
             Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
+            Check("pi-web step is not the pi cli step", !Installer.IsPiCliStep(steps[0], config));
+            Check("pi cli step is recognised", Installer.IsPiCliStep(steps[1], config));
 
             ProbeResult webMissingCliPresent = new ProbeResult();
             webMissingCliPresent.PiCliFound = true;

@@ -607,8 +607,16 @@ namespace PiWebTray
             try
             {
                 Directory.CreateDirectory(TrayState.Folder);
+                string path = Path.Combine(TrayState.Folder, "crash.log");
+                FileInfo info = new FileInfo(path);
+                if (info.Exists && info.Length > 4 * 1024 * 1024)
+                {
+                    string backup = path + ".1";
+                    if (File.Exists(backup)) File.Delete(backup);
+                    File.Move(path, backup);
+                }
                 File.AppendAllText(
-                    Path.Combine(TrayState.Folder, "crash.log"),
+                    path,
                     "==== " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ====" + Environment.NewLine
                         + (exception == null ? "(unknown)" : exception.ToString()) + Environment.NewLine + Environment.NewLine,
                     new UTF8Encoding(true));

@@ -26,6 +26,15 @@ namespace PiWebTray
             return UrlFor(WindowsVersion.Current);
         }
 
+        // Windows 7 and Windows 8 have no official Node.js 22 build; the pinned
+        // release is an unsigned community build that the user must confirm.
+        internal static bool UsesCommunityBuild(Version version)
+        {
+            if (version == null) return false;
+            if (version.Major != 6) return false;
+            return version.Minor == 1 || version.Minor == 2;
+        }
+
         internal static string UrlFor(Version version)
         {
             if (version == null) return DefaultUrl;

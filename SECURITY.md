@@ -4,8 +4,8 @@
 
 | Version | Supported           |
 | ------- | ------------------- |
-| 0.1.x   | Yes                 |
-| < 0.1   | No (please upgrade) |
+| 0.2.x   | Yes                 |
+| < 0.2   | No (please upgrade) |
 
 ## Reporting a vulnerability
 
@@ -65,3 +65,8 @@ launcher invokes them are in scope.
 Windows 7 SP1 is out of Microsoft support. The tray is built against .NET Framework
 4.8 and avoids post-Windows-7 APIs, but security fixes for the operating system and
 the runtime are the user's responsibility. Prefer Windows 10 1809 or newer.
+
+Windows 7 and Windows 8 have no official Node.js 22 build. On those systems the
+**Download Node.js** menu item asks for confirmation and then opens the community
+build at <https://github.com/DeftKing/nodejs-win7>. That binary is not produced,
+signed or verified by this project; validate it yourself before use.

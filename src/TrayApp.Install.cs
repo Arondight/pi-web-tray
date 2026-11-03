@@ -15,11 +15,16 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
-        private void BeginInstall(bool force)
+        // thenStart/thenOpen describe what to do after a successful install. A menu-driven
+        // dependency update must not start a service the user had stopped; a startup install
+        // or an icon click passes its own intent instead of reusing _autoStartService.
+        private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_installAfterStop)
             {
                 _installAfterStopForce = _installAfterStopForce || force;
+                _installStartAfter = _installStartAfter || thenStart;
+                _installOpenAfter = _installOpenAfter || thenOpen;
                 return;
             }
             if (_phase == Phase.Installing) return;
@@ -33,6 +38,8 @@ namespace PiWebTray
                 {
                     _installAfterCheck = true;
                     _installAfterCheckForce = _installAfterCheckForce || force;
+                    _installAfterCheckStart = _installAfterCheckStart || thenStart;
+                    _installAfterCheckOpen = _installAfterCheckOpen || thenOpen;
                 }
                 BeginEnvironmentCheck(false, false);
                 return;
@@ -54,13 +61,20 @@ namespace PiWebTray
 
             if (packages.Count == 0)
             {
-                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+                BeginEnvironmentCheck(thenStart, thenOpen);
                 return;
             }
 
+            // Remember the requested intent before any stop: a service that was stopped on
+            // purpose stays stopped after a menu-driven update, while a running service (or
+            // an explicit start request) is started again.
+            bool needsStop = InstallNeedsStop();
+            _installStartAfter = needsStop || thenStart;
+            _installOpenAfter = needsStop ? false : thenOpen;
+
             // npm cannot replace a globally installed package while its node process is
             // running. Stop pi-web first, then continue with the same requested mode.
-            if (InstallNeedsStop())
+            if (needsStop)
             {
                 _installAfterStop = true;
                 _installAfterStopForce = force;
@@ -123,7 +137,11 @@ namespace PiWebTray
 
             bool cancelled = _installForm != null && _installForm.Cancelled;
             bool restartService = _installRestartService;
+            bool startAfter = _installStartAfter;
+            bool openAfter = _installOpenAfter;
             _installRestartService = false;
+            _installStartAfter = false;
+            _installOpenAfter = false;
             CloseInstallForm();
 
             if (result == null)
@@ -141,8 +159,7 @@ namespace PiWebTray
                 Notify(L.T("install.doneTitle"), result.Message);
                 // Re-probe before starting so paths and versions are current. In autostart
                 // mode this must not turn into "start the service": login shows the tray only.
-                if (restartService) BeginEnvironmentCheck(true, false);
-                else BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+                BeginEnvironmentCheck(startAfter, openAfter);
             }
             else if (cancelled)
             {
@@ -183,9 +200,11 @@ namespace PiWebTray
         {
             if (!_installAfterStop) return;
             bool force = _installAfterStopForce;
+            bool start = _installStartAfter;
+            bool open = _installOpenAfter;
             _installAfterStop = false;
             _installAfterStopForce = false;
-            BeginInstall(force);
+            BeginInstall(force, start, open);
         }
 
         private void AbortInstallAfterStop(bool notify)
@@ -194,6 +213,8 @@ namespace PiWebTray
             _installAfterStop = false;
             _installAfterStopForce = false;
             _installRestartService = false;
+            _installStartAfter = false;
+            _installOpenAfter = false;
             Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: pi-web is still running");
             if (notify && _phase != Phase.PortConflict)
             {
@@ -277,7 +298,7 @@ namespace PiWebTray
                     MessageBoxDefaultButton.Button2);
                 if (answer != DialogResult.Yes) return;
             }
-            BeginInstall(true);
+            BeginInstall(true, false, false);
         }
     }
 }
