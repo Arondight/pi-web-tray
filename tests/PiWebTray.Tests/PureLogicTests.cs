@@ -130,6 +130,12 @@ namespace PiWebTray
             CheckEqual("unknown Windows Node.js download", NodeDownloads.DefaultUrl,
                 NodeDownloads.UrlFor(null));
             Check("current Windows version is readable", WindowsVersion.Current.Major >= 6);
+
+            // The console hint shown by --install must carry the same link as the tray menu.
+            L.Use("en");
+            Check("console hint carries the download url",
+                L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Windows7Or8Url)
+                    .Contains(NodeDownloads.Windows7Or8Url));
         }
 
         private static void QuoteTests()

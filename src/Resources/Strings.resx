@@ -265,7 +265,7 @@
     <value>Cannot install: {0}</value>
   </data>
   <data name="install.installNode" xml:space="preserve">
-    <value>Install Node.js {0} or newer first: https://nodejs.org/</value>
+    <value>Install Node.js {0} or newer first: {1}</value>
   </data>
   <data name="install.willRun" xml:space="preserve">
     <value>Command to be executed:</value>

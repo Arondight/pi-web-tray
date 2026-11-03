@@ -265,7 +265,7 @@
     <value>無法安裝：{0}</value>
   </data>
   <data name="install.installNode" xml:space="preserve">
-    <value>請先安裝 Node.js {0} 或更高版本：https://nodejs.org/</value>
+    <value>請先安裝 Node.js {0} 或更高版本：{1}</value>
   </data>
   <data name="install.willRun" xml:space="preserve">
     <value>將執行指令：</value>

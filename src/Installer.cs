@@ -495,7 +495,7 @@ namespace PiWebTray
             if (probe.NeedsNode)
             {
                 ConsoleHost.WriteError(L.T("install.cannot", probe.NodeIssue()));
-                ConsoleHost.WriteLine(L.T("install.installNode", ProbeResult.NodeMinimum));
+                ConsoleHost.WriteLine(L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Url()));
                 return 2;
             }
 
