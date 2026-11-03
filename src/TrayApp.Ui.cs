@@ -324,7 +324,8 @@ namespace PiWebTray
             try
             {
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                string path = Path.Combine(desktop, "Pi Web.lnk");
+                // Match the product name shown in the executable and About window.
+                string path = Path.Combine(desktop, Program.AppName + ".lnk");
 
                 Type shellType = Type.GetTypeFromProgID("WScript.Shell");
                 if (shellType == null)
