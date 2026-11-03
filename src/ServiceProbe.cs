@@ -163,7 +163,8 @@ namespace PiWebTray
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Sys.SystemExecutable("netstat.exe");
-                psi.Arguments = "-ano -p TCP";
+                // No protocol filter: an IPv6-only listener appears only in the TCPv6 table.
+                psi.Arguments = "-ano";
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;

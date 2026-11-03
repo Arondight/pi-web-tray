@@ -41,6 +41,31 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void WindowIconSurvivesFormDisposal()
+        {
+            Config config = new Config();
+            config.Port = 30141;
+            config.WorkingDir = Path.GetTempPath();
+            config.Language = L.Auto;
+            config.InstallTag = "latest";
+            config.IniPath = "pi-web-tray.ini";
+            config.OutputDir = ".";
+            config.LogFile = "server.log";
+            config.InstallLogFile = "install.log";
+            config.UpdateLogFile = "update.log";
+
+            using (SettingsForm form = new SettingsForm(config))
+            {
+                Assert.IsNotNull(form.Icon);
+            }
+
+            using (System.Drawing.Bitmap bitmap = Icons.WindowIcon().ToBitmap())
+            {
+                Assert.IsTrue(bitmap.Width > 0 && bitmap.Height > 0);
+            }
+        }
+
+        [TestMethod]
         public void AboutFormCanBeConstructed()
         {
             using (AboutForm form = new AboutForm())

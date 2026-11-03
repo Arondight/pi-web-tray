@@ -513,10 +513,17 @@ namespace PiWebTray
             sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(task, run)));
             sb.AppendLine(L.T("diag.menuAdmin") + " : " + L.T("menu.adminAutostart", config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no")));
 
-            string statePath = TrayState.StatePath();
-            string state = File.Exists(statePath)
-                ? File.ReadAllText(statePath).Replace("\r", "").Replace("\n", "  ")
-                : L.T("diag.none");
+            string state = L.T("diag.none");
+            try
+            {
+                string statePath = TrayState.StatePath();
+                if (File.Exists(statePath))
+                    state = File.ReadAllText(statePath).Replace("\r", "").Replace("\n", "  ");
+            }
+            catch (Exception)
+            {
+                // The state file can disappear while a tray exits; the snapshot stays useful.
+            }
             sb.AppendLine(L.T("diag.stateFile") + " : " + state);
             sb.AppendLine(L.T("diag.mutex") + " : " + DescribeMutex());
 

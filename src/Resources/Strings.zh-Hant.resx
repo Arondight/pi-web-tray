@@ -79,13 +79,13 @@
     <value>重新啟動服務</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>更新 pi-web / pi 相依套件</value>
+    <value>更新 pi-web 和 pi</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>安裝 pi-web 相依套件</value>
   </data>
   <data name="menu.node" xml:space="preserve">
-    <value>下載 Node.js…</value>
+    <value>下載 Node.js</value>
   </data>
   <data name="node.communityTitle" xml:space="preserve">
     <value>Windows 7/8 的 Node.js</value>
@@ -151,7 +151,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>不滿足</value>
   </data>
   <data name="auto.onAdmin" xml:space="preserve">
-    <value>已啟用（系統管理員權限，登入時無 UAC 提示）</value>
+    <value>已啟用（系統管理員權限）</value>
   </data>
   <data name="auto.onUser" xml:space="preserve">
     <value>已啟用（標準使用者權限）</value>
@@ -160,7 +160,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>已停用</value>
   </data>
   <data name="auto.enabledAdmin" xml:space="preserve">
-    <value>已啟用。登入後將自動以系統管理員權限執行，不顯示 UAC 提示。</value>
+    <value>已啟用。登入後將自動以系統管理員權限執行。</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
     <value>已啟用。登入後將自動顯示系統匣圖示（標準使用者權限）。</value>
@@ -283,7 +283,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>npm 報告成功，但未找到 pi 命令列。請檢查全域 npm 目錄。記錄檔：{0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>無法取代 pi 命令列：pi 可能仍在執行並佔用了相關檔案。請結束 pi，然後再次使用「更新 pi-web / pi 相依性」。詳見 {0}。</value>
+    <value>無法更新 pi 命令列。如果 pi 正在執行，請先結束，然後再次使用「更新 pi-web 和 pi」。詳見 {0}。</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>安裝失敗（npm 結束代碼 {0}）。記錄檔：{1}</value>
@@ -682,10 +682,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>{0}（接聽中={1}）</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>更新 Pi Web Tray</value>
+    <value>更新本程式</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>正在更新 Pi Web Tray...</value>
+    <value>正在更新本程式...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>關於</value>
@@ -1009,7 +1009,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>設定...</value>
   </data>
   <data name="menu.copyUrl" xml:space="preserve">
-    <value>複製 Pi Web 網址</value>
+    <value>複製網頁連結位址</value>
   </data>
   <data name="menu.restartAdmin" xml:space="preserve">
     <value>以系統管理員身分重新啟動</value>
@@ -1090,7 +1090,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>Pi Web Tray {0} 已可使用。請選擇系統匣功能表進行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>更新 pi-web / pi 相依套件</value>
+    <value>更新 pi-web 和 pi</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
     <value>現在重新安裝或更新 pi-web 和 pi 嗎？pi-web 會暫時停止，這可能需要幾分鐘。</value>
@@ -1174,7 +1174,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>沒有符合「{0}」的行。</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>更新 pi-web 相依套件</value>
+    <value>更新 pi-web</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
     <value>更新 pi-web 相依套件</value>

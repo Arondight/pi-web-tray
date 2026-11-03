@@ -24,6 +24,7 @@ namespace PiWebTray
         private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
         private const uint PROCESS_VM_READ = 0x0010;
         private const int ProcessBasicInformation = 0;
+        private const int ProcessWow64Information = 26;
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct PROCESSENTRY32W
@@ -81,6 +82,10 @@ namespace PiWebTray
         [DllImport("ntdll.dll")]
         private static extern int NtQueryInformationProcess(IntPtr process, int informationClass,
             ref PROCESS_BASIC_INFORMATION information, int informationLength, out int returnLength);
+
+        [DllImport("ntdll.dll")]
+        private static extern int NtQueryInformationProcess(IntPtr process, int informationClass,
+            ref IntPtr information, int informationLength, out int returnLength);
 
         internal static int ParentPid(int pid)
         {
@@ -167,12 +172,29 @@ namespace PiWebTray
                     ref basic, Marshal.SizeOf(typeof(PROCESS_BASIC_INFORMATION)), out returned);
                 if (status != 0 || basic.PebBaseAddress == IntPtr.Zero) return "";
 
+                // ProcessBasicInformation returns the native PEB. A WOW64 target has a
+                // second 32-bit PEB, and only that one uses 32-bit pointers; ask for it
+                // explicitly instead of reading the 64-bit PEB with 32-bit offsets.
+                IntPtr peb = basic.PebBaseAddress;
+                if (targetWow64 && IntPtr.Size == 8)
+                {
+                    IntPtr peb32 = IntPtr.Zero;
+                    int wowReturned;
+                    if (NtQueryInformationProcess(process, ProcessWow64Information,
+                            ref peb32, IntPtr.Size, out wowReturned) != 0
+                        || peb32 == IntPtr.Zero)
+                    {
+                        return "";
+                    }
+                    peb = peb32;
+                }
+
                 // Offsets in PEB and RTL_USER_PROCESS_PARAMETERS are stable for the
                 // supported Windows versions. The command-line UNICODE_STRING is at
                 // +0x70 on 64-bit and +0x40 on 32-bit.
                 int parametersOffset = pointerSize == 8 ? 0x20 : 0x10;
                 int commandLineOffset = pointerSize == 8 ? 0x70 : 0x40;
-                IntPtr parameters = ReadPointer(process, Add(basic.PebBaseAddress, parametersOffset), pointerSize);
+                IntPtr parameters = ReadPointer(process, Add(peb, parametersOffset), pointerSize);
                 if (parameters == IntPtr.Zero) return "";
 
                 int headerSize = pointerSize == 8 ? 16 : 8;

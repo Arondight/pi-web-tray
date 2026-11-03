@@ -110,6 +110,7 @@ namespace PiWebTray
 
         private void CancelUpdate()
         {
+            if (IsDisposed) return;
             if (Cancelled || !_cancel.Enabled) return;
             Cancelled = true;
             _cancel.Enabled = false;

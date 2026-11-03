@@ -134,6 +134,16 @@ namespace PiWebTray
 
             if (result.NeedsNode)
             {
+                // An install queued behind this probe cannot run; do not execute it later
+                // with stale force/start flags after Node.js has been installed.
+                lock (_checkLock)
+                {
+                    _installAfterCheck = false;
+                    _installAfterCheckForce = false;
+                    _installAfterCheckStart = false;
+                    _installAfterCheckOpen = false;
+                }
+
                 _phase = Phase.NeedsNode;
                 UpdateUi();
                 if (firstCheck)

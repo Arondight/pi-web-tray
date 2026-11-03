@@ -79,13 +79,13 @@
     <value>Restart service</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>Update pi-web / pi dependencies</value>
+    <value>Update pi-web and pi</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>Install pi-web dependencies</value>
   </data>
   <data name="menu.node" xml:space="preserve">
-    <value>Download Node.js…</value>
+    <value>Download Node.js</value>
   </data>
   <data name="node.communityTitle" xml:space="preserve">
     <value>Node.js for Windows 7 or 8</value>
@@ -151,7 +151,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>off</value>
   </data>
   <data name="auto.onAdmin" xml:space="preserve">
-    <value>Enabled (administrator, no UAC prompt)</value>
+    <value>Enabled (administrator)</value>
   </data>
   <data name="auto.onUser" xml:space="preserve">
     <value>Enabled (standard user)</value>
@@ -160,7 +160,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Disabled</value>
   </data>
   <data name="auto.enabledAdmin" xml:space="preserve">
-    <value>Enabled. Starts at login with administrator rights and no UAC prompt.</value>
+    <value>Enabled. Starts at login with administrator rights.</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
     <value>Enabled. The tray icon appears after login (standard user).</value>
@@ -283,7 +283,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>npm reported success, but the pi command line was not found. Check the global npm directory. Log: {0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>The pi CLI could not be replaced: pi is probably still running and holds its files. Close pi and use "Update pi-web / pi dependencies" again. See {0}.</value>
+    <value>The pi CLI could not be updated. If pi is running, close it and use "Update pi-web and pi" again. See {0}.</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>npm exited with code {0}. Log: {1}</value>
@@ -682,10 +682,10 @@ Use --help to see the supported options.</value>
     <value>{0} (listening={1})</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>Update Pi Web Tray</value>
+    <value>Update this app</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>Updating Pi Web Tray...</value>
+    <value>Updating this app...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>About</value>
@@ -1009,7 +1009,7 @@ See {1} for details.</value>
     <value>Settings...</value>
   </data>
   <data name="menu.copyUrl" xml:space="preserve">
-    <value>Copy Pi Web URL</value>
+    <value>Copy page link</value>
   </data>
   <data name="menu.restartAdmin" xml:space="preserve">
     <value>Restart as administrator</value>
@@ -1090,7 +1090,7 @@ See {1} for details.</value>
     <value>Pi Web Tray {0} is available. Select the tray menu to update.</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>Update pi-web / pi dependencies</value>
+    <value>Update pi-web and pi</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
     <value>Reinstall or update pi-web and pi now? pi-web will be stopped temporarily. This can take several minutes.</value>
@@ -1174,7 +1174,7 @@ See {1} for details.</value>
     <value>No lines match "{0}".</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>Update pi-web dependencies</value>
+    <value>Update pi-web</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
     <value>Update pi-web dependencies</value>

@@ -694,6 +694,12 @@ namespace PiWebTray
                 "  TCP    127.0.0.1:30142        0.0.0.0:0              LISTENING       9999"
             });
             CheckEqual("port owner pid IPv4", 1234, ServiceProbe.ParseListenerPid(netstat, 30141));
+            string ipv6 = string.Join(Environment.NewLine, new string[]
+            {
+                "  TCP    [::]:30141             [::]:0                 LISTENING       2468",
+                "  UDP    0.0.0.0:30141          *:*                                    1357"
+            });
+            CheckEqual("port owner pid IPv6", 2468, ServiceProbe.ParseListenerPid(ipv6, 30141));
             CheckEqual("port owner pid no match", 0, ServiceProbe.ParseListenerPid(netstat, 30143));
             CheckEqual("port owner pid empty", 0, ServiceProbe.ParseListenerPid("", 30141));
 
@@ -709,6 +715,43 @@ namespace PiWebTray
             Check("native parent pid", NativeProcess.ParentPid(self) > 0);
             Check("native image path", NativeProcess.ImagePath(self).Length > 0);
             Check("native command line", NativeProcess.CommandLine(self).Length > 0);
+
+            if (Environment.Is64BitOperatingSystem)
+            {
+                string wow64 = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                    "SysWOW64", "cmd.exe");
+                if (File.Exists(wow64))
+                {
+                    try
+                    {
+                        System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo();
+                        psi.FileName = wow64;
+                        psi.Arguments = "/c ping -n 4 127.0.0.1 >nul";
+                        psi.UseShellExecute = false;
+                        psi.CreateNoWindow = true;
+                        using (System.Diagnostics.Process child = System.Diagnostics.Process.Start(psi))
+                        {
+                            try
+                            {
+                                if (!child.HasExited)
+                                {
+                                    string wowLine = NativeProcess.CommandLine(child.Id);
+                                    Check("wow64 command line", wowLine.IndexOf(
+                                        "cmd.exe", StringComparison.OrdinalIgnoreCase) >= 0);
+                                }
+                            }
+                            finally
+                            {
+                                try { Sys.KillTree(child.Id); } catch (Exception) { }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // SysWOW64 is optional in constrained test environments.
+                    }
+                }
+            }
             Check("system tool path is absolute", Path.IsPathRooted(Sys.SystemExecutable("netstat.exe")));
         }
 

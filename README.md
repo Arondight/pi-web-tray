@@ -62,17 +62,17 @@ run `pi auth login`. pi-web and pi share credentials in `~/.pi/agent`.
 
 ```text
 Open Pi Web · Start · Stop · Restart
-Update pi-web / pi dependencies · Update Pi Web Tray · Download Node.js…
-Environment check · Settings · Logs · data/program folder · configuration · URL · shortcut
+Update pi-web and pi · Update this app · Download Node.js
+Environment check · Settings · Logs · data/program folder · configuration · page link · shortcut
 Start at login · Start at login as admin · Restart as administrator · About · Exit
 ```
 
 - Left click starts pi-web and opens the browser, or only opens the browser when the
   service is already running. **Start**/**Restart** never open a browser.
-- **Update pi-web / pi dependencies** stops pi-web first (npm cannot replace a running
+- **Update pi-web and pi** stops pi-web first (npm cannot replace a running
   package), installs both packages when `InstallPiCli=1`, and restarts the service only
   if it was running before. A progress window can cancel the install.
-- **Update Pi Web Tray** verifies the release SHA-256, replaces files (UAC when needed),
+- **Update this app** verifies the release SHA-256, replaces files (UAC when needed),
   preserves the service state and removes files the new release no longer contains.
   Cancel aborts the active download immediately.
 - A listener that is not pi-web is reported as a **port conflict**; the tray neither
@@ -154,7 +154,7 @@ restores MSTest. Close a running `pi-web-tray.exe` before building.
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | "Node.js is required" on startup        | The app offers the download page and exits. Install Node.js 22.19+, then run it again; set `NodePath` if detection still fails. |
 | Installation failed                     | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                                             |
-| Update failed                           | Check `update.log`: cancelled UAC, proxy or network; retry **Update Pi Web Tray**.                                              |
+| Update failed                           | Check `update.log`: cancelled UAC, proxy or network; retry **Update this app**.                                                 |
 | Red icon, port conflict                 | Another program owns the port; choose a free one in **Settings**. The tray never kills it.                                      |
 | Red icon, service failed                | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.                               |
 | `Cannot launch conpty`                  | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                                                    |
