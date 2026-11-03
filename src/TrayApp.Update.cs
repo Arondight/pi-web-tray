@@ -194,6 +194,9 @@ namespace PiWebTray
             int generation;
             lock (_updateLock)
             {
+                // A deferred offer (menu or notification) starts here after EndUpdate()
+                // cleared the flag, so the download must take the busy state again.
+                _updateBusy = true;
                 _updateStage = UpdateStage.Downloading;
                 _updateDone = false;
                 _updateRelease = release;

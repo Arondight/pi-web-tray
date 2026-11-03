@@ -127,6 +127,12 @@ namespace PiWebTray
                 // Use the Cancel button so the tray can stop the worker and ignore a
                 // late result; closing the window directly would race the worker.
                 e.Cancel = true;
+                // Cancel through the message loop: CancelUpdate closes this form via the
+                // tray, and re-entering Close() from inside FormClosing is not safe.
+                if (_cancel.Enabled)
+                {
+                    try { BeginInvoke(new Action(CancelUpdate)); } catch (Exception) { }
+                }
                 return;
             }
             base.OnFormClosing(e);
