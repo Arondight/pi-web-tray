@@ -545,6 +545,11 @@ namespace PiWebTray
                 CheckEqual("staging hash stable", stagingHash1, stagingHash2);
                 Check("staging hash length", stagingHash1.Length == 64);
 
+                File.WriteAllText(Path.Combine(staging, Updater.ManifestName),
+                    "attacker.txt" + Environment.NewLine);
+                CheckEqual("staging hash ignores the release manifest",
+                    stagingHash1, Updater.ComputeStagingHash(staging));
+
                 File.WriteAllText(Path.Combine(staging, "server.log"), "changed-skip");
                 File.WriteAllText(Path.Combine(staging, "pi-web-tray.ini"), "changed-skip");
                 CheckEqual("staging hash ignores files that are not copied",
