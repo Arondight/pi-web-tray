@@ -60,18 +60,47 @@ run `pi auth login`. pi-web and pi share credentials in `~/.pi/agent`.
 
 ## Tray menu
 
+The icon color shows the state at a glance: green = running, grey = stopped,
+orange = busy, blue = prerequisites missing, red = error. The menu follows the
+service state:
+
 ```text
-Open Pi Web · Start · Stop · Restart
-Update pi-web and pi · Update this app · Download Node.js
-Environment check · Settings · Logs · data/program folder · configuration · page link · shortcut
-Start at login · Start at login as admin · Restart as administrator · About · Exit
+● Running · 127.0.0.1:30141 · administrator mode
+---------------------------------------
+Open Pi Web
+Start service
+Stop service
+Restart service
+---------------------------------------
+Update pi-web and pi
+Update this app
+Download Node.js
+---------------------------------------
+Environment check
+Settings...
+Logs >
+  View service log
+  View install log
+  View update log
+Open data folder
+Open program folder
+Open configuration file
+Copy page link
+Create desktop shortcut
+---------------------------------------
+Start at login: Enabled (standard user)
+Start at login as administrator: no
+---------------------------------------
+Restart as administrator
+About
+Exit and stop pi-web
 ```
 
 - Left click starts pi-web and opens the browser, or only opens the browser when the
   service is already running. **Start**/**Restart** never open a browser.
-- **Update pi-web and pi** stops pi-web first (npm cannot replace a running
-  package), installs both packages when `InstallPiCli=1`, and restarts the service only
-  if it was running before. A progress window can cancel the install.
+- **Update pi-web and pi** stops pi-web first (npm cannot replace a running package),
+  installs both packages when `InstallPiCli=1`, and restarts the service only if it was
+  running before. A progress window can cancel the install.
 - **Update this app** verifies the release SHA-256, replaces files (UAC when needed),
   preserves the service state and removes files the new release no longer contains.
   Cancel aborts the active download immediately.
@@ -79,8 +108,6 @@ Start at login · Start at login as admin · Restart as administrator · About �
   treats it as running nor stops it. Change `Port` in Settings.
 - If pi-web stops unexpectedly, the tray reports it and can restart it when
   `AutoRestart=1`. `AutoCheckUpdates=1` checks for a new release shortly after startup.
-- The environment check shows runtime components (version, path, status) and
-  application information (configuration, port, directories, logs).
 
 ## Configuration
 
@@ -150,32 +177,30 @@ restores MSTest. Close a running `pi-web-tray.exe` before building.
 
 ## Troubleshooting
 
-| Symptom                                 | Action                                                                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| "Node.js is required" on startup        | The app offers the download page and exits. Install Node.js 22.19+, then run it again; set `NodePath` if detection still fails. |
-| Installation failed                     | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                                             |
-| Update failed                           | Check `update.log`: cancelled UAC, proxy or network; retry **Update this app**.                                                 |
-| Red icon, port conflict                 | Another program owns the port; choose a free one in **Settings**. The tray never kills it.                                      |
-| Red icon, service failed                | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.                               |
-| `Cannot launch conpty`                  | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                                                    |
-| Start at login does not work            | Check the tray menu, then `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                                    |
-| Application does not start on Windows 7 | Install .NET Framework 4.8 from the link above and keep `pi-web-tray.exe.config` next to the executable.                        |
-| More diagnostics                        | Run `pi-web-tray.exe --diag`; see `diag.txt`. A crashed tray logs to `crash.log`.                                               |
+| Symptom                          | Action                                                                                                                          |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| "Node.js is required" on startup | The app offers the download page and exits. Install Node.js 22.19+, then run it again; set `NodePath` if detection still fails. |
+| Installation failed              | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                                             |
+| Update failed                    | Check `update.log`: cancelled UAC, proxy or network; retry **Update this app**.                                                 |
+| Red icon, port conflict          | Another program owns the port; choose a free one in **Settings**. The tray never kills it.                                      |
+| Red icon, service failed         | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.                               |
+| `Cannot launch conpty`           | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                                                    |
+| Start at login does not work     | Check the tray menu, then `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                                    |
+| pi update failed                 | pi is probably running and holds its files; close pi and retry **Update pi-web and pi**.                                        |
+| More diagnostics                 | Run `pi-web-tray.exe --diag`; see `diag.txt`. A crashed tray logs to `crash.log`.                                               |
 
 ## Security and limitations
 
 - Runs with the current user token (`asInvoker`); elevation only on request. No telemetry
   and no network listener.
-- Update downloads come from GitHub over HTTPS and are verified against the published
-  SHA-256; the helper also validates the target and a staging fingerprint. Releases are
-  unsigned, so SmartScreen may warn on first run.
+- Updates come from GitHub over HTTPS and are verified against the published SHA-256; the
+  helper also validates the target and a staging fingerprint. Releases are unsigned, so
+  SmartScreen may warn on first run.
 - `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` are trusted
   configuration: treat a writable ini as code execution.
-- Node.js is not installed automatically; it must be 22.19+.
 - npm 12 blocks install scripts by default. The pi-web step passes a one-off
-  `--allow-scripts` allowlist (existing entries plus `@agegr/pi-web` and `node-pty`);
-  the pi CLI uses `--ignore-scripts`. npm configuration is never modified.
-- A pi CLI update fails while pi is running and holding its files; close pi and retry.
+  `--allow-scripts` allowlist; the pi CLI uses `--ignore-scripts`. npm configuration is
+  never modified.
 - Admin start-at-login requires an admin account and is machine-wide. If the tray runs
   elevated, use an elevated console for `--stop` / `--quit`; the menu always works.
 
