@@ -14,7 +14,7 @@ body:
     attributes:
       label: Pi Web Tray version
       description: Output of `pi-web-tray.exe --version`
-      placeholder: "0.1.0"
+      placeholder: "0.2.0"
     validations:
       required: true
 
