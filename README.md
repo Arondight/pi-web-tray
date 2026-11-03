@@ -23,20 +23,20 @@ flowchart LR
 
 ## Features
 
-| Capability           | Description                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Dependency detection | Detects Node.js, npm, pi-web and the pi CLI, including versions and paths.                                      |
-| Installation         | Installs pi-web with `npm install -g` when it is missing or when the user requests an update.                   |
-| Service management   | Starts, stops and restarts pi-web and reports the current state.                                                |
-| Status reporting     | Uses tray icon colors, tooltips and notifications to report state and errors.                                   |
-| Start at login       | Starts the tray and pi-web without opening a browser, using the Run key or an on-logon scheduled task.          |
-| Diagnostics          | Environment check, live logs, update log, data folders and a diagnostic snapshot.                               |
-| Updates              | Checks GitHub, verifies SHA-256, applies the release and restarts; preserves whether pi-web was running.        |
-| Settings             | Edits port, working directory, language, dependency and update options from the tray.                           |
-| Progress             | Shows install/update progress; installs and update downloads can be cancelled.                                  |
-| Safety               | Detects port conflicts and never kills an unrelated process on the configured port.                             |
-| About                | Shows the application name, version, author and project link.                                                   |
-| Localization         | Supports English, Simplified Chinese and Traditional Chinese; the default follows the Windows display language. |
+| Capability           | Description                                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Dependency detection | Detects Node.js, npm, pi-web and the pi CLI, including versions and paths.                                          |
+| Installation         | Installs pi-web with `npm install -g` when it is missing or when the user requests an update.                       |
+| Service management   | Starts, stops and restarts pi-web and reports the current state.                                                    |
+| Status reporting     | Uses tray icon colors, tooltips and notifications to report state and errors.                                       |
+| Start at login       | Starts the tray and pi-web without opening a browser, using the Run key or an on-logon scheduled task.              |
+| Diagnostics          | Environment check, live logs with pause/filter, update log, data folders and a diagnostic snapshot.                 |
+| Updates              | Checks GitHub, verifies SHA-256, applies the release and restarts; preserves service state and removes stale files. |
+| Settings             | Edits port, working directory, language, dependency and update options in a resizable, scrollable window.           |
+| Progress             | Shows install/update progress; installs and update downloads can be cancelled.                                      |
+| Safety               | Detects port conflicts with native process APIs and never kills an unrelated process on the configured port.        |
+| About                | Shows the application name, version, author and project link.                                                       |
+| Localization         | Supports English, Simplified Chinese and Traditional Chinese; the default follows the Windows display language.     |
 
 ## Compatibility
 
@@ -74,9 +74,12 @@ Report issues specific to pi-web or pi in their respective repositories.
 ### Prebuilt release
 
 1. Download and extract the release archive.
-2. Keep `pi-web-tray.exe`, `pi-web-tray.exe.config` and the `zh-Hans` / `zh-Hant`
-   resource folders in the same directory.
+2. Keep `pi-web-tray.exe`, `pi-web-tray.exe.config`, `pi-web-tray.files.txt` and the
+   `zh-Hans` / `zh-Hant` resource folders in the same directory.
 3. Run `pi-web-tray.exe`.
+
+The `pi-web-tray.files.txt` manifest is used by future updates to remove program files that
+the new release no longer contains. Do not delete it; configuration and logs are not listed.
 
 On first start the application checks the environment, installs missing
 dependencies, starts the service and opens the browser. Configuration and logs
@@ -114,7 +117,8 @@ artifacts\zh-Hant\pi-web-tray.resources.dll
 ```
 
 The solution includes a test project; building it restores MSTest packages. The application
-itself has no NuGet dependencies.
+itself has no NuGet dependencies. `scripts\package-release.ps1` adds the
+`pi-web-tray.files.txt` manifest to the release archive.
 
 Alternatively, open `PiWebTray.sln` in Visual Studio or run:
 
@@ -181,16 +185,25 @@ Exit (stop pi-web)
   shown before a force reinstall, and a progress window provides a Cancel button.
 - **Update Pi Web Tray** downloads the latest GitHub release, verifies its SHA-256
   checksum, stops pi-web, replaces the application files and restarts the tray. It
-  preserves whether pi-web was running and does not open a new browser tab. If the
-  installation directory needs administrator rights, Windows shows a UAC prompt. The
-  configuration file, logs and the pi-web installation are left untouched.
-- **Settings** edits the supported ini keys from the tray. **Logs** opens a live tail of
-  the service, install or update log instead of a stale Notepad snapshot.
-- A listener that is not pi-web is reported as a **port conflict**. The tray neither
-  treats it as Running nor stops or kills it; change the port in Settings.
+  preserves whether pi-web was running and does not open a new browser tab. Files that
+  are listed in the previous release manifest but absent from the new release are removed;
+  configuration, logs and pi-web data are never listed and are left untouched. Cleanup
+  needs the manifest from the previously installed release; releases that predate the
+  manifest cannot remove files during their first upgrade. If the installation directory
+  needs administrator rights, Windows shows a UAC prompt. Cancel
+  aborts the active HTTP request immediately, not only its UI state.
+- **Settings** edits the supported ini keys from the tray in a resizable, scrollable
+  window that also works on small or high-DPI displays. **Logs** opens a live tail of the
+  service, install or update log with pause/resume, text filtering and a stable scroll
+  position instead of a stale Notepad snapshot.
+- A listener that is not pi-web is reported as a **port conflict**. The tray uses native
+  Toolhelp/PEB APIs instead of WMI for the owner process, so it continues to work when the
+  WMI service is disabled. It neither treats an unrelated listener as Running nor stops or
+  kills it; change the port in Settings.
 - If pi-web stops unexpectedly, the tray reports it and can restart it automatically
-  when `AutoRestart=1`. `AutoCheckUpdates=1` checks for a new tray release shortly after
-  startup and marks the menu when one is available.
+  when `AutoRestart=1`. If it stops while an update is being checked or downloaded, the
+  restart is deferred until the update operation finishes. `AutoCheckUpdates=1` checks
+  for a new tray release shortly after startup and marks the menu when one is available.
 
 The **Environment check** menu item opens two tables: **Runtime components** (component,
 version, path and status) and **Application information** (configuration, port, directories

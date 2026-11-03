@@ -18,6 +18,8 @@ update.log.*
 diag.txt
 crash.log
 state.ini
+pi-web-tray.files.txt
+.pi-web-tray-backup-*/
 
 # ---- formatting tools ----
 node_modules/

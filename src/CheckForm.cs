@@ -1,12 +1,13 @@
 // Pi Web Tray — environment report window
 //
 // Displays the environment check as two tables: runtime components and application
-// information. The form is populated on the UI thread from a ProbeResult produced by
-// EnvironmentProbe.Detect().
+// information. The form is populated on the UI thread from a ProbeResult; Refresh runs
+// EnvironmentProbe.Detect() on a background thread and updates the tables in place.
 
 using System;
 using System.Drawing;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace PiWebTray
@@ -14,15 +15,18 @@ namespace PiWebTray
     internal sealed class CheckForm : Form
     {
         private readonly Config _config;
-        private readonly ProbeResult _probe;
         private readonly bool _elevated;
         private readonly DataGridView _runtimeGrid;
         private readonly DataGridView _softwareGrid;
+        private readonly Label _summary;
+        private readonly Button _refresh;
+        private ProbeResult _probe;
+        private bool _refreshing;
 
         internal CheckForm(Config config, ProbeResult probe, bool elevated)
         {
             _config = config;
-            _probe = probe;
+            _probe = probe ?? new ProbeResult();
             _elevated = elevated;
 
             Text = L.T("sc.title");
@@ -47,11 +51,11 @@ namespace PiWebTray
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 60f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-            Label summary = new Label();
-            summary.AutoSize = true;
-            summary.MaximumSize = new Size(880, 0);
-            summary.Padding = new Padding(0, 0, 0, 8);
-            summary.Text = BuildSummary();
+            _summary = new Label();
+            _summary.AutoSize = true;
+            _summary.MaximumSize = new Size(880, 0);
+            _summary.Padding = new Padding(0, 0, 0, 8);
+            _summary.Text = BuildSummary();
 
             _runtimeGrid = BuildRuntimeGrid();
             _softwareGrid = BuildSoftwareGrid();
@@ -77,17 +81,17 @@ namespace PiWebTray
             copy.MinimumSize = new Size(88, 0);
             copy.Click += delegate { CopyReport(); };
 
-            Button refresh = new Button();
-            refresh.Text = L.T("check.refresh");
-            refresh.AutoSize = true;
-            refresh.MinimumSize = new Size(88, 0);
-            refresh.DialogResult = DialogResult.Retry;
+            _refresh = new Button();
+            _refresh.Text = L.T("check.refresh");
+            _refresh.AutoSize = true;
+            _refresh.MinimumSize = new Size(88, 0);
+            _refresh.Click += delegate { RefreshReport(); };
 
             buttons.Controls.Add(close);
             buttons.Controls.Add(copy);
-            buttons.Controls.Add(refresh);
+            buttons.Controls.Add(_refresh);
 
-            root.Controls.Add(summary, 0, 0);
+            root.Controls.Add(_summary, 0, 0);
             root.Controls.Add(runtimeGroup, 0, 1);
             root.Controls.Add(softwareGroup, 0, 2);
             root.Controls.Add(buttons, 0, 3);
@@ -96,37 +100,17 @@ namespace PiWebTray
             CancelButton = close;
         }
 
+        internal ProbeResult Probe
+        {
+            get { return _probe; }
+        }
+
         internal static ProbeResult ShowReport(Config config, ProbeResult probe, bool elevated)
         {
-            ProbeResult current = probe;
-            while (true)
+            using (CheckForm form = new CheckForm(config, probe, elevated))
             {
-                DialogResult result;
-                using (CheckForm form = new CheckForm(config, current, elevated))
-                {
-                    result = form.ShowDialog();
-                }
-
-                if (result != DialogResult.Retry) return current;
-
-                try
-                {
-                    Cursor.Current = Cursors.WaitCursor;
-                    current = EnvironmentProbe.Detect(config);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(
-                        L.T("notify.selfCheckError", ex.Message),
-                        L.T("sc.title"),
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                    return current;
-                }
-                finally
-                {
-                    Cursor.Current = Cursors.Default;
-                }
+                form.ShowDialog();
+                return form.Probe;
             }
         }
 
@@ -192,14 +176,7 @@ namespace PiWebTray
             grid.Columns.Add(path);
             grid.Columns.Add(status);
 
-            AddComponentRow(grid, L.T("probe.node"), _probe.NodeVersion, _probe.NodePath, NodeStatus());
-            AddComponentRow(grid, L.T("probe.npm"), _probe.NpmVersion, _probe.NpmCliPath,
-                _probe.NpmFound ? L.T("check.ok") : L.T("check.missing"));
-            AddComponentRow(grid, L.T("probe.piweb"), _probe.PiWebVersion, _probe.PiWebScript,
-                _probe.PiWebFound ? L.T("check.ok") : L.T("check.missing"));
-            AddComponentRow(grid, L.T("probe.picli"), _probe.PiCliVersion, _probe.PiCliPath,
-                _probe.PiCliFound ? L.T("check.ok") : L.T("check.optional"));
-
+            PopulateRuntimeGrid(grid);
             return grid;
         }
 
@@ -220,8 +197,35 @@ namespace PiWebTray
             grid.Columns.Add(item);
             grid.Columns.Add(value);
 
-            bool listening = Net.IsPortOpen(_config.Port, 300);
-            PortOwnerInfo owner = ServiceProbe.Inspect(_config.Port);
+            bool listening = false;
+            PortOwnerInfo owner = null;
+            try
+            {
+                listening = Net.IsPortOpen(_config.Port, 300);
+                owner = ServiceProbe.Inspect(_config.Port);
+            }
+            catch (Exception)
+            {
+            }
+            PopulateSoftwareGrid(grid, listening, owner);
+            return grid;
+        }
+
+        private void PopulateRuntimeGrid(DataGridView grid)
+        {
+            grid.Rows.Clear();
+            AddComponentRow(grid, L.T("probe.node"), _probe.NodeVersion, _probe.NodePath, NodeStatus());
+            AddComponentRow(grid, L.T("probe.npm"), _probe.NpmVersion, _probe.NpmCliPath,
+                _probe.NpmFound ? L.T("check.ok") : L.T("check.missing"));
+            AddComponentRow(grid, L.T("probe.piweb"), _probe.PiWebVersion, _probe.PiWebScript,
+                _probe.PiWebFound ? L.T("check.ok") : L.T("check.missing"));
+            AddComponentRow(grid, L.T("probe.picli"), _probe.PiCliVersion, _probe.PiCliPath,
+                _probe.PiCliFound ? L.T("check.ok") : L.T("check.optional"));
+        }
+
+        private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner)
+        {
+            grid.Rows.Clear();
             AddInfoRow(grid, L.T("sc.config"), _config.IniPath);
             AddInfoRow(grid, L.T("check.port"),
                 L.T("check.portState", _config.Port,
@@ -236,8 +240,67 @@ namespace PiWebTray
             AddInfoRow(grid, L.T("sc.serverLog"), _config.LogFile);
             AddInfoRow(grid, L.T("sc.installLog"), _config.InstallLogFile);
             AddInfoRow(grid, L.T("sc.updateLog"), _config.UpdateLogFile);
+        }
 
-            return grid;
+        private void RefreshReport()
+        {
+            if (_refreshing) return;
+            _refreshing = true;
+            _refresh.Enabled = false;
+            _summary.Text = L.T("check.refreshing");
+            UseWaitCursor = true;
+
+            Thread worker = new Thread(delegate ()
+            {
+                ProbeResult result = null;
+                string error = null;
+                bool listening = false;
+                PortOwnerInfo owner = null;
+                try
+                {
+                    result = EnvironmentProbe.Detect(_config);
+                    listening = Net.IsPortOpen(_config.Port, 300);
+                    owner = ServiceProbe.Inspect(_config.Port);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                }
+
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke(new Action(delegate ()
+                        {
+                            if (IsDisposed) return;
+                            _refreshing = false;
+                            _refresh.Enabled = true;
+                            UseWaitCursor = false;
+                            if (result == null)
+                            {
+                                _summary.Text = BuildSummary();
+                                MessageBox.Show(
+                                    L.T("notify.selfCheckError", error ?? ""),
+                                    L.T("sc.title"),
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Warning);
+                                return;
+                            }
+
+                            _probe = result;
+                            PopulateRuntimeGrid(_runtimeGrid);
+                            PopulateSoftwareGrid(_softwareGrid, listening, owner);
+                            _summary.Text = BuildSummary();
+                        }));
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
         }
 
         private static void AddComponentRow(

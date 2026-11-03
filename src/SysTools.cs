@@ -108,7 +108,8 @@ namespace PiWebTray
                 return false;
             }
         }
-        // Last-resort pi-web identity check when WMI cannot read the owning process.
+        // Last-resort pi-web identity check when the native process probe cannot read
+        // the owning process.
         // This is intentionally only a fallback; a mere HTTP 200 is not enough.
         internal static bool IsPiWebHttp(int port, int timeoutMs)
         {
@@ -172,12 +173,29 @@ namespace PiWebTray
 
     internal static class Sys
     {
+        // Resolve Windows tools from the system directory instead of relying on the caller's
+        // current directory or PATH. This blocks a local taskkill.exe/netstat.exe
+        // in a writable working directory from being executed by the tray.
+        internal static string SystemExecutable(string name)
+        {
+            try
+            {
+                string directory = Environment.GetFolderPath(Environment.SpecialFolder.System);
+                string path = Path.Combine(directory, name);
+                if (File.Exists(path)) return path;
+            }
+            catch (Exception)
+            {
+            }
+            return name;
+        }
+
         internal static void KillTree(int pid)
         {
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "taskkill.exe";
+                psi.FileName = SystemExecutable("taskkill.exe");
                 psi.Arguments = "/PID " + pid + " /T /F";
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
@@ -196,7 +214,7 @@ namespace PiWebTray
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "netstat.exe";
+                psi.FileName = SystemExecutable("netstat.exe");
                 psi.Arguments = "-ano -p TCP";
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;

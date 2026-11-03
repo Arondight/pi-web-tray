@@ -45,24 +45,39 @@ namespace PiWebTray
 
             Text = L.T("settings.title");
             StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
             MinimizeBox = false;
             ShowInTaskbar = false;
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(700, 540);
+            ClientSize = new Size(720, 560);
+            MinimumSize = new Size(560, 420);
             Icon = SystemIcons.Application;
 
+            TableLayoutPanel outer = new TableLayoutPanel();
+            outer.Dock = DockStyle.Fill;
+            outer.Padding = new Padding(14);
+            outer.ColumnCount = 1;
+            outer.RowCount = 2;
+            outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            outer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            Panel scroll = new Panel();
+            scroll.Dock = DockStyle.Fill;
+            scroll.AutoScroll = true;
+
             TableLayoutPanel root = new TableLayoutPanel();
-            root.Dock = DockStyle.Fill;
-            root.Padding = new Padding(14);
+            root.Dock = DockStyle.Top;
+            root.AutoSize = true;
+            root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 13;
+            root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            scroll.Controls.Add(root);
 
             _port = new NumericUpDown();
             _port.Minimum = 1;
@@ -129,7 +144,7 @@ namespace PiWebTray
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
             note.AutoSize = true;
-            note.MaximumSize = new Size(620, 0);
+            note.MaximumSize = new Size(520, 0);
             note.Margin = new Padding(0, 12, 0, 12);
             root.Controls.Add(note, 0, 11);
             root.SetColumnSpan(note, 2);
@@ -139,6 +154,7 @@ namespace PiWebTray
             buttons.FlowDirection = FlowDirection.RightToLeft;
             buttons.AutoSize = true;
             buttons.WrapContents = false;
+            buttons.Margin = new Padding(0, 8, 0, 0);
 
             Button save = new Button();
             save.Text = L.T("settings.save");
@@ -155,9 +171,9 @@ namespace PiWebTray
             buttons.Controls.Add(save);
             buttons.Controls.Add(cancel);
 
-            root.Controls.Add(buttons, 0, 12);
-            root.SetColumnSpan(buttons, 2);
-            Controls.Add(root);
+            outer.Controls.Add(scroll, 0, 0);
+            outer.Controls.Add(buttons, 0, 1);
+            Controls.Add(outer);
 
             AcceptButton = save;
             CancelButton = cancel;

@@ -45,6 +45,7 @@ namespace PiWebTray
             InstallArgumentsTests();
             SafeTagTests();
             UpdateTests();
+            UpdateCancellationTests();
             UpdateCopyTests();
             UpdateTargetTests();
             ServiceProbeTests();
@@ -479,6 +480,17 @@ namespace PiWebTray
             }
         }
 
+        private static void UpdateCancellationTests()
+        {
+            UpdateCancellation cancellation = new UpdateCancellation();
+            Check("update cancellation starts active", !cancellation.IsCancelled);
+            cancellation.Release(null);
+            cancellation.Cancel();
+            Check("update cancellation sets flag", cancellation.IsCancelled);
+            cancellation.Cancel();
+            Check("update cancellation is idempotent", cancellation.IsCancelled);
+        }
+
         private static void UpdateCopyTests()
         {
             string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-update-" + Guid.NewGuid().ToString("N"));
@@ -495,6 +507,16 @@ namespace PiWebTray
                 File.WriteAllText(Path.Combine(target, "pi-web-tray.exe"), "old");
                 File.WriteAllText(Path.Combine(target, "pi-web-tray.ini"), "user");
                 File.WriteAllText(Path.Combine(target, "server.log"), "log");
+                Directory.CreateDirectory(Path.Combine(target, "zh-Hant"));
+                File.WriteAllText(Path.Combine(target, "zh-Hant", "old.resources.dll"), "old");
+                File.WriteAllText(Path.Combine(target, "old.txt"), "old");
+                File.WriteAllText(Path.Combine(root, "outside.txt"), "keep");
+                File.WriteAllText(Path.Combine(target, Updater.ManifestName),
+                    "pi-web-tray.exe" + Environment.NewLine
+                    + "./old.txt" + Environment.NewLine
+                    + "zh-Hant/old.resources.dll" + Environment.NewLine
+                    + "../outside.txt" + Environment.NewLine
+                    + "sub/../pi-web-tray.exe" + Environment.NewLine);
 
                 File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
                 File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe.config"), "config");
@@ -533,6 +555,15 @@ namespace PiWebTray
                     File.ReadAllText(Path.Combine(target, "zh-Hans", "pi-web-tray.resources.dll")));
                 CheckEqual("update copies the sample config", "sample",
                     File.ReadAllText(Path.Combine(target, "config", "pi-web-tray.ini")));
+                Check("update removes stale file", !File.Exists(Path.Combine(target, "old.txt")));
+                Check("update removes empty stale directory",
+                    !Directory.Exists(Path.Combine(target, "zh-Hant")));
+                Check("manifest never deletes outside the target",
+                    File.Exists(Path.Combine(root, "outside.txt")));
+                string manifest = File.ReadAllText(Path.Combine(target, Updater.ManifestName));
+                Check("manifest lists new executable", manifest.Contains("pi-web-tray.exe"));
+                Check("manifest lists copied config", manifest.Contains("config/pi-web-tray.ini"));
+                Check("manifest drops stale file", !manifest.Contains("old.txt"));
                 Check("update leaves no backup directory",
                     Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
             }
@@ -589,6 +620,12 @@ namespace PiWebTray
             Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
                 @"node C:\work\other.js"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));
+
+            int self = System.Diagnostics.Process.GetCurrentProcess().Id;
+            Check("native parent pid", NativeProcess.ParentPid(self) > 0);
+            Check("native image path", NativeProcess.ImagePath(self).Length > 0);
+            Check("native command line", NativeProcess.CommandLine(self).Length > 0);
+            Check("system tool path is absolute", Path.IsPathRooted(Sys.SystemExecutable("netstat.exe")));
         }
 
         private static void StateFileTests()

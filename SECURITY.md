@@ -36,11 +36,10 @@ Pi Web Tray is a local desktop launcher. It:
   an administrator;
 - identifies the process that owns the configured port and reports a port conflict
   instead of treating or killing an unrelated listener as pi-web;
-- checks GitHub for updates only when the user selects **Update Pi Web Tray** (or opts into
-  ), downloads
-  the release archive over HTTPS, verifies its SHA-256 checksum, and starts an elevated
-  helper only when the installation directory needs elevation and the user accepts the
-  UAC prompt (or the tray is already elevated);
+- checks GitHub for updates only when the user selects **Update Pi Web Tray** (or opts
+  into automatic checks), downloads the release archive over HTTPS, verifies its SHA-256
+  checksum, and starts an elevated helper only when the installation directory needs
+  elevation and the user accepts the UAC prompt (or the tray is already elevated);
 - does not contain telemetry or network listeners.
 
 The tray intentionally trusts the configured `NodePath`, `ServerScript`,
@@ -53,7 +52,9 @@ files in a protected installation directory. Only accept the UAC prompt when you
 started the update from the tray, and do not let untrusted programs write to the update
 staging directory while a prompt is pending. The helper refuses a target that is not a
 Pi Web Tray installation and re-checks a fingerprint of the staged files after the UAC
-prompt; these checks reduce the risk but do not replace code signing.
+prompt; these checks reduce the risk but do not replace code signing. The release file
+manifest is used only to remove files that were managed by the previous release; it is
+not an integrity check and does not replace the SHA-256 checksum.
 
 Third-party components (Node.js, npm, pi-web, pi) are not part of this project and
 should be reported to their respective maintainers. Vulnerabilities in how this

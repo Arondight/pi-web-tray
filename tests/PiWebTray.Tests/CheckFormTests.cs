@@ -61,6 +61,8 @@ namespace PiWebTray
             using (SettingsForm form = new SettingsForm(config))
             {
                 Assert.AreEqual(L.T("settings.title"), form.Text);
+                Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle);
+                Assert.IsTrue(form.MinimumSize.Width > 0);
             }
         }
 
@@ -83,6 +85,18 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void LogFilterHandlesTextAndBraces()
+        {
+            string filtered = LogForm.FilterLines(
+                "line one" + Environment.NewLine + "line two" + Environment.NewLine + "line three",
+                "two");
+            Assert.AreEqual("line two", filtered);
+
+            string noMatch = LogForm.FilterLines("line one", "{");
+            Assert.AreEqual(L.T("log.noMatches", "{"), noMatch);
+        }
+
+        [TestMethod]
         public void LogFormCanBeConstructed()
         {
             string path = Path.Combine(Path.GetTempPath(), "pi-web-tray-log-form-" + Guid.NewGuid().ToString("N") + ".log");
@@ -92,6 +106,7 @@ namespace PiWebTray
                 using (LogForm form = new LogForm(path, "log"))
                 {
                     Assert.AreEqual("log", form.Text);
+                    Assert.AreEqual(2, FindControls<TextBox>(form).Count);
                 }
             }
             finally

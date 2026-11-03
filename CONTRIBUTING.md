@@ -35,8 +35,9 @@ and the generated culture folders (for example `artifacts\zh-Hans` and
 
 ## Tests
 
-Tests in `tests/PiWebTray.Tests` cover the pure logic and the construction of the two-table
-environment-check window; the CI smoke script exercises the built CLI:
+Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update
+manifest cleanup and the construction of the main dialogs; the CI smoke script exercises
+the built CLI:
 
 ```powershell
 .\scripts\verify.ps1 -ExePath artifacts\pi-web-tray.exe
@@ -57,7 +58,11 @@ Before a release, manually check:
 - install start, finish and failure notifications;
 - start-at-login in both normal and admin mode;
 - elevated takeover;
-- high-DPI scaling;
+- high-DPI scaling and the Settings window on a small screen;
+- log pause/resume and filtering;
+- update cancellation while a download is in progress;
+- update while pi-web is stopped (service restart after the update);
+- stale-file cleanup from a release manifest;
 - Windows 7 SP1 + .NET Framework 4.8 when changing OS-facing code.
 
 ## Formatting
@@ -88,6 +93,9 @@ assets and configuration files; `dotnet format` uses `.editorconfig` and
 - Catch exceptions at the boundary (UI action, worker callback), not around every
   line. Never silently swallow an exception that leaves the UI in a lying state.
 - Keep comments in English and write them for the next maintainer.
+- `TrayApp` and `Updater` are partial classes split by responsibility
+  (`TrayApp.Service.cs`, `TrayApp.Update.cs`, `Updater.Files.cs`, ...). Put new code in
+  the matching file instead of growing the main file again.
 - Prefer small, focused commits with Conventional Commit prefixes
   (`fix:`, `feat:`, `docs:`, `build:`, `chore:`).
 
@@ -110,7 +118,8 @@ assets and configuration files; `dotnet format` uses `.editorconfig` and
   with `v`) and does not run any git commands.
 - Tags use `v<major>.<minor>.<patch>`; the release workflow builds, tests and
   publishes a zip with the exe, its `.config`, satellite resource folders (for example
-  `zh-Hans` / `zh-Hant`), README files, LICENSE and the sample ini.
+  `zh-Hans` / `zh-Hant`), README files, LICENSE, the sample ini and
+  `pi-web-tray.files.txt` (the managed-file manifest used for stale-file cleanup).
 - Review `SECURITY.md` supported versions and the release notes before tagging.
 - Code signing is optional and is not configured in the repository.
 

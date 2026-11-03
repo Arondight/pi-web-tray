@@ -1,7 +1,8 @@
 // Pi Web Tray — live log viewer
 //
 // Opens service/install/update logs without taking a snapshot, so the view keeps
-// following a running service. Only the last part of a large file is read.
+// following a running service. Only the last part of a large file is read. The view
+// can be paused and filtered without losing the scroll position.
 
 using System;
 using System.Drawing;
@@ -17,9 +18,13 @@ namespace PiWebTray
 
         private readonly string _path;
         private readonly TextBox _text;
+        private readonly TextBox _filter;
+        private readonly Button _pause;
+        private readonly Label _state;
         private readonly Timer _timer;
         private long _lastLength = -1;
         private DateTime _lastWriteUtc = DateTime.MinValue;
+        private bool _paused;
 
         internal LogForm(string path, string title)
         {
@@ -34,17 +39,51 @@ namespace PiWebTray
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(760, 520);
-            MinimumSize = new Size(520, 320);
+            MinimumSize = new Size(560, 360);
             Icon = SystemIcons.Application;
 
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(10);
             root.ColumnCount = 1;
-            root.RowCount = 2;
+            root.RowCount = 3;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+            FlowLayoutPanel toolbar = new FlowLayoutPanel();
+            toolbar.Dock = DockStyle.Fill;
+            toolbar.AutoSize = true;
+            toolbar.WrapContents = true;
+            toolbar.Margin = new Padding(0, 0, 0, 6);
+
+            Label filterLabel = new Label();
+            filterLabel.Text = L.T("log.filter");
+            filterLabel.AutoSize = true;
+            filterLabel.Margin = new Padding(0, 7, 6, 0);
+
+            _filter = new TextBox();
+            _filter.Width = 240;
+            _filter.Margin = new Padding(0, 3, 10, 0);
+            _filter.TextChanged += delegate { RefreshLog(true); };
+
+            _pause = new Button();
+            _pause.Text = L.T("log.pause");
+            _pause.AutoSize = true;
+            _pause.MinimumSize = new Size(88, 0);
+            _pause.Margin = new Padding(0, 2, 10, 0);
+            _pause.Click += delegate { TogglePause(); };
+
+            _state = new Label();
+            _state.AutoSize = true;
+            _state.Margin = new Padding(0, 7, 0, 0);
+            _state.Text = L.T("log.live");
+
+            toolbar.Controls.Add(filterLabel);
+            toolbar.Controls.Add(_filter);
+            toolbar.Controls.Add(_pause);
+            toolbar.Controls.Add(_state);
 
             _text = new TextBox();
             _text.Dock = DockStyle.Fill;
@@ -76,8 +115,9 @@ namespace PiWebTray
             buttons.Controls.Add(close);
             buttons.Controls.Add(refresh);
 
-            root.Controls.Add(_text, 0, 0);
-            root.Controls.Add(buttons, 0, 1);
+            root.Controls.Add(toolbar, 0, 0);
+            root.Controls.Add(_text, 0, 1);
+            root.Controls.Add(buttons, 0, 2);
             Controls.Add(root);
 
             AcceptButton = close;
@@ -91,25 +131,53 @@ namespace PiWebTray
             RefreshLog(true);
         }
 
+        private void TogglePause()
+        {
+            _paused = !_paused;
+            _pause.Text = _paused ? L.T("log.resume") : L.T("log.pause");
+            UpdateState();
+            if (!_paused) RefreshLog(true);
+        }
+
+        private void UpdateState()
+        {
+            string state = _paused ? L.T("log.paused") : L.T("log.live");
+            if ((_filter.Text ?? "").Trim().Length > 0) state += " · " + L.T("log.filtered");
+            _state.Text = state;
+        }
+
         private void RefreshLog(bool force)
         {
+            if (_paused && !force) return;
+
             try
             {
                 if (!File.Exists(_path))
                 {
-                    if (force) _text.Text = "";
+                    _lastLength = -1;
+                    _lastWriteUtc = DateTime.MinValue;
+                    if (force)
+                    {
+                        _text.Text = "";
+                        UpdateState();
+                    }
                     return;
                 }
 
                 FileInfo info = new FileInfo(_path);
                 if (!force && info.Length == _lastLength && info.LastWriteTimeUtc == _lastWriteUtc)
                     return;
-                _lastLength = info.Length;
-                _lastWriteUtc = info.LastWriteTimeUtc;
+                long newLength = info.Length;
+                DateTime newWriteUtc = info.LastWriteTimeUtc;
 
                 bool atBottom = _text.SelectionStart >= Math.Max(0, _text.TextLength - 2);
-                int oldSelection = _text.SelectionStart;
-                int oldLength = _text.SelectionLength;
+                int firstLine = 0;
+                if (!atBottom && _text.TextLength > 0)
+                {
+                    int firstChar = _text.GetCharIndexFromPosition(new Point(1, 1));
+                    firstLine = Math.Max(0, _text.GetLineFromCharIndex(firstChar));
+                }
+
                 string text;
                 using (FileStream stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                 {
@@ -122,6 +190,9 @@ namespace PiWebTray
                     if (start > 0) text = L.T("log.truncated") + Environment.NewLine + text;
                 }
 
+                string filter = (_filter.Text ?? "").Trim();
+                if (filter.Length > 0) text = FilterLines(text, filter);
+
                 _text.Text = text;
                 if (atBottom)
                 {
@@ -130,14 +201,39 @@ namespace PiWebTray
                 }
                 else
                 {
-                    _text.SelectionStart = Math.Min(oldSelection, _text.TextLength);
-                    _text.SelectionLength = Math.Min(oldLength, _text.TextLength - _text.SelectionStart);
+                    int lineCount = _text.GetLineFromCharIndex(_text.TextLength);
+                    if (firstLine > lineCount) firstLine = lineCount;
+                    int index = _text.GetFirstCharIndexFromLine(firstLine);
+                    if (index < 0) index = Math.Min(_text.TextLength, firstLine);
+                    _text.SelectionStart = Math.Min(index, _text.TextLength);
+                    _text.SelectionLength = 0;
+                    _text.ScrollToCaret();
                 }
+                UpdateState();
+                _lastLength = newLength;
+                _lastWriteUtc = newWriteUtc;
             }
             catch (Exception ex)
             {
                 if (force) _text.Text = ex.Message;
             }
+        }
+
+        internal static string FilterLines(string text, string filter)
+        {
+            StringBuilder sb = new StringBuilder();
+            int matches = 0;
+            string[] lines = text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+            foreach (string line in lines)
+            {
+                if (line.IndexOf(filter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                if (matches > 0) sb.AppendLine();
+                sb.Append(line);
+                matches++;
+            }
+
+            if (matches == 0) return L.T("log.noMatches", filter);
+            return sb.ToString();
         }
 
         protected override void Dispose(bool disposing)

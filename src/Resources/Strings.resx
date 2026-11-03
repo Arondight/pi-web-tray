@@ -1119,4 +1119,28 @@ See {1} for details.</value>
   <data name="update.startAfterFailureBody" xml:space="preserve">
     <value>The update could not be completed. Try to start the tray now?</value>
   </data>
+  <data name="check.refreshing" xml:space="preserve">
+    <value>Refreshing environment information...</value>
+  </data>
+  <data name="log.pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="log.resume" xml:space="preserve">
+    <value>Resume</value>
+  </data>
+  <data name="log.filter" xml:space="preserve">
+    <value>Filter:</value>
+  </data>
+  <data name="log.live" xml:space="preserve">
+    <value>Live</value>
+  </data>
+  <data name="log.paused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="log.filtered" xml:space="preserve">
+    <value>Filtered</value>
+  </data>
+  <data name="log.noMatches" xml:space="preserve">
+    <value>No lines match "{0}".</value>
+  </data>
 </root>

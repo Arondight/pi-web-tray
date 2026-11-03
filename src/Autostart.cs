@@ -65,7 +65,7 @@ namespace PiWebTray
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "schtasks.exe";
+                psi.FileName = Sys.SystemExecutable("schtasks.exe");
                 psi.Arguments = "/query /tn " + Shell.Quote(TaskName);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
@@ -147,12 +147,12 @@ namespace PiWebTray
             {
                 if (elevated)
                 {
-                    Process p = Sys.StartHidden("schtasks.exe", args, null);
+                    Process p = Sys.StartHidden(Sys.SystemExecutable("schtasks.exe"), args, null);
                     if (p == null) return false;
                     p.Dispose();
                     return true;
                 }
-                return Sys.RunElevated("schtasks.exe", args);
+                return Sys.RunElevated(Sys.SystemExecutable("schtasks.exe"), args);
             }
             catch (Exception)
             {

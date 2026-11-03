@@ -1119,4 +1119,28 @@
   <data name="update.startAfterFailureBody" xml:space="preserve">
     <value>更新未能完成。現在嘗試啟動系統匣嗎？</value>
   </data>
+  <data name="check.refreshing" xml:space="preserve">
+    <value>正在重新整理環境資訊…</value>
+  </data>
+  <data name="log.pause" xml:space="preserve">
+    <value>暫停</value>
+  </data>
+  <data name="log.resume" xml:space="preserve">
+    <value>繼續</value>
+  </data>
+  <data name="log.filter" xml:space="preserve">
+    <value>篩選：</value>
+  </data>
+  <data name="log.live" xml:space="preserve">
+    <value>即時</value>
+  </data>
+  <data name="log.paused" xml:space="preserve">
+    <value>已暫停</value>
+  </data>
+  <data name="log.filtered" xml:space="preserve">
+    <value>已篩選</value>
+  </data>
+  <data name="log.noMatches" xml:space="preserve">
+    <value>沒有符合「{0}」的行。</value>
+  </data>
 </root>

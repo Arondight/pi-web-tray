@@ -1119,4 +1119,28 @@
   <data name="update.startAfterFailureBody" xml:space="preserve">
     <value>更新未能完成。现在尝试启动托盘吗？</value>
   </data>
+  <data name="check.refreshing" xml:space="preserve">
+    <value>正在刷新环境信息…</value>
+  </data>
+  <data name="log.pause" xml:space="preserve">
+    <value>暂停</value>
+  </data>
+  <data name="log.resume" xml:space="preserve">
+    <value>继续</value>
+  </data>
+  <data name="log.filter" xml:space="preserve">
+    <value>筛选：</value>
+  </data>
+  <data name="log.live" xml:space="preserve">
+    <value>实时</value>
+  </data>
+  <data name="log.paused" xml:space="preserve">
+    <value>已暂停</value>
+  </data>
+  <data name="log.filtered" xml:space="preserve">
+    <value>已筛选</value>
+  </data>
+  <data name="log.noMatches" xml:space="preserve">
+    <value>没有匹配“{0}”的行。</value>
+  </data>
 </root>

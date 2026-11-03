@@ -1,0 +1,159 @@
+// Pi Web Tray — exit, cleanup and log rotation
+//
+// Partial of TrayApp. Kept separate so the tray state machine stays readable.
+
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Windows.Forms;
+
+namespace PiWebTray
+{
+    internal sealed partial class TrayApp
+    {
+        private void ExitApp()
+        {
+            if (_exiting) return;
+
+            // The updater calls ExitApp only after its helper has been started. Any other
+            // update stage can still be abandoned, but the user should confirm it.
+            if (UpdateBusy() && _updateStage != UpdateStage.Applying)
+            {
+                DialogResult updateAnswer = MessageBox.Show(
+                    L.T("update.busyBody"),
+                    L.T("update.busyTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (updateAnswer != DialogResult.Yes) return;
+            }
+
+            // Aborting midway leaves a half-installed global package: ask first, and kill npm if confirmed
+            if (_phase == Phase.Installing)
+            {
+                DialogResult answer = MessageBox.Show(
+                    L.T("exit.installingBody"),
+                    L.T("exit.installingTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (answer != DialogResult.Yes) return;
+                Installer.Abort();
+                CloseInstallForm();
+            }
+
+            _exiting = true;
+            _timer.Stop();
+
+            UpdateCancellation updateCancellation;
+            lock (_updateLock) updateCancellation = _updateCancellation;
+            if (updateCancellation != null) updateCancellation.Cancel();
+
+            try
+            {
+                // Exiting right after starting: kill the tree instead of waiting for it to come up
+                if (_phase == Phase.Starting && _server != null)
+                {
+                    try { if (!_server.HasExited) Sys.KillTree(_server.Id); } catch (Exception) { }
+                }
+
+                if (Net.IsPortOpen(_port, 200))
+                {
+                    ServiceProbe.Invalidate();
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    bool ownedByTray = TrayOwnsPort();
+                    if ((owner.IsUnknown || owner.Owner == PortOwner.None) && !ownedByTray)
+                    {
+                        // Another program owns the port. Leave it alone and keep the
+                        // exit fast instead of waiting for a service that is not ours.
+                        Updater.AppendLog(_config.UpdateLogFile,
+                            "exit: port " + _port + " is used by another program; not stopped");
+                    }
+                    else
+                    {
+                        StopServer();
+                        // Wait until it is really stopped, keeping the message loop alive meanwhile
+                        int waited = 0;
+                        while (waited < 8000 && Net.IsPortOpen(_port, 200))
+                        {
+                            Thread.Sleep(120);
+                            Application.DoEvents();
+                            waited += 120;
+                        }
+                        if (Net.IsPortOpen(_port, 200))
+                        {
+                            ServiceProbe.Invalidate();
+                            owner = ServiceProbe.Inspect(_port);
+                            if (owner.IsPiWeb || TrayOwnsPort())
+                            {
+                                Sys.KillByPort(_port);
+                            }
+                            else
+                            {
+                                Updater.AppendLog(_config.UpdateLogFile,
+                                    "exit: port " + _port + " changed owner; not killed");
+                            }
+                        }
+                        Net.WaitPortClosed(_port, 2000);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            TrayState.Delete();
+            Cleanup();
+            ExitThread();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) Cleanup();
+            base.Dispose(disposing);
+        }
+
+        private void Cleanup()
+        {
+            if (_cleaned) return;
+            _cleaned = true;
+
+            try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
+            CloseInstallForm();
+            CloseUpdateForm();
+            try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
+            try { _menu.Dispose(); } catch (Exception) { }
+            try { _openSignal.Close(); } catch (Exception) { }
+            try { _stopSignal.Close(); } catch (Exception) { }
+            try { _quitSignal.Close(); } catch (Exception) { }
+            try { Icons.DisposeCache(); } catch (Exception) { }
+            try { if (_server != null) _server.Dispose(); } catch (Exception) { }
+            if (_mutex != null)
+            {
+                try { _mutex.ReleaseMutex(); } catch (Exception) { }
+                try { _mutex.Close(); } catch (Exception) { }
+            }
+        }
+
+        private void RotateLog()
+        {
+            try
+            {
+                FileInfo info = new FileInfo(_config.LogFile);
+                if (info.Exists && info.Length > MaxLogBytes)
+                {
+                    string backup = _config.LogFile + ".1";
+                    if (File.Exists(backup)) File.Delete(backup);
+                    File.Move(_config.LogFile, backup);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+}

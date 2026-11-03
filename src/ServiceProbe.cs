@@ -6,7 +6,6 @@
 
 using System;
 using System.Diagnostics;
-using System.Management;
 
 namespace PiWebTray
 {
@@ -85,7 +84,7 @@ namespace PiWebTray
                 };
             }
 
-            // WMI can be unavailable for protected processes. A local HTTP body check
+            // Protected processes can deny command-line access. A local HTTP body check
             // cannot prove ownership, but it is a useful fallback when the command line
             // cannot be read and avoids a false port-conflict warning for pi-web.
             if (string.IsNullOrEmpty(commandLine) && Net.IsPiWebHttp(port, 1500))
@@ -98,13 +97,17 @@ namespace PiWebTray
                 };
             }
 
+            string detail = string.IsNullOrEmpty(commandLine)
+                ? "process details are unavailable"
+                : "process is not pi-web";
+            string imagePath = pid > 4 ? NativeProcess.ImagePath(pid) : "";
+            if (!string.IsNullOrEmpty(imagePath)) detail += " (" + imagePath + ")";
+
             return new PortOwnerInfo
             {
                 Owner = PortOwner.Unknown,
                 Pid = pid,
-                Detail = string.IsNullOrEmpty(commandLine)
-                    ? "process details are unavailable"
-                    : "process is not pi-web"
+                Detail = detail
             };
         }
 
@@ -159,7 +162,7 @@ namespace PiWebTray
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "netstat.exe";
+                psi.FileName = Sys.SystemExecutable("netstat.exe");
                 psi.Arguments = "-ano -p TCP";
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
@@ -182,53 +185,12 @@ namespace PiWebTray
 
         internal static int ParentPid(int pid)
         {
-            try
-            {
-                string query = "SELECT ParentProcessId FROM Win32_Process WHERE ProcessId = "
-                    + pid.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(query))
-                using (ManagementObjectCollection results = searcher.Get())
-                {
-                    foreach (ManagementObject process in results)
-                    {
-                        using (process)
-                        {
-                            object value = process["ParentProcessId"];
-                            int parent;
-                            if (value != null && int.TryParse(value.ToString(), out parent)) return parent;
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
-            return 0;
+            return NativeProcess.ParentPid(pid);
         }
 
         private static string ReadCommandLine(int pid)
         {
-            try
-            {
-                string query = "SELECT CommandLine FROM Win32_Process WHERE ProcessId = "
-                    + pid.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(query))
-                using (ManagementObjectCollection results = searcher.Get())
-                {
-                    foreach (ManagementObject process in results)
-                    {
-                        using (process)
-                        {
-                            string text = process["CommandLine"] as string;
-                            if (!string.IsNullOrEmpty(text)) return text;
-                        }
-                    }
-                }
-            }
-            catch (Exception)
-            {
-            }
-            return "";
+            return NativeProcess.CommandLine(pid);
         }
     }
 }
