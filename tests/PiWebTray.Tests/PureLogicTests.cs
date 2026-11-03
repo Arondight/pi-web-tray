@@ -130,6 +130,10 @@ namespace PiWebTray
             CheckEqual("unknown Windows Node.js download", NodeDownloads.DefaultUrl,
                 NodeDownloads.UrlFor(null));
             Check("current Windows version is readable", WindowsVersion.Current.Major >= 6);
+            Check("legacy download uses the pinned version",
+                NodeDownloads.Windows7Or8Url.Contains(NodeDownloads.PinnedVersion));
+            Check("8.1 download uses the pinned version",
+                NodeDownloads.Windows81Url.Contains(NodeDownloads.PinnedVersion));
 
             // The console hint shown by --install must carry the same link as the tray menu.
             L.Use("en");
