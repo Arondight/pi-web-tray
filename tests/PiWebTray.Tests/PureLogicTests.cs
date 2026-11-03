@@ -37,6 +37,7 @@ namespace PiWebTray
             VersionCompareTests();
             VersionParseTests();
             ClipTests();
+            NodeDownloadTests();
             QuoteTests();
             IniReadTests();
             InstanceSuffixTests();
@@ -114,6 +115,21 @@ namespace PiWebTray
             CheckEqual("clip length", 63, clipped.Length);
             Check("clip keeps tail marker", clipped.EndsWith("...", StringComparison.Ordinal));
             CheckEqual("clip tiny budget", 3, Shell.Clip(new string('x', 10), 3).Length);
+        }
+
+        private static void NodeDownloadTests()
+        {
+            CheckEqual("Windows 7 Node.js download", NodeDownloads.Windows7Or8Url,
+                NodeDownloads.UrlFor(new Version(6, 1, 7601)));
+            CheckEqual("Windows 8 Node.js download", NodeDownloads.Windows7Or8Url,
+                NodeDownloads.UrlFor(new Version(6, 2, 9200)));
+            CheckEqual("Windows 8.1 Node.js download", NodeDownloads.Windows81Url,
+                NodeDownloads.UrlFor(new Version(6, 3, 9600)));
+            CheckEqual("newer Windows Node.js download", NodeDownloads.DefaultUrl,
+                NodeDownloads.UrlFor(new Version(10, 0, 19045)));
+            CheckEqual("unknown Windows Node.js download", NodeDownloads.DefaultUrl,
+                NodeDownloads.UrlFor(null));
+            Check("current Windows version is readable", WindowsVersion.Current.Major >= 6);
         }
 
         private static void QuoteTests()

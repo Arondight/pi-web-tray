@@ -217,7 +217,7 @@ namespace PiWebTray
             };
 
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
-            _nodeItem.Click += delegate { OpenUrl("https://nodejs.org/en/download"); };
+            _nodeItem.Click += delegate { OpenUrl(NodeDownloads.Url()); };
 
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
             _checkItem.Click += delegate { RunSelfCheck(); };
