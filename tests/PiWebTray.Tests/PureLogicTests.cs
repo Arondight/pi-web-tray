@@ -332,6 +332,14 @@ namespace PiWebTray
             Check("pi cli runs second", steps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
             Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
 
+            ProbeResult webMissingCliPresent = new ProbeResult();
+            webMissingCliPresent.PiCliFound = true;
+            webMissingCliPresent.PiCliVersion = "1.0.0";
+            List<InstallStep> firstRun = Installer.StepsToInstall(webMissingCliPresent, config, false);
+            CheckEqual("first-run install updates an existing pi cli", 2, firstRun.Count);
+            Check("first-run install includes the pi cli",
+                firstRun[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
+
             ProbeResult installed = new ProbeResult();
             installed.PiWebFound = true;
             installed.PiCliFound = true;

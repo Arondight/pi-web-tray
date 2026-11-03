@@ -160,7 +160,9 @@ namespace PiWebTray
                 steps.Add(web);
             }
 
-            if (config.InstallPiCli && (force || !probe.PiCliFound))
+            // When pi-web is being installed, also update the pi CLI even if an older
+            // version is already present. First-run auto-install must not leave pi stale.
+            if (config.InstallPiCli && (force || !probe.PiWebFound || !probe.PiCliFound))
             {
                 InstallStep cli = new InstallStep();
                 cli.Packages.Add(Config.PiCliPackage + "@" + tag);
