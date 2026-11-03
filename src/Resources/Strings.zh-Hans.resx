@@ -654,4 +654,193 @@
   <data name="check.listening" xml:space="preserve">
     <value>{0}（监听中={1}）</value>
   </data>
+  <data name="menu.checkUpdates" xml:space="preserve">
+    <value>检查更新</value>
+  </data>
+  <data name="menu.checkUpdatesBusy" xml:space="preserve">
+    <value>正在更新...</value>
+  </data>
+  <data name="menu.about" xml:space="preserve">
+    <value>关于</value>
+  </data>
+  <data name="update.checkingTitle" xml:space="preserve">
+    <value>正在检查更新</value>
+  </data>
+  <data name="update.checkingBody" xml:space="preserve">
+    <value>正在查找 GitHub 上的最新版本（当前版本 {0}）...</value>
+  </data>
+  <data name="update.status.checking" xml:space="preserve">
+    <value>正在检查更新...</value>
+  </data>
+  <data name="update.status.downloading" xml:space="preserve">
+    <value>正在下载更新...</value>
+  </data>
+  <data name="update.status.downloadingPercent" xml:space="preserve">
+    <value>正在下载更新... {0}%</value>
+  </data>
+  <data name="update.status.applying" xml:space="preserve">
+    <value>正在应用更新...</value>
+  </data>
+  <data name="update.upToDateTitle" xml:space="preserve">
+    <value>已是最新版本</value>
+  </data>
+  <data name="update.upToDateBody" xml:space="preserve">
+    <value>当前已是最新版本（{0}）。</value>
+  </data>
+  <data name="update.confirmTitle" xml:space="preserve">
+    <value>更新 Pi Web Tray</value>
+  </data>
+  <data name="update.confirmBody" xml:space="preserve">
+    <value>发现新版本。
+
+当前版本：{0}
+最新版本：{1}
+
+托盘将停止 pi-web、更新程序文件并重启。是否继续？</value>
+  </data>
+  <data name="update.adminNote" xml:space="preserve">
+    <value>安装目录需要管理员权限。替换文件前 Windows 会请求权限（UAC）。</value>
+  </data>
+  <data name="update.downloadingTitle" xml:space="preserve">
+    <value>正在下载更新</value>
+  </data>
+  <data name="update.downloadingBody" xml:space="preserve">
+    <value>正在下载 Pi Web Tray {0}...</value>
+  </data>
+  <data name="update.applyingTitle" xml:space="preserve">
+    <value>正在更新 Pi Web Tray</value>
+  </data>
+  <data name="update.applyingBody" xml:space="preserve">
+    <value>正在应用版本 {0}，托盘将重新启动。</value>
+  </data>
+  <data name="update.checkFailedTitle" xml:space="preserve">
+    <value>检查更新失败</value>
+  </data>
+  <data name="update.checkFailedBody" xml:space="preserve">
+    <value>无法检查更新。
+
+{0}</value>
+  </data>
+  <data name="update.downloadFailedTitle" xml:space="preserve">
+    <value>下载更新失败</value>
+  </data>
+  <data name="update.downloadFailedBody" xml:space="preserve">
+    <value>无法下载或验证更新。
+
+{0}
+
+详情请查看 {1}。</value>
+  </data>
+  <data name="update.startFailedTitle" xml:space="preserve">
+    <value>无法启动更新</value>
+  </data>
+  <data name="update.startFailedBody" xml:space="preserve">
+    <value>无法启动更新程序。
+
+{0}
+
+详情请查看 {1}。</value>
+  </data>
+  <data name="update.applyFailedTitle" xml:space="preserve">
+    <value>更新失败</value>
+  </data>
+  <data name="update.applyFailedBody" xml:space="preserve">
+    <value>无法应用更新。
+
+{0}
+
+详情请查看 {1}。</value>
+  </data>
+  <data name="update.busyTitle" xml:space="preserve">
+    <value>正在更新</value>
+  </data>
+  <data name="update.busyBody" xml:space="preserve">
+    <value>更新仍在进行中。是否退出并放弃更新？</value>
+  </data>
+  <data name="update.error.http" xml:space="preserve">
+    <value>GitHub 返回 HTTP {0}。</value>
+  </data>
+  <data name="update.error.badResponse" xml:space="preserve">
+    <value>GitHub 返回了意外的响应。</value>
+  </data>
+  <data name="update.error.noAsset" xml:space="preserve">
+    <value>最新 release 中没有 Windows 压缩包。</value>
+  </data>
+  <data name="update.error.noChecksum" xml:space="preserve">
+    <value>最新 release 中没有 SHA-256 校验文件。</value>
+  </data>
+  <data name="update.error.untrustedUrl" xml:space="preserve">
+    <value>release 中包含不受信任的下载地址。</value>
+  </data>
+  <data name="update.error.badChecksum" xml:space="preserve">
+    <value>校验文件格式无效。</value>
+  </data>
+  <data name="update.error.badHash" xml:space="preserve">
+    <value>下载的压缩包已损坏（SHA-256 不匹配）。</value>
+  </data>
+  <data name="update.error.extract" xml:space="preserve">
+    <value>无法解压更新包。
+
+{0}</value>
+  </data>
+  <data name="update.error.noHelper" xml:space="preserve">
+    <value>下载的压缩包中不包含 pi-web-tray.exe。</value>
+  </data>
+  <data name="update.error.startHelper" xml:space="preserve">
+    <value>无法创建更新程序。</value>
+  </data>
+  <data name="update.error.elevationCancelled" xml:space="preserve">
+    <value>更新此安装需要管理员权限。</value>
+  </data>
+  <data name="update.error.badArgs" xml:space="preserve">
+    <value>更新程序启动参数无效。</value>
+  </data>
+  <data name="update.error.parentTimeout" xml:space="preserve">
+    <value>托盘未及时退出，更新未应用。</value>
+  </data>
+  <data name="update.error.stagingChanged" xml:space="preserve">
+    <value>下载的更新文件在应用前发生变化，更新已取消。</value>
+  </data>
+  <data name="update.error.targetMissing" xml:space="preserve">
+    <value>安装目录不存在。</value>
+  </data>
+  <data name="update.error.notInstallation" xml:space="preserve">
+    <value>目标目录不是 Pi Web Tray 安装目录。</value>
+  </data>
+  <data name="update.error.restart" xml:space="preserve">
+    <value>更新已应用，但无法启动新的托盘。</value>
+  </data>
+  <data name="update.error.unknown" xml:space="preserve">
+    <value>未知错误。</value>
+  </data>
+  <data name="about.title" xml:space="preserve">
+    <value>关于 Pi Web Tray</value>
+  </data>
+  <data name="about.version" xml:space="preserve">
+    <value>版本 {0}</value>
+  </data>
+  <data name="about.description" xml:space="preserve">
+    <value>用于安装、启动和管理 pi-web 的 Windows 托盘启动器。</value>
+  </data>
+  <data name="about.author" xml:space="preserve">
+    <value>作者：{0}</value>
+  </data>
+  <data name="about.link" xml:space="preserve">
+    <value>项目：{0}</value>
+  </data>
+  <data name="about.license" xml:space="preserve">
+    <value>许可证：MIT</value>
+  </data>
+  <data name="about.authorName" xml:space="preserve">
+    <value>秦凡东</value>
+  </data>
+  <data name="about.copyright" xml:space="preserve">
+    <value>版权所有 (c) 2026 秦凡东</value>
+  </data>
+  <data name="about.close" xml:space="preserve">
+    <value>确定</value>
+  </data>
+  <data name="sc.updateLog" xml:space="preserve">
+    <value>更新日志</value>
+  </data>
 </root>

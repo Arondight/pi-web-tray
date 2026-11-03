@@ -33,12 +33,23 @@ Pi Web Tray is a local desktop launcher. It:
 - reads `pi-web-tray.ini` and environment variables controlled by the current user;
 - creates an `HKCU\...\Run` value or an on-logon scheduled task only when the user
   turns on start-at-login;
-- does not contain telemetry, auto-update, or network listeners.
+- checks GitHub for updates only when the user selects **Check for updates**, downloads
+  the release archive over HTTPS, verifies its SHA-256 checksum, and starts an elevated
+  helper only when the installation directory needs elevation and the user accepts the
+  UAC prompt (or the tray is already elevated);
+- does not contain telemetry or network listeners.
 
 The tray intentionally trusts the configured `NodePath`, `ServerScript`,
 `WorkingDir`, `NpmRegistry` and `InstallTag` values. Treat a writable configuration
 file as equivalent to code execution for the current user. Do not point these
 settings at untrusted paths or registries.
+
+Updates are staged in the user's data directory before an elevated helper replaces
+files in a protected installation directory. Only accept the UAC prompt when you
+started the update from the tray, and do not let untrusted programs write to the update
+staging directory while a prompt is pending. The helper refuses a target that is not a
+Pi Web Tray installation and re-checks a fingerprint of the staged files after the UAC
+prompt; these checks reduce the risk but do not replace code signing.
 
 Third-party components (Node.js, npm, pi-web, pi) are not part of this project and
 should be reported to their respective maintainers. Vulnerabilities in how this

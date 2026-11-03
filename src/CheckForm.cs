@@ -199,6 +199,7 @@ namespace PiWebTray
                 string.IsNullOrEmpty(_probe.NpmPrefix) ? L.T("probe.unknown") : _probe.NpmPrefix);
             AddInfoRow(grid, L.T("sc.serverLog"), _config.LogFile);
             AddInfoRow(grid, L.T("sc.installLog"), _config.InstallLogFile);
+            AddInfoRow(grid, L.T("sc.updateLog"), _config.UpdateLogFile);
 
             return grid;
         }

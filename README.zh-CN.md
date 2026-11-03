@@ -21,15 +21,17 @@ flowchart LR
 
 ## 功能
 
-| 功能       | 说明                                                        |
-| ---------- | ----------------------------------------------------------- |
-| 依赖检测   | 检测 Node.js、npm、pi-web 和 pi CLI 的路径与版本。          |
-| 依赖安装   | 缺少 pi-web 或用户请求更新时，执行 `npm install -g`。       |
-| 服务管理   | 启动、停止和重启 pi-web，并报告当前状态。                   |
-| 状态显示   | 通过托盘图标颜色、工具提示和通知报告状态与错误。            |
-| 开机自启动 | 支持当前用户 Run 注册表项，或具有管理员权限的登录计划任务。 |
-| 诊断       | 提供环境检查、服务日志、安装日志和诊断快照。                |
-| 本地化     | 支持英文、简体中文和繁体中文；默认跟随 Windows 显示语言。   |
+| 功能       | 说明                                                         |
+| ---------- | ------------------------------------------------------------ |
+| 依赖检测   | 检测 Node.js、npm、pi-web 和 pi CLI 的路径与版本。           |
+| 依赖安装   | 缺少 pi-web 或用户请求更新时，执行 `npm install -g`。        |
+| 服务管理   | 启动、停止和重启 pi-web，并报告当前状态。                    |
+| 状态显示   | 通过托盘图标颜色、工具提示和通知报告状态与错误。             |
+| 开机自启动 | 支持当前用户 Run 注册表项，或具有管理员权限的登录计划任务。  |
+| 诊断       | 提供环境检查、服务日志、安装日志、更新日志和诊断快照。       |
+| 更新       | 检查 GitHub 最新 release，校验 SHA-256，替换程序文件并重启。 |
+| 关于       | 显示软件名称、版本、作者和项目链接。                         |
+| 本地化     | 支持英文、简体中文和繁体中文；默认跟随 Windows 显示语言。    |
 
 ## 兼容性
 
@@ -39,7 +41,7 @@ flowchart LR
 | 推荐操作系统 | Windows 10 1809 或更新版本                                                      |
 | Node.js      | 22.19 或更新版本                                                                |
 | npm          | 随 Node.js 安装                                                                 |
-| 网络         | 可访问 npm registry；`NpmRegistry` 可指向镜像                                   |
+| 网络         | 可访问 npm registry；`NpmRegistry` 可指向镜像；更新时需访问 GitHub。            |
 
 托盘程序面向 Windows 7 SP1、Windows 8.1、Windows 10 和 Windows 11 构建，并使用
 Windows 7 可用的 API。pi-web 本身要求 Node.js 22.19 或更新版本及 `node-pty`；
@@ -69,8 +71,8 @@ pi-web 或 pi 本身的问题请提交到各自仓库。
 3. 运行 `pi-web-tray.exe`。
 
 首次启动时，程序检查运行环境、安装缺失依赖、启动服务并打开浏览器。配置文件与日志
-默认位于可执行文件同目录；当可执行文件位于 `Program Files` 等受保护目录时，位于
-`%LOCALAPPDATA%\pi-web-tray`。
+（`server.log`、`install.log`、`update.log`）默认位于可执行文件同目录；当可执行文件
+位于 `Program Files` 等受保护目录时，位于 `%LOCALAPPDATA%\pi-web-tray`。
 
 ### 从源码构建
 
@@ -84,7 +86,7 @@ pi-web 或 pi 本身的问题请提交到各自仓库。
 | .NET SDK       | 可选；8.0 或更新版本，并安装 .NET Framework 4.8 targeting pack |
 
 ```bat
-git clone https://github.com/<owner>/pi-web-tray.git
+git clone https://github.com/Arondight/pi-web-tray.git
 cd pi-web-tray
 build.cmd
 ```
@@ -116,7 +118,7 @@ dotnet build PiWebTray.sln -c Release
 | ---- | --------------------------------------- |
 | 绿色 | pi-web 正在 `127.0.0.1:<端口>` 上运行。 |
 | 灰色 | 运行环境已就绪，服务已停止。            |
-| 橙色 | 正在检查、安装、启动或停止。            |
+| 橙色 | 正在检查、安装、启动、停止或更新。      |
 | 蓝色 | 缺少 Node.js 或 pi-web。                |
 | 红色 | 发生错误，请查看服务日志或安装日志。    |
 
@@ -131,6 +133,7 @@ dotnet build PiWebTray.sln -c Release
 重启服务
 ---------------------------------------
 安装 / 更新依赖
+检查更新
 下载 Node.js...
 环境自检
 查看服务日志
@@ -141,6 +144,7 @@ dotnet build PiWebTray.sln -c Release
 开机自启动：已开启（普通权限）
 自启动时使用管理员权限：否
 ---------------------------------------
+关于
 退出（并停止 pi-web）
 ```
 
@@ -150,6 +154,9 @@ dotnet build PiWebTray.sln -c Release
 - 选择「以管理员身份运行」后，由管理员权限的托盘实例接管，并以管理员权限运行 pi-web。
 - 同一时间只允许一个托盘实例和一个 pi-web 服务运行。
 - 开机自启动使用 `HKCU\...\Run` 或登录计划任务，两种模式互斥。
+- **检查更新** 会下载 GitHub 最新 release，校验 SHA-256 后停止 pi-web、替换程序文件
+  并重启托盘。若安装目录需要管理员权限，Windows 会显示 UAC 提示。配置文件、日志和
+  pi-web 安装本身不会受到影响。
 
 菜单中的 **环境自检** 打开两个表格：**运行组件**（组件、版本、路径、状态）和
 **应用信息**（配置、端口、目录、日志）。
@@ -246,6 +253,7 @@ $env:PI_WEB_TRAY_LANG='en'
 | ----------------------------------- | -------------------------------------------------------------------------------------------- |
 | 蓝色图标，提示需要 Node.js          | 安装 Node.js 22.19 或更新版本，然后点击托盘图标。自动检测失败时设置 `NodePath`。             |
 | 安装失败                            | 查看 `install.log` 末尾。常见原因包括 npm 全局目录不可写、`InstallTag` 无效或网络/代理问题。 |
+| 更新失败                            | 查看 `update.log`。常见原因是取消 UAC 提示或网络/代理问题；之后可重新执行 **检查更新**。     |
 | 红色图标，服务失败                  | 查看 `server.log`。`EADDRINUSE` 表示端口冲突；`Cannot find module` 通常表示安装不完整。      |
 | 终端面板提示 `Cannot launch conpty` | Windows 7 和 8.1 不支持 ConPTY。Node.js 可用的环境下，聊天和工具调用仍可使用。               |
 | Models 面板为空                     | 在 Models 面板中登录，或执行 `pi auth login`。                                               |
@@ -271,7 +279,8 @@ $env:PI_WEB_TRAY_LANG='en'
 
 - 默认以当前用户令牌运行（`asInvoker`），仅在用户明确请求时提权。
 - 不修改全局 npm 配置，不请求凭据。
-- 不包含遥测、自动更新或网络监听功能。
+- 不包含遥测或网络监听功能。仅在用户选择 **检查更新** 时访问 GitHub；发布包通过 HTTPS
+  下载，并使用随 release 发布的 SHA-256 文件校验。
 - `NodePath`、`ServerScript`、`WorkingDir`、`NpmRegistry` 和 `InstallTag` 属于受信任
   配置。不要将其指向不可信路径或源。
 - 安全问题请按照 [SECURITY.md](SECURITY.md) 报告。
@@ -288,6 +297,8 @@ $env:PI_WEB_TRAY_LANG='en'
 - 不会自动安装 Node.js。
 - 如果配置端口已被其他程序监听，程序会将端口视为正在运行的 pi-web 服务。端口被其他
   程序占用时，请修改 `Port`。
+- 更新需要访问 GitHub API 和发布资源。更新受保护目录中的安装需要管理员权限；如果无法
+  确认已降权重启，重启后的托盘可能以管理员权限运行。
 - 未签名的发布包首次执行时可能触发 SmartScreen。
 
 ## 参与贡献

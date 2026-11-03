@@ -102,10 +102,16 @@ assets and configuration files; `dotnet format` uses `.editorconfig` and
 ## Versioning and releases
 
 - Version lives in `src/PiWebTray.csproj` (`Version`, `AssemblyVersion`,
-  `FileVersion`, `InformationalVersion`).
+  `FileVersion`, `InformationalVersion`) and in the application identity in
+  `src/app.manifest`.
+- Before tagging, run
+  `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-version.ps1 <version>`
+  to update those files. The script accepts `major.minor.patch` (optionally prefixed
+  with `v`) and does not run any git commands.
 - Tags use `v<major>.<minor>.<patch>`; the release workflow builds, tests and
   publishes a zip with the exe, its `.config`, satellite resource folders (for example
   `zh-Hans` / `zh-Hant`), README files, LICENSE and the sample ini.
+- Review `SECURITY.md` supported versions and the release notes before tagging.
 - Code signing is optional and is not configured in the repository.
 
 ## License

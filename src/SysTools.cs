@@ -182,6 +182,12 @@ namespace PiWebTray
         // Start elevated (one UAC prompt); false means the user cancelled or it failed
         internal static bool RunElevated(string fileName, string arguments)
         {
+            return RunElevated(fileName, arguments, true);
+        }
+
+        // The update helper needs a visible error dialog, so it must not be started hidden
+        internal static bool RunElevated(string fileName, string arguments, bool hidden)
+        {
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
@@ -189,7 +195,7 @@ namespace PiWebTray
                 psi.Arguments = arguments;
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
-                psi.WindowStyle = ProcessWindowStyle.Hidden;
+                psi.WindowStyle = hidden ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal;
                 Process.Start(psi);
                 return true;
             }
@@ -258,6 +264,42 @@ namespace PiWebTray
         internal static string Quote(string value)
         {
             return "\"" + value + "\"";
+        }
+
+        // Quote one argument using the CommandLineToArgvW rules. Backslashes are literal
+        // unless they precede a quote, and a trailing run of backslashes must be doubled
+        // before the closing quote. Used for paths passed to the update helper.
+        internal static string QuoteArg(string value)
+        {
+            if (value == null) return "\"\"";
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append('"');
+            int backslashes = 0;
+            foreach (char c in value)
+            {
+                if (c == '\\')
+                {
+                    backslashes++;
+                    continue;
+                }
+                if (c == '"')
+                {
+                    sb.Append('\\', backslashes * 2 + 1);
+                    sb.Append(c);
+                    backslashes = 0;
+                    continue;
+                }
+                if (backslashes > 0)
+                {
+                    sb.Append('\\', backslashes);
+                    backslashes = 0;
+                }
+                sb.Append(c);
+            }
+            if (backslashes > 0) sb.Append('\\', backslashes * 2);
+            sb.Append('"');
+            return sb.ToString();
         }
 
         // cmd.exe /c needs the whole command wrapped in one more pair of quotes; inner quotes stay

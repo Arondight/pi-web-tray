@@ -20,6 +20,7 @@ namespace PiWebTray
     internal static class Program
     {
         internal const string AppName = "Pi Web Tray";
+        internal const string ProjectUrl = "https://github.com/Arondight/pi-web-tray";
 
         [STAThread]
         private static int Main(string[] args)
@@ -54,6 +55,14 @@ namespace PiWebTray
                 if (ConsoleHost.TryAttach()) ConsoleHost.WriteLine(version);
                 else MessageBox.Show(version, AppName, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return 0;
+            }
+
+            // The update helper is a separate process started from the staged release. It must
+            // be handled before the argument validation, because its paths are positional.
+            if (Has(args, "--apply-update"))
+            {
+                Config.Load(false);
+                return Updater.Apply(args);
             }
 
             config = Config.Load(true);
@@ -236,7 +245,7 @@ namespace PiWebTray
             string[] known = new string[]
             {
                 "--autostart", "--stop", "--quit", "--check", "--install", "--dry-run",
-                "--diag", "--make-ico", "--lang-check", "--version",
+                "--diag", "--make-ico", "--lang-check", "--version", "--apply-update",
                 "--help", "-h", "/?"
             };
 
@@ -432,6 +441,7 @@ namespace PiWebTray
             sb.AppendLine(L.T("sc.language") + " : " + L.Current);
             sb.AppendLine(L.T("sc.serverLog") + " : " + config.LogFile);
             sb.AppendLine(L.T("sc.installLog") + " : " + config.InstallLogFile);
+            sb.AppendLine(L.T("sc.updateLog") + " : " + config.UpdateLogFile);
             sb.AppendLine(L.T("diag.instance") + " : " + (Instance.Suffix.Length > 0 ? Instance.Suffix : L.T("diag.none")));
 
             ProbeResult probe;

@@ -30,18 +30,20 @@ flowchart LR
 | Service management   | Starts, stops and restarts pi-web and reports the current state.                                                |
 | Status reporting     | Uses tray icon colors, tooltips and notifications to report state and errors.                                   |
 | Start at login       | Supports the current-user Run key or an on-logon scheduled task with administrative rights.                     |
-| Diagnostics          | Provides an environment check, service log, install log and diagnostic snapshot.                                |
+| Diagnostics          | Provides an environment check, service log, install log, update log and diagnostic snapshot.                    |
+| Updates              | Checks the latest GitHub release, verifies its SHA-256 checksum, replaces the application files and restarts.   |
+| About                | Shows the application name, version, author and project link.                                                   |
 | Localization         | Supports English, Simplified Chinese and Traditional Chinese; the default follows the Windows display language. |
 
 ## Compatibility
 
-| Component                    | Requirement                                                                  |
-| ---------------------------- | ---------------------------------------------------------------------------- |
-| Pi Web Tray                  | Windows 7 SP1, Windows 8.1, Windows 10 or Windows 11 with .NET Framework 4.8 |
-| Recommended operating system | Windows 10 1809 or later                                                     |
-| Node.js                      | 22.19 or later                                                               |
-| npm                          | Included with Node.js                                                        |
-| Network                      | Access to an npm registry; `NpmRegistry` may point to a mirror               |
+| Component                    | Requirement                                                                                 |
+| ---------------------------- | ------------------------------------------------------------------------------------------- |
+| Pi Web Tray                  | Windows 7 SP1, Windows 8.1, Windows 10 or Windows 11 with .NET Framework 4.8                |
+| Recommended operating system | Windows 10 1809 or later                                                                    |
+| Node.js                      | 22.19 or later                                                                              |
+| npm                          | Included with Node.js                                                                       |
+| Network                      | Access to an npm registry; `NpmRegistry` may point to a mirror. GitHub is used for updates. |
 
 The tray binary is built for Windows 7 SP1, Windows 8.1, Windows 10 and Windows 11 and
 uses Windows 7-compatible APIs. pi-web itself requires Node.js 22.19 or later and
@@ -74,9 +76,10 @@ Report issues specific to pi-web or pi in their respective repositories.
 3. Run `pi-web-tray.exe`.
 
 On first start the application checks the environment, installs missing
-dependencies, starts the service and opens the browser. Configuration and logs are
-stored next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` when the executable
-is located in a protected directory such as `Program Files`.
+dependencies, starts the service and opens the browser. Configuration and logs
+(`server.log`, `install.log`, `update.log`) are stored next to the executable, or in
+`%LOCALAPPDATA%\pi-web-tray` when the executable is located in a protected directory such
+as `Program Files`.
 
 ### Build from source
 
@@ -90,7 +93,7 @@ Requirements:
 | .NET SDK       | Optional; version 8.0 or later with the .NET Framework 4.8 targeting pack |
 
 ```bat
-git clone https://github.com/<owner>/pi-web-tray.git
+git clone https://github.com/Arondight/pi-web-tray.git
 cd pi-web-tray
 build.cmd
 ```
@@ -120,13 +123,13 @@ dotnet build PiWebTray.sln -c Release
 
 ### Tray states
 
-| Color  | State                                                |
-| ------ | ---------------------------------------------------- |
-| Green  | pi-web is running on `127.0.0.1:<port>`.             |
-| Grey   | Prerequisites are available; the service is stopped. |
-| Orange | Checking, installing, starting or stopping.          |
-| Blue   | Node.js or pi-web is missing.                        |
-| Red    | An error occurred; see the service or install log.   |
+| Color  | State                                                 |
+| ------ | ----------------------------------------------------- |
+| Green  | pi-web is running on `127.0.0.1:<port>`.              |
+| Grey   | Prerequisites are available; the service is stopped.  |
+| Orange | Checking, installing, starting, stopping or updating. |
+| Blue   | Node.js or pi-web is missing.                         |
+| Red    | An error occurred; see the service or install log.    |
 
 ### Tray menu
 
@@ -139,6 +142,7 @@ Stop service
 Restart service
 ---------------------------------------
 Install / update dependencies
+Check for updates
 Download Node.js...
 Environment check
 View service log
@@ -149,6 +153,7 @@ Create desktop shortcut
 Start at login: on (normal permissions)
 Start at login as admin: no
 ---------------------------------------
+About
 Exit (stop pi-web)
 ```
 
@@ -161,6 +166,10 @@ Exit (stop pi-web)
 - Only one tray instance and one pi-web service can run at a time.
 - Start at login uses either `HKCU\...\Run` or an on-logon scheduled task. The two modes
   are mutually exclusive.
+- **Check for updates** downloads the latest GitHub release, verifies its SHA-256
+  checksum, stops pi-web, replaces the application files and restarts the tray. If the
+  installation directory needs administrator rights, Windows shows a UAC prompt. The
+  configuration file, logs and the pi-web installation are left untouched.
 
 The **Environment check** menu item opens two tables: **Runtime components** (component,
 version, path and status) and **Application information** (configuration, port, directories
@@ -260,6 +269,7 @@ command-line output and the generated configuration comments.
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | Blue icon; Node.js required                   | Install Node.js 22.19 or later and click the tray icon. Set `NodePath` if auto-detection fails.                                           |
 | Installation failed                           | Check the end of `install.log`. Common causes are an unwritable npm global directory, an invalid `InstallTag`, or network/proxy problems. |
+| Update failed                                 | Check `update.log`. A cancelled UAC prompt and network/proxy problems are the most common causes; rerun **Check for updates** afterwards. |
 | Red icon; service failed                      | Check `server.log`. `EADDRINUSE` indicates a port conflict; `Cannot find module` usually indicates an incomplete installation.            |
 | Terminal panel reports `Cannot launch conpty` | ConPTY is unavailable on Windows 7 and 8.1. Chat and tool calls remain available where Node.js runs.                                      |
 | Models panel is empty                         | Authenticate in the Models panel or run `pi auth login`.                                                                                  |
@@ -286,7 +296,9 @@ command-line output and the generated configuration comments.
 - The application runs with the current user token by default (`asInvoker`). Elevation
   occurs only when explicitly requested.
 - The application does not modify the global npm configuration or request credentials.
-- The application contains no telemetry, auto-updater or network listener.
+- The application contains no telemetry or network listener. Update checks are only made
+  when the user selects **Check for updates**; the release archive is downloaded over HTTPS
+  from GitHub and verified against the SHA-256 file published with the release.
 - `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` are trusted
   configuration values. Do not point them at untrusted paths or registries.
 - Report vulnerabilities according to [SECURITY.md](SECURITY.md).
@@ -304,6 +316,9 @@ command-line output and the generated configuration comments.
 - Node.js is not installed automatically.
 - A listener already using the configured port is treated as a running pi-web service.
   Change `Port` if the port is occupied by another program.
+- Updates require access to the GitHub API and release assets. Updating an installation in
+  a protected directory requires administrator rights; the restarted tray may run elevated
+  if a de-elevated restart cannot be confirmed.
 - Unsigned releases may trigger SmartScreen on first execution.
 
 ## Contributing

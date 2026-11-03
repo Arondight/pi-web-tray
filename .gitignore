@@ -13,6 +13,8 @@ server.log
 server.log.*
 install.log
 install.log.*
+update.log
+update.log.*
 diag.txt
 crash.log
 state.ini

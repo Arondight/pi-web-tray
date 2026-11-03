@@ -34,6 +34,7 @@ namespace PiWebTray
         internal string IniPath;
         internal string LogFile;
         internal string InstallLogFile;
+        internal string UpdateLogFile;
         internal string DiagFile;
 
         internal const string InstallerPackage = "@agegr/pi-web";
@@ -57,6 +58,7 @@ namespace PiWebTray
             config.OutputDir = useDataDir ? config.DataDir : config.BaseDir;
             config.LogFile = Path.Combine(config.OutputDir, "server.log");
             config.InstallLogFile = Path.Combine(config.OutputDir, "install.log");
+            config.UpdateLogFile = Path.Combine(config.OutputDir, "update.log");
             config.DiagFile = Path.Combine(config.OutputDir, "diag.txt");
 
             string localIni = Path.Combine(config.BaseDir, "pi-web-tray.ini");

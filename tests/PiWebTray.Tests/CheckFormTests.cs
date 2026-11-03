@@ -17,6 +17,7 @@ namespace PiWebTray
             config.WorkingDir = ".";
             config.LogFile = "server.log";
             config.InstallLogFile = "install.log";
+            config.UpdateLogFile = "update.log";
 
             ProbeResult probe = new ProbeResult();
             using (CheckForm form = new CheckForm(config, probe, false))
@@ -31,10 +32,20 @@ namespace PiWebTray
                 foreach (DataGridView table in tables)
                 {
                     if (table.Columns.Count == 4 && table.Rows.Count == 4) runtimeTable = true;
-                    if (table.Columns.Count == 2 && table.Rows.Count == 9) softwareTable = true;
+                    if (table.Columns.Count == 2 && table.Rows.Count == 10) softwareTable = true;
                 }
                 Assert.IsTrue(runtimeTable, "Runtime components table has an unexpected shape.");
                 Assert.IsTrue(softwareTable, "Application information table has an unexpected shape.");
+            }
+        }
+
+        [TestMethod]
+        public void AboutFormCanBeConstructed()
+        {
+            using (AboutForm form = new AboutForm())
+            {
+                Assert.AreEqual(L.T("about.title"), form.Text);
+                Assert.IsTrue(form.Controls.Count > 0);
             }
         }
 

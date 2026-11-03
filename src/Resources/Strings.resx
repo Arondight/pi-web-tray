@@ -654,4 +654,193 @@ Use --help to see the supported options.</value>
   <data name="check.listening" xml:space="preserve">
     <value>{0} (listening={1})</value>
   </data>
+  <data name="menu.checkUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="menu.checkUpdatesBusy" xml:space="preserve">
+    <value>Updating...</value>
+  </data>
+  <data name="menu.about" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="update.checkingTitle" xml:space="preserve">
+    <value>Checking for updates</value>
+  </data>
+  <data name="update.checkingBody" xml:space="preserve">
+    <value>Looking for the latest GitHub release (current version {0})...</value>
+  </data>
+  <data name="update.status.checking" xml:space="preserve">
+    <value>Checking for updates...</value>
+  </data>
+  <data name="update.status.downloading" xml:space="preserve">
+    <value>Downloading update...</value>
+  </data>
+  <data name="update.status.downloadingPercent" xml:space="preserve">
+    <value>Downloading update... {0}%</value>
+  </data>
+  <data name="update.status.applying" xml:space="preserve">
+    <value>Applying update...</value>
+  </data>
+  <data name="update.upToDateTitle" xml:space="preserve">
+    <value>No update available</value>
+  </data>
+  <data name="update.upToDateBody" xml:space="preserve">
+    <value>You are running the latest version ({0}).</value>
+  </data>
+  <data name="update.confirmTitle" xml:space="preserve">
+    <value>Update Pi Web Tray</value>
+  </data>
+  <data name="update.confirmBody" xml:space="preserve">
+    <value>A new version is available.
+
+Current version: {0}
+Latest version: {1}
+
+The tray will stop pi-web, update the application files and restart. Continue?</value>
+  </data>
+  <data name="update.adminNote" xml:space="preserve">
+    <value>The installation directory requires administrator rights. Windows will ask for permission (UAC) before the files are replaced.</value>
+  </data>
+  <data name="update.downloadingTitle" xml:space="preserve">
+    <value>Downloading update</value>
+  </data>
+  <data name="update.downloadingBody" xml:space="preserve">
+    <value>Downloading Pi Web Tray {0}...</value>
+  </data>
+  <data name="update.applyingTitle" xml:space="preserve">
+    <value>Updating Pi Web Tray</value>
+  </data>
+  <data name="update.applyingBody" xml:space="preserve">
+    <value>Applying version {0}; the tray will restart.</value>
+  </data>
+  <data name="update.checkFailedTitle" xml:space="preserve">
+    <value>Update check failed</value>
+  </data>
+  <data name="update.checkFailedBody" xml:space="preserve">
+    <value>Could not check for updates.
+
+{0}</value>
+  </data>
+  <data name="update.downloadFailedTitle" xml:space="preserve">
+    <value>Update download failed</value>
+  </data>
+  <data name="update.downloadFailedBody" xml:space="preserve">
+    <value>The update could not be downloaded or verified.
+
+{0}
+
+See {1} for details.</value>
+  </data>
+  <data name="update.startFailedTitle" xml:space="preserve">
+    <value>Update could not start</value>
+  </data>
+  <data name="update.startFailedBody" xml:space="preserve">
+    <value>The update helper could not be started.
+
+{0}
+
+See {1} for details.</value>
+  </data>
+  <data name="update.applyFailedTitle" xml:space="preserve">
+    <value>Update failed</value>
+  </data>
+  <data name="update.applyFailedBody" xml:space="preserve">
+    <value>The update could not be applied.
+
+{0}
+
+See {1} for details.</value>
+  </data>
+  <data name="update.busyTitle" xml:space="preserve">
+    <value>Update in progress</value>
+  </data>
+  <data name="update.busyBody" xml:space="preserve">
+    <value>An update is still in progress. Exit without updating?</value>
+  </data>
+  <data name="update.error.http" xml:space="preserve">
+    <value>GitHub returned HTTP {0}.</value>
+  </data>
+  <data name="update.error.badResponse" xml:space="preserve">
+    <value>GitHub returned an unexpected response.</value>
+  </data>
+  <data name="update.error.noAsset" xml:space="preserve">
+    <value>The latest release does not contain a Windows archive.</value>
+  </data>
+  <data name="update.error.noChecksum" xml:space="preserve">
+    <value>The latest release does not contain a SHA-256 checksum.</value>
+  </data>
+  <data name="update.error.untrustedUrl" xml:space="preserve">
+    <value>The release contains an untrusted download URL.</value>
+  </data>
+  <data name="update.error.badChecksum" xml:space="preserve">
+    <value>The checksum file is invalid.</value>
+  </data>
+  <data name="update.error.badHash" xml:space="preserve">
+    <value>The downloaded archive is damaged (SHA-256 mismatch).</value>
+  </data>
+  <data name="update.error.extract" xml:space="preserve">
+    <value>The update archive could not be extracted.
+
+{0}</value>
+  </data>
+  <data name="update.error.noHelper" xml:space="preserve">
+    <value>The downloaded archive does not contain pi-web-tray.exe.</value>
+  </data>
+  <data name="update.error.startHelper" xml:space="preserve">
+    <value>The update helper could not be created.</value>
+  </data>
+  <data name="update.error.elevationCancelled" xml:space="preserve">
+    <value>Administrator permission is required to update this installation.</value>
+  </data>
+  <data name="update.error.badArgs" xml:space="preserve">
+    <value>The update helper was started with invalid arguments.</value>
+  </data>
+  <data name="update.error.parentTimeout" xml:space="preserve">
+    <value>The tray did not exit in time; the update was not applied.</value>
+  </data>
+  <data name="update.error.stagingChanged" xml:space="preserve">
+    <value>The downloaded update files changed before they could be applied. The update was cancelled.</value>
+  </data>
+  <data name="update.error.targetMissing" xml:space="preserve">
+    <value>The installation directory does not exist.</value>
+  </data>
+  <data name="update.error.notInstallation" xml:space="preserve">
+    <value>The target directory is not a Pi Web Tray installation.</value>
+  </data>
+  <data name="update.error.restart" xml:space="preserve">
+    <value>The update was applied, but the new tray could not be started.</value>
+  </data>
+  <data name="update.error.unknown" xml:space="preserve">
+    <value>Unknown error.</value>
+  </data>
+  <data name="about.title" xml:space="preserve">
+    <value>About Pi Web Tray</value>
+  </data>
+  <data name="about.version" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="about.description" xml:space="preserve">
+    <value>A Windows tray launcher that installs, starts and manages pi-web.</value>
+  </data>
+  <data name="about.author" xml:space="preserve">
+    <value>Author: {0}</value>
+  </data>
+  <data name="about.link" xml:space="preserve">
+    <value>Project: {0}</value>
+  </data>
+  <data name="about.license" xml:space="preserve">
+    <value>License: MIT</value>
+  </data>
+  <data name="about.authorName" xml:space="preserve">
+    <value>秦凡东</value>
+  </data>
+  <data name="about.copyright" xml:space="preserve">
+    <value>Copyright (c) 2026 秦凡东</value>
+  </data>
+  <data name="about.close" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="sc.updateLog" xml:space="preserve">
+    <value>Update log</value>
+  </data>
 </root>

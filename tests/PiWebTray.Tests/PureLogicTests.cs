@@ -44,6 +44,9 @@ namespace PiWebTray
             IconEncodingTests();
             InstallArgumentsTests();
             SafeTagTests();
+            UpdateTests();
+            UpdateCopyTests();
+            UpdateTargetTests();
             StateFileTests();
             HttpProbeTestsSkip();
 
@@ -114,6 +117,11 @@ namespace PiWebTray
         {
             CheckEqual("quote plain", "\"C:\\Program Files\\node.exe\"", Shell.Quote("C:\\Program Files\\node.exe"));
             CheckEqual("cmd line", "/d /s /c \"cmd\"", Shell.CmdLine("cmd"));
+            CheckEqual("quote arg plain", "\"abc\"", Shell.QuoteArg("abc"));
+            CheckEqual("quote arg spaces", "\"a b\"", Shell.QuoteArg("a b"));
+            CheckEqual("quote arg trailing slash", "\"C:\\dir\\\\\"", Shell.QuoteArg("C:\\dir\\"));
+            CheckEqual("quote arg embedded quote", "\"a\\\"b\"", Shell.QuoteArg("a\"b"));
+            CheckEqual("quote arg null", "\"\"", Shell.QuoteArg(null));
         }
 
         private static void IniReadTests()
@@ -317,6 +325,212 @@ namespace PiWebTray
             CheckEqual("tag rejects semicolons", "latest", Installer.SafeTag("latest;calc"));
             CheckEqual("tag rejects too long", "latest", Installer.SafeTag(new string('a', 65)));
             CheckEqual("tag allows caret", "1.2.3^", Installer.SafeTag("1.2.3^"));
+        }
+
+        private static void UpdateTests()
+        {
+            Check("newer patch", Updater.IsNewer("v0.1.1", "0.1.0"));
+            Check("same version", !Updater.IsNewer("v0.1.0", "0.1.0"));
+            Check("older version", !Updater.IsNewer("0.0.9", "0.1.0"));
+            Check("dev always updates", Updater.IsNewer("v0.1.0", "dev"));
+            CheckEqual("normalize tag", "1.2.3", Updater.NormalizeVersion("v1.2.3"));
+            CheckEqual("normalize empty", "", Updater.NormalizeVersion(""));
+            Check("windows archive", Updater.IsWindowsArchive("pi-web-tray-0.2.0-win.zip"));
+            Check("checksum is not an archive", !Updater.IsWindowsArchive("pi-web-tray-0.2.0-win.zip.sha256"));
+            Check("other archive rejected", !Updater.IsWindowsArchive("source.tar.gz"));
+            Check("trusted github url", Updater.IsTrustedUrl(
+                "https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/x.zip"));
+            Check("trusted objects url", Updater.IsTrustedUrl("https://objects.githubusercontent.com/x"));
+            Check("plain http rejected", !Updater.IsTrustedUrl("http://github.com/x"));
+            Check("other host rejected", !Updater.IsTrustedUrl("https://example.com/x"));
+
+            string hash = new string('a', 64);
+            CheckEqual("checksum parsed", hash, Updater.ParseChecksum(hash + "  pi-web-tray-0.2.0-win.zip\r\n"));
+            CheckEqual("checksum star format", hash, Updater.ParseChecksum(hash + " *file.zip"));
+            CheckEqual("checksum rejects short", "", Updater.ParseChecksum("abc  file.zip"));
+            CheckEqual("checksum rejects junk", "",
+                Updater.ParseChecksum(new string('z', 64) + "  file.zip"));
+
+            string staging;
+            string target;
+            string logPath;
+            string language;
+            string dataDir;
+            string stagingHash;
+            int parentPid;
+            bool startService;
+            bool originalElevated;
+            string stagingHashArg = new string('a', 64);
+            bool parsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\update.log", "zh", "C:\\data", stagingHashArg
+                },
+                out staging, out target, out parentPid, out startService,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash);
+            Check("helper args parse", parsed);
+            CheckEqual("helper staging", "C:\\stage", staging);
+            CheckEqual("helper target", "C:\\target", target);
+            CheckEqual("helper parent pid", 1234, parentPid);
+            CheckEqual("helper mode", false, startService);
+            CheckEqual("helper elevated", false, originalElevated);
+            CheckEqual("helper log", "C:\\update.log", logPath);
+            CheckEqual("helper language", "zh", language);
+            CheckEqual("helper data dir", "C:\\data", dataDir);
+            CheckEqual("helper staging hash", stagingHashArg, stagingHash);
+
+            bool legacyParsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\update.log", "zh", "C:\\data"
+                },
+                out staging, out target, out parentPid, out startService,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash);
+            Check("legacy helper args parse", legacyParsed);
+            CheckEqual("legacy helper has no hash", "", stagingHash);
+
+            Check("helper args reject missing values", !Updater.TryParseApplyArgs(
+                new string[] { "--apply-update", "C:\\stage" },
+                out staging, out target, out parentPid, out startService,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
+            string error;
+            string json = @"{
+  ""tag_name"": ""v0.2.0"",
+  ""assets"": [
+    { ""name"": ""pi-web-tray-0.2.0-win.zip"",
+      ""browser_download_url"": ""https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/pi-web-tray-0.2.0-win.zip"",
+      ""size"": 12345 },
+    { ""name"": ""pi-web-tray-0.2.0-win.zip.sha256"",
+      ""browser_download_url"": ""https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/pi-web-tray-0.2.0-win.zip.sha256"",
+      ""size"": 100 }
+  ]
+}";
+            ReleaseInfo parsedRelease = Updater.ParseRelease(json, out error);
+            Check("release parsed", parsedRelease != null && error.Length == 0);
+            if (parsedRelease != null)
+            {
+                CheckEqual("release tag", "v0.2.0", parsedRelease.Tag);
+                CheckEqual("release version", "0.2.0", parsedRelease.Version);
+                CheckEqual("release archive", "pi-web-tray-0.2.0-win.zip", parsedRelease.ZipName);
+                CheckEqual("release checksum", "pi-web-tray-0.2.0-win.zip.sha256", parsedRelease.ChecksumName);
+            }
+
+            ReleaseInfo noAssets = Updater.ParseRelease("{\"tag_name\":\"v0.2.0\",\"assets\":[]}", out error);
+            Check("release without assets is rejected", noAssets == null && error.Length > 0);
+
+            string updateLogPath = Path.Combine(Path.GetTempPath(), "pi-web-tray-log-" + Guid.NewGuid().ToString("N") + ".log");
+            try
+            {
+                Updater.AppendLog(updateLogPath, "first line");
+                Updater.AppendLog(updateLogPath, "second line");
+
+                byte[] bytes = File.ReadAllBytes(updateLogPath);
+                bool bom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+                string logText = Encoding.UTF8.GetString(bytes);
+
+                Check("update log has no BOM", !bom);
+                Check("update log keeps first line", logText.Contains("first line"));
+                Check("update log keeps second line", logText.Contains("second line"));
+                Check("update log ends with a newline", logText.EndsWith(Environment.NewLine, StringComparison.Ordinal));
+            }
+            finally
+            {
+                try { File.Delete(updateLogPath); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateCopyTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-update-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string staging = Path.Combine(root, "staging");
+            string logPath = Path.Combine(root, "update.log");
+
+            try
+            {
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(Path.Combine(staging, "zh-Hans"));
+                Directory.CreateDirectory(Path.Combine(staging, "config"));
+
+                File.WriteAllText(Path.Combine(target, "pi-web-tray.exe"), "old");
+                File.WriteAllText(Path.Combine(target, "pi-web-tray.ini"), "user");
+                File.WriteAllText(Path.Combine(target, "server.log"), "log");
+
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe.config"), "config");
+                File.WriteAllText(Path.Combine(staging, "zh-Hans", "pi-web-tray.resources.dll"), "dll");
+                File.WriteAllText(Path.Combine(staging, "config", "pi-web-tray.ini"), "sample");
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.ini"), "should-not-copy");
+                File.WriteAllText(Path.Combine(staging, "server.log"), "should-not-copy");
+
+                string stagingHash1 = Updater.ComputeStagingHash(staging);
+                string stagingHash2 = Updater.ComputeStagingHash(staging);
+                CheckEqual("staging hash stable", stagingHash1, stagingHash2);
+                Check("staging hash length", stagingHash1.Length == 64);
+
+                File.WriteAllText(Path.Combine(staging, "server.log"), "changed-skip");
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.ini"), "changed-skip");
+                CheckEqual("staging hash ignores files that are not copied",
+                    stagingHash1, Updater.ComputeStagingHash(staging));
+
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "tampered");
+                Check("staging hash detects file changes",
+                    stagingHash1 != Updater.ComputeStagingHash(staging));
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
+
+                File.WriteAllText(Path.Combine(staging, "extra.txt"), "extra");
+                Check("staging hash detects added files",
+                    stagingHash1 != Updater.ComputeStagingHash(staging));
+                File.Delete(Path.Combine(staging, "extra.txt"));
+
+                Updater.CopyFiles(staging, target, logPath);
+
+                CheckEqual("update replaces exe", "new", File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+                CheckEqual("update copies config", "config", File.ReadAllText(Path.Combine(target, "pi-web-tray.exe.config")));
+                CheckEqual("update keeps user ini", "user", File.ReadAllText(Path.Combine(target, "pi-web-tray.ini")));
+                CheckEqual("update keeps log", "log", File.ReadAllText(Path.Combine(target, "server.log")));
+                CheckEqual("update copies culture", "dll",
+                    File.ReadAllText(Path.Combine(target, "zh-Hans", "pi-web-tray.resources.dll")));
+                CheckEqual("update copies the sample config", "sample",
+                    File.ReadAllText(Path.Combine(target, "config", "pi-web-tray.ini")));
+                Check("update leaves no backup directory",
+                    Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateTargetTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-target-" + Guid.NewGuid().ToString("N"));
+            string valid = Path.Combine(root, "valid");
+            string invalid = Path.Combine(root, "invalid");
+            string missing = Path.Combine(root, "missing");
+
+            try
+            {
+                Directory.CreateDirectory(valid);
+                Directory.CreateDirectory(invalid);
+                File.Copy(typeof(Updater).Assembly.Location, Path.Combine(valid, "pi-web-tray.exe"));
+                File.WriteAllText(Path.Combine(invalid, "pi-web-tray.exe"), "not an executable");
+
+                string reason;
+                Check("recognises a Pi Web Tray installation",
+                    Updater.IsPiWebTrayInstallation(valid, out reason));
+                Check("rejects a directory without pi-web-tray.exe",
+                    !Updater.IsPiWebTrayInstallation(missing, out reason));
+                Check("rejects a non-Pi-Web-Tray executable",
+                    !Updater.IsPiWebTrayInstallation(invalid, out reason));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
         }
 
         private static void StateFileTests()

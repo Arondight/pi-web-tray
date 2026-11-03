@@ -34,6 +34,14 @@ namespace PiWebTray
         Failed
     }
 
+    internal enum UpdateStage
+    {
+        None,
+        Checking,
+        Downloading,
+        Applying
+    }
+
     internal sealed class TrayApp : ApplicationContext
     {
         private const int StartTimeoutSeconds = 180;
@@ -58,11 +66,13 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _stopItem;
         private readonly ToolStripMenuItem _restartItem;
         private readonly ToolStripMenuItem _installItem;
+        private readonly ToolStripMenuItem _updateItem;
         private readonly ToolStripMenuItem _nodeItem;
         private readonly ToolStripMenuItem _checkItem;
         private readonly ToolStripMenuItem _installLogItem;
         private readonly ToolStripMenuItem _autostartItem;
         private readonly ToolStripMenuItem _adminAutostartItem;
+        private readonly ToolStripMenuItem _aboutItem;
 
         private Process _server;
 
@@ -112,6 +122,17 @@ namespace PiWebTray
         private bool _autoError;
         private int _revertAdminAutostart = -1; // -1 = no revert, 0/1 = previous value
 
+        // update (background -> UI thread)
+        private readonly object _updateLock = new object();
+        private bool _updateBusy;
+        private bool _updateDone;
+        private UpdateStage _updateStage = UpdateStage.None;
+        private ReleaseInfo _updateRelease;
+        private string _updateStaging;
+        private string _updateError;
+        private volatile int _updatePercent = -1;
+        private int _updateTicks;
+
         private readonly object _taskCacheLock = new object();
         private bool _taskCache;
         private DateTime _taskCacheAt = DateTime.MinValue;
@@ -157,6 +178,9 @@ namespace PiWebTray
             _installItem = new ToolStripMenuItem(L.T("menu.installDeps"));
             _installItem.Click += delegate { BeginInstall(true); };
 
+            _updateItem = new ToolStripMenuItem(L.T("menu.checkUpdates"));
+            _updateItem.Click += delegate { BeginUpdateCheck(); };
+
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
             _nodeItem.Click += delegate { OpenUrl("https://nodejs.org/en/download"); };
 
@@ -192,6 +216,9 @@ namespace PiWebTray
             _adminAutostartItem = new ToolStripMenuItem(L.T("menu.adminAutostart", L.T("bool.no")));
             _adminAutostartItem.Click += delegate { ToggleAdminAutostart(); };
 
+            _aboutItem = new ToolStripMenuItem(L.T("menu.about"));
+            _aboutItem.Click += delegate { ShowAbout(); };
+
             ToolStripMenuItem exitItem = new ToolStripMenuItem(L.T("menu.exit"));
             exitItem.Click += delegate { ExitApp(); };
 
@@ -203,6 +230,7 @@ namespace PiWebTray
             _menu.Items.Add(_restartItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_installItem);
+            _menu.Items.Add(_updateItem);
             _menu.Items.Add(_nodeItem);
             _menu.Items.Add(_checkItem);
             _menu.Items.Add(logItem);
@@ -213,6 +241,7 @@ namespace PiWebTray
             _menu.Items.Add(_autostartItem);
             _menu.Items.Add(_adminAutostartItem);
             _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(_aboutItem);
             _menu.Items.Add(exitItem);
 
             // The check margin must stay: turning off only ShowImageMargin clips the check box, which makes
@@ -265,6 +294,8 @@ namespace PiWebTray
             PollInstall();
             PollSelfCheck();
             PollTaskRefresh();
+            PollUpdate();
+            if (_exiting) return;
 
             if (openSignal && DateTime.Now - _lastSignalHandled > TimeSpan.FromSeconds(3))
             {
@@ -287,6 +318,12 @@ namespace PiWebTray
                 default:
                     PollPortSync();
                     break;
+            }
+
+            if (UpdateBusy())
+            {
+                _updateTicks++;
+                if (_updateTicks % 4 == 0) UpdateUi();
             }
         }
 
@@ -696,6 +733,27 @@ namespace PiWebTray
                     break;
             }
 
+            bool updateBusy = UpdateBusy();
+            if (updateBusy)
+            {
+                if (_updateStage == UpdateStage.Checking)
+                {
+                    label = L.T("update.status.checking");
+                }
+                else if (_updateStage == UpdateStage.Downloading)
+                {
+                    int percent = _updatePercent;
+                    label = percent >= 0
+                        ? L.T("update.status.downloadingPercent", percent)
+                        : L.T("update.status.downloading");
+                }
+                else
+                {
+                    label = L.T("update.status.applying");
+                }
+                color = Icons.BusyColor;
+            }
+
             if (_currentIcon == null || !_iconColor.Equals(color))
             {
                 try
@@ -718,7 +776,7 @@ namespace PiWebTray
 
             _statusItem.Text = (_phase == Phase.Running ? L.T("status.bulletOn") : L.T("status.bulletOff")) + label + (_elevated ? L.T("status.adminLong") : "");
 
-            bool busy = _phase == Phase.Installing || _phase == Phase.Checking || _phase == Phase.Starting || _phase == Phase.Stopping;
+            bool busy = _phase == Phase.Installing || _phase == Phase.Checking || _phase == Phase.Starting || _phase == Phase.Stopping || updateBusy;
             bool running = _phase == Phase.Running;
             bool ready = _probe != null && _probe.Ready;
             bool needsNode = _phase == Phase.NeedsNode || (_probe != null && _probe.NeedsNode);
@@ -727,11 +785,14 @@ namespace PiWebTray
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
             _openItem.Enabled = !busy;
             _startItem.Enabled = !busy && !running && ready;
-            _stopItem.Enabled = running;
+            _stopItem.Enabled = running && !updateBusy;
             _restartItem.Enabled = !busy && running;
             _installItem.Enabled = !busy;
             _installItem.Text = ready ? L.T("menu.installDeps") : L.T("menu.installAuto");
-            _nodeItem.Enabled = needsNode;
+            _updateItem.Enabled = !busy;
+            _updateItem.Text = updateBusy ? L.T("menu.checkUpdatesBusy") : L.T("menu.checkUpdates");
+            _nodeItem.Enabled = needsNode && !updateBusy;
+            _checkItem.Enabled = !updateBusy;
             _installLogItem.Enabled = File.Exists(_config.InstallLogFile);
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
@@ -768,6 +829,7 @@ namespace PiWebTray
 
         private void OpenOrStart()
         {
+            if (UpdateBusy()) return;
             if (_phase == Phase.Running) { OpenBrowser(); return; }
             if (_phase == Phase.Installing || _phase == Phase.Checking) return;
             if (_phase == Phase.NeedsNode)
@@ -974,6 +1036,19 @@ namespace PiWebTray
         {
             if (_exiting) return;
 
+            // The updater calls ExitApp only after its helper has been started. Any other
+            // update stage can still be abandoned, but the user should confirm it.
+            if (UpdateBusy() && _updateStage != UpdateStage.Applying)
+            {
+                DialogResult updateAnswer = MessageBox.Show(
+                    L.T("update.busyBody"),
+                    L.T("update.busyTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2);
+                if (updateAnswer != DialogResult.Yes) return;
+            }
+
             // Aborting midway leaves a half-installed global package: ask first, and kill npm if confirmed
             if (_phase == Phase.Installing)
             {
@@ -1174,7 +1249,7 @@ namespace PiWebTray
         {
             bool task = TaskExists(true);
             bool run = IsRunKeyEnabled();
-            bool busy = AutostartBusy();
+            bool busy = AutostartBusy() || UpdateBusy();
 
             _autostartItem.Text = busy
                 ? L.T("menu.autostartBusy")
@@ -1339,6 +1414,256 @@ namespace PiWebTray
         private bool AutostartBusy()
         {
             lock (_autoLock) return _autoBusy;
+        }
+
+        // ---------------- update ----------------
+
+        private bool UpdateBusy()
+        {
+            lock (_updateLock) return _updateBusy;
+        }
+
+        private void BeginUpdateCheck()
+        {
+            if (_exiting) return;
+            if (_phase == Phase.Installing || _phase == Phase.Checking
+                || _phase == Phase.Starting || _phase == Phase.Stopping)
+            {
+                return;
+            }
+
+            lock (_updateLock)
+            {
+                if (_updateBusy) return;
+                _updateBusy = true;
+                _updateDone = false;
+                _updateStage = UpdateStage.Checking;
+                _updateRelease = null;
+                _updateStaging = null;
+                _updateError = null;
+            }
+
+            _updatePercent = -1;
+            _updateTicks = 0;
+            UpdateUi();
+            Updater.AppendLog(_config.UpdateLogFile, "check start (current " + Program.Version + ")");
+            Notify(L.T("update.checkingTitle"), L.T("update.checkingBody", Program.Version));
+
+            Thread worker = new Thread(delegate ()
+            {
+                string error;
+                ReleaseInfo release = Updater.FindLatest(out error);
+                lock (_updateLock)
+                {
+                    _updateRelease = release;
+                    _updateError = error;
+                    _updateDone = true;
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void PollUpdate()
+        {
+            UpdateStage stage;
+            ReleaseInfo release;
+            string staging;
+            string error;
+            lock (_updateLock)
+            {
+                if (!_updateDone) return;
+                _updateDone = false;
+                stage = _updateStage;
+                release = _updateRelease;
+                staging = _updateStaging;
+                error = _updateError;
+                _updateStaging = null;
+                _updateError = null;
+            }
+
+            if (stage == UpdateStage.Checking) HandleUpdateCheck(release, error);
+            else if (stage == UpdateStage.Downloading) HandleUpdateDownload(release, staging, error);
+            else if (stage == UpdateStage.Applying) HandleUpdateApply(error);
+        }
+
+        private void HandleUpdateCheck(ReleaseInfo release, string error)
+        {
+            if (!string.IsNullOrEmpty(error))
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "check failed: " + error);
+                EndUpdate();
+                ShowUpdateError(L.T("update.checkFailedTitle"), L.T("update.checkFailedBody", error));
+                return;
+            }
+
+            if (release == null || !Updater.IsNewer(release.Version, Program.Version))
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "up to date");
+                EndUpdate();
+                MessageBox.Show(
+                    L.T("update.upToDateBody", Program.Version),
+                    L.T("update.upToDateTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            Updater.AppendLog(_config.UpdateLogFile, "latest: " + release.Tag + " (" + release.ZipName + ")");
+            string body = L.T("update.confirmBody", Program.Version, release.Version);
+            if (!_elevated && Updater.RequiresElevation(_config.BaseDir))
+                body += "\r\n\r\n" + L.T("update.adminNote");
+
+            DialogResult answer = MessageBox.Show(
+                body,
+                L.T("update.confirmTitle"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes)
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
+                EndUpdate();
+                return;
+            }
+
+            BeginUpdateDownload(release);
+        }
+
+        private void BeginUpdateDownload(ReleaseInfo release)
+        {
+            lock (_updateLock)
+            {
+                _updateStage = UpdateStage.Downloading;
+                _updateDone = false;
+                _updateRelease = release;
+                _updateStaging = null;
+                _updateError = null;
+            }
+
+            _updatePercent = -1;
+            _updateTicks = 0;
+            UpdateUi();
+            Notify(L.T("update.downloadingTitle"), L.T("update.downloadingBody", release.Version));
+
+            Thread worker = new Thread(delegate ()
+            {
+                string error;
+                string staging = Updater.Prepare(
+                    _config,
+                    release,
+                    delegate (int percent) { _updatePercent = percent; },
+                    out error);
+                lock (_updateLock)
+                {
+                    _updateStaging = staging;
+                    _updateError = error;
+                    _updateDone = true;
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void HandleUpdateDownload(ReleaseInfo release, string staging, string error)
+        {
+            if (!string.IsNullOrEmpty(error) || string.IsNullOrEmpty(staging))
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "download failed: " + (string.IsNullOrEmpty(error) ? L.T("update.error.unknown") : error));
+                EndUpdate();
+                ShowUpdateError(
+                    L.T("update.downloadFailedTitle"),
+                    L.T("update.downloadFailedBody",
+                        string.IsNullOrEmpty(error) ? L.T("update.error.unknown") : error,
+                        _config.UpdateLogFile));
+                return;
+            }
+
+            if (release == null)
+            {
+                EndUpdate();
+                return;
+            }
+
+            BeginUpdateApply(release, staging);
+        }
+
+        private void BeginUpdateApply(ReleaseInfo release, string staging)
+        {
+            lock (_updateLock)
+            {
+                _updateStage = UpdateStage.Applying;
+                _updateDone = false;
+                _updateError = null;
+            }
+
+            _updatePercent = -1;
+            _updateTicks = 0;
+            UpdateUi();
+            Notify(L.T("update.applyingTitle"), L.T("update.applyingBody", release.Version));
+
+            bool startService = _autoStartService;
+            bool elevated = _elevated;
+            Thread worker = new Thread(delegate ()
+            {
+                string error;
+                bool ok = Updater.StartHelper(_config, staging, startService, elevated, out error);
+                lock (_updateLock)
+                {
+                    _updateError = ok ? "" : error;
+                    _updateDone = true;
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void HandleUpdateApply(string error)
+        {
+            if (!string.IsNullOrEmpty(error))
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "helper start failed: " + error);
+                EndUpdate();
+                ShowUpdateError(
+                    L.T("update.startFailedTitle"),
+                    L.T("update.startFailedBody", error, _config.UpdateLogFile));
+                return;
+            }
+
+            // The helper is already waiting for this process to exit. Stop pi-web and
+            // let it replace the files and start the new tray.
+            Updater.AppendLog(_config.UpdateLogFile, "helper started; stopping the tray");
+            ExitApp();
+        }
+
+        private void EndUpdate()
+        {
+            lock (_updateLock)
+            {
+                _updateBusy = false;
+                _updateDone = false;
+                _updateStage = UpdateStage.None;
+                _updateRelease = null;
+                _updateStaging = null;
+                _updateError = null;
+            }
+
+            _updatePercent = -1;
+            UpdateUi();
+        }
+
+        private void ShowUpdateError(string title, string body)
+        {
+            MessageBox.Show(body, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        private void ShowAbout()
+        {
+            using (AboutForm form = new AboutForm())
+            {
+                form.ShowDialog();
+            }
         }
 
         // ---------------- helpers ----------------
