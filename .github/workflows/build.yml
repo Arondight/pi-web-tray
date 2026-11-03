@@ -38,7 +38,7 @@ jobs:
         shell: cmd
         run: build.cmd --no-pause
 
-      - name: Verify Windows 7-11 compatibility
+      - name: Verify Windows 7 to 11 compatibility
         shell: pwsh
         run: .\scripts\check-compat.ps1 -ArtifactDir artifacts
 

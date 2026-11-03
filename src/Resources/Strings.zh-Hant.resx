@@ -136,7 +136,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>自動啟動時使用系統管理員權限：{0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>結束（並停止 pi-web）</value>
+    <value>退出並停止 pi-web</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>是</value>
@@ -546,7 +546,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>先前的系統匣執行個體未結束。
-請先從系統匣功能表選擇「結束（並停止 pi-web）」，然後重試。</value>
+請先從系統匣功能表選擇「退出並停止 pi-web」，然後重試。</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray 發生錯誤，詳細資訊已寫入 crash.log：
@@ -847,7 +847,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>版本 {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>基於 pi / pi-web 的 Windows 7–11 通用 Harness 解決方案。</value>
+    <value>基於 pi 和 pi-web 的 Windows 7 至 11 通用 Harness 解決方案。</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>作者：{0}</value>

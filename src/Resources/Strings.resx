@@ -136,7 +136,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Start at login as administrator: {0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>Exit (stop pi-web)</value>
+    <value>Exit and stop pi-web</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>yes</value>
@@ -546,7 +546,7 @@ To start the service, use the tray icon menu, or right-click the desktop shortcu
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>The previous tray instance did not exit.
-Choose “Exit (stop pi-web)” from the tray menu first, then retry.</value>
+Choose “Exit and stop pi-web” from the tray menu first, then retry.</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray encountered an error. Details were written to crash.log:
@@ -847,7 +847,7 @@ See {1} for details.</value>
     <value>Version {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>A Windows 7–11 harness for pi and pi-web.</value>
+    <value>A Windows 7 to 11 harness for pi and pi-web.</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>Author: {0}</value>

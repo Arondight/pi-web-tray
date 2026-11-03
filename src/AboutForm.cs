@@ -75,9 +75,15 @@ namespace PiWebTray
             author.Margin = new Padding(0, 0, 0, 4);
 
             LinkLabel link = new LinkLabel();
-            link.Text = L.T("about.link", Program.ProjectUrl);
+            string linkText = L.T("about.link", Program.ProjectUrl);
+            link.Text = linkText;
             link.AutoSize = true;
             link.Margin = new Padding(0, 0, 0, 4);
+            // Only the URL is the link; the "Project:" prefix keeps the normal text colour.
+            int urlStart = linkText.IndexOf(Program.ProjectUrl, StringComparison.Ordinal);
+            link.LinkArea = urlStart >= 0
+                ? new LinkArea(urlStart, Program.ProjectUrl.Length)
+                : new LinkArea(0, linkText.Length);
             link.LinkClicked += delegate { OpenProjectPage(); };
 
             Label license = new Label();

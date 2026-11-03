@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A universal Windows 7–11 harness for [pi](https://github.com/earendil-works/pi) and
+A universal Windows 7 to 11 harness for [pi](https://github.com/earendil-works/pi) and
 [pi-web](https://github.com/agegr/pi-web). One tray app detects the runtime, installs and
 updates the npm packages, hosts the service and updates itself.
 

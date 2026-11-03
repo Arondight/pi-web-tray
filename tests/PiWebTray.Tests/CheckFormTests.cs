@@ -47,6 +47,15 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("about.title"), form.Text);
                 Assert.IsTrue(form.Controls.Count > 0);
+
+                List<LinkLabel> links = FindControls<LinkLabel>(form);
+                Assert.AreEqual(1, links.Count, "About window should contain one project link.");
+                LinkArea area = links[0].LinkArea;
+                string text = links[0].Text;
+                Assert.AreEqual(L.T("about.link", "").Length, area.Start,
+                    "The project label must not be part of the link.");
+                Assert.AreEqual(Program.ProjectUrl, text.Substring(area.Start, area.Length),
+                    "Only the project URL should be a link.");
             }
         }
 

@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-基于 pi / pi-web 的 Windows 7–11 通用 Harness 解决方案。一个托盘程序完成运行环境
+基于 pi 和 pi-web 的 Windows 7 至 11 通用 Harness 解决方案。一个托盘程序完成运行环境
 检测、依赖安装与更新、服务托管和自更新。
 
 - **一键使用** — 启动 pi-web 并打开浏览器；服务已在运行时只打开浏览器。
