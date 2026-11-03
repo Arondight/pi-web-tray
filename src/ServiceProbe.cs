@@ -1,0 +1,234 @@
+// Pi Web Tray — identify the process that owns the configured port
+//
+// "A TCP listener exists" is not proof that pi-web is running. The tray uses this
+// helper before it treats the port as Running and before it stops or kills anything,
+// so another program on the same port is never mistaken for pi-web.
+
+using System;
+using System.Diagnostics;
+using System.Management;
+
+namespace PiWebTray
+{
+    internal enum PortOwner
+    {
+        None,
+        PiWeb,
+        Unknown
+    }
+
+    internal sealed class PortOwnerInfo
+    {
+        internal PortOwner Owner;
+        internal int Pid;
+        internal string Detail = "";
+
+        internal bool IsPiWeb { get { return Owner == PortOwner.PiWeb; } }
+        internal bool IsUnknown { get { return Owner == PortOwner.Unknown; } }
+    }
+
+    internal static class ServiceProbe
+    {
+        private static readonly object CacheLock = new object();
+        private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(3);
+
+        private static int _cachePort = -1;
+        private static PortOwnerInfo _cache;
+        private static DateTime _cacheAt = DateTime.MinValue;
+
+        internal static PortOwnerInfo Inspect(int port)
+        {
+            lock (CacheLock)
+            {
+                if (_cache != null && _cachePort == port && DateTime.Now - _cacheAt < CacheLifetime)
+                    return _cache;
+            }
+
+            PortOwnerInfo result = InspectUncached(port);
+
+            lock (CacheLock)
+            {
+                _cachePort = port;
+                _cache = result;
+                _cacheAt = DateTime.Now;
+            }
+            return result;
+        }
+
+        internal static void Invalidate()
+        {
+            lock (CacheLock)
+            {
+                _cache = null;
+                _cachePort = -1;
+                _cacheAt = DateTime.MinValue;
+            }
+        }
+
+        private static PortOwnerInfo InspectUncached(int port)
+        {
+            if (!Net.IsPortOpen(port, 250))
+            {
+                return new PortOwnerInfo { Owner = PortOwner.None, Detail = "port is not listening" };
+            }
+
+            int pid = FindListenerPid(port);
+            string commandLine = pid > 4 ? ReadCommandLine(pid) : "";
+
+            if (IsPiWebCommandLine(commandLine))
+            {
+                return new PortOwnerInfo
+                {
+                    Owner = PortOwner.PiWeb,
+                    Pid = pid,
+                    Detail = "pi-web command line"
+                };
+            }
+
+            // WMI can be unavailable for protected processes. A local HTTP body check
+            // cannot prove ownership, but it is a useful fallback when the command line
+            // cannot be read and avoids a false port-conflict warning for pi-web.
+            if (string.IsNullOrEmpty(commandLine) && Net.IsPiWebHttp(port, 1500))
+            {
+                return new PortOwnerInfo
+                {
+                    Owner = PortOwner.PiWeb,
+                    Pid = pid,
+                    Detail = "pi-web HTTP response"
+                };
+            }
+
+            return new PortOwnerInfo
+            {
+                Owner = PortOwner.Unknown,
+                Pid = pid,
+                Detail = string.IsNullOrEmpty(commandLine)
+                    ? "process details are unavailable"
+                    : "process is not pi-web"
+            };
+        }
+
+        internal static string OwnerText(PortOwnerInfo owner)
+        {
+            if (owner == null) return L.T("check.ownerNone");
+            if (owner.IsPiWeb) return L.T("check.ownerPiweb");
+            if (owner.IsUnknown) return L.T("check.ownerOther");
+            return L.T("check.ownerNone");
+        }
+
+        internal static bool IsPiWebCommandLine(string commandLine)
+        {
+            if (string.IsNullOrEmpty(commandLine)) return false;
+            string text = commandLine.ToLowerInvariant();
+
+            // The service command line contains the pi-web.js script:
+            //   "node.exe" "...\@agegr\pi-web\bin\pi-web.js" --no-open -p 30141
+            // Also accept the npm package path for renamed/launcher variants.
+            if (text.IndexOf("pi-web.js", StringComparison.Ordinal) >= 0) return true;
+            if (text.IndexOf("@agegr\\pi-web", StringComparison.Ordinal) >= 0) return true;
+            if (text.IndexOf("@agegr/pi-web", StringComparison.Ordinal) >= 0) return true;
+            return false;
+        }
+
+        internal static int ParseListenerPid(string netstatOutput, int port)
+        {
+            if (string.IsNullOrEmpty(netstatOutput) || port <= 0) return 0;
+
+            string needle = ":" + port;
+            foreach (string rawLine in netstatOutput.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (line.Length == 0) continue;
+                // netstat is localized; match the local endpoint instead of the English state text.
+
+                string[] parts = line.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 5) continue;
+                if (!parts[1].EndsWith(needle, StringComparison.Ordinal)) continue;
+                // A listener has a wildcard remote endpoint; established connections do not.
+                if (!parts[2].EndsWith(":0", StringComparison.Ordinal)) continue;
+
+                int pid;
+                if (!int.TryParse(parts[4], out pid)) continue;
+                if (pid > 0) return pid;
+            }
+            return 0;
+        }
+
+        private static int FindListenerPid(int port)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = "netstat.exe";
+                psi.Arguments = "-ano -p TCP";
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.RedirectStandardOutput = true;
+                psi.RedirectStandardError = true;
+
+                using (Process netstat = Process.Start(psi))
+                {
+                    if (netstat == null) return 0;
+                    string output = netstat.StandardOutput.ReadToEnd();
+                    netstat.WaitForExit(3000);
+                    return ParseListenerPid(output, port);
+                }
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
+        }
+
+        internal static int ParentPid(int pid)
+        {
+            try
+            {
+                string query = "SELECT ParentProcessId FROM Win32_Process WHERE ProcessId = "
+                    + pid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(query))
+                using (ManagementObjectCollection results = searcher.Get())
+                {
+                    foreach (ManagementObject process in results)
+                    {
+                        using (process)
+                        {
+                            object value = process["ParentProcessId"];
+                            int parent;
+                            if (value != null && int.TryParse(value.ToString(), out parent)) return parent;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return 0;
+        }
+
+        private static string ReadCommandLine(int pid)
+        {
+            try
+            {
+                string query = "SELECT CommandLine FROM Win32_Process WHERE ProcessId = "
+                    + pid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher(query))
+                using (ManagementObjectCollection results = searcher.Get())
+                {
+                    foreach (ManagementObject process in results)
+                    {
+                        using (process)
+                        {
+                            string text = process["CommandLine"] as string;
+                            if (!string.IsNullOrEmpty(text)) return text;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return "";
+        }
+    }
+}

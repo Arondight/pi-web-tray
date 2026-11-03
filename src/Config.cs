@@ -19,6 +19,8 @@ namespace PiWebTray
         internal int Port = 30141;
         internal bool AutostartAdmin;
         internal bool AutoInstall = true;
+        internal bool AutoRestart;
+        internal bool AutoCheckUpdates;
         internal string Language = L.Auto;
         internal bool InstallPiCli = true;
         internal string InstallTag = "latest";
@@ -121,6 +123,12 @@ namespace PiWebTray
                             break;
                         case "autoinstall":
                             config.AutoInstall = IsTruthy(value, true);
+                            break;
+                        case "autorestart":
+                            config.AutoRestart = IsTruthy(value, false);
+                            break;
+                        case "autocheckupdates":
+                            config.AutoCheckUpdates = IsTruthy(value, false);
                             break;
                         case "installpicli":
                             config.InstallPiCli = IsTruthy(value, true);
@@ -254,6 +262,12 @@ namespace PiWebTray
                 sb.AppendLine(L.T("ini.autoInstallC"));
                 sb.AppendLine("AutoInstall=1");
                 sb.AppendLine();
+                sb.AppendLine(L.T("ini.autoRestartC"));
+                sb.AppendLine("AutoRestart=0");
+                sb.AppendLine();
+                sb.AppendLine(L.T("ini.autoCheckC"));
+                sb.AppendLine("AutoCheckUpdates=0");
+                sb.AppendLine();
                 sb.AppendLine(L.T("ini.piCliC"));
                 sb.AppendLine("InstallPiCli=1");
                 sb.AppendLine();
@@ -281,7 +295,26 @@ namespace PiWebTray
             }
         }
 
-        internal void SetValue(string key, string value)
+        internal bool SetValue(string key, string value)
+        {
+            return SetValues(new KeyValuePair<string, string>[]
+            {
+                new KeyValuePair<string, string>(key, value)
+            });
+        }
+
+        // Quote values that would otherwise be truncated by the inline-comment parser.
+        private static string IniValue(string value)
+        {
+            if (value == null) return "";
+            if (value.IndexOf(';') < 0 && value.IndexOf('#') < 0
+                && value.Length == value.Trim().Length) return value;
+            return "\"" + value + "\"";
+        }
+
+        // Write several keys in one pass so a settings dialog cannot leave the file
+        // half-updated. Existing comments and ordering are preserved.
+        internal bool SetValues(IEnumerable<KeyValuePair<string, string>> values)
         {
             try
             {
@@ -289,27 +322,33 @@ namespace PiWebTray
                     ? new List<string>(File.ReadAllLines(IniPath))
                     : new List<string>();
 
-                string prefix = key + "=";
-                bool replaced = false;
-                for (int i = 0; i < lines.Count; i++)
+                foreach (KeyValuePair<string, string> pair in values)
                 {
-                    string parsedKey;
-                    string parsedValue;
-                    if (!TryParseLine(lines[i], out parsedKey, out parsedValue)) continue;
-                    if (!string.Equals(parsedKey, key, StringComparison.OrdinalIgnoreCase)) continue;
-                    lines[i] = prefix + value;
-                    replaced = true;
-                    break;
+                    string prefix = pair.Key + "=";
+                    bool replaced = false;
+                    for (int i = 0; i < lines.Count; i++)
+                    {
+                        string parsedKey;
+                        string parsedValue;
+                        if (!TryParseLine(lines[i], out parsedKey, out parsedValue)) continue;
+                        if (!string.Equals(parsedKey, pair.Key, StringComparison.OrdinalIgnoreCase)) continue;
+                        lines[i] = prefix + IniValue(pair.Value);
+                        replaced = true;
+                        break;
+                    }
+                    if (!replaced)
+                    {
+                        lines.Add("");
+                        lines.Add(prefix + IniValue(pair.Value));
+                    }
                 }
-                if (!replaced)
-                {
-                    lines.Add("");
-                    lines.Add(prefix + value);
-                }
+
                 File.WriteAllLines(IniPath, lines.ToArray(), new UTF8Encoding(true));
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 

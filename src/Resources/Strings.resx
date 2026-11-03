@@ -79,10 +79,10 @@
     <value>Restart service</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>Install / update dependencies</value>
+    <value>Update pi-web dependencies</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>Install pi-web automatically</value>
+    <value>Install pi-web dependencies</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>Download Node.js…</value>
@@ -95,9 +95,6 @@
   </data>
   <data name="menu.installLog" xml:space="preserve">
     <value>View install log</value>
-  </data>
-  <data name="menu.folder" xml:space="preserve">
-    <value>Open install folder</value>
   </data>
   <data name="menu.shortcut" xml:space="preserve">
     <value>Create desktop shortcut</value>
@@ -316,7 +313,7 @@
     <value>pi-web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the tray menu and select Install / update dependencies.</value>
+    <value>Use the tray menu and select Update pi-web dependencies.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start Pi Web</value>
@@ -363,7 +360,7 @@ Exit anyway?</value>
     <value>pi-web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>Use the tray menu and select Install / update dependencies.</value>
+    <value>Use the tray menu and select Update pi-web dependencies.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -544,7 +541,7 @@ Use --help to see the supported options.</value>
     <value>Start pi-web, install missing dependencies, and open the browser.</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>Used by start-at-login; starts the tray only.</value>
+    <value>Used by start-at-login; starts the tray and pi-web without opening a browser.</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>Request the running tray to stop the service; the tray remains.</value>
@@ -655,10 +652,10 @@ Use --help to see the supported options.</value>
     <value>{0} (listening={1})</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>Check for updates</value>
+    <value>Update Pi Web Tray</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>Updating...</value>
+    <value>Updating Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>About</value>
@@ -842,5 +839,284 @@ See {1} for details.</value>
   </data>
   <data name="sc.updateLog" xml:space="preserve">
     <value>Update log</value>
+  </data>
+  <data name="status.portConflict" xml:space="preserve">
+    <value>Port {0} is used by another program</value>
+  </data>
+  <data name="menu.portConflict" xml:space="preserve">
+    <value>Port conflict</value>
+  </data>
+  <data name="notify.portConflictTitle" xml:space="preserve">
+    <value>Port conflict</value>
+  </data>
+  <data name="notify.portConflictBody" xml:space="preserve">
+    <value>Port {0} is already used by another program. Stop that program or change the port in Settings.</value>
+  </data>
+  <data name="notify.serviceStoppedTitle" xml:space="preserve">
+    <value>pi-web stopped</value>
+  </data>
+  <data name="notify.serviceStoppedBody" xml:space="preserve">
+    <value>pi-web stopped unexpectedly. Click the tray icon to restart it.</value>
+  </data>
+  <data name="check.portState" xml:space="preserve">
+    <value>{0} (listening={1}, owner={2})</value>
+  </data>
+  <data name="check.ownerPiweb" xml:space="preserve">
+    <value>pi-web</value>
+  </data>
+  <data name="check.ownerOther" xml:space="preserve">
+    <value>another program or unknown</value>
+  </data>
+  <data name="check.ownerNone" xml:space="preserve">
+    <value>none</value>
+  </data>
+  <data name="sc.portOwner" xml:space="preserve">
+    <value>Port owner</value>
+  </data>
+  <data name="prog.portConflictStop" xml:space="preserve">
+    <value>Port {0} is used by another program; it was not stopped.</value>
+  </data>
+  <data name="settings.title" xml:space="preserve">
+    <value>Pi Web Tray settings</value>
+  </data>
+  <data name="settings.port" xml:space="preserve">
+    <value>Port</value>
+  </data>
+  <data name="settings.workingDir" xml:space="preserve">
+    <value>Working directory</value>
+  </data>
+  <data name="settings.language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="settings.autoInstall" xml:space="preserve">
+    <value>Install missing dependencies automatically</value>
+  </data>
+  <data name="settings.installPiCli" xml:space="preserve">
+    <value>Install the pi command line with pi-web</value>
+  </data>
+  <data name="settings.autoRestart" xml:space="preserve">
+    <value>Restart pi-web automatically if it stops</value>
+  </data>
+  <data name="settings.autoCheckUpdates" xml:space="preserve">
+    <value>Check for Pi Web Tray updates at startup</value>
+  </data>
+  <data name="settings.installTag" xml:space="preserve">
+    <value>npm tag / version</value>
+  </data>
+  <data name="settings.npmRegistry" xml:space="preserve">
+    <value>npm registry (optional)</value>
+  </data>
+  <data name="settings.nodePath" xml:space="preserve">
+    <value>Node.js path (optional)</value>
+  </data>
+  <data name="settings.serverScript" xml:space="preserve">
+    <value>pi-web script (optional)</value>
+  </data>
+  <data name="settings.selectNode" xml:space="preserve">
+    <value>Select node.exe</value>
+  </data>
+  <data name="settings.selectServer" xml:space="preserve">
+    <value>Select pi-web.js</value>
+  </data>
+  <data name="settings.restartNote" xml:space="preserve">
+    <value>Port, language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
+  </data>
+  <data name="settings.save" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="settings.cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="settings.invalidWorkingDir" xml:space="preserve">
+    <value>The working directory does not exist.</value>
+  </data>
+  <data name="settings.invalidNodePath" xml:space="preserve">
+    <value>The selected Node.js executable does not exist.</value>
+  </data>
+  <data name="settings.invalidServerScript" xml:space="preserve">
+    <value>The selected pi-web script does not exist.</value>
+  </data>
+  <data name="settings.invalidRegistry" xml:space="preserve">
+    <value>Enter an absolute http:// or https:// registry URL, or leave it empty.</value>
+  </data>
+  <data name="settings.invalidTag" xml:space="preserve">
+    <value>The npm tag or version contains invalid characters.</value>
+  </data>
+  <data name="settings.portInUseTitle" xml:space="preserve">
+    <value>Port in use</value>
+  </data>
+  <data name="settings.portInUseBody" xml:space="preserve">
+    <value>Port {0} is used by another program. Save anyway?</value>
+  </data>
+  <data name="settings.saveFailed" xml:space="preserve">
+    <value>The configuration file could not be saved.</value>
+  </data>
+  <data name="settings.langAuto" xml:space="preserve">
+    <value>Auto (Windows)</value>
+  </data>
+  <data name="settings.langEn" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="settings.langZh" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="settings.langZhHant" xml:space="preserve">
+    <value>繁體中文</value>
+  </data>
+  <data name="menu.logs" xml:space="preserve">
+    <value>Logs</value>
+  </data>
+  <data name="menu.updateLog" xml:space="preserve">
+    <value>View update log</value>
+  </data>
+  <data name="menu.dataFolder" xml:space="preserve">
+    <value>Open data folder</value>
+  </data>
+  <data name="menu.config" xml:space="preserve">
+    <value>Open configuration file</value>
+  </data>
+  <data name="menu.settings" xml:space="preserve">
+    <value>Settings...</value>
+  </data>
+  <data name="menu.copyUrl" xml:space="preserve">
+    <value>Copy Pi Web URL</value>
+  </data>
+  <data name="menu.restartAdmin" xml:space="preserve">
+    <value>Restart as administrator</value>
+  </data>
+  <data name="menu.folder" xml:space="preserve">
+    <value>Open program folder</value>
+  </data>
+  <data name="notify.urlCopiedTitle" xml:space="preserve">
+    <value>URL copied</value>
+  </data>
+  <data name="notify.copyFailed" xml:space="preserve">
+    <value>Could not copy the URL</value>
+  </data>
+  <data name="notify.openFolderFailed" xml:space="preserve">
+    <value>Could not open the folder</value>
+  </data>
+  <data name="notify.openConfigFailed" xml:space="preserve">
+    <value>Could not open the configuration file</value>
+  </data>
+  <data name="notify.adminRestartTitle" xml:space="preserve">
+    <value>Restart as administrator</value>
+  </data>
+  <data name="notify.adminRestartBody" xml:space="preserve">
+    <value>Restart Pi Web Tray with administrator rights? pi-web will restart.</value>
+  </data>
+  <data name="notify.adminRestartFailed" xml:space="preserve">
+    <value>Could not restart as administrator</value>
+  </data>
+  <data name="notify.adminRestartFailedBody" xml:space="preserve">
+    <value>The elevation request was cancelled or failed.</value>
+  </data>
+  <data name="settings.savedTitle" xml:space="preserve">
+    <value>Settings saved</value>
+  </data>
+  <data name="settings.savedBody" xml:space="preserve">
+    <value>Restart Pi Web Tray to apply port, language, working directory and path changes.</value>
+  </data>
+  <data name="check.refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="install.progressTitle" xml:space="preserve">
+    <value>Installing pi-web dependencies</value>
+  </data>
+  <data name="install.progressStep" xml:space="preserve">
+    <value>Step {0} of {1}: {2}</value>
+  </data>
+  <data name="install.progressElapsed" xml:space="preserve">
+    <value>Elapsed: {0}</value>
+  </data>
+  <data name="install.cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="install.cancelling" xml:space="preserve">
+    <value>Cancelling...</value>
+  </data>
+  <data name="install.cancelledTitle" xml:space="preserve">
+    <value>Installation cancelled</value>
+  </data>
+  <data name="install.cancelledBody" xml:space="preserve">
+    <value>The dependency installation was cancelled. Click the tray icon to retry.</value>
+  </data>
+  <data name="status.installingStep" xml:space="preserve">
+    <value>Installing {0}/{1} · {2}</value>
+  </data>
+  <data name="notify.autoRestartTitle" xml:space="preserve">
+    <value>Restarting pi-web</value>
+  </data>
+  <data name="notify.autoRestartBody" xml:space="preserve">
+    <value>pi-web will restart in {0} seconds.</value>
+  </data>
+  <data name="menu.updateAvailable" xml:space="preserve">
+    <value>Update available: {0}</value>
+  </data>
+  <data name="update.availableTitle" xml:space="preserve">
+    <value>Update available</value>
+  </data>
+  <data name="update.availableBody" xml:space="preserve">
+    <value>Pi Web Tray {0} is available. Select the tray menu to update.</value>
+  </data>
+  <data name="install.confirmTitle" xml:space="preserve">
+    <value>Update pi-web dependencies</value>
+  </data>
+  <data name="install.confirmBody" xml:space="preserve">
+    <value>Reinstall or update the pi-web packages now? This can take several minutes.</value>
+  </data>
+  <data name="log.close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="log.refresh" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="log.truncated" xml:space="preserve">
+    <value>[earlier lines omitted]</value>
+  </data>
+  <data name="update.error.rateLimit" xml:space="preserve">
+    <value>GitHub rate limit reached. Try again later.</value>
+  </data>
+  <data name="update.error.notFound" xml:space="preserve">
+    <value>No release was found on GitHub.</value>
+  </data>
+  <data name="update.error.server" xml:space="preserve">
+    <value>GitHub is temporarily unavailable. Try again later.</value>
+  </data>
+  <data name="update.error.network" xml:space="preserve">
+    <value>Could not reach GitHub. Check the network and proxy settings.</value>
+  </data>
+  <data name="ini.autoRestartC" xml:space="preserve">
+    <value>; Restart pi-web automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
+  </data>
+  <data name="ini.autoCheckC" xml:space="preserve">
+    <value>; Check for Pi Web Tray updates at startup (1 = enabled, 0 = disabled)</value>
+  </data>
+  <data name="help.trayOnly" xml:space="preserve">
+    <value>Start the tray only; do not start pi-web.</value>
+  </data>
+  <data name="help.startNoOpen" xml:space="preserve">
+    <value>Start the tray and pi-web without opening the browser (used after updates).</value>
+  </data>
+  <data name="update.progressTitle" xml:space="preserve">
+    <value>Updating Pi Web Tray</value>
+  </data>
+  <data name="update.cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="update.cancelling" xml:space="preserve">
+    <value>Cancelling...</value>
+  </data>
+  <data name="update.cancelledTitle" xml:space="preserve">
+    <value>Update cancelled</value>
+  </data>
+  <data name="update.cancelledBody" xml:space="preserve">
+    <value>The update was cancelled.</value>
+  </data>
+  <data name="about.checkUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="update.startAfterFailureBody" xml:space="preserve">
+    <value>The update could not be completed. Try to start the tray now?</value>
   </data>
 </root>

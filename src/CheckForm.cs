@@ -77,8 +77,15 @@ namespace PiWebTray
             copy.MinimumSize = new Size(88, 0);
             copy.Click += delegate { CopyReport(); };
 
+            Button refresh = new Button();
+            refresh.Text = L.T("check.refresh");
+            refresh.AutoSize = true;
+            refresh.MinimumSize = new Size(88, 0);
+            refresh.DialogResult = DialogResult.Retry;
+
             buttons.Controls.Add(close);
             buttons.Controls.Add(copy);
+            buttons.Controls.Add(refresh);
 
             root.Controls.Add(summary, 0, 0);
             root.Controls.Add(runtimeGroup, 0, 1);
@@ -89,11 +96,37 @@ namespace PiWebTray
             CancelButton = close;
         }
 
-        internal static void ShowReport(Config config, ProbeResult probe, bool elevated)
+        internal static ProbeResult ShowReport(Config config, ProbeResult probe, bool elevated)
         {
-            using (CheckForm form = new CheckForm(config, probe, elevated))
+            ProbeResult current = probe;
+            while (true)
             {
-                form.ShowDialog();
+                DialogResult result;
+                using (CheckForm form = new CheckForm(config, current, elevated))
+                {
+                    result = form.ShowDialog();
+                }
+
+                if (result != DialogResult.Retry) return current;
+
+                try
+                {
+                    Cursor.Current = Cursors.WaitCursor;
+                    current = EnvironmentProbe.Detect(config);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        L.T("notify.selfCheckError", ex.Message),
+                        L.T("sc.title"),
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return current;
+                }
+                finally
+                {
+                    Cursor.Current = Cursors.Default;
+                }
             }
         }
 
@@ -188,9 +221,12 @@ namespace PiWebTray
             grid.Columns.Add(value);
 
             bool listening = Net.IsPortOpen(_config.Port, 300);
+            PortOwnerInfo owner = ServiceProbe.Inspect(_config.Port);
             AddInfoRow(grid, L.T("sc.config"), _config.IniPath);
             AddInfoRow(grid, L.T("check.port"),
-                L.T("check.listening", _config.Port, listening ? L.T("bool.yes") : L.T("bool.no")));
+                L.T("check.portState", _config.Port,
+                    listening ? L.T("bool.yes") : L.T("bool.no"),
+                    ServiceProbe.OwnerText(owner)));
             AddInfoRow(grid, L.T("sc.workDir"), _config.WorkingDir);
             AddInfoRow(grid, L.T("sc.dataDir"), _config.OutputDir);
             AddInfoRow(grid, L.T("sc.admin"), _elevated ? L.T("bool.yes") : L.T("bool.no"));

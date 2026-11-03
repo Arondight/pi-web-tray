@@ -108,6 +108,64 @@ namespace PiWebTray
                 return false;
             }
         }
+        // Last-resort pi-web identity check when WMI cannot read the owning process.
+        // This is intentionally only a fallback; a mere HTTP 200 is not enough.
+        internal static bool IsPiWebHttp(int port, int timeoutMs)
+        {
+            try
+            {
+                HttpWebRequest request = (HttpWebRequest)WebRequest.Create(
+                    "http://127.0.0.1:" + port + "/");
+                request.Timeout = timeoutMs;
+                request.ReadWriteTimeout = timeoutMs;
+                request.Method = "GET";
+                request.AllowAutoRedirect = true;
+                request.Proxy = null;
+                request.UserAgent = "pi-web-tray/" + Program.Version;
+                request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+
+                using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
+                using (Stream stream = response.GetResponseStream())
+                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                {
+                    return ContainsPiWebMarker(reader);
+                }
+            }
+            catch (WebException ex)
+            {
+                HttpWebResponse response = ex.Response as HttpWebResponse;
+                if (response == null) return false;
+                try
+                {
+                    using (Stream stream = response.GetResponseStream())
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        return ContainsPiWebMarker(reader);
+                    }
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+                finally
+                {
+                    response.Close();
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool ContainsPiWebMarker(StreamReader reader)
+        {
+            char[] buffer = new char[8192];
+            int read = reader.Read(buffer, 0, buffer.Length);
+            if (read <= 0) return false;
+            string text = new string(buffer, 0, read);
+            return text.IndexOf("pi-web", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
     }
 
     // ---------------- processes ----------------
@@ -153,10 +211,11 @@ namespace PiWebTray
                     string needle = ":" + port;
                     foreach (string line in output.Split('\n'))
                     {
-                        if (line.IndexOf("LISTENING", StringComparison.OrdinalIgnoreCase) < 0) continue;
+                        // netstat is localized; match the local endpoint instead of the English state text.
                         string[] parts = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                         if (parts.Length < 5) continue;
                         if (!parts[1].EndsWith(needle, StringComparison.Ordinal)) continue;
+                        if (!parts[2].EndsWith(":0", StringComparison.Ordinal)) continue;
                         int pid;
                         if (!int.TryParse(parts[4], out pid) || pid <= 4) continue;
                         KillTree(pid);

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -46,6 +47,56 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("about.title"), form.Text);
                 Assert.IsTrue(form.Controls.Count > 0);
+            }
+        }
+
+        [TestMethod]
+        public void SettingsFormCanBeConstructed()
+        {
+            Config config = new Config();
+            config.Port = 30141;
+            config.WorkingDir = Path.GetTempPath();
+            config.Language = L.Auto;
+            config.InstallTag = "latest";
+            using (SettingsForm form = new SettingsForm(config))
+            {
+                Assert.AreEqual(L.T("settings.title"), form.Text);
+            }
+        }
+
+        [TestMethod]
+        public void UpdateFormCanBeConstructed()
+        {
+            using (UpdateForm form = new UpdateForm(null))
+            {
+                Assert.AreEqual(L.T("update.progressTitle"), form.Text);
+            }
+        }
+
+        [TestMethod]
+        public void InstallFormCanBeConstructed()
+        {
+            using (InstallForm form = new InstallForm())
+            {
+                Assert.AreEqual(L.T("install.progressTitle"), form.Text);
+            }
+        }
+
+        [TestMethod]
+        public void LogFormCanBeConstructed()
+        {
+            string path = Path.Combine(Path.GetTempPath(), "pi-web-tray-log-form-" + Guid.NewGuid().ToString("N") + ".log");
+            try
+            {
+                File.WriteAllText(path, "line one" + Environment.NewLine);
+                using (LogForm form = new LogForm(path, "log"))
+                {
+                    Assert.AreEqual("log", form.Text);
+                }
+            }
+            finally
+            {
+                try { File.Delete(path); } catch (Exception) { }
             }
         }
 

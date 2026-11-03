@@ -29,9 +29,12 @@ flowchart LR
 | Installation         | Installs pi-web with `npm install -g` when it is missing or when the user requests an update.                   |
 | Service management   | Starts, stops and restarts pi-web and reports the current state.                                                |
 | Status reporting     | Uses tray icon colors, tooltips and notifications to report state and errors.                                   |
-| Start at login       | Supports the current-user Run key or an on-logon scheduled task with administrative rights.                     |
-| Diagnostics          | Provides an environment check, service log, install log, update log and diagnostic snapshot.                    |
-| Updates              | Checks the latest GitHub release, verifies its SHA-256 checksum, replaces the application files and restarts.   |
+| Start at login       | Starts the tray and pi-web without opening a browser, using the Run key or an on-logon scheduled task.          |
+| Diagnostics          | Environment check, live logs, update log, data folders and a diagnostic snapshot.                               |
+| Updates              | Checks GitHub, verifies SHA-256, applies the release and restarts; preserves whether pi-web was running.        |
+| Settings             | Edits port, working directory, language, dependency and update options from the tray.                           |
+| Progress             | Shows install/update progress; installs and update downloads can be cancelled.                                  |
+| Safety               | Detects port conflicts and never kills an unrelated process on the configured port.                             |
 | About                | Shows the application name, version, author and project link.                                                   |
 | Localization         | Supports English, Simplified Chinese and Traditional Chinese; the default follows the Windows display language. |
 
@@ -141,18 +144,23 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Install / update dependencies
-Check for updates
+Update pi-web dependencies
+Update Pi Web Tray
 Download Node.js...
+---------------------------------------
 Environment check
-View service log
-View install log
-Open install folder
+Settings...
+Logs > service / install / update
+Open data folder
+Open program folder
+Open configuration file
+Copy Pi Web URL
 Create desktop shortcut
 ---------------------------------------
 Start at login: on (normal permissions)
 Start at login as admin: no
 ---------------------------------------
+Restart as administrator
 About
 Exit (stop pi-web)
 ```
@@ -161,15 +169,28 @@ Exit (stop pi-web)
 
 - Left-clicking the icon starts pi-web and opens the browser, or only opens the
   browser when the service is already running.
-- Selecting "Run as administrator" transfers control to an elevated tray instance and
-  runs pi-web with administrative rights.
+- **Start service** and **Restart service** do not open a browser; only **Open Pi Web**
+  and left-clicking the icon open it.
+- Selecting **Restart as administrator** transfers control to an elevated tray instance
+  and runs pi-web with administrative rights.
 - Only one tray instance and one pi-web service can run at a time.
-- Start at login uses either `HKCU\...\Run` or an on-logon scheduled task. The two modes
-  are mutually exclusive.
-- **Check for updates** downloads the latest GitHub release, verifies its SHA-256
-  checksum, stops pi-web, replaces the application files and restarts the tray. If the
+- Start at login uses either `HKCU\...\Run` or an on-logon scheduled task. The tray and
+  pi-web start without opening a browser; the two modes are mutually exclusive. The
+  administrator mode requires the same account to be an administrator.
+- **Update pi-web dependencies** installs or updates the npm packages. A confirmation is
+  shown before a force reinstall, and a progress window provides a Cancel button.
+- **Update Pi Web Tray** downloads the latest GitHub release, verifies its SHA-256
+  checksum, stops pi-web, replaces the application files and restarts the tray. It
+  preserves whether pi-web was running and does not open a new browser tab. If the
   installation directory needs administrator rights, Windows shows a UAC prompt. The
   configuration file, logs and the pi-web installation are left untouched.
+- **Settings** edits the supported ini keys from the tray. **Logs** opens a live tail of
+  the service, install or update log instead of a stale Notepad snapshot.
+- A listener that is not pi-web is reported as a **port conflict**. The tray neither
+  treats it as Running nor stops or kills it; change the port in Settings.
+- If pi-web stops unexpectedly, the tray reports it and can restart it automatically
+  when `AutoRestart=1`. `AutoCheckUpdates=1` checks for a new tray release shortly after
+  startup and marks the menu when one is available.
 
 The **Environment check** menu item opens two tables: **Runtime components** (component,
 version, path and status) and **Application information** (configuration, port, directories
@@ -187,18 +208,20 @@ The configuration file is `pi-web-tray.ini`. It is generated on first start.
 | Normal directory                             | Next to the executable       |
 | Protected directory, such as `Program Files` | `%LOCALAPPDATA%\pi-web-tray` |
 
-| Key              | Default         | Description                                                                     |
-| ---------------- | --------------- | ------------------------------------------------------------------------------- |
-| `Port`           | `30141`         | pi-web listening port.                                                          |
-| `WorkingDir`     | `%USERPROFILE%` | Service working directory, used as pi's default project directory.              |
-| `AutoInstall`    | `1`             | Install pi-web automatically when missing. `0` disables automatic installation. |
-| `InstallPiCli`   | `1`             | Install the pi command-line tool together with pi-web.                          |
-| `InstallTag`     | `latest`        | npm distribution tag or exact version.                                          |
-| `NpmRegistry`    | empty           | Custom npm registry, for example `https://registry.npmmirror.com`.              |
-| `NodePath`       | empty           | Explicit path to `node.exe`; empty enables auto-detection.                      |
-| `ServerScript`   | empty           | Explicit path to `pi-web.js`; empty enables auto-detection.                     |
-| `Language`       | `auto`          | UI language: `auto`, `en`, `zh` (Simplified) or `zh-Hant` (Traditional).        |
-| `AutostartAdmin` | `0`             | Whether start at login uses administrative rights. Maintained by the tray menu. |
+| Key                | Default         | Description                                                                     |
+| ------------------ | --------------- | ------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | pi-web listening port.                                                          |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory, used as pi's default project directory.              |
+| `AutoInstall`      | `1`             | Install pi-web automatically when missing. `0` disables automatic installation. |
+| `AutoRestart`      | `0`             | Restart pi-web automatically after an unexpected stop.                          |
+| `AutoCheckUpdates` | `0`             | Check for a new Pi Web Tray release shortly after startup.                      |
+| `InstallPiCli`     | `1`             | Install the pi command-line tool together with pi-web.                          |
+| `InstallTag`       | `latest`        | npm distribution tag or exact version.                                          |
+| `NpmRegistry`      | empty           | Custom npm registry, for example `https://registry.npmmirror.com`.              |
+| `NodePath`         | empty           | Explicit path to `node.exe`; empty enables auto-detection.                      |
+| `ServerScript`     | empty           | Explicit path to `pi-web.js`; empty enables auto-detection.                     |
+| `Language`         | `auto`          | UI language: `auto`, `en`, `zh` (Simplified) or `zh-Hant` (Traditional).        |
+| `AutostartAdmin`   | `0`             | Whether start at login uses administrative rights. Maintained by the tray menu. |
 
 Example:
 
@@ -206,6 +229,8 @@ Example:
 Port=30141
 WorkingDir=%USERPROFILE%
 AutoInstall=1
+AutoRestart=0
+AutoCheckUpdates=0
 InstallPiCli=1
 InstallTag=latest
 NpmRegistry=
@@ -231,6 +256,9 @@ Environment variables:
 
 ```text
 pi-web-tray.exe              Start pi-web and open the browser.
+pi-web-tray.exe --autostart  Start the tray and pi-web without opening a browser.
+pi-web-tray.exe --tray-only  Start the tray only; do not start pi-web.
+pi-web-tray.exe --start-no-open  Start pi-web without opening a browser.
 pi-web-tray.exe --stop       Stop the service and keep the tray running.
 pi-web-tray.exe --quit       Stop the service and exit the tray.
 pi-web-tray.exe --check      Check the environment; 0 = ready, 1 = something missing.
@@ -265,18 +293,20 @@ command-line output and the generated configuration comments.
 
 ## Troubleshooting
 
-| Symptom                                       | Action                                                                                                                                    |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Blue icon; Node.js required                   | Install Node.js 22.19 or later and click the tray icon. Set `NodePath` if auto-detection fails.                                           |
-| Installation failed                           | Check the end of `install.log`. Common causes are an unwritable npm global directory, an invalid `InstallTag`, or network/proxy problems. |
-| Update failed                                 | Check `update.log`. A cancelled UAC prompt and network/proxy problems are the most common causes; rerun **Check for updates** afterwards. |
-| Red icon; service failed                      | Check `server.log`. `EADDRINUSE` indicates a port conflict; `Cannot find module` usually indicates an incomplete installation.            |
-| Terminal panel reports `Cannot launch conpty` | ConPTY is unavailable on Windows 7 and 8.1. Chat and tool calls remain available where Node.js runs.                                      |
-| Models panel is empty                         | Authenticate in the Models panel or run `pi auth login`.                                                                                  |
-| Start at login does not work                  | Check the state in the tray menu, then verify `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                          |
-| Additional diagnostics required               | Run `pi-web-tray.exe --diag`; the output is written to `diag.txt` in the configuration directory.                                         |
-| Tray application crashed                      | Check `%LOCALAPPDATA%\pi-web-tray\crash.log`.                                                                                             |
-| Application does not start on Windows 7       | Install .NET Framework 4.8 and keep `pi-web-tray.exe.config` next to the executable.                                                      |
+| Symptom                                       | Action                                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Blue icon; Node.js required                   | Install Node.js 22.19 or later and click the tray icon. Set `NodePath` if auto-detection fails.                                            |
+| Installation failed                           | Check the end of `install.log`. Common causes are an unwritable npm global directory, an invalid `InstallTag`, or network/proxy problems.  |
+| Update failed                                 | Check `update.log`. A cancelled UAC prompt and network/proxy problems are the most common causes; rerun **Update Pi Web Tray** afterwards. |
+| Red icon; port conflict                       | Another program is using the configured port. Open **Settings** and choose a free port; the tray never kills that process.                 |
+| Red icon; service failed                      | Check `server.log`. `EADDRINUSE` indicates a port conflict; `Cannot find module` usually indicates an incomplete installation.             |
+| Cannot find settings, logs or configuration   | Use **Settings**, **Open data folder**, **Open configuration file** or the **Logs** submenu.                                               |
+| Terminal panel reports `Cannot launch conpty` | ConPTY is unavailable on Windows 7 and 8.1. Chat and tool calls remain available where Node.js runs.                                       |
+| Models panel is empty                         | Authenticate in the Models panel or run `pi auth login`.                                                                                   |
+| Start at login does not work                  | Check the state in the tray menu, then verify `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                           |
+| Additional diagnostics required               | Run `pi-web-tray.exe --diag`; the output is written to `diag.txt` in the configuration directory.                                          |
+| Tray application crashed                      | Check `%LOCALAPPDATA%\pi-web-tray\crash.log`.                                                                                              |
+| Application does not start on Windows 7       | Install .NET Framework 4.8 and keep `pi-web-tray.exe.config` next to the executable.                                                       |
 
 ## Uninstallation
 
@@ -296,9 +326,12 @@ command-line output and the generated configuration comments.
 - The application runs with the current user token by default (`asInvoker`). Elevation
   occurs only when explicitly requested.
 - The application does not modify the global npm configuration or request credentials.
-- The application contains no telemetry or network listener. Update checks are only made
-  when the user selects **Check for updates**; the release archive is downloaded over HTTPS
-  from GitHub and verified against the SHA-256 file published with the release.
+- The application contains no telemetry or network listener. Update checks are made when
+  the user selects **Update Pi Web Tray** or opts into `AutoCheckUpdates=1`; the release
+  archive is downloaded over HTTPS from GitHub and verified against the SHA-256 file
+  published with the release. The update helper also verifies the target installation and
+  a fingerprint of the staged files before replacing them. Code signing is still
+  recommended for stronger publisher verification.
 - `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` are trusted
   configuration values. Do not point them at untrusted paths or registries.
 - Report vulnerabilities according to [SECURITY.md](SECURITY.md).
@@ -314,11 +347,16 @@ command-line output and the generated configuration comments.
   recommends. The application re-checks the installation and reports failures; it does not
   modify the npm configuration.
 - Node.js is not installed automatically.
-- A listener already using the configured port is treated as a running pi-web service.
-  Change `Port` if the port is occupied by another program.
+- A listener that cannot be identified as pi-web is reported as a port conflict and is
+  never stopped or killed. Change `Port` in **Settings** if another program owns it.
+- Start at login with administrator rights requires the current account to be an
+  administrator; use normal start-at-login for standard users. The administrator task is
+  machine-wide, so configure it from one account.
 - Updates require access to the GitHub API and release assets. Updating an installation in
-  a protected directory requires administrator rights; the restarted tray may run elevated
-  if a de-elevated restart cannot be confirmed.
+  a protected directory requires administrator rights. The restarted tray keeps the
+  previous service state; if a de-elevated restart cannot be confirmed, it may run
+  elevated.
+- If the tray is elevated, run `--stop` / `--quit` from an elevated console; the tray menu always works.
 - Unsigned releases may trigger SmartScreen on first execution.
 
 ## Contributing

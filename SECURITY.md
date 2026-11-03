@@ -32,8 +32,12 @@ Pi Web Tray is a local desktop launcher. It:
 - starts `node` / `npm` as the current user and never requests credentials;
 - reads `pi-web-tray.ini` and environment variables controlled by the current user;
 - creates an `HKCU\...\Run` value or an on-logon scheduled task only when the user
-  turns on start-at-login;
-- checks GitHub for updates only when the user selects **Check for updates**, downloads
+  turns on start-at-login; the administrator task requires the current account to be
+  an administrator;
+- identifies the process that owns the configured port and reports a port conflict
+  instead of treating or killing an unrelated listener as pi-web;
+- checks GitHub for updates only when the user selects **Update Pi Web Tray** (or opts into
+  ), downloads
   the release archive over HTTPS, verifies its SHA-256 checksum, and starts an elevated
   helper only when the installation directory needs elevation and the user accepts the
   UAC prompt (or the tray is already elevated);

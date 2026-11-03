@@ -79,10 +79,10 @@
     <value>重新启动服务</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>安装 / 更新依赖</value>
+    <value>更新 pi-web 依赖</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>自动安装 pi-web</value>
+    <value>安装 pi-web 依赖</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>下载 Node.js…</value>
@@ -95,9 +95,6 @@
   </data>
   <data name="menu.installLog" xml:space="preserve">
     <value>查看安装日志</value>
-  </data>
-  <data name="menu.folder" xml:space="preserve">
-    <value>打开安装目录</value>
   </data>
   <data name="menu.shortcut" xml:space="preserve">
     <value>创建桌面快捷方式</value>
@@ -316,7 +313,7 @@
     <value>未找到 pi-web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>请从托盘菜单选择“安装 / 更新依赖”。</value>
+    <value>请使用托盘菜单中的“更新 pi-web 依赖”。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>无法启动 Pi Web</value>
@@ -363,7 +360,7 @@
     <value>pi-web 尚未安装</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>请从托盘菜单选择“安装 / 更新依赖”，系统将自动安装。</value>
+    <value>请使用托盘菜单中的“更新 pi-web 依赖”。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>无法安装：缺少 Node.js</value>
@@ -544,7 +541,7 @@
     <value>启动 pi-web，安装缺失的依赖，并打开浏览器。</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>由开机自启动使用；仅启动托盘，不启动服务。</value>
+    <value>由开机自启动使用；启动托盘和 pi-web，但不打开浏览器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>请求当前托盘停止服务；托盘继续运行。</value>
@@ -655,10 +652,10 @@
     <value>{0}（监听中={1}）</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>检查更新</value>
+    <value>更新 Pi Web Tray</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>正在更新...</value>
+    <value>正在更新 Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>关于</value>
@@ -842,5 +839,284 @@
   </data>
   <data name="sc.updateLog" xml:space="preserve">
     <value>更新日志</value>
+  </data>
+  <data name="status.portConflict" xml:space="preserve">
+    <value>端口 {0} 被其他程序占用</value>
+  </data>
+  <data name="menu.portConflict" xml:space="preserve">
+    <value>端口冲突</value>
+  </data>
+  <data name="notify.portConflictTitle" xml:space="preserve">
+    <value>端口冲突</value>
+  </data>
+  <data name="notify.portConflictBody" xml:space="preserve">
+    <value>端口 {0} 已被其他程序占用。请停止该程序或在设置中修改端口。</value>
+  </data>
+  <data name="notify.serviceStoppedTitle" xml:space="preserve">
+    <value>pi-web 已停止</value>
+  </data>
+  <data name="notify.serviceStoppedBody" xml:space="preserve">
+    <value>pi-web 意外退出。点击托盘图标可重新启动。</value>
+  </data>
+  <data name="check.portState" xml:space="preserve">
+    <value>{0}（监听中={1}，所有者={2}）</value>
+  </data>
+  <data name="check.ownerPiweb" xml:space="preserve">
+    <value>pi-web</value>
+  </data>
+  <data name="check.ownerOther" xml:space="preserve">
+    <value>其他程序或未知</value>
+  </data>
+  <data name="check.ownerNone" xml:space="preserve">
+    <value>无</value>
+  </data>
+  <data name="sc.portOwner" xml:space="preserve">
+    <value>端口所有者</value>
+  </data>
+  <data name="prog.portConflictStop" xml:space="preserve">
+    <value>端口 {0} 被其他程序占用，未执行停止操作。</value>
+  </data>
+  <data name="settings.title" xml:space="preserve">
+    <value>Pi Web Tray 设置</value>
+  </data>
+  <data name="settings.port" xml:space="preserve">
+    <value>端口</value>
+  </data>
+  <data name="settings.workingDir" xml:space="preserve">
+    <value>工作目录</value>
+  </data>
+  <data name="settings.language" xml:space="preserve">
+    <value>界面语言</value>
+  </data>
+  <data name="settings.autoInstall" xml:space="preserve">
+    <value>自动安装缺失依赖</value>
+  </data>
+  <data name="settings.installPiCli" xml:space="preserve">
+    <value>随 pi-web 安装 pi 命令行</value>
+  </data>
+  <data name="settings.autoRestart" xml:space="preserve">
+    <value>pi-web 停止后自动重启</value>
+  </data>
+  <data name="settings.autoCheckUpdates" xml:space="preserve">
+    <value>启动时检查 Pi Web Tray 更新</value>
+  </data>
+  <data name="settings.installTag" xml:space="preserve">
+    <value>npm 标签 / 版本</value>
+  </data>
+  <data name="settings.npmRegistry" xml:space="preserve">
+    <value>npm 源（可选）</value>
+  </data>
+  <data name="settings.nodePath" xml:space="preserve">
+    <value>Node.js 路径（可选）</value>
+  </data>
+  <data name="settings.serverScript" xml:space="preserve">
+    <value>pi-web 脚本（可选）</value>
+  </data>
+  <data name="settings.selectNode" xml:space="preserve">
+    <value>选择 node.exe</value>
+  </data>
+  <data name="settings.selectServer" xml:space="preserve">
+    <value>选择 pi-web.js</value>
+  </data>
+  <data name="settings.restartNote" xml:space="preserve">
+    <value>端口、语言、工作目录和工具路径在重启 Pi Web Tray 后生效。依赖设置在下一次安装时生效。</value>
+  </data>
+  <data name="settings.save" xml:space="preserve">
+    <value>保存</value>
+  </data>
+  <data name="settings.cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="settings.invalidWorkingDir" xml:space="preserve">
+    <value>工作目录不存在。</value>
+  </data>
+  <data name="settings.invalidNodePath" xml:space="preserve">
+    <value>选择的 Node.js 可执行文件不存在。</value>
+  </data>
+  <data name="settings.invalidServerScript" xml:space="preserve">
+    <value>选择的 pi-web 脚本不存在。</value>
+  </data>
+  <data name="settings.invalidRegistry" xml:space="preserve">
+    <value>请输入以 http:// 或 https:// 开头的完整源地址，或留空。</value>
+  </data>
+  <data name="settings.invalidTag" xml:space="preserve">
+    <value>npm 标签或版本包含无效字符。</value>
+  </data>
+  <data name="settings.portInUseTitle" xml:space="preserve">
+    <value>端口已被占用</value>
+  </data>
+  <data name="settings.portInUseBody" xml:space="preserve">
+    <value>端口 {0} 已被其他程序占用。仍要保存吗？</value>
+  </data>
+  <data name="settings.saveFailed" xml:space="preserve">
+    <value>无法保存配置文件。</value>
+  </data>
+  <data name="settings.langAuto" xml:space="preserve">
+    <value>自动（跟随 Windows）</value>
+  </data>
+  <data name="settings.langEn" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="settings.langZh" xml:space="preserve">
+    <value>简体中文</value>
+  </data>
+  <data name="settings.langZhHant" xml:space="preserve">
+    <value>繁體中文</value>
+  </data>
+  <data name="menu.logs" xml:space="preserve">
+    <value>日志</value>
+  </data>
+  <data name="menu.updateLog" xml:space="preserve">
+    <value>查看更新日志</value>
+  </data>
+  <data name="menu.dataFolder" xml:space="preserve">
+    <value>打开数据目录</value>
+  </data>
+  <data name="menu.config" xml:space="preserve">
+    <value>打开配置文件</value>
+  </data>
+  <data name="menu.settings" xml:space="preserve">
+    <value>设置...</value>
+  </data>
+  <data name="menu.copyUrl" xml:space="preserve">
+    <value>复制 Pi Web 地址</value>
+  </data>
+  <data name="menu.restartAdmin" xml:space="preserve">
+    <value>以管理员身份重启</value>
+  </data>
+  <data name="menu.folder" xml:space="preserve">
+    <value>打开程序目录</value>
+  </data>
+  <data name="notify.urlCopiedTitle" xml:space="preserve">
+    <value>已复制地址</value>
+  </data>
+  <data name="notify.copyFailed" xml:space="preserve">
+    <value>无法复制地址</value>
+  </data>
+  <data name="notify.openFolderFailed" xml:space="preserve">
+    <value>无法打开目录</value>
+  </data>
+  <data name="notify.openConfigFailed" xml:space="preserve">
+    <value>无法打开配置文件</value>
+  </data>
+  <data name="notify.adminRestartTitle" xml:space="preserve">
+    <value>以管理员身份重启</value>
+  </data>
+  <data name="notify.adminRestartBody" xml:space="preserve">
+    <value>是否以管理员权限重启 Pi Web Tray？pi-web 将重新启动。</value>
+  </data>
+  <data name="notify.adminRestartFailed" xml:space="preserve">
+    <value>无法以管理员身份重启</value>
+  </data>
+  <data name="notify.adminRestartFailedBody" xml:space="preserve">
+    <value>提权请求已取消或失败。</value>
+  </data>
+  <data name="settings.savedTitle" xml:space="preserve">
+    <value>设置已保存</value>
+  </data>
+  <data name="settings.savedBody" xml:space="preserve">
+    <value>请重启 Pi Web Tray 以应用端口、语言、工作目录和路径更改。</value>
+  </data>
+  <data name="check.refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="install.progressTitle" xml:space="preserve">
+    <value>正在安装 pi-web 依赖</value>
+  </data>
+  <data name="install.progressStep" xml:space="preserve">
+    <value>步骤 {0}/{1}：{2}</value>
+  </data>
+  <data name="install.progressElapsed" xml:space="preserve">
+    <value>已用时间：{0}</value>
+  </data>
+  <data name="install.cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="install.cancelling" xml:space="preserve">
+    <value>正在取消...</value>
+  </data>
+  <data name="install.cancelledTitle" xml:space="preserve">
+    <value>安装已取消</value>
+  </data>
+  <data name="install.cancelledBody" xml:space="preserve">
+    <value>依赖安装已取消。点击托盘图标可重试。</value>
+  </data>
+  <data name="status.installingStep" xml:space="preserve">
+    <value>正在安装 {0}/{1} · {2}</value>
+  </data>
+  <data name="notify.autoRestartTitle" xml:space="preserve">
+    <value>正在重启 pi-web</value>
+  </data>
+  <data name="notify.autoRestartBody" xml:space="preserve">
+    <value>pi-web 将在 {0} 秒后重启。</value>
+  </data>
+  <data name="menu.updateAvailable" xml:space="preserve">
+    <value>有可用更新：{0}</value>
+  </data>
+  <data name="update.availableTitle" xml:space="preserve">
+    <value>有可用更新</value>
+  </data>
+  <data name="update.availableBody" xml:space="preserve">
+    <value>Pi Web Tray {0} 已可用。请选择托盘菜单进行更新。</value>
+  </data>
+  <data name="install.confirmTitle" xml:space="preserve">
+    <value>更新 pi-web 依赖</value>
+  </data>
+  <data name="install.confirmBody" xml:space="preserve">
+    <value>现在重新安装或更新 pi-web 依赖吗？这可能需要几分钟。</value>
+  </data>
+  <data name="log.close" xml:space="preserve">
+    <value>关闭</value>
+  </data>
+  <data name="log.refresh" xml:space="preserve">
+    <value>刷新</value>
+  </data>
+  <data name="log.truncated" xml:space="preserve">
+    <value>[已省略较早内容]</value>
+  </data>
+  <data name="update.error.rateLimit" xml:space="preserve">
+    <value>GitHub 请求频率受限，请稍后再试。</value>
+  </data>
+  <data name="update.error.notFound" xml:space="preserve">
+    <value>GitHub 上没有找到可用 release。</value>
+  </data>
+  <data name="update.error.server" xml:space="preserve">
+    <value>GitHub 暂时不可用，请稍后再试。</value>
+  </data>
+  <data name="update.error.network" xml:space="preserve">
+    <value>无法连接 GitHub，请检查网络和代理设置。</value>
+  </data>
+  <data name="ini.autoRestartC" xml:space="preserve">
+    <value>; pi-web 意外停止时自动重启（1 = 启用，0 = 禁用）</value>
+  </data>
+  <data name="ini.autoCheckC" xml:space="preserve">
+    <value>; 启动时检查 Pi Web Tray 更新（1 = 启用，0 = 禁用）</value>
+  </data>
+  <data name="help.trayOnly" xml:space="preserve">
+    <value>仅启动托盘，不启动 pi-web。</value>
+  </data>
+  <data name="help.startNoOpen" xml:space="preserve">
+    <value>启动托盘和 pi-web，但不打开浏览器（更新后使用）。</value>
+  </data>
+  <data name="update.progressTitle" xml:space="preserve">
+    <value>正在更新 Pi Web Tray</value>
+  </data>
+  <data name="update.cancel" xml:space="preserve">
+    <value>取消</value>
+  </data>
+  <data name="update.cancelling" xml:space="preserve">
+    <value>正在取消...</value>
+  </data>
+  <data name="update.cancelledTitle" xml:space="preserve">
+    <value>更新已取消</value>
+  </data>
+  <data name="update.cancelledBody" xml:space="preserve">
+    <value>更新已取消。</value>
+  </data>
+  <data name="about.checkUpdates" xml:space="preserve">
+    <value>检查更新</value>
+  </data>
+  <data name="update.startAfterFailureBody" xml:space="preserve">
+    <value>更新未能完成。现在尝试启动托盘吗？</value>
   </data>
 </root>

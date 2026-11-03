@@ -25,18 +25,38 @@ namespace PiWebTray
 
         internal static bool RunValueExists()
         {
+            return RunValue().Length > 0;
+        }
+
+        internal static string RunValue()
+        {
             try
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKeyPath, false))
                 {
-                    if (key == null) return false;
-                    object value = key.GetValue(RunValueName);
-                    return value != null && Convert.ToString(value).Length > 0;
+                    if (key == null) return "";
+                    return Convert.ToString(key.GetValue(RunValueName)) ?? "";
                 }
             }
             catch (Exception)
             {
-                return false;
+                return "";
+            }
+        }
+
+        // If the executable was moved, the old Run value points at a missing file.
+        // Repair it silently for the normal (non-admin) autostart mode.
+        internal static void RepairRunValue(string executablePath)
+        {
+            try
+            {
+                string value = RunValue();
+                if (value.Length == 0) return;
+                if (value.IndexOf(Shell.Quote(executablePath), StringComparison.OrdinalIgnoreCase) >= 0) return;
+                SetRunValue(executablePath);
+            }
+            catch (Exception)
+            {
             }
         }
 

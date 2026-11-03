@@ -11,8 +11,12 @@ namespace PiWebTray
 {
     internal sealed class AboutForm : Form
     {
-        internal AboutForm()
+        private readonly Action _onCheckUpdates;
+        private Icon _formIcon;
+
+        internal AboutForm(Action onCheckUpdates = null)
         {
+            _onCheckUpdates = onCheckUpdates;
             Text = L.T("about.title");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -22,8 +26,16 @@ namespace PiWebTray
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(500, 320);
-            try { Icon = Icons.Create(Icons.RunningColor); }
-            catch (Exception) { Icon = SystemIcons.Application; }
+            try
+            {
+                Icon cached = Icons.Create(Icons.RunningColor);
+                _formIcon = (Icon)cached.Clone();
+                Icon = _formIcon;
+            }
+            catch (Exception)
+            {
+                Icon = SystemIcons.Application;
+            }
 
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
@@ -100,12 +112,36 @@ namespace PiWebTray
 
             buttons.Controls.Add(close);
 
+            if (_onCheckUpdates != null)
+            {
+                Button updates = new Button();
+                updates.Text = L.T("about.checkUpdates");
+                updates.AutoSize = true;
+                updates.MinimumSize = new Size(88, 0);
+                updates.Click += delegate
+                {
+                    Close();
+                    _onCheckUpdates();
+                };
+                buttons.Controls.Add(updates);
+            }
+
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);
             Controls.Add(root);
 
             AcceptButton = close;
             CancelButton = close;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _formIcon != null)
+            {
+                try { _formIcon.Dispose(); } catch (Exception) { }
+                _formIcon = null;
+            }
+            base.Dispose(disposing);
         }
 
         private static void OpenProjectPage()

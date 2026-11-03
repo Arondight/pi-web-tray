@@ -56,6 +56,7 @@ namespace PiWebTray
 
         // pid of the running npm process (0 = idle), so "exit" can abort a half-finished install
         private static int _runningPid;
+        private static bool _aborted;
         private static readonly object PidLock = new object();
 
         internal static int RunningPid
@@ -68,10 +69,24 @@ namespace PiWebTray
             lock (PidLock) _runningPid = pid;
         }
 
+        internal static void ResetAbort()
+        {
+            lock (PidLock) _aborted = false;
+        }
+
+        internal static bool Aborted
+        {
+            get { lock (PidLock) return _aborted; }
+        }
+
         internal static void Abort()
         {
             int pid;
-            lock (PidLock) pid = _runningPid;
+            lock (PidLock)
+            {
+                _aborted = true;
+                pid = _runningPid;
+            }
             if (pid > 0) Sys.KillTree(pid);
         }
 
@@ -294,6 +309,13 @@ namespace PiWebTray
                 return result;
             }
 
+            if (Aborted)
+            {
+                result.Success = false;
+                result.Message = L.T("install.cancelledBody");
+                return result;
+            }
+
             string nodeDir = Path.GetDirectoryName(probe.NodePath);
             IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
             try
@@ -329,6 +351,14 @@ namespace PiWebTray
 
                 Update(stepNo, steps.Count, L.T("install.stepTitle"), "", DateTime.Now - started, true);
 
+                if (Aborted)
+                {
+                    result.Success = false;
+                    result.Message = L.T("install.cancelledBody");
+                    result.Elapsed = DateTime.Now - started;
+                    return result;
+                }
+
                 ProcessResult run;
                 try
                 {
@@ -347,7 +377,11 @@ namespace PiWebTray
                             }
                         },
                         env,
-                        delegate (int pid) { SetRunningPid(pid); });
+                        delegate (int pid)
+                        {
+                            SetRunningPid(pid);
+                            if (Aborted) Sys.KillTree(pid);
+                        });
                 }
                 finally
                 {
@@ -444,6 +478,7 @@ namespace PiWebTray
         // For --install: run synchronously in this console and print the progress
         internal static int RunInConsole(Config config, bool dryRun)
         {
+            ResetAbort();
             ProbeResult probe = EnvironmentProbe.Detect(config);
             ConsoleHost.WriteLine(L.T("install.envHeader"));
             ConsoleHost.WriteLine(probe.Summary());

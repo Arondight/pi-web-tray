@@ -47,6 +47,7 @@ namespace PiWebTray
             UpdateTests();
             UpdateCopyTests();
             UpdateTargetTests();
+            ServiceProbeTests();
             StateFileTests();
             HttpProbeTestsSkip();
 
@@ -151,6 +152,32 @@ namespace PiWebTray
                 Check("ini rejects empty key", !Config.TryParseLine("=1", out key, out value));
                 Check("drive root uses the data directory", Config.IsSystemDirectory(Path.GetPathRoot(Path.GetTempPath())));
                 Check("user data directory stays portable", !Config.IsSystemDirectory(Path.Combine(Shell.LocalAppData(), "pi-web-tray-selftest")));
+
+                string writePath = path + ".write";
+                try
+                {
+                    Config writeConfig = new Config();
+                    writeConfig.IniPath = writePath;
+                    List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
+                    values.Add(new KeyValuePair<string, string>("Port", "30200"));
+                    values.Add(new KeyValuePair<string, string>("WorkingDir", "C:/work;old"));
+                    values.Add(new KeyValuePair<string, string>("NpmRegistry", "https://example.test/#frag"));
+                    values.Add(new KeyValuePair<string, string>("Language", "zh-Hant"));
+                    Check("ini values written", writeConfig.SetValues(values));
+                    string parsedKey;
+                    string parsedValue;
+                    CheckEqual("ini quoted semicolon parses", "C:/work;old",
+                        Config.TryParseLine("WorkingDir=\"C:/work;old\"", out parsedKey, out parsedValue)
+                            ? parsedValue : "parse-failed");
+                    CheckEqual("ini written port", "30200", Config.ReadIniValue(writePath, "port"));
+                    CheckEqual("ini written semicolon path", "C:/work;old", Config.ReadIniValue(writePath, "WorkingDir"));
+                    CheckEqual("ini written hash URL", "https://example.test/#frag", Config.ReadIniValue(writePath, "npmregistry"));
+                    CheckEqual("ini written language", "zh-Hant", Config.ReadIniValue(writePath, "language"));
+                }
+                finally
+                {
+                    try { File.Delete(writePath); } catch (Exception) { }
+                }
             }
             finally
             {
@@ -358,7 +385,7 @@ namespace PiWebTray
             string dataDir;
             string stagingHash;
             int parentPid;
-            bool startService;
+            ApplyStartMode mode;
             bool originalElevated;
             string stagingHashArg = new string('a', 64);
             bool parsed = Updater.TryParseApplyArgs(
@@ -367,13 +394,13 @@ namespace PiWebTray
                     "--apply-update", "C:\\stage", "C:\\target", "1234",
                     "tray-only", "0", "C:\\update.log", "zh", "C:\\data", stagingHashArg
                 },
-                out staging, out target, out parentPid, out startService,
+                out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
             Check("helper args parse", parsed);
             CheckEqual("helper staging", "C:\\stage", staging);
             CheckEqual("helper target", "C:\\target", target);
             CheckEqual("helper parent pid", 1234, parentPid);
-            CheckEqual("helper mode", false, startService);
+            CheckEqual("helper mode", ApplyStartMode.TrayOnly, mode);
             CheckEqual("helper elevated", false, originalElevated);
             CheckEqual("helper log", "C:\\update.log", logPath);
             CheckEqual("helper language", "zh", language);
@@ -386,14 +413,24 @@ namespace PiWebTray
                     "--apply-update", "C:\\stage", "C:\\target", "1234",
                     "tray-only", "0", "C:\\update.log", "zh", "C:\\data"
                 },
-                out staging, out target, out parentPid, out startService,
+                out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
             Check("legacy helper args parse", legacyParsed);
             CheckEqual("legacy helper has no hash", "", stagingHash);
 
+            bool silentParsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:/stage", "C:/target", "1234",
+                    "service-silent", "0", "C:/update.log", "en", "C:/data", stagingHashArg
+                },
+                out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash);
+            Check("service-silent mode parsed", silentParsed && mode == ApplyStartMode.ServiceSilent);
+
             Check("helper args reject missing values", !Updater.TryParseApplyArgs(
                 new string[] { "--apply-update", "C:\\stage" },
-                out staging, out target, out parentPid, out startService,
+                out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash));
 
             string error;
@@ -531,6 +568,27 @@ namespace PiWebTray
             {
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
+        }
+
+        private static void ServiceProbeTests()
+        {
+            string netstat = string.Join(Environment.NewLine, new string[]
+            {
+                "  TCP    127.0.0.1:30141        0.0.0.0:0              LISTENING       1234",
+                "  TCP    [::1]:30141            [::]:0                 LISTENING       5678",
+                "  TCP    127.0.0.1:30142        0.0.0.0:0              LISTENING       9999"
+            });
+            CheckEqual("port owner pid IPv4", 1234, ServiceProbe.ParseListenerPid(netstat, 30141));
+            CheckEqual("port owner pid no match", 0, ServiceProbe.ParseListenerPid(netstat, 30143));
+            CheckEqual("port owner pid empty", 0, ServiceProbe.ParseListenerPid("", 30141));
+
+            Check("pi-web command line js", ServiceProbe.IsPiWebCommandLine(
+                @"""C:\Program Files\nodejs\node.exe"" ""C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js"" --no-open -p 30141"));
+            Check("pi-web command line package", ServiceProbe.IsPiWebCommandLine(
+                "node /usr/lib/node_modules/@agegr/pi-web/bin/pi-web.js"));
+            Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
+                @"node C:\work\other.js"));
+            Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));
         }
 
         private static void StateFileTests()

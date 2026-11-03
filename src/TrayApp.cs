@@ -31,7 +31,8 @@ namespace PiWebTray
         Running,
         Stopping,
         Stopped,
-        Failed
+        Failed,
+        PortConflict
     }
 
     internal enum UpdateStage
@@ -50,6 +51,7 @@ namespace PiWebTray
         private readonly Config _config;
         private readonly bool _elevated;
         private readonly bool _autoStartService;
+        private readonly bool _initialOpenBrowser;
         private readonly Mutex _mutex;
         private readonly int _port;
 
@@ -69,18 +71,24 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _updateItem;
         private readonly ToolStripMenuItem _nodeItem;
         private readonly ToolStripMenuItem _checkItem;
+        private readonly ToolStripMenuItem _settingsItem;
         private readonly ToolStripMenuItem _installLogItem;
+        private readonly ToolStripMenuItem _updateLogItem;
+        private readonly ToolStripMenuItem _copyUrlItem;
+        private readonly ToolStripMenuItem _restartAdminItem;
         private readonly ToolStripMenuItem _autostartItem;
         private readonly ToolStripMenuItem _adminAutostartItem;
         private readonly ToolStripMenuItem _aboutItem;
 
         private Process _server;
+        private InstallForm _installForm;
 
         private Phase _phase = Phase.Checking;
         private ProbeResult _probe;
         private Color _iconColor = Color.Empty;
         private Icon _currentIcon;
         private string _lastNotified = "";
+        private Action _balloonAction;
 
         // environment probe (background -> UI thread)
         private readonly object _checkLock = new object();
@@ -88,8 +96,10 @@ namespace PiWebTray
         private bool _checkDone;
         private ProbeResult _checkResult;
         private bool _checkThenStart;
+        private bool _checkOpenBrowser;
         private bool _checkPending;
         private bool _checkPendingThenStart;
+        private bool _checkPendingOpenBrowser;
         private bool _installAfterCheck;
         private bool _installAfterCheckForce;
 
@@ -103,12 +113,16 @@ namespace PiWebTray
         // service control
         private bool _openWhenReady;
         private bool _pendingRestart;
+        private bool _pendingOpenBrowser;
         private bool _exiting;
         private bool _cleaned;
         private DateTime _startDeadline;
         private DateTime _stopDeadline;
         private DateTime _lastSignalHandled = DateTime.MinValue;
         private DateTime _stopEscalatedAt = DateTime.MinValue;
+        private DateTime _autoRestartAt = DateTime.MinValue;
+        private int _autoRestartAttempts;
+        private DateTime _lastOwnerCheck = DateTime.MinValue;
 
         // self check result: computed on a thread, shown from the UI thread
         private volatile ProbeResult _selfCheckResult;
@@ -128,10 +142,16 @@ namespace PiWebTray
         private bool _updateDone;
         private UpdateStage _updateStage = UpdateStage.None;
         private ReleaseInfo _updateRelease;
+        private ReleaseInfo _availableRelease;
+        private bool _updateSilent;
+        private int _updateGeneration;
+        private UpdateForm _updateForm;
+        private DateTime _autoUpdateCheckAt = DateTime.MinValue;
         private string _updateStaging;
         private string _updateError;
         private volatile int _updatePercent = -1;
         private int _updateTicks;
+        private int _portPollTicks;
 
         private readonly object _taskCacheLock = new object();
         private bool _taskCache;
@@ -144,11 +164,13 @@ namespace PiWebTray
         private int _readyResult;
         private bool _readyCheckRunning;
 
-        internal TrayApp(Config config, bool elevated, Mutex mutex, bool startServer)
+        internal TrayApp(Config config, bool elevated, Mutex mutex, bool startServer,
+            bool openBrowserOnStart)
         {
             _config = config;
             _elevated = elevated;
             _autoStartService = startServer;
+            _initialOpenBrowser = openBrowserOnStart;
             _mutex = mutex;
             _port = config.Port;
 
@@ -167,19 +189,23 @@ namespace PiWebTray
             _openItem.Click += delegate { OpenOrStart(); };
 
             _startItem = new ToolStripMenuItem(L.T("menu.start"));
-            _startItem.Click += delegate { StartServer(true); };
+            _startItem.Click += delegate { StartServer(false); };
 
             _stopItem = new ToolStripMenuItem(L.T("menu.stop"));
             _stopItem.Click += delegate { StopServer(); };
 
             _restartItem = new ToolStripMenuItem(L.T("menu.restart"));
-            _restartItem.Click += delegate { RestartServer(); };
+            _restartItem.Click += delegate { RestartServer(false); };
 
             _installItem = new ToolStripMenuItem(L.T("menu.installDeps"));
-            _installItem.Click += delegate { BeginInstall(true); };
+            _installItem.Click += delegate { ConfirmInstall(); };
 
             _updateItem = new ToolStripMenuItem(L.T("menu.checkUpdates"));
-            _updateItem.Click += delegate { BeginUpdateCheck(); };
+            _updateItem.Click += delegate
+            {
+                if (_availableRelease != null && !UpdateBusy()) OfferUpdate(_availableRelease);
+                else BeginUpdateCheck(false);
+            };
 
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
             _nodeItem.Click += delegate { OpenUrl("https://nodejs.org/en/download"); };
@@ -187,25 +213,34 @@ namespace PiWebTray
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
             _checkItem.Click += delegate { RunSelfCheck(); };
 
+            _settingsItem = new ToolStripMenuItem(L.T("menu.settings"));
+            _settingsItem.Click += delegate { ShowSettings(); };
+
             ToolStripMenuItem logItem = new ToolStripMenuItem(L.T("menu.serverLog"));
-            logItem.Click += delegate { OpenLog(_config.LogFile, "server.log"); };
+            logItem.Click += delegate { ShowLog(_config.LogFile, L.T("menu.serverLog")); };
 
             _installLogItem = new ToolStripMenuItem(L.T("menu.installLog"));
-            _installLogItem.Click += delegate { OpenLog(_config.InstallLogFile, "install.log"); };
+            _installLogItem.Click += delegate { ShowLog(_config.InstallLogFile, L.T("menu.installLog")); };
+
+            _updateLogItem = new ToolStripMenuItem(L.T("menu.updateLog"));
+            _updateLogItem.Click += delegate { ShowLog(_config.UpdateLogFile, L.T("menu.updateLog")); };
+
+            ToolStripMenuItem logsItem = new ToolStripMenuItem(L.T("menu.logs"));
+            logsItem.DropDownItems.Add(logItem);
+            logsItem.DropDownItems.Add(_installLogItem);
+            logsItem.DropDownItems.Add(_updateLogItem);
 
             ToolStripMenuItem folderItem = new ToolStripMenuItem(L.T("menu.folder"));
-            folderItem.Click += delegate
-            {
-                try
-                {
-                    using (Process explorer = Process.Start(_config.BaseDir))
-                    {
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            };
+            folderItem.Click += delegate { OpenFolder(_config.BaseDir); };
+
+            ToolStripMenuItem dataFolderItem = new ToolStripMenuItem(L.T("menu.dataFolder"));
+            dataFolderItem.Click += delegate { OpenFolder(_config.OutputDir); };
+
+            ToolStripMenuItem configItem = new ToolStripMenuItem(L.T("menu.config"));
+            configItem.Click += delegate { OpenConfiguration(); };
+
+            _copyUrlItem = new ToolStripMenuItem(L.T("menu.copyUrl"));
+            _copyUrlItem.Click += delegate { CopyUrl(); };
 
             ToolStripMenuItem shortcutItem = new ToolStripMenuItem(L.T("menu.shortcut"));
             shortcutItem.Click += delegate { CreateDesktopShortcut(); };
@@ -215,6 +250,9 @@ namespace PiWebTray
 
             _adminAutostartItem = new ToolStripMenuItem(L.T("menu.adminAutostart", L.T("bool.no")));
             _adminAutostartItem.Click += delegate { ToggleAdminAutostart(); };
+
+            _restartAdminItem = new ToolStripMenuItem(L.T("menu.restartAdmin"));
+            _restartAdminItem.Click += delegate { RestartAsAdministrator(); };
 
             _aboutItem = new ToolStripMenuItem(L.T("menu.about"));
             _aboutItem.Click += delegate { ShowAbout(); };
@@ -232,15 +270,20 @@ namespace PiWebTray
             _menu.Items.Add(_installItem);
             _menu.Items.Add(_updateItem);
             _menu.Items.Add(_nodeItem);
+            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_checkItem);
-            _menu.Items.Add(logItem);
-            _menu.Items.Add(_installLogItem);
+            _menu.Items.Add(_settingsItem);
+            _menu.Items.Add(logsItem);
+            _menu.Items.Add(dataFolderItem);
             _menu.Items.Add(folderItem);
+            _menu.Items.Add(configItem);
+            _menu.Items.Add(_copyUrlItem);
             _menu.Items.Add(shortcutItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_autostartItem);
             _menu.Items.Add(_adminAutostartItem);
             _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(_restartAdminItem);
             _menu.Items.Add(_aboutItem);
             _menu.Items.Add(exitItem);
 
@@ -259,14 +302,25 @@ namespace PiWebTray
             {
                 if (e.Button == MouseButtons.Left) OpenOrStart();
             };
+            _tray.BalloonTipClicked += delegate
+            {
+                Action action = _balloonAction;
+                _balloonAction = null;
+                if (action != null)
+                {
+                    try { action(); } catch (Exception) { }
+                }
+            };
 
             RefreshAutostartItems();
+            if (!_elevated) Autostart.RepairRunValue(Application.ExecutablePath);
 
             _timer.Interval = 500;
             _timer.Tick += OnTick;
             _timer.Start();
 
-            BeginEnvironmentCheck(_autoStartService);
+            BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+            if (_config.AutoCheckUpdates) _autoUpdateCheckAt = DateTime.Now.AddSeconds(10);
         }
 
         // ---------------- poll loop ----------------
@@ -297,6 +351,24 @@ namespace PiWebTray
             PollUpdate();
             if (_exiting) return;
 
+            if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
+                && !UpdateBusy() && !_exiting
+                && _phase != Phase.Installing && _phase != Phase.Checking
+                && _phase != Phase.Starting && _phase != Phase.Stopping)
+            {
+                _autoUpdateCheckAt = DateTime.MinValue;
+                BeginUpdateCheck(true);
+            }
+
+            if (_config.AutoRestart && _autoRestartAt != DateTime.MinValue
+                && DateTime.Now >= _autoRestartAt
+                && !UpdateBusy() && !_exiting
+                && (_phase == Phase.Stopped || _phase == Phase.Failed))
+            {
+                _autoRestartAt = DateTime.MinValue;
+                StartServer(false);
+            }
+
             if (openSignal && DateTime.Now - _lastSignalHandled > TimeSpan.FromSeconds(3))
             {
                 _lastSignalHandled = DateTime.Now;
@@ -316,7 +388,8 @@ namespace PiWebTray
                     if (_installTicks % 4 == 0) UpdateUi();
                     break;
                 default:
-                    PollPortSync();
+                    _portPollTicks++;
+                    if (_portPollTicks % 4 == 0) PollPortSync();
                     break;
             }
 
@@ -348,11 +421,15 @@ namespace PiWebTray
                 }
 
                 _phase = Phase.Running;
+                _lastNotified = "";
+                _lastOwnerCheck = DateTime.Now;
+                _autoRestartAt = DateTime.MinValue;
+                _autoRestartAttempts = 0;
                 bool open = _openWhenReady;
                 _openWhenReady = false;
                 UpdateUi();
                 if (open) OpenBrowser();
-                Notify(L.T("notify.readyTitle"), "http://127.0.0.1:" + _port);
+                Notify(L.T("notify.readyTitle"), "http://127.0.0.1:" + _port, delegate { OpenBrowser(); });
                 return;
             }
 
@@ -366,7 +443,9 @@ namespace PiWebTray
                 _openWhenReady = false;
                 _pendingRestart = false;
                 UpdateUi();
-                NotifyError(L.T("notify.startFailedTitle"), L.T("notify.startFailedBody", reason));
+                NotifyError(L.T("notify.startFailedTitle"), L.T("notify.startFailedBody", reason),
+                    delegate { ShowLog(_config.LogFile, L.T("menu.serverLog")); });
+                ScheduleAutoRestart();
             }
         }
 
@@ -374,45 +453,123 @@ namespace PiWebTray
         {
             if (!Net.IsPortOpen(_port, 200))
             {
+                ServiceProbe.Invalidate();
                 _phase = Phase.Stopped;
                 UpdateUi();
                 if (_pendingRestart)
                 {
                     _pendingRestart = false;
-                    StartServer(true);
+                    bool open = _pendingOpenBrowser;
+                    _pendingOpenBrowser = false;
+                    StartServer(open);
                 }
                 return;
             }
 
             if (DateTime.Now > _stopDeadline)
             {
-                // The CLI had its chance and the service is still up: force kill, then wait for the port
+                // The CLI had its chance and the service is still up. Only force-kill a
+                // confirmed pi-web process (or the process this tray started); never kill
+                // an unknown listener that took the port.
                 if (_stopEscalatedAt == DateTime.MinValue)
                 {
-                    _stopEscalatedAt = DateTime.Now;
-                    Sys.KillByPort(_port);
+                    ServiceProbe.Invalidate();
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    if (owner.IsPiWeb || TrayOwnsPort())
+                    {
+                        _stopEscalatedAt = DateTime.Now;
+                        Sys.KillByPort(_port);
+                        ServiceProbe.Invalidate();
+                    }
+                    else
+                    {
+                        _phase = Phase.PortConflict;
+                        _pendingRestart = false;
+                        _pendingOpenBrowser = false;
+                        UpdateUi();
+                        NotifyPortConflict();
+                    }
                 }
                 else if (DateTime.Now > _stopEscalatedAt.AddSeconds(6))
                 {
                     _phase = Phase.Running;
                     _pendingRestart = false;
+                    _pendingOpenBrowser = false;
                     UpdateUi();
                     NotifyError(L.T("notify.stopFailedTitle"), L.T("notify.stopFailedBody", _port));
                 }
             }
         }
 
-        // If something else stops or starts the service, the icon must follow
+        // If something else stops or starts the service, the icon must follow.
+        // A listener is not automatically pi-web: resolve the owner before showing
+        // Running, and never treat an unknown listener as our service.
         private void PollPortSync()
         {
             bool actuallyRunning = Net.IsPortOpen(_port, 200);
 
-            if (actuallyRunning && (_phase == Phase.Stopped || _phase == Phase.Failed || _phase == Phase.NeedsDeps || _phase == Phase.NeedsNode))
+            if (!actuallyRunning)
+            {
+                ServiceProbe.Invalidate();
+                if (_phase == Phase.Running)
+                {
+                    _phase = Phase.Stopped;
+                    UpdateUi();
+                    NotifyWarningOnce("service-stopped",
+                        L.T("notify.serviceStoppedTitle"),
+                        L.T("notify.serviceStoppedBody"),
+                        delegate { StartServer(false); });
+                    ScheduleAutoRestart();
+                }
+                else if (_phase == Phase.PortConflict)
+                {
+                    _phase = Phase.Stopped;
+                    _lastNotified = "";
+                    UpdateUi();
+                }
+                return;
+            }
+
+            if (_phase == Phase.Running)
+            {
+                // Re-verify occasionally so a different listener taking the port does not
+                // stay green forever. Critical stop/exit paths also invalidate the cache.
+                if (DateTime.Now - _lastOwnerCheck < TimeSpan.FromSeconds(30)) return;
+                _lastOwnerCheck = DateTime.Now;
+                ServiceProbe.Invalidate();
+                PortOwnerInfo current = ServiceProbe.Inspect(_port);
+                if (current.IsPiWeb) return;
+                if (current.IsUnknown && TrayOwnsPort()) return;
+
+                _phase = current.IsUnknown ? Phase.PortConflict : Phase.Stopped;
+                UpdateUi();
+                if (_phase == Phase.PortConflict) NotifyPortConflict();
+                return;
+            }
+            if (_phase != Phase.Stopped && _phase != Phase.Failed && _phase != Phase.NeedsDeps
+                && _phase != Phase.NeedsNode && _phase != Phase.PortConflict)
+            {
+                return;
+            }
+
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            if (owner.IsPiWeb)
             {
                 _phase = Phase.Running;
+                _lastNotified = "";
+                _lastOwnerCheck = DateTime.Now;
                 UpdateUi();
             }
-            else if (!actuallyRunning && _phase == Phase.Running)
+            else if (owner.IsUnknown)
+            {
+                if (_phase != Phase.PortConflict)
+                {
+                    _phase = Phase.PortConflict;
+                    UpdateUi();
+                    NotifyPortConflict();
+                }
+            }
+            else if (_phase == Phase.PortConflict)
             {
                 _phase = Phase.Stopped;
                 UpdateUi();
@@ -421,7 +578,7 @@ namespace PiWebTray
 
         // ---------------- environment probe ----------------
 
-        private void BeginEnvironmentCheck(bool thenStart)
+        private void BeginEnvironmentCheck(bool thenStart, bool openBrowser)
         {
             lock (_checkLock)
             {
@@ -431,12 +588,14 @@ namespace PiWebTray
                     // otherwise "install finished -> check -> start" can silently lose the start.
                     _checkPending = true;
                     _checkPendingThenStart = _checkPendingThenStart || thenStart;
+                    _checkPendingOpenBrowser = _checkPendingOpenBrowser || openBrowser;
                     return;
                 }
                 _checkRunning = true;
                 _checkDone = false;
                 _checkResult = null;
                 _checkThenStart = thenStart;
+                _checkOpenBrowser = openBrowser;
             }
 
             if (_phase != Phase.Installing) _phase = Phase.Checking;
@@ -467,15 +626,17 @@ namespace PiWebTray
         {
             ProbeResult result;
             bool thenStart;
+            bool openBrowser;
             lock (_checkLock)
             {
                 if (!_checkDone) return;
                 _checkDone = false;
                 result = _checkResult;
                 thenStart = _checkThenStart;
+                openBrowser = _checkOpenBrowser;
             }
 
-            ApplyCheckResult(result, thenStart);
+            ApplyCheckResult(result, thenStart, openBrowser);
 
             // A menu click asked to install before the first probe had finished. The probe has
             // just supplied the paths/versions the installer needs, so run it now.
@@ -496,17 +657,21 @@ namespace PiWebTray
             // A request arrived while this check was running (install finished, icon clicked, ...)
             bool pending;
             bool pendingThenStart;
+            bool pendingOpenBrowser;
             lock (_checkLock)
             {
                 pending = _checkPending;
                 pendingThenStart = _checkPendingThenStart;
+                pendingOpenBrowser = _checkPendingOpenBrowser;
                 _checkPending = false;
                 _checkPendingThenStart = false;
+                _checkPendingOpenBrowser = false;
             }
-            if (pending && _phase != Phase.Installing) BeginEnvironmentCheck(pendingThenStart);
+            if (pending && _phase != Phase.Installing)
+                BeginEnvironmentCheck(pendingThenStart, pendingOpenBrowser);
         }
 
-        private void ApplyCheckResult(ProbeResult result, bool thenStart)
+        private void ApplyCheckResult(ProbeResult result, bool thenStart, bool openBrowser)
         {
             if (result == null)
             {
@@ -548,13 +713,68 @@ namespace PiWebTray
             if (thenStart)
             {
                 _phase = Phase.Stopped;
-                StartServer(true);
+                StartServer(openBrowser);
                 return;
             }
 
             _lastNotified = "";
-            _phase = Net.IsPortOpen(_port, 200) ? Phase.Running : Phase.Stopped;
+            _phase = ResolveServicePhase();
             UpdateUi();
+            if (_phase == Phase.PortConflict) NotifyPortConflict();
+        }
+
+        private bool TrayOwnsPort()
+        {
+            if (_server == null) return false;
+            try
+            {
+                if (_server.HasExited) return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            if (owner.IsPiWeb) return true;
+            if (owner.Pid <= 0) return false;
+            if (owner.Pid == _server.Id) return true;
+            return ServiceProbe.ParentPid(owner.Pid) == _server.Id;
+        }
+
+        private Phase ResolveServicePhase()
+        {
+            if (!Net.IsPortOpen(_port, 200)) return Phase.Stopped;
+
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            if (owner.IsPiWeb) return Phase.Running;
+            if (owner.IsUnknown) return Phase.PortConflict;
+            return Phase.Stopped;
+        }
+
+        private void NotifyPortConflict()
+        {
+            NotifyWarningOnce("port-conflict",
+                L.T("notify.portConflictTitle"),
+                L.T("notify.portConflictBody", _port),
+                delegate { ShowSettings(); });
+        }
+
+        private void ApplyProbeResult(ProbeResult result)
+        {
+            if (result == null) return;
+
+            _probe = result;
+            _config.NodePath = result.NodePath;
+            if (result.PiWebFound) _config.ServerScript = result.PiWebScript;
+
+            if (result.NeedsNode) _phase = Phase.NeedsNode;
+            else if (result.NeedsPiWeb) _phase = Phase.NeedsDeps;
+            else _phase = ResolveServicePhase();
+
+            UpdateUi();
+            if (_phase == Phase.PortConflict) NotifyPortConflict();
         }
 
         // Ask the endpoint once, on a thread, so the UI never waits for HTTP
@@ -595,7 +815,7 @@ namespace PiWebTray
                     _installAfterCheck = true;
                     _installAfterCheckForce = _installAfterCheckForce || force;
                 }
-                BeginEnvironmentCheck(false);
+                BeginEnvironmentCheck(false, false);
                 return;
             }
 
@@ -615,13 +835,15 @@ namespace PiWebTray
 
             if (packages.Count == 0)
             {
-                BeginEnvironmentCheck(_autoStartService);
+                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
                 return;
             }
 
+            Installer.ResetAbort();
             _phase = Phase.Installing;
             _installStartedAt = DateTime.Now;
             _installTicks = 0;
+            ShowInstallForm();
             lock (_installLock)
             {
                 _installDone = false;
@@ -664,10 +886,15 @@ namespace PiWebTray
                 result = _installResult;
             }
 
+            bool cancelled = _installForm != null && _installForm.Cancelled;
+            CloseInstallForm();
+
             if (result == null)
             {
-                _phase = Phase.Failed;
+                _phase = cancelled ? Phase.NeedsDeps : Phase.Failed;
                 UpdateUi();
+                if (cancelled)
+                    NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
                 return;
             }
 
@@ -676,13 +903,20 @@ namespace PiWebTray
                 Notify(L.T("install.doneTitle"), result.Message);
                 // Re-probe before starting so paths and versions are current. In autostart
                 // mode this must not turn into "start the service": login shows the tray only.
-                BeginEnvironmentCheck(_autoStartService);
+                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+            }
+            else if (cancelled)
+            {
+                _phase = Phase.NeedsDeps;
+                UpdateUi();
+                NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
             }
             else
             {
                 _phase = Phase.Failed;
                 UpdateUi();
-                NotifyError(L.T("install.failedTitle"), result.Message);
+                NotifyError(L.T("install.failedTitle"), result.Message,
+                    delegate { ShowLog(_config.InstallLogFile, L.T("menu.installLog")); });
             }
         }
 
@@ -725,6 +959,10 @@ namespace PiWebTray
                     break;
                 case Phase.Failed:
                     label = L.T("status.failed");
+                    color = Icons.ErrorColor;
+                    break;
+                case Phase.PortConflict:
+                    label = L.T("status.portConflict", _port);
                     color = Icons.ErrorColor;
                     break;
                 default:
@@ -778,24 +1016,59 @@ namespace PiWebTray
 
             bool busy = _phase == Phase.Installing || _phase == Phase.Checking || _phase == Phase.Starting || _phase == Phase.Stopping || updateBusy;
             bool running = _phase == Phase.Running;
+            bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
             bool needsNode = _phase == Phase.NeedsNode || (_probe != null && _probe.NeedsNode);
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
 
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
-            _openItem.Enabled = !busy;
-            _startItem.Enabled = !busy && !running && ready;
+            _openItem.Enabled = !busy && !portConflict;
+            _startItem.Enabled = !busy && !running && ready && !portConflict;
             _stopItem.Enabled = running && !updateBusy;
             _restartItem.Enabled = !busy && running;
             _installItem.Enabled = !busy;
             _installItem.Text = ready ? L.T("menu.installDeps") : L.T("menu.installAuto");
             _updateItem.Enabled = !busy;
-            _updateItem.Text = updateBusy ? L.T("menu.checkUpdatesBusy") : L.T("menu.checkUpdates");
+            _updateItem.Text = updateBusy
+                ? L.T("menu.checkUpdatesBusy")
+                : (_availableRelease != null
+                    ? L.T("menu.updateAvailable", _availableRelease.Version)
+                    : L.T("menu.checkUpdates"));
+
+            if (_updateForm != null && updateBusy)
+            {
+                int formPercent = _updateStage == UpdateStage.Downloading ? _updatePercent : -1;
+                bool canCancel = _updateStage == UpdateStage.Checking || _updateStage == UpdateStage.Downloading;
+                _updateForm.SetState(label, formPercent, canCancel);
+            }
             _nodeItem.Enabled = needsNode && !updateBusy;
-            _checkItem.Enabled = !updateBusy;
+            _checkItem.Enabled = !busy;
+            _settingsItem.Enabled = !busy;
             _installLogItem.Enabled = File.Exists(_config.InstallLogFile);
+            _updateLogItem.Enabled = File.Exists(_config.UpdateLogFile);
+            _copyUrlItem.Enabled = running;
+            _restartAdminItem.Enabled = !_elevated && !busy;
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
+            if (portConflict) _openItem.Text = L.T("menu.portConflict");
+        }
+
+        private void ShowInstallForm()
+        {
+            if (_installForm != null) return;
+            _installForm = new InstallForm();
+            _installForm.FormClosed += delegate { _installForm = null; };
+            _installForm.Show();
+            _installForm.Activate();
+        }
+
+        private void CloseInstallForm()
+        {
+            InstallForm form = _installForm;
+            _installForm = null;
+            if (form == null) return;
+            try { form.CloseFromOwner(); } catch (Exception) { }
+            try { form.Dispose(); } catch (Exception) { }
         }
 
         private string InstallingLabel()
@@ -808,7 +1081,9 @@ namespace PiWebTray
                 if (live > elapsed) elapsed = live;
             }
 
-            string text = L.T("status.installing", FormatElapsed(elapsed));
+            string text = progress.StepCount > 0
+                ? L.T("status.installingStep", progress.Step, progress.StepCount, FormatElapsed(elapsed))
+                : L.T("status.installing", FormatElapsed(elapsed));
             string last = progress.LastLine;
             if (!string.IsNullOrEmpty(last))
             {
@@ -827,28 +1102,53 @@ namespace PiWebTray
 
         // ---------------- service control ----------------
 
+        private void ConfirmInstall()
+        {
+            if (_probe != null && _probe.Ready)
+            {
+                DialogResult answer = MessageBox.Show(
+                    L.T("install.confirmBody"),
+                    L.T("install.confirmTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2);
+                if (answer != DialogResult.Yes) return;
+            }
+            BeginInstall(true);
+        }
+
         private void OpenOrStart()
         {
             if (UpdateBusy()) return;
+            if (_phase == Phase.PortConflict)
+            {
+                MessageBox.Show(
+                    L.T("notify.portConflictBody", _port),
+                    L.T("notify.portConflictTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                ShowSettings();
+                return;
+            }
             if (_phase == Phase.Running) { OpenBrowser(); return; }
             if (_phase == Phase.Installing || _phase == Phase.Checking) return;
             if (_phase == Phase.NeedsNode)
             {
                 // Missing Node can only be fixed by the user; probe again (one click once it is installed)
-                BeginEnvironmentCheck(true);
+                BeginEnvironmentCheck(true, true);
                 return;
             }
             if (_phase == Phase.Failed)
             {
                 // Re-probe first: the failure may have been a start timeout, not a broken
                 // installation. ApplyCheckResult decides whether to retry install or start.
-                BeginEnvironmentCheck(true);
+                BeginEnvironmentCheck(true, true);
                 return;
             }
             if (_phase == Phase.NeedsDeps)
             {
                 // The user clicked the icon, which counts as consent to install or repair
-                if (_probe == null || _probe.NeedsNode) BeginEnvironmentCheck(true);
+                if (_probe == null || _probe.NeedsNode) BeginEnvironmentCheck(true, true);
                 else BeginInstall(false);
                 return;
             }
@@ -877,16 +1177,57 @@ namespace PiWebTray
             catch (Exception ex) { NotifyError(L.T("notify.noLink"), ex.Message + "\r\n" + url); }
         }
 
+        private void ScheduleAutoRestart()
+        {
+            if (!_config.AutoRestart || _exiting || UpdateBusy()) return;
+            if (_probe == null || !_probe.Ready) return;
+            if (_phase == Phase.Installing || _phase == Phase.Starting || _phase == Phase.Stopping) return;
+            if (_autoRestartAt != DateTime.MinValue) return;
+            if (_autoRestartAttempts >= 3) return;
+
+            _autoRestartAttempts++;
+            int delay = _autoRestartAttempts == 1 ? 5 : (_autoRestartAttempts == 2 ? 15 : 30);
+            _autoRestartAt = DateTime.Now.AddSeconds(delay);
+            NotifyWarning(L.T("notify.autoRestartTitle"), L.T("notify.autoRestartBody", delay));
+        }
+
         private void StartServer(bool openBrowser)
         {
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
 
+            ServiceProbe.Invalidate();
             if (Net.IsPortOpen(_port, 300))
             {
-                _phase = Phase.Running;
-                UpdateUi();
-                if (openBrowser) OpenBrowser();
-                return;
+                PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                if (owner.IsPiWeb)
+                {
+                    _phase = Phase.Running;
+                    _lastNotified = "";
+                    _lastOwnerCheck = DateTime.Now;
+                    _autoRestartAt = DateTime.MinValue;
+                    _autoRestartAttempts = 0;
+                    UpdateUi();
+                    if (openBrowser) OpenBrowser();
+                    return;
+                }
+                if (owner.IsUnknown)
+                {
+                    if (TrayOwnsPort())
+                    {
+                        _phase = Phase.Running;
+                        _lastNotified = "";
+                        _lastOwnerCheck = DateTime.Now;
+                        UpdateUi();
+                        if (openBrowser) OpenBrowser();
+                        return;
+                    }
+                    _phase = Phase.PortConflict;
+                    UpdateUi();
+                    NotifyPortConflict();
+                    return;
+                }
+                // The listener disappeared between the check and the inspection:
+                // continue and try to start the service.
             }
 
             string script = _config.ServerScript;
@@ -923,6 +1264,7 @@ namespace PiWebTray
 
                 // An elevated tray passes its token to the child, which is exactly what "run as admin" means here
                 _server = Process.Start(psi);
+                ServiceProbe.Invalidate();
 
                 lock (_readyLock)
                 {
@@ -945,6 +1287,8 @@ namespace PiWebTray
         private void StopServer()
         {
             if (_phase == Phase.Stopping) return;
+            _autoRestartAt = DateTime.MinValue;
+            _autoRestartAttempts = 0;
 
             // Do not touch the state machine while no service state has been reached
             if (_phase == Phase.Checking || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
@@ -958,6 +1302,7 @@ namespace PiWebTray
                 // Stop immediately instead of waiting up to three minutes for the startup
                 // deadline. The tree kill is asynchronous; PollStopping confirms the port is gone.
                 _pendingRestart = false;
+                _pendingOpenBrowser = false;
                 try
                 {
                     if (_server != null && !_server.HasExited) Sys.KillTree(_server.Id);
@@ -982,6 +1327,29 @@ namespace PiWebTray
             {
                 _phase = Phase.Stopped;
                 UpdateUi();
+                if (_pendingRestart)
+                {
+                    _pendingRestart = false;
+                    bool open = _pendingOpenBrowser;
+                    _pendingOpenBrowser = false;
+                    StartServer(open);
+                }
+                return;
+            }
+
+            // A listener that is not pi-web must never be stopped or killed. The only
+            // exception is a service started by this tray (the tracked cmd child), whose
+            // owner may be temporarily unreadable through WMI.
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            bool ownedByTray = TrayOwnsPort();
+            if (!owner.IsPiWeb && !ownedByTray)
+            {
+                _pendingRestart = false;
+                _pendingOpenBrowser = false;
+                _phase = owner.IsUnknown ? Phase.PortConflict : Phase.Stopped;
+                UpdateUi();
+                if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
             }
 
@@ -1003,6 +1371,7 @@ namespace PiWebTray
             else
             {
                 Sys.KillByPort(_port);
+                ServiceProbe.Invalidate();
             }
         }
 
@@ -1019,14 +1388,16 @@ namespace PiWebTray
             }
         }
 
-        private void RestartServer()
+        private void RestartServer(bool openBrowser)
         {
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
             _pendingRestart = true;
+            _pendingOpenBrowser = openBrowser;
             if (_phase != Phase.Running)
             {
                 _pendingRestart = false;
-                StartServer(true);
+                _pendingOpenBrowser = false;
+                StartServer(openBrowser);
                 return;
             }
             StopServer();
@@ -1060,6 +1431,7 @@ namespace PiWebTray
                     MessageBoxDefaultButton.Button2);
                 if (answer != DialogResult.Yes) return;
                 Installer.Abort();
+                CloseInstallForm();
             }
 
             _exiting = true;
@@ -1075,17 +1447,43 @@ namespace PiWebTray
 
                 if (Net.IsPortOpen(_port, 200))
                 {
-                    StopServer();
-                    // Wait until it is really stopped, keeping the message loop alive meanwhile
-                    int waited = 0;
-                    while (waited < 8000 && Net.IsPortOpen(_port, 200))
+                    ServiceProbe.Invalidate();
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    bool ownedByTray = TrayOwnsPort();
+                    if ((owner.IsUnknown || owner.Owner == PortOwner.None) && !ownedByTray)
                     {
-                        Thread.Sleep(120);
-                        Application.DoEvents();
-                        waited += 120;
+                        // Another program owns the port. Leave it alone and keep the
+                        // exit fast instead of waiting for a service that is not ours.
+                        Updater.AppendLog(_config.UpdateLogFile,
+                            "exit: port " + _port + " is used by another program; not stopped");
                     }
-                    if (Net.IsPortOpen(_port, 200)) Sys.KillByPort(_port);
-                    Net.WaitPortClosed(_port, 2000);
+                    else
+                    {
+                        StopServer();
+                        // Wait until it is really stopped, keeping the message loop alive meanwhile
+                        int waited = 0;
+                        while (waited < 8000 && Net.IsPortOpen(_port, 200))
+                        {
+                            Thread.Sleep(120);
+                            Application.DoEvents();
+                            waited += 120;
+                        }
+                        if (Net.IsPortOpen(_port, 200))
+                        {
+                            ServiceProbe.Invalidate();
+                            owner = ServiceProbe.Inspect(_port);
+                            if (owner.IsPiWeb || TrayOwnsPort())
+                            {
+                                Sys.KillByPort(_port);
+                            }
+                            else
+                            {
+                                Updater.AppendLog(_config.UpdateLogFile,
+                                    "exit: port " + _port + " changed owner; not killed");
+                            }
+                        }
+                        Net.WaitPortClosed(_port, 2000);
+                    }
                 }
             }
             catch (Exception)
@@ -1109,6 +1507,8 @@ namespace PiWebTray
             _cleaned = true;
 
             try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
+            CloseInstallForm();
+            CloseUpdateForm();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
             try { _menu.Dispose(); } catch (Exception) { }
             try { _openSignal.Close(); } catch (Exception) { }
@@ -1152,7 +1552,8 @@ namespace PiWebTray
 
             if (result != null)
             {
-                CheckForm.ShowReport(_config, result, _elevated);
+                ProbeResult latest = CheckForm.ShowReport(_config, result, _elevated);
+                ApplyProbeResult(latest);
             }
             else
             {
@@ -1178,52 +1579,6 @@ namespace PiWebTray
             catch (Exception)
             {
             }
-        }
-
-        // cmd's ">>" keeps the log open for writing. File.ReadAllBytes opens with
-        // FileShare.Read, which conflicts with that writer, so it fails with a sharing
-        // violation. File.Copy uses share-all and can snapshot the live file; open the
-        // snapshot in Notepad instead of the log the service is still writing.
-        private void OpenLog(string path, string name)
-        {
-            try
-            {
-                if (!File.Exists(path)) File.WriteAllText(path, "");
-
-                string target = Path.Combine(Path.GetTempPath(), "pi-web-tray-" + name);
-                try
-                {
-                    File.Copy(path, target, true);
-                }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-                {
-                    // A previous snapshot is still open in Notepad: use a fresh name instead.
-                    string stem = Path.GetFileNameWithoutExtension(name);
-                    string extension = Path.GetExtension(name);
-                    target = Path.Combine(Path.GetTempPath(), "pi-web-tray-" + stem + "-"
-                        + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + extension);
-                    File.Copy(path, target, true);
-                }
-                AddUtf8Bom(target);
-
-                using (Process notepad = Process.Start("notepad.exe", Shell.Quote(target)))
-                {
-                }
-            }
-            catch (Exception ex)
-            {
-                NotifyError(L.T("notify.openLogFailed"), ex.Message);
-            }
-        }
-
-        private static void AddUtf8Bom(string path)
-        {
-            byte[] bytes = File.ReadAllBytes(path);
-            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF) return;
-            byte[] withBom = new byte[bytes.Length + 3];
-            withBom[0] = 0xEF; withBom[1] = 0xBB; withBom[2] = 0xBF;
-            Buffer.BlockCopy(bytes, 0, withBom, 3, bytes.Length);
-            File.WriteAllBytes(path, withBom);
         }
 
         // ---------------- autostart ----------------
@@ -1423,7 +1778,7 @@ namespace PiWebTray
             lock (_updateLock) return _updateBusy;
         }
 
-        private void BeginUpdateCheck()
+        private void BeginUpdateCheck(bool silent)
         {
             if (_exiting) return;
             if (_phase == Phase.Installing || _phase == Phase.Checking
@@ -1432,22 +1787,28 @@ namespace PiWebTray
                 return;
             }
 
+            int generation;
             lock (_updateLock)
             {
                 if (_updateBusy) return;
                 _updateBusy = true;
                 _updateDone = false;
                 _updateStage = UpdateStage.Checking;
+                _updateSilent = silent;
                 _updateRelease = null;
                 _updateStaging = null;
                 _updateError = null;
+                _updateGeneration++;
+                generation = _updateGeneration;
             }
 
+            if (!silent) ShowUpdateForm();
             _updatePercent = -1;
             _updateTicks = 0;
             UpdateUi();
-            Updater.AppendLog(_config.UpdateLogFile, "check start (current " + Program.Version + ")");
-            Notify(L.T("update.checkingTitle"), L.T("update.checkingBody", Program.Version));
+            Updater.AppendLog(_config.UpdateLogFile,
+                "check start (current " + Program.Version + (silent ? ", automatic" : "") + ")");
+            if (!silent) Notify(L.T("update.checkingTitle"), L.T("update.checkingBody", Program.Version));
 
             Thread worker = new Thread(delegate ()
             {
@@ -1455,6 +1816,7 @@ namespace PiWebTray
                 ReleaseInfo release = Updater.FindLatest(out error);
                 lock (_updateLock)
                 {
+                    if (generation != _updateGeneration) return;
                     _updateRelease = release;
                     _updateError = error;
                     _updateDone = true;
@@ -1489,25 +1851,50 @@ namespace PiWebTray
 
         private void HandleUpdateCheck(ReleaseInfo release, string error)
         {
+            bool silent = _updateSilent;
+
             if (!string.IsNullOrEmpty(error))
             {
                 Updater.AppendLog(_config.UpdateLogFile, "check failed: " + error);
                 EndUpdate();
-                ShowUpdateError(L.T("update.checkFailedTitle"), L.T("update.checkFailedBody", error));
+                if (!silent)
+                    ShowUpdateError(L.T("update.checkFailedTitle"), L.T("update.checkFailedBody", error));
                 return;
             }
 
             if (release == null || !Updater.IsNewer(release.Version, Program.Version))
             {
                 Updater.AppendLog(_config.UpdateLogFile, "up to date");
+                _availableRelease = null;
                 EndUpdate();
-                MessageBox.Show(
-                    L.T("update.upToDateBody", Program.Version),
-                    L.T("update.upToDateTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                if (!silent)
+                {
+                    MessageBox.Show(
+                        L.T("update.upToDateBody", Program.Version),
+                        L.T("update.upToDateTitle"),
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
                 return;
             }
+
+            _availableRelease = release;
+            if (silent)
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "update available: " + release.Tag + " (" + release.ZipName + ")");
+                EndUpdate();
+                Notify(L.T("update.availableTitle"), L.T("update.availableBody", release.Version),
+                    delegate { OfferUpdate(release); });
+                return;
+            }
+
+            OfferUpdate(release);
+        }
+
+        private void OfferUpdate(ReleaseInfo release)
+        {
+            if (release == null) return;
 
             Updater.AppendLog(_config.UpdateLogFile, "latest: " + release.Tag + " (" + release.ZipName + ")");
             string body = L.T("update.confirmBody", Program.Version, release.Version);
@@ -1523,7 +1910,7 @@ namespace PiWebTray
             if (answer != DialogResult.Yes)
             {
                 Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
-                EndUpdate();
+                if (UpdateBusy()) EndUpdate();
                 return;
             }
 
@@ -1532,6 +1919,7 @@ namespace PiWebTray
 
         private void BeginUpdateDownload(ReleaseInfo release)
         {
+            int generation;
             lock (_updateLock)
             {
                 _updateStage = UpdateStage.Downloading;
@@ -1539,8 +1927,11 @@ namespace PiWebTray
                 _updateRelease = release;
                 _updateStaging = null;
                 _updateError = null;
+                _updateGeneration++;
+                generation = _updateGeneration;
             }
 
+            ShowUpdateForm();
             _updatePercent = -1;
             _updateTicks = 0;
             UpdateUi();
@@ -1556,6 +1947,7 @@ namespace PiWebTray
                     out error);
                 lock (_updateLock)
                 {
+                    if (generation != _updateGeneration) return;
                     _updateStaging = staging;
                     _updateError = error;
                     _updateDone = true;
@@ -1591,26 +1983,35 @@ namespace PiWebTray
 
         private void BeginUpdateApply(ReleaseInfo release, string staging)
         {
+            int generation;
             lock (_updateLock)
             {
                 _updateStage = UpdateStage.Applying;
                 _updateDone = false;
                 _updateError = null;
+                _updateGeneration++;
+                generation = _updateGeneration;
             }
 
+            ShowUpdateForm();
             _updatePercent = -1;
             _updateTicks = 0;
             UpdateUi();
             Notify(L.T("update.applyingTitle"), L.T("update.applyingBody", release.Version));
 
-            bool startService = _autoStartService;
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            ApplyStartMode mode = owner.IsPiWeb || TrayOwnsPort()
+                ? ApplyStartMode.ServiceSilent
+                : ApplyStartMode.TrayOnly;
             bool elevated = _elevated;
             Thread worker = new Thread(delegate ()
             {
                 string error;
-                bool ok = Updater.StartHelper(_config, staging, startService, elevated, out error);
+                bool ok = Updater.StartHelper(_config, staging, mode, elevated, out error);
                 lock (_updateLock)
                 {
+                    if (generation != _updateGeneration) return;
                     _updateError = ok ? "" : error;
                     _updateDone = true;
                 }
@@ -1639,6 +2040,8 @@ namespace PiWebTray
 
         private void EndUpdate()
         {
+            _updateGeneration++;
+            CloseUpdateForm();
             lock (_updateLock)
             {
                 _updateBusy = false;
@@ -1653,17 +2056,144 @@ namespace PiWebTray
             UpdateUi();
         }
 
+        private void ShowUpdateForm()
+        {
+            if (_updateForm != null) return;
+            _updateForm = new UpdateForm(CancelUpdate);
+            _updateForm.FormClosed += delegate { _updateForm = null; };
+            _updateForm.Show();
+            _updateForm.Activate();
+        }
+
+        private void CloseUpdateForm()
+        {
+            UpdateForm form = _updateForm;
+            _updateForm = null;
+            if (form == null) return;
+            try { form.CloseFromOwner(); } catch (Exception) { }
+            try { form.Dispose(); } catch (Exception) { }
+        }
+
+        private void CancelUpdate()
+        {
+            if (!UpdateBusy()) return;
+            Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
+            _updateGeneration++;
+            EndUpdate();
+            NotifyWarning(L.T("update.cancelledTitle"), L.T("update.cancelledBody"));
+        }
+
         private void ShowUpdateError(string title, string body)
         {
             MessageBox.Show(body, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
+        private void ShowLog(string path, string title)
+        {
+            try
+            {
+                using (LogForm form = new LogForm(path, title))
+                {
+                    form.ShowDialog();
+                }
+            }
+            catch (Exception ex)
+            {
+                NotifyError(L.T("notify.openLogFailed"), ex.Message);
+            }
+        }
+
         private void ShowAbout()
         {
-            using (AboutForm form = new AboutForm())
+            using (AboutForm form = new AboutForm(delegate { BeginUpdateCheck(false); }))
             {
                 form.ShowDialog();
             }
+        }
+
+        private void ShowSettings()
+        {
+            using (SettingsForm form = new SettingsForm(_config))
+            {
+                if (form.ShowDialog() == DialogResult.OK)
+                {
+                    if (_config.AutoCheckUpdates)
+                    {
+                        if (_autoUpdateCheckAt == DateTime.MinValue)
+                            _autoUpdateCheckAt = DateTime.Now.AddSeconds(5);
+                    }
+                    else
+                    {
+                        _autoUpdateCheckAt = DateTime.MinValue;
+                    }
+                    if (!_config.AutoRestart)
+                    {
+                        _autoRestartAt = DateTime.MinValue;
+                        _autoRestartAttempts = 0;
+                    }
+                    Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
+                }
+            }
+        }
+
+        private void OpenFolder(string path)
+        {
+            try
+            {
+                Directory.CreateDirectory(path);
+                using (Process explorer = Process.Start(path))
+                {
+                }
+            }
+            catch (Exception ex)
+            {
+                NotifyError(L.T("notify.openFolderFailed"), ex.Message + "\r\n" + path);
+            }
+        }
+
+        private void OpenConfiguration()
+        {
+            try
+            {
+                if (!File.Exists(_config.IniPath)) File.WriteAllText(_config.IniPath, "");
+                using (Process notepad = Process.Start("notepad.exe", Shell.Quote(_config.IniPath)))
+                {
+                }
+            }
+            catch (Exception ex)
+            {
+                NotifyError(L.T("notify.openConfigFailed"), ex.Message);
+            }
+        }
+
+        private void CopyUrl()
+        {
+            try
+            {
+                string url = "http://127.0.0.1:" + _port;
+                Clipboard.SetText(url);
+                Notify(L.T("notify.urlCopiedTitle"), url);
+            }
+            catch (Exception ex)
+            {
+                NotifyError(L.T("notify.copyFailed"), ex.Message);
+            }
+        }
+
+        private void RestartAsAdministrator()
+        {
+            if (_elevated) return;
+
+            DialogResult answer = MessageBox.Show(
+                L.T("notify.adminRestartBody"),
+                L.T("notify.adminRestartTitle"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes) return;
+
+            if (!Sys.RunElevated(Application.ExecutablePath, ""))
+                NotifyError(L.T("notify.adminRestartFailed"), L.T("notify.adminRestartFailedBody"));
         }
 
         // ---------------- helpers ----------------
@@ -1716,16 +2246,37 @@ namespace PiWebTray
 
         private void Notify(string title, string body)
         {
+            _balloonAction = null;
+            Notifications.Show(_tray, title, body);
+        }
+
+        private void Notify(string title, string body, Action onClick)
+        {
+            _balloonAction = onClick;
             Notifications.Show(_tray, title, body);
         }
 
         private void NotifyWarning(string title, string body)
         {
+            _balloonAction = null;
+            Notifications.ShowWarning(_tray, title, body);
+        }
+
+        private void NotifyWarning(string title, string body, Action onClick)
+        {
+            _balloonAction = onClick;
             Notifications.ShowWarning(_tray, title, body);
         }
 
         private void NotifyError(string title, string body)
         {
+            _balloonAction = null;
+            Notifications.ShowError(_tray, title, body);
+        }
+
+        private void NotifyError(string title, string body, Action onClick)
+        {
+            _balloonAction = onClick;
             Notifications.ShowError(_tray, title, body);
         }
 
@@ -1735,6 +2286,13 @@ namespace PiWebTray
             if (_lastNotified == key) return;
             _lastNotified = key;
             NotifyWarning(title, body);
+        }
+
+        private void NotifyWarningOnce(string key, string title, string body, Action onClick)
+        {
+            if (_lastNotified == key) return;
+            _lastNotified = key;
+            NotifyWarning(title, body, onClick);
         }
     }
 }

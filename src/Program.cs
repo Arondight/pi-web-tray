@@ -123,15 +123,18 @@ namespace PiWebTray
             bool isStop = Has(args, "--stop");
             bool isQuit = Has(args, "--quit");
             bool isAutostart = Has(args, "--autostart");
+            bool isTrayOnly = Has(args, "--tray-only");
+            bool isStartNoOpen = Has(args, "--start-no-open");
 
-            // Start at login: tray only, no service (prereqs are checked and installed quietly; click to start)
+            // Start at login: start the tray and pi-web without opening a browser.
+            // --tray-only remains available for a tray without the service.
             if (isAutostart && !isStop && !isQuit)
             {
                 Mutex autoMutex;
                 bool autoDenied;
                 if (TryAcquireMutex(0, out autoMutex, out autoDenied))
                 {
-                    RunTray(config, elevated, false, autoMutex);
+                    RunTray(config, elevated, !isTrayOnly, autoMutex, false);
                 }
                 return 0;
             }
@@ -146,11 +149,11 @@ namespace PiWebTray
                 if (isStop || isQuit)
                 {
                     // There is not even a tray, so stop the service directly
-                    StopServiceWithoutTray(config);
+                    bool stopped = StopServiceWithoutTray(config);
                     ReleaseMutex(mutex);
-                    return 0;
+                    return stopped ? 0 : 1;
                 }
-                RunTray(config, elevated, true, mutex);
+                RunTray(config, elevated, !isTrayOnly, mutex, !isTrayOnly && !isStartNoOpen);
                 return 0;
             }
 
@@ -169,8 +172,16 @@ namespace PiWebTray
             // Cannot open the other instance's mutex: it runs at a higher integrity level (admin)
             if (accessDenied)
             {
-                if (portOpen) OpenBrowser(config.Port);
-                else Inform(L.T("prog.adminAlreadyTitle"), L.T("prog.adminAlreadyBody"));
+                if (portOpen)
+                {
+                    PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
+                    if (owner.IsPiWeb) OpenBrowser(config.Port);
+                    else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
+                }
+                else
+                {
+                    Inform(L.T("prog.adminAlreadyTitle"), L.T("prog.adminAlreadyBody"));
+                }
                 return 0;
             }
 
@@ -184,7 +195,9 @@ namespace PiWebTray
             // Elevated start: if the other instance is already elevated and the service runs, just open the browser
             if (portOpen && TrayState.InstanceIsElevated())
             {
-                OpenBrowser(config.Port);
+                PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
+                if (owner.IsPiWeb) OpenBrowser(config.Port);
+                else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
                 return 0;
             }
 
@@ -196,10 +209,15 @@ namespace PiWebTray
             {
                 if (Net.IsPortOpen(config.Port, 300))
                 {
-                    Sys.KillByPort(config.Port);
-                    Net.WaitPortClosed(config.Port, 8000);
+                    ServiceProbe.Invalidate();
+                    PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
+                    if (owner.IsPiWeb)
+                    {
+                        Sys.KillByPort(config.Port);
+                        Net.WaitPortClosed(config.Port, 8000);
+                    }
                 }
-                RunTray(config, elevated, true, taken);
+                RunTray(config, elevated, !isTrayOnly, taken, !isTrayOnly && !isStartNoOpen);
                 return 0;
             }
 
@@ -244,9 +262,9 @@ namespace PiWebTray
         {
             string[] known = new string[]
             {
-                "--autostart", "--stop", "--quit", "--check", "--install", "--dry-run",
-                "--diag", "--make-ico", "--lang-check", "--version", "--apply-update",
-                "--help", "-h", "/?"
+                "--autostart", "--tray-only", "--start-no-open", "--stop", "--quit",
+                "--check", "--install", "--dry-run", "--diag", "--make-ico",
+                "--lang-check", "--version", "--apply-update", "--help", "-h", "/?"
             };
 
             foreach (string arg in args)
@@ -266,12 +284,13 @@ namespace PiWebTray
             return null;
         }
 
-        private static void RunTray(Config config, bool elevated, bool startServer, Mutex mutex)
+        private static void RunTray(Config config, bool elevated, bool startServer, Mutex mutex,
+            bool openBrowserOnStart)
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            using (TrayApp app = new TrayApp(config, elevated, mutex, startServer))
+            using (TrayApp app = new TrayApp(config, elevated, mutex, startServer, openBrowserOnStart))
             {
                 Application.Run(app);
             }
@@ -349,9 +368,20 @@ namespace PiWebTray
             }
         }
 
-        // No tray is running, so stop the service through the CLI
-        private static void StopServiceWithoutTray(Config config)
+        // No tray is running, so stop the service through the CLI. A listener that
+        // cannot be identified as pi-web is never killed.
+        private static bool StopServiceWithoutTray(Config config)
         {
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
+            if (owner.IsUnknown)
+            {
+                ConsoleHost.TryAttach();
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                return false;
+            }
+            if (owner.Owner == PortOwner.None) return true;
+
             ProbeResult probe = EnvironmentProbe.Detect(config);
             string script = config.ServerScript;
             if (string.IsNullOrEmpty(script) && probe.PiWebFound) script = probe.PiWebScript;
@@ -365,9 +395,18 @@ namespace PiWebTray
 
             if (Net.IsPortOpen(config.Port, 300))
             {
+                ServiceProbe.Invalidate();
+                owner = ServiceProbe.Inspect(config.Port);
+                if (!owner.IsPiWeb)
+                {
+                    ConsoleHost.TryAttach();
+                    ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                    return false;
+                }
                 Sys.KillByPort(config.Port);
                 Net.WaitPortClosed(config.Port, 5000);
             }
+            return true;
         }
 
         private static void OpenBrowser(int port)
@@ -395,12 +434,14 @@ namespace PiWebTray
         {
             bool console = ConsoleHost.TryAttach();
             ProbeResult probe = EnvironmentProbe.Detect(config);
+            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
 
             StringBuilder sb = new StringBuilder();
             sb.AppendLine(AppName + " " + Version);
             sb.AppendLine(L.T("sc.config") + " : " + config.IniPath);
             sb.AppendLine(L.T("sc.dataDir") + " : " + config.OutputDir);
             sb.AppendLine(L.T("sc.port", config.Port, Net.IsPortOpen(config.Port, 300) ? L.T("bool.yes") : L.T("bool.no")));
+            sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
             sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
             sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
             sb.AppendLine(L.T("sc.language") + " : " + L.Current);
@@ -435,7 +476,9 @@ namespace PiWebTray
             sb.AppendLine(L.T("diag.time") + " : " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.AppendLine(L.T("diag.exe") + " : " + Application.ExecutablePath);
             sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
+            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
             sb.AppendLine(L.T("sc.port", config.Port, Net.IsPortOpen(config.Port, 300) ? L.T("bool.yes") : L.T("bool.no")));
+            sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
             sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
             sb.AppendLine(L.T("sc.config") + " : " + config.IniPath);
             sb.AppendLine(L.T("sc.language") + " : " + L.Current);
@@ -519,6 +562,8 @@ namespace PiWebTray
             sb.AppendLine(L.T("help.title"));
             sb.AppendLine("  " + Line("pi-web-tray.exe", L.T("help.launch"), pad));
             sb.AppendLine("  " + Line("--autostart", L.T("help.autostart"), pad));
+            sb.AppendLine("  " + Line("--tray-only", L.T("help.trayOnly"), pad));
+            sb.AppendLine("  " + Line("--start-no-open", L.T("help.startNoOpen"), pad));
             sb.AppendLine("  " + Line("--stop", L.T("help.stop"), pad));
             sb.AppendLine("  " + Line("--quit", L.T("help.quit"), pad));
             sb.AppendLine("  " + Line("--check", L.T("help.check"), pad));

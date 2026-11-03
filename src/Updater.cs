@@ -28,6 +28,13 @@ using System.Windows.Forms;
 
 namespace PiWebTray
 {
+    internal enum ApplyStartMode
+    {
+        Tray,
+        TrayOnly,
+        ServiceSilent
+    }
+
     internal sealed class ReleaseInfo
     {
         internal string Tag = "";
@@ -492,7 +499,7 @@ namespace PiWebTray
             }
         }
 
-        internal static bool StartHelper(Config config, string staging, bool startService, bool elevated, out string error)
+        internal static bool StartHelper(Config config, string staging, ApplyStartMode mode, bool elevated, out string error)
         {
             error = "";
             string logPath = SafeFullPath(config.UpdateLogFile);
@@ -510,7 +517,7 @@ namespace PiWebTray
                 string stagingHash = ComputeStagingHash(staging);
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
-                    startService, elevated, logPath, L.Current, dataDir, stagingHash);
+                    mode, elevated, logPath, L.Current, dataDir, stagingHash);
 
                 AppendLog(logPath, "launch helper: " + helper);
                 AppendLog(logPath, "staging hash : " + stagingHash);
@@ -547,19 +554,26 @@ namespace PiWebTray
         }
 
         internal static string BuildApplyArguments(string staging, string target, int parentPid,
-            bool startService, bool elevated, string logPath, string language, string dataDir,
+            ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
             string stagingHash)
         {
             return "--apply-update "
                 + Shell.QuoteArg(staging) + " "
                 + Shell.QuoteArg(target) + " "
                 + parentPid.ToString(CultureInfo.InvariantCulture) + " "
-                + (startService ? "tray" : "tray-only") + " "
+                + ModeText(mode) + " "
                 + (elevated ? "1" : "0") + " "
                 + Shell.QuoteArg(logPath) + " "
                 + Shell.QuoteArg(language ?? "") + " "
                 + Shell.QuoteArg(dataDir) + " "
                 + Shell.QuoteArg(stagingHash);
+        }
+
+        internal static string ModeText(ApplyStartMode mode)
+        {
+            if (mode == ApplyStartMode.TrayOnly) return "tray-only";
+            if (mode == ApplyStartMode.ServiceSilent) return "service-silent";
+            return "tray";
         }
 
         // ---------------- helper mode: replace files and restart ----------------
@@ -573,11 +587,11 @@ namespace PiWebTray
             string dataDir;
             string stagingHash;
             int parentPid;
-            bool startService;
+            ApplyStartMode mode;
             bool originalElevated;
 
             if (!TryParseApplyArgs(args, out staging, out target, out parentPid,
-                out startService, out originalElevated, out logPath, out language,
+                out mode, out originalElevated, out logPath, out language,
                 out dataDir, out stagingHash))
             {
                 Application.EnableVisualStyles();
@@ -667,10 +681,11 @@ namespace PiWebTray
                 CopyFiles(staging, target, logPath);
                 AppendLog(logPath, "copy complete");
 
-                if (!Restart(target, startService, originalElevated, parentPid, logPath, dataDir))
+                if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
                 {
                     MessageBox.Show(L.T("update.error.restart"), L.T("update.applyFailedTitle"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    OfferStartAfterFailure(target, mode, logPath);
                     return 1;
                 }
 
@@ -682,6 +697,7 @@ namespace PiWebTray
                 AppendLog(logPath, "apply failed: " + ex);
                 MessageBox.Show(L.T("update.applyFailedBody", ex.Message, logPath),
                     L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                OfferStartAfterFailure(target, mode, logPath);
                 return 1;
             }
         }
@@ -713,8 +729,41 @@ namespace PiWebTray
             }
         }
 
+        private static void OfferStartAfterFailure(string target, ApplyStartMode mode, string logPath)
+        {
+            try
+            {
+                string exe = Path.Combine(target, "pi-web-tray.exe");
+                if (!File.Exists(exe)) return;
+
+                DialogResult answer = MessageBox.Show(
+                    L.T("update.startAfterFailureBody"),
+                    L.T("update.applyFailedTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button1);
+                if (answer != DialogResult.Yes) return;
+
+                string args = mode == ApplyStartMode.TrayOnly ? "--tray-only"
+                    : mode == ApplyStartMode.ServiceSilent ? "--start-no-open" : "";
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = exe;
+                psi.Arguments = args;
+                psi.WorkingDirectory = target;
+                psi.UseShellExecute = true;
+                using (Process tray = Process.Start(psi))
+                {
+                }
+                AppendLog(logPath, "started after failure: " + exe + " " + args);
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "start after failure failed: " + ex);
+            }
+        }
+
         internal static bool TryParseApplyArgs(string[] args, out string staging, out string target,
-            out int parentPid, out bool startService, out bool originalElevated,
+            out int parentPid, out ApplyStartMode mode, out bool originalElevated,
             out string logPath, out string language, out string dataDir, out string stagingHash)
         {
             staging = "";
@@ -724,7 +773,7 @@ namespace PiWebTray
             dataDir = "";
             stagingHash = "";
             parentPid = 0;
-            startService = true;
+            mode = ApplyStartMode.Tray;
             originalElevated = false;
 
             int index = -1;
@@ -750,9 +799,10 @@ namespace PiWebTray
                 return false;
             }
 
-            string mode = args[index + 4];
-            if (string.Equals(mode, "tray", StringComparison.OrdinalIgnoreCase)) startService = true;
-            else if (string.Equals(mode, "tray-only", StringComparison.OrdinalIgnoreCase)) startService = false;
+            string modeText = args[index + 4];
+            if (string.Equals(modeText, "tray", StringComparison.OrdinalIgnoreCase)) mode = ApplyStartMode.Tray;
+            else if (string.Equals(modeText, "tray-only", StringComparison.OrdinalIgnoreCase)) mode = ApplyStartMode.TrayOnly;
+            else if (string.Equals(modeText, "service-silent", StringComparison.OrdinalIgnoreCase)) mode = ApplyStartMode.ServiceSilent;
             else return false;
 
             originalElevated = string.Equals(args[index + 5], "1", StringComparison.Ordinal);
@@ -899,11 +949,12 @@ namespace PiWebTray
             return false;
         }
 
-        private static bool Restart(string target, bool startService, bool originalElevated,
+        private static bool Restart(string target, ApplyStartMode mode, bool originalElevated,
             int parentPid, string logPath, string dataDir)
         {
             string exe = Path.Combine(target, "pi-web-tray.exe");
-            string arguments = startService ? "" : "--autostart";
+            string arguments = mode == ApplyStartMode.TrayOnly ? "--tray-only"
+                : mode == ApplyStartMode.ServiceSilent ? "--start-no-open" : "";
             bool helperElevated = Elevation.IsElevated();
 
             // An elevated helper would normally create an elevated child. In the common
@@ -913,30 +964,48 @@ namespace PiWebTray
             //
             // Explorer does not preserve PI_WEB_TRAY_* overrides, so skip this path when
             // the current instance uses a custom data directory, port or language.
-            if (!originalElevated && helperElevated && arguments.Length == 0 && !HasCustomEnvironment())
+            if (!originalElevated && helperElevated && !HasCustomEnvironment())
             {
+                string cmdPath = null;
                 try
                 {
-                    AppendLog(logPath, "restart via explorer (de-elevate)");
-                    ProcessStartInfo viaExplorer = new ProcessStartInfo();
-                    viaExplorer.FileName = "explorer.exe";
-                    viaExplorer.Arguments = Shell.QuoteArg(exe);
-                    viaExplorer.WorkingDirectory = target;
-                    viaExplorer.UseShellExecute = true;
-                    using (Process explorer = Process.Start(viaExplorer))
+                    if (arguments.Length == 0)
                     {
+                        AppendLog(logPath, "restart via explorer (de-elevate)");
+                        ProcessStartInfo viaExplorer = new ProcessStartInfo();
+                        viaExplorer.FileName = "explorer.exe";
+                        viaExplorer.Arguments = Shell.QuoteArg(exe);
+                        viaExplorer.WorkingDirectory = target;
+                        viaExplorer.UseShellExecute = true;
+                        using (Process explorer = Process.Start(viaExplorer))
+                        {
+                        }
+                    }
+                    else
+                    {
+                        cmdPath = LaunchViaExplorerCommand(dataDir, target, arguments, logPath);
                     }
 
-                    if (WaitForNewTray(dataDir, parentPid, 10000))
+                    if (arguments.Length == 0 || cmdPath != null)
                     {
-                        AppendLog(logPath, "new tray observed after explorer restart");
-                        return true;
+                        if (WaitForNewTray(dataDir, parentPid, 10000))
+                        {
+                            AppendLog(logPath, "new tray observed after explorer restart");
+                            return true;
+                        }
+                        AppendLog(logPath, "explorer restart not observed; falling back");
                     }
-                    AppendLog(logPath, "explorer restart not observed; falling back");
                 }
                 catch (Exception ex)
                 {
                     AppendLog(logPath, "explorer restart failed: " + ex.Message);
+                }
+                finally
+                {
+                    if (cmdPath != null)
+                    {
+                        try { File.Delete(cmdPath); } catch (Exception) { }
+                    }
                 }
             }
 
@@ -957,6 +1026,46 @@ namespace PiWebTray
             {
                 AppendLog(logPath, "restart failed: " + ex);
                 return false;
+            }
+        }
+
+        // Explorer cannot pass command-line arguments to the new tray. A temporary
+        // batch file lets Explorer start the app with the same medium token and the
+        // required --tray-only / --start-no-open flag.
+        private static string LaunchViaExplorerCommand(string dataDir, string target,
+            string arguments, string logPath)
+        {
+            try
+            {
+                string exe = Path.Combine(target, "pi-web-tray.exe");
+                string safeTarget = target.Replace("%", "%%");
+                string safeExe = exe.Replace("%", "%%");
+                string cmdPath = Path.Combine(dataDir,
+                    ".pi-web-tray-restart-" + Guid.NewGuid().ToString("N") + ".cmd");
+
+                string content = "@echo off\r\n"
+                    + "cd /d " + Shell.QuoteArg(safeTarget) + "\r\n"
+                    + "start \"\" " + Shell.QuoteArg(safeExe) + " " + arguments + "\r\n"
+                    + "del /f /q \"%~f0\" >nul 2>&1\r\n";
+
+                Directory.CreateDirectory(dataDir);
+                File.WriteAllText(cmdPath, content, Encoding.Default);
+                AppendLog(logPath, "restart command: " + cmdPath);
+
+                ProcessStartInfo viaExplorer = new ProcessStartInfo();
+                viaExplorer.FileName = "explorer.exe";
+                viaExplorer.Arguments = Shell.QuoteArg(cmdPath);
+                viaExplorer.WorkingDirectory = target;
+                viaExplorer.UseShellExecute = true;
+                using (Process explorer = Process.Start(viaExplorer))
+                {
+                }
+                return cmdPath;
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "explorer command failed: " + ex.Message);
+                return null;
             }
         }
 
@@ -1052,10 +1161,30 @@ namespace PiWebTray
             HttpWebResponse response = ex.Response as HttpWebResponse;
             if (response != null)
             {
-                try { return L.T("update.error.http", (int)response.StatusCode); }
-                finally { response.Close(); }
+                try
+                {
+                    int code = (int)response.StatusCode;
+                    if (code == 403) return L.T("update.error.rateLimit");
+                    if (code == 404) return L.T("update.error.notFound");
+                    if (code >= 500) return L.T("update.error.server");
+                    return L.T("update.error.http", code);
+                }
+                finally
+                {
+                    response.Close();
+                }
             }
-            return ex.Message;
+
+            switch (ex.Status)
+            {
+                case WebExceptionStatus.NameResolutionFailure:
+                case WebExceptionStatus.ProxyNameResolutionFailure:
+                case WebExceptionStatus.ConnectFailure:
+                case WebExceptionStatus.Timeout:
+                    return L.T("update.error.network");
+                default:
+                    return ex.Message;
+            }
         }
 
         internal static void AppendLog(string path, string line)
