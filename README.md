@@ -148,7 +148,7 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Update pi-web dependencies
+Update pi-web / pi dependencies
 Update Pi Web Tray
 Download Node.js...
 ---------------------------------------
@@ -181,8 +181,11 @@ Exit (stop pi-web)
 - Start at login uses either `HKCU\...\Run` or an on-logon scheduled task. The tray and
   pi-web start without opening a browser; the two modes are mutually exclusive. The
   administrator mode requires the same account to be an administrator.
-- **Update pi-web dependencies** installs or updates the npm packages. A confirmation is
-  shown before a force reinstall, and a progress window provides a Cancel button.
+- **Update pi-web / pi dependencies** stops pi-web first (npm cannot replace a running
+  package), then installs or updates the npm packages. A confirmation is shown before a
+  force reinstall, and a progress window provides a Cancel button. pi is included only
+  when `InstallPiCli=1`. If pi-web was running, it is started again afterwards without
+  opening a browser.
 - **Update Pi Web Tray** downloads the latest GitHub release, verifies its SHA-256
   checksum, stops pi-web, replaces the application files and restarts the tray. It
   preserves whether pi-web was running and does not open a new browser tab. Files that

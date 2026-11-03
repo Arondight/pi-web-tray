@@ -79,7 +79,7 @@
     <value>重新啟動服務</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>更新 pi-web 相依套件</value>
+    <value>更新 pi-web / pi 相依套件</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>安裝 pi-web 相依套件</value>
@@ -313,7 +313,7 @@
     <value>未找到 pi-web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表中的「更新 pi-web 相依套件」。</value>
+    <value>請使用系統匣功能表中的「更新 pi-web / pi 相依套件」。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>無法啟動 Pi Web</value>
@@ -360,7 +360,7 @@
     <value>pi-web 尚未安裝</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表中的「更新 pi-web 相依套件」。</value>
+    <value>請使用系統匣功能表中的「更新 pi-web / pi 相依套件」。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>無法安裝：缺少 Node.js</value>
@@ -1060,10 +1060,10 @@
     <value>Pi Web Tray {0} 已可使用。請選擇系統匣功能表進行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>更新 pi-web 相依套件</value>
+    <value>更新 pi-web / pi 相依套件</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>現在重新安裝或更新 pi-web 相依套件嗎？這可能需要幾分鐘。</value>
+    <value>現在重新安裝或更新 pi-web 和 pi 嗎？pi-web 會暫時停止，這可能需要幾分鐘。</value>
   </data>
   <data name="log.close" xml:space="preserve">
     <value>關閉</value>

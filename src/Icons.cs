@@ -10,6 +10,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.IO;
+using System.Windows.Forms;
 
 namespace PiWebTray
 {
@@ -25,6 +26,30 @@ namespace PiWebTray
         // would leak the stream and re-draw the bitmaps every time.
         private static readonly Dictionary<Color, Icon> Cache = new Dictionary<Color, Icon>();
         private static readonly object CacheLock = new object();
+
+        // Window/taskbar icon. Use the icon embedded in the executable so taskbar
+        // buttons match the application icon. The icon is shared and disposed with
+        // the cache when the tray exits; WinForms does not take ownership of Form.Icon.
+        private static Icon _windowIcon;
+
+        internal static Icon WindowIcon()
+        {
+            lock (CacheLock)
+            {
+                if (_windowIcon == null)
+                {
+                    try { _windowIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
+                    catch (Exception) { }
+                    if (_windowIcon == null)
+                    {
+                        try { _windowIcon = (Icon)Create(RunningColor).Clone(); }
+                        catch (Exception) { }
+                    }
+                    if (_windowIcon == null) _windowIcon = (Icon)SystemIcons.Application.Clone();
+                }
+                return _windowIcon;
+            }
+        }
 
         internal static Icon Create(Color background)
         {
@@ -48,6 +73,11 @@ namespace PiWebTray
                     try { icon.Dispose(); } catch (Exception) { }
                 }
                 Cache.Clear();
+                if (_windowIcon != null)
+                {
+                    try { _windowIcon.Dispose(); } catch (Exception) { }
+                    _windowIcon = null;
+                }
             }
         }
 

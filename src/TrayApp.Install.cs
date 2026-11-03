@@ -17,6 +17,11 @@ namespace PiWebTray
     {
         private void BeginInstall(bool force)
         {
+            if (_installAfterStop)
+            {
+                _installAfterStopForce = _installAfterStopForce || force;
+                return;
+            }
             if (_phase == Phase.Installing) return;
 
             // The first probe can still be in flight (user clicked the menu immediately after
@@ -50,6 +55,22 @@ namespace PiWebTray
             if (packages.Count == 0)
             {
                 BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+                return;
+            }
+
+            // npm cannot replace a globally installed package while its node process is
+            // running. Stop pi-web first, then continue with the same requested mode.
+            if (InstallNeedsStop())
+            {
+                _installAfterStop = true;
+                _installAfterStopForce = force;
+                _installRestartService = true;
+                _pendingRestart = false;
+                _pendingOpenBrowser = false;
+
+                StopServer();
+                if (_phase == Phase.Stopped) ContinueInstallAfterStop();
+                else if (_phase != Phase.Stopping) AbortInstallAfterStop(false);
                 return;
             }
 
@@ -101,6 +122,8 @@ namespace PiWebTray
             }
 
             bool cancelled = _installForm != null && _installForm.Cancelled;
+            bool restartService = _installRestartService;
+            _installRestartService = false;
             CloseInstallForm();
 
             if (result == null)
@@ -109,6 +132,7 @@ namespace PiWebTray
                 UpdateUi();
                 if (cancelled)
                     NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
+                if (restartService) RestoreServiceAfterInstall();
                 return;
             }
 
@@ -117,13 +141,15 @@ namespace PiWebTray
                 Notify(L.T("install.doneTitle"), result.Message);
                 // Re-probe before starting so paths and versions are current. In autostart
                 // mode this must not turn into "start the service": login shows the tray only.
-                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+                if (restartService) BeginEnvironmentCheck(true, false);
+                else BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
             }
             else if (cancelled)
             {
                 _phase = Phase.NeedsDeps;
                 UpdateUi();
                 NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
+                if (restartService) RestoreServiceAfterInstall();
             }
             else
             {
@@ -131,6 +157,52 @@ namespace PiWebTray
                 UpdateUi();
                 NotifyError(L.T("install.failedTitle"), result.Message,
                     delegate { ShowLog(_config.InstallLogFile, L.T("menu.installLog")); });
+                if (restartService) RestoreServiceAfterInstall();
+            }
+        }
+
+        private bool InstallNeedsStop()
+        {
+            if (_phase == Phase.Running) return true;
+            if (!Net.IsPortOpen(_port, 200)) return false;
+
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            return owner.IsPiWeb || TrayOwnsPort();
+        }
+
+        private void ContinueInstallAfterStop()
+        {
+            if (!_installAfterStop) return;
+            bool force = _installAfterStopForce;
+            _installAfterStop = false;
+            _installAfterStopForce = false;
+            BeginInstall(force);
+        }
+
+        private void AbortInstallAfterStop(bool notify)
+        {
+            if (!_installAfterStop) return;
+            _installAfterStop = false;
+            _installAfterStopForce = false;
+            _installRestartService = false;
+            Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: pi-web is still running");
+            if (notify && _phase != Phase.PortConflict)
+            {
+                NotifyWarning(L.T("notify.stopFailedTitle"), L.T("notify.stopFailedBody", _port));
+            }
+        }
+
+        private void RestoreServiceAfterInstall()
+        {
+            if (_probe != null && _probe.Ready)
+            {
+                _phase = Phase.Stopped;
+                StartServer(false);
+            }
+            else
+            {
+                BeginEnvironmentCheck(true, false);
             }
         }
 

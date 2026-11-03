@@ -104,6 +104,9 @@ namespace PiWebTray
         private bool _checkPendingOpenBrowser;
         private bool _installAfterCheck;
         private bool _installAfterCheckForce;
+        private bool _installAfterStop;
+        private bool _installAfterStopForce;
+        private bool _installRestartService;
 
         // install (background -> UI thread)
         private readonly object _installLock = new object();
@@ -122,6 +125,7 @@ namespace PiWebTray
         private DateTime _stopDeadline;
         private DateTime _lastSignalHandled = DateTime.MinValue;
         private DateTime _stopEscalatedAt = DateTime.MinValue;
+        private volatile bool _stopWorkerRunning;
         private DateTime _autoRestartAt = DateTime.MinValue;
         private int _autoRestartAttempts;
         private DateTime _lastOwnerCheck = DateTime.MinValue;

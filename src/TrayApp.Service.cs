@@ -94,9 +94,18 @@ namespace PiWebTray
         {
             if (!Net.IsPortOpen(_port, 200))
             {
+                // The stop command can still hold the package directory after the port
+                // closes. Do not start npm or a restart until its worker has exited.
+                if (_stopWorkerRunning) return;
+
                 ServiceProbe.Invalidate();
                 _phase = Phase.Stopped;
                 UpdateUi();
+                if (_installAfterStop)
+                {
+                    ContinueInstallAfterStop();
+                    return;
+                }
                 if (_pendingRestart)
                 {
                     _pendingRestart = false;
@@ -127,6 +136,7 @@ namespace PiWebTray
                         _phase = Phase.PortConflict;
                         _pendingRestart = false;
                         _pendingOpenBrowser = false;
+                        AbortInstallAfterStop(false);
                         UpdateUi();
                         NotifyPortConflict();
                     }
@@ -136,6 +146,7 @@ namespace PiWebTray
                     _phase = Phase.Running;
                     _pendingRestart = false;
                     _pendingOpenBrowser = false;
+                    AbortInstallAfterStop(false);
                     UpdateUi();
                     NotifyError(L.T("notify.stopFailedTitle"), L.T("notify.stopFailedBody", _port));
                 }
@@ -486,9 +497,21 @@ namespace PiWebTray
 
             if (!string.IsNullOrEmpty(script) && File.Exists(script))
             {
-                Thread worker = new Thread(delegate () { StopWithCli(script); });
+                _stopWorkerRunning = true;
+                Thread worker = new Thread(delegate ()
+                {
+                    try { StopWithCli(script); }
+                    finally { _stopWorkerRunning = false; }
+                });
                 worker.IsBackground = true;
-                worker.Start();
+                try
+                {
+                    worker.Start();
+                }
+                catch (Exception)
+                {
+                    _stopWorkerRunning = false;
+                }
             }
             else
             {

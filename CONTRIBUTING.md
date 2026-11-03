@@ -62,6 +62,8 @@ Before a release, manually check:
 - log pause/resume and filtering;
 - update cancellation while a download is in progress;
 - update while pi-web is stopped (service restart after the update);
+- dependency update while pi-web is running (service must stop before npm runs);
+- pi CLI version changes after a forced dependency update;
 - stale-file cleanup from a release manifest;
 - Windows 7 SP1 + .NET Framework 4.8 when changing OS-facing code.
 

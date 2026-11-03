@@ -33,7 +33,7 @@ namespace PiWebTray
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(560, 190);
-            Icon = SystemIcons.Application;
+            Icon = Icons.WindowIcon();
 
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
