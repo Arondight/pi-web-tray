@@ -37,6 +37,7 @@ namespace PiWebTray
             VersionCompareTests();
             VersionParseTests();
             ClipTests();
+            PathSplitTests();
             NodeDownloadTests();
             QuoteTests();
             IniReadTests();
@@ -117,6 +118,15 @@ namespace PiWebTray
             CheckEqual("clip tiny budget", 3, Shell.Clip(new string('x', 10), 3).Length);
         }
 
+        private static void PathSplitTests()
+        {
+            List<string> dirs = EnvironmentProbe.SplitPath(" C:\\a ;\"C:\\b\";;c:\\A ");
+            CheckEqual("path split count", 2, dirs.Count);
+            CheckEqual("path split first", "C:\\a", dirs[0]);
+            CheckEqual("path split second", "C:\\b", dirs[1]);
+            CheckEqual("path split empty", 0, EnvironmentProbe.SplitPath("").Count);
+        }
+
         private static void NodeDownloadTests()
         {
             CheckEqual("Windows 7 Node.js download", NodeDownloads.Windows7Or8Url,
@@ -150,6 +160,14 @@ namespace PiWebTray
             Check("console hint carries the download url",
                 L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Windows7Or8Url)
                     .Contains(NodeDownloads.Windows7Or8Url));
+
+            string missingBody = L.T("node.missingBody", "Node.js was not found",
+                ProbeResult.NodeMinimum, NodeDownloads.DefaultUrl);
+            Check("missing Node prompt carries the minimum version",
+                missingBody.Contains(ProbeResult.NodeMinimum));
+            Check("missing Node prompt carries the download url",
+                missingBody.Contains(NodeDownloads.DefaultUrl));
+            Check("missing Node prompt keeps the reason", missingBody.Contains("was not found"));
         }
 
         private static void QuoteTests()

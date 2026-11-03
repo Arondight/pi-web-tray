@@ -87,6 +87,7 @@ namespace PiWebTray
 
         private Phase _phase = Phase.Checking;
         private ProbeResult _probe;
+        private bool _firstCheck = true;
         private Color _iconColor = Color.Empty;
         private Icon _currentIcon;
         private string _lastNotified = "";

@@ -74,6 +74,7 @@ namespace PiWebTray
             }
 
             ApplyCheckResult(result, thenStart, openBrowser);
+            if (_exiting) return;
 
             // A menu click asked to install before the first probe had finished. The probe has
             // just supplied the paths/versions the installer needs, so run it now.
@@ -124,6 +125,9 @@ namespace PiWebTray
                 return;
             }
 
+            bool firstCheck = _firstCheck;
+            _firstCheck = false;
+
             _probe = result;
             _config.NodePath = result.NodePath;
             if (result.PiWebFound) _config.ServerScript = result.PiWebScript;
@@ -132,6 +136,14 @@ namespace PiWebTray
             {
                 _phase = Phase.NeedsNode;
                 UpdateUi();
+                if (firstCheck)
+                {
+                    // Nothing useful can run without Node.js, and a tray that stays behind
+                    // keeps a stale environment (PATH/PATH from logon), so ask once, offer
+                    // the download page and exit instead of sitting in a broken state.
+                    ShowMissingNodeAndExit(result);
+                    return;
+                }
                 NotifyWarningOnce("needs-node",
                     L.T("notify.needsNodeTitle", ProbeResult.NodeMinimum),
                     L.T("notify.needsNodeBody", result.NodeIssue()));
@@ -164,6 +176,39 @@ namespace PiWebTray
             _phase = ResolveServicePhase();
             UpdateUi();
             if (_phase == Phase.PortConflict) NotifyPortConflict();
+        }
+
+        private void ShowMissingNodeAndExit(ProbeResult result)
+        {
+            Version version = WindowsVersion.Current;
+            bool community = NodeDownloads.UsesCommunityBuild(version);
+
+            // The community build is 64-bit only, so a 32-bit legacy system has nothing
+            // to install; explain that and exit instead of opening a page without binaries.
+            if (community && !Environment.Is64BitOperatingSystem)
+            {
+                MessageBox.Show(
+                    L.T("node.unsupportedBody"),
+                    L.T("node.unsupportedTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                ExitWithoutStoppingService();
+                return;
+            }
+
+            string url = NodeDownloads.UrlFor(version);
+            string body = L.T("node.missingBody", result.NodeIssue(), ProbeResult.NodeMinimum, url);
+            if (community) body += "\r\n\r\n" + L.T("node.communityNote");
+
+            DialogResult answer = MessageBox.Show(
+                body,
+                L.T("node.missingTitle"),
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning,
+                MessageBoxDefaultButton.Button1);
+            if (answer == DialogResult.Yes) OpenUrl(url);
+
+            ExitWithoutStoppingService();
         }
 
         private void RunSelfCheck()

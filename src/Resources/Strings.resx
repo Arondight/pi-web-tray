@@ -101,6 +101,19 @@ Continue?</value>
   <data name="node.unsupportedBody" xml:space="preserve">
     <value>This 32-bit Windows version has no Node.js 22 build, and pi-web requires Node.js 22.19 or newer. Use a 64-bit system, or install Node.js 22 manually from another source.</value>
   </data>
+  <data name="node.missingTitle" xml:space="preserve">
+    <value>Node.js is required</value>
+  </data>
+  <data name="node.missingBody" xml:space="preserve">
+    <value>{0}.
+
+Pi Web Tray needs Node.js {1} or newer. Open the download page?
+
+{2}</value>
+  </data>
+  <data name="node.communityNote" xml:space="preserve">
+    <value>Windows 7 and 8 builds are unsigned community builds; this project cannot verify them.</value>
+  </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>Environment check</value>
   </data>

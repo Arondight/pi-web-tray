@@ -44,8 +44,9 @@ Windows 7 和 Windows 8.1 已停止微软支持，使用风险由用户自行承
    `zh-Hans` / `zh-Hant` 目录放在同一目录。
 3. 运行 `pi-web-tray.exe`。
 
-首次启动会检查环境、安装缺失依赖、启动 pi-web 并打开浏览器。配置与日志
-（`server.log`、`install.log`、`update.log`）默认在可执行文件同目录；位于
+首次启动会检查环境、安装缺失依赖、启动 pi-web 并打开浏览器。若缺少 Node.js，
+程序会说明所需版本、提供下载页并退出；安装 Node.js 22.19+ 后重新运行即可。
+配置与日志（`server.log`、`install.log`、`update.log`）默认在可执行文件同目录；位于
 `Program Files` 等受保护目录时改在 `%LOCALAPPDATA%\pi-web-tray`。
 `pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
 
@@ -141,17 +142,17 @@ build.cmd
 
 ## 故障排查
 
-| 现象                       | 处理方法                                                                                |
-| -------------------------- | --------------------------------------------------------------------------------------- |
-| 蓝色图标，提示需要 Node.js | 安装 Node.js 22.19+ 后点击托盘图标；自动检测失败时设置 `NodePath`。                     |
-| 安装失败                   | 查看 `install.log`：npm 全局目录不可写、`InstallTag` 无效、代理或网络问题。             |
-| 更新失败                   | 查看 `update.log`：常见原因是取消 UAC、代理或网络；可重新执行 **更新 Pi Web Tray**。    |
-| 红色图标，端口冲突         | 其他程序占用了端口，请在 **设置** 中换一个空闲端口；托盘不会杀掉它。                    |
-| 红色图标，服务失败         | 查看 `server.log`：`EADDRINUSE` 表示端口冲突，`Cannot find module` 通常表示安装不完整。 |
-| `Cannot launch conpty`     | ConPTY 需要 Windows 10 1809+；Node.js 可用的环境下聊天和工具仍可使用。                  |
-| 开机自启动无效             | 检查托盘菜单状态，然后检查 `HKCU\...\Run` 或 `schtasks /query /tn PiWebTray`。          |
-| Windows 7 无法启动         | 从上方链接安装 .NET Framework 4.8，并确认 `pi-web-tray.exe.config` 与可执行文件同目录。 |
-| 需要更多诊断               | 执行 `pi-web-tray.exe --diag` 查看 `diag.txt`；托盘崩溃时查看 `crash.log`。             |
+| 现象                   | 处理方法                                                                                       |
+| ---------------------- | ---------------------------------------------------------------------------------------------- |
+| 提示需要 Node.js       | 程序会提供下载页并退出；安装 Node.js 22.19+ 后重新运行。仍检测不到时在 ini 中设置 `NodePath`。 |
+| 安装失败               | 查看 `install.log`：npm 全局目录不可写、`InstallTag` 无效、代理或网络问题。                    |
+| 更新失败               | 查看 `update.log`：常见原因是取消 UAC、代理或网络；可重新执行 **更新 Pi Web Tray**。           |
+| 红色图标，端口冲突     | 其他程序占用了端口，请在 **设置** 中换一个空闲端口；托盘不会杀掉它。                           |
+| 红色图标，服务失败     | 查看 `server.log`：`EADDRINUSE` 表示端口冲突，`Cannot find module` 通常表示安装不完整。        |
+| `Cannot launch conpty` | ConPTY 需要 Windows 10 1809+；Node.js 可用的环境下聊天和工具仍可使用。                         |
+| 开机自启动无效         | 检查托盘菜单状态，然后检查 `HKCU\...\Run` 或 `schtasks /query /tn PiWebTray`。                 |
+| Windows 7 无法启动     | 从上方链接安装 .NET Framework 4.8，并确认 `pi-web-tray.exe.config` 与可执行文件同目录。        |
+| 需要更多诊断           | 执行 `pi-web-tray.exe --diag` 查看 `diag.txt`；托盘崩溃时查看 `crash.log`。                    |
 
 ## 安全与限制
 

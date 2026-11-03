@@ -101,6 +101,19 @@
   <data name="node.unsupportedBody" xml:space="preserve">
     <value>此 32 位元 Windows 沒有 Node.js 22 建置，而 pi-web 需要 Node.js 22.19 或更高版本。請使用 64 位元系統，或從其他來源手動安裝 Node.js 22。</value>
   </data>
+  <data name="node.missingTitle" xml:space="preserve">
+    <value>需要 Node.js</value>
+  </data>
+  <data name="node.missingBody" xml:space="preserve">
+    <value>{0}。
+
+Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
+
+{2}</value>
+  </data>
+  <data name="node.communityNote" xml:space="preserve">
+    <value>Windows 7/8 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
+  </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>環境檢查</value>
   </data>

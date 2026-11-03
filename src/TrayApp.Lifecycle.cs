@@ -111,6 +111,18 @@ namespace PiWebTray
             ExitThread();
         }
 
+        // First start without Node.js: leave any other pi-web instance alone and just
+        // shut down the tray that never managed to start its own service.
+        private void ExitWithoutStoppingService()
+        {
+            if (_exiting) return;
+            _exiting = true;
+            try { _timer.Stop(); } catch (Exception) { }
+            TrayState.Delete();
+            Cleanup();
+            ExitThread();
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing) Cleanup();

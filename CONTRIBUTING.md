@@ -56,6 +56,7 @@ Before a release, manually check:
 
 - tray icon states: checking / needs Node / installing / starting / running / stopping / failed;
 - install start, finish and failure notifications;
+- first start without Node.js (dialogue, download page, tray exits);
 - start-at-login in both normal and admin mode;
 - elevated takeover;
 - high-DPI scaling and the Settings window on a small screen;

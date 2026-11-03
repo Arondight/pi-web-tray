@@ -357,16 +357,17 @@ namespace PiWebTray
 
         // ---------------- helpers ----------------
 
+        // Installing Node.js updates the registry PATH, not this process (or the Explorer
+        // that launched it). Read all three sources so a custom install directory is found
+        // without signing out and in again.
         private static string FindOnPath(string fileName)
         {
-            string path = Environment.GetEnvironmentVariable("PATH");
-            if (string.IsNullOrEmpty(path)) return null;
-            foreach (string dir in path.Split(';'))
+            List<string> directories = PathDirectories();
+            foreach (string dir in directories)
             {
-                if (dir.Trim().Length == 0) continue;
                 try
                 {
-                    string candidate = Path.Combine(dir.Trim(), fileName);
+                    string candidate = Path.Combine(dir, fileName);
                     if (File.Exists(candidate)) return candidate;
                 }
                 catch (Exception)
@@ -374,6 +375,55 @@ namespace PiWebTray
                 }
             }
             return null;
+        }
+
+        private static List<string> PathDirectories()
+        {
+            List<string> directories = new List<string>();
+            AddPathDirectories(directories, EnvironmentVariableTarget.Process);
+            AddPathDirectories(directories, EnvironmentVariableTarget.User);
+            AddPathDirectories(directories, EnvironmentVariableTarget.Machine);
+            return directories;
+        }
+
+        private static void AddPathDirectories(List<string> directories, EnvironmentVariableTarget target)
+        {
+            try
+            {
+                string path = Environment.GetEnvironmentVariable("PATH", target);
+                if (string.IsNullOrEmpty(path)) return;
+                foreach (string dir in SplitPath(path))
+                {
+                    if (!ContainsDirectory(directories, dir)) directories.Add(dir);
+                }
+            }
+            catch (Exception)
+            {
+                // A restricted process may not be allowed to read the registry PATH.
+            }
+        }
+
+        // Split a PATH value: trim spaces and quotes, expand %ENV% and drop duplicates.
+        internal static List<string> SplitPath(string value)
+        {
+            List<string> directories = new List<string>();
+            if (string.IsNullOrEmpty(value)) return directories;
+            foreach (string raw in value.Split(';'))
+            {
+                string dir = Environment.ExpandEnvironmentVariables(raw).Trim().Trim('"');
+                if (dir.Length == 0) continue;
+                if (ContainsDirectory(directories, dir)) continue;
+                directories.Add(dir);
+            }
+            return directories;
+        }
+
+        private static bool ContainsDirectory(List<string> directories, string dir)
+        {
+            return directories.Exists(delegate (string item)
+            {
+                return string.Equals(item, dir, StringComparison.OrdinalIgnoreCase);
+            });
         }
 
         // Walk up from the script path to find package.json and read its version

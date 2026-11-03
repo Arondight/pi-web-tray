@@ -47,7 +47,9 @@ Windows 8.1 are out of Microsoft support; use them at your own risk.
 3. Run `pi-web-tray.exe`.
 
 On first start the app checks the environment, installs what is missing, starts pi-web
-and opens the browser. Configuration and logs (`server.log`, `install.log`,
+and opens the browser. If Node.js is missing, it explains what is required, offers the
+download page and exits; install Node.js 22.19+ and run it again. Configuration and logs
+(`server.log`, `install.log`,
 `update.log`) live next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` when the
 executable is in a protected directory such as `Program Files`. The
 `pi-web-tray.files.txt` manifest is used by future updates to remove dropped files; do
@@ -148,17 +150,17 @@ restores MSTest. Close a running `pi-web-tray.exe` before building.
 
 ## Troubleshooting
 
-| Symptom                                 | Action                                                                                                   |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Blue icon, Node.js required             | Install Node.js 22.19+, then click the icon. Set `NodePath` if detection fails.                          |
-| Installation failed                     | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                      |
-| Update failed                           | Check `update.log`: cancelled UAC, proxy or network; retry **Update Pi Web Tray**.                       |
-| Red icon, port conflict                 | Another program owns the port; choose a free one in **Settings**. The tray never kills it.               |
-| Red icon, service failed                | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.        |
-| `Cannot launch conpty`                  | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                             |
-| Start at login does not work            | Check the tray menu, then `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                             |
-| Application does not start on Windows 7 | Install .NET Framework 4.8 from the link above and keep `pi-web-tray.exe.config` next to the executable. |
-| More diagnostics                        | Run `pi-web-tray.exe --diag`; see `diag.txt`. A crashed tray logs to `crash.log`.                        |
+| Symptom                                 | Action                                                                                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| "Node.js is required" on startup        | The app offers the download page and exits. Install Node.js 22.19+, then run it again; set `NodePath` if detection still fails. |
+| Installation failed                     | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                                             |
+| Update failed                           | Check `update.log`: cancelled UAC, proxy or network; retry **Update Pi Web Tray**.                                              |
+| Red icon, port conflict                 | Another program owns the port; choose a free one in **Settings**. The tray never kills it.                                      |
+| Red icon, service failed                | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.                               |
+| `Cannot launch conpty`                  | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                                                    |
+| Start at login does not work            | Check the tray menu, then `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                                    |
+| Application does not start on Windows 7 | Install .NET Framework 4.8 from the link above and keep `pi-web-tray.exe.config` next to the executable.                        |
+| More diagnostics                        | Run `pi-web-tray.exe --diag`; see `diag.txt`. A crashed tray logs to `crash.log`.                                               |
 
 ## Security and limitations
 
