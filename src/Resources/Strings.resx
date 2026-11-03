@@ -313,7 +313,7 @@
     <value>pi-web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the tray menu and select Update pi-web / pi dependencies.</value>
+    <value>Use the tray menu to update dependencies.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start Pi Web</value>
@@ -360,7 +360,7 @@ Exit anyway?</value>
     <value>pi-web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>Use the tray menu and select Update pi-web / pi dependencies.</value>
+    <value>Use the tray menu to update dependencies.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -1142,5 +1142,14 @@ See {1} for details.</value>
   </data>
   <data name="log.noMatches" xml:space="preserve">
     <value>No lines match "{0}".</value>
+  </data>
+  <data name="menu.installDepsPiOnly" xml:space="preserve">
+    <value>Update pi-web dependencies</value>
+  </data>
+  <data name="install.confirmTitlePiOnly" xml:space="preserve">
+    <value>Update pi-web dependencies</value>
+  </data>
+  <data name="install.confirmBodyPiOnly" xml:space="preserve">
+    <value>Reinstall or update pi-web now? pi-web will be stopped temporarily. This can take several minutes.</value>
   </data>
 </root>

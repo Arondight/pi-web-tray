@@ -28,8 +28,9 @@ namespace PiWebTray
         private static readonly object CacheLock = new object();
 
         // Window/taskbar icon. Use the icon embedded in the executable so taskbar
-        // buttons match the application icon. The icon is shared and disposed with
-        // the cache when the tray exits; WinForms does not take ownership of Form.Icon.
+        // buttons match the application icon. The icon is shared for the process
+        // lifetime; WinForms does not take ownership of Form.Icon, and a modal dialog
+        // can still be open while the tray starts its cleanup.
         private static Icon _windowIcon;
 
         internal static Icon WindowIcon()
@@ -73,11 +74,8 @@ namespace PiWebTray
                     try { icon.Dispose(); } catch (Exception) { }
                 }
                 Cache.Clear();
-                if (_windowIcon != null)
-                {
-                    try { _windowIcon.Dispose(); } catch (Exception) { }
-                    _windowIcon = null;
-                }
+                // Do not dispose _windowIcon here: modal dialogs can still be open
+                // while the tray is cleaning up. The process exit releases the handle.
             }
         }
 

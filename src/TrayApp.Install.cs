@@ -168,7 +168,15 @@ namespace PiWebTray
 
             ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            return owner.IsPiWeb || TrayOwnsPort();
+            return ShouldStopServiceForInstall(_phase, true, owner.IsPiWeb, TrayOwnsPort());
+        }
+
+        internal static bool ShouldStopServiceForInstall(Phase phase, bool portOpen,
+            bool ownerIsPiWeb, bool ownedByTray)
+        {
+            if (phase == Phase.Running) return true;
+            if (!portOpen) return false;
+            return ownerIsPiWeb || ownedByTray;
         }
 
         private void ContinueInstallAfterStop()
@@ -257,9 +265,13 @@ namespace PiWebTray
         {
             if (_probe != null && _probe.Ready)
             {
+                string title = _config.InstallPiCli
+                    ? L.T("install.confirmTitle") : L.T("install.confirmTitlePiOnly");
+                string body = _config.InstallPiCli
+                    ? L.T("install.confirmBody") : L.T("install.confirmBodyPiOnly");
                 DialogResult answer = MessageBox.Show(
-                    L.T("install.confirmBody"),
-                    L.T("install.confirmTitle"),
+                    body,
+                    title,
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question,
                     MessageBoxDefaultButton.Button2);

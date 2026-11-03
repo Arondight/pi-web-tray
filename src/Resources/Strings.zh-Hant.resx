@@ -313,7 +313,7 @@
     <value>未找到 pi-web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表中的「更新 pi-web / pi 相依套件」。</value>
+    <value>請使用系統匣功能表更新相依套件。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>無法啟動 Pi Web</value>
@@ -360,7 +360,7 @@
     <value>pi-web 尚未安裝</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表中的「更新 pi-web / pi 相依套件」。</value>
+    <value>請使用系統匣功能表更新相依套件。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>無法安裝：缺少 Node.js</value>
@@ -1142,5 +1142,14 @@
   </data>
   <data name="log.noMatches" xml:space="preserve">
     <value>沒有符合「{0}」的行。</value>
+  </data>
+  <data name="menu.installDepsPiOnly" xml:space="preserve">
+    <value>更新 pi-web 相依套件</value>
+  </data>
+  <data name="install.confirmTitlePiOnly" xml:space="preserve">
+    <value>更新 pi-web 相依套件</value>
+  </data>
+  <data name="install.confirmBodyPiOnly" xml:space="preserve">
+    <value>現在重新安裝或更新 pi-web 嗎？pi-web 會暫時停止，這可能需要幾分鐘。</value>
   </data>
 </root>

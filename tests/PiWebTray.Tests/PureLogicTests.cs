@@ -45,6 +45,7 @@ namespace PiWebTray
             InstallArgumentsTests();
             SafeTagTests();
             UpdateTests();
+            InstallServiceStopTests();
             UpdateCancellationTests();
             UpdateCopyTests();
             UpdateTargetTests();
@@ -478,6 +479,20 @@ namespace PiWebTray
             {
                 try { File.Delete(updateLogPath); } catch (Exception) { }
             }
+        }
+
+        private static void InstallServiceStopTests()
+        {
+            Check("install stops a running service",
+                TrayApp.ShouldStopServiceForInstall(Phase.Running, false, false, false));
+            Check("install stops a pi-web listener in a stopped state",
+                TrayApp.ShouldStopServiceForInstall(Phase.Stopped, true, true, false));
+            Check("install stops a tray-owned listener",
+                TrayApp.ShouldStopServiceForInstall(Phase.PortConflict, true, false, true));
+            Check("install ignores a closed port",
+                !TrayApp.ShouldStopServiceForInstall(Phase.Stopped, false, true, true));
+            Check("install ignores an unrelated listener",
+                !TrayApp.ShouldStopServiceForInstall(Phase.PortConflict, true, false, false));
         }
 
         private static void UpdateCancellationTests()
