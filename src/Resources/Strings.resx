@@ -834,7 +834,7 @@ See {1} for details.</value>
     <value>Version {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>A Windows tray launcher that installs, starts and manages pi-web.</value>
+    <value>A Windows 7–11 harness for pi and pi-web.</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>Author: {0}</value>

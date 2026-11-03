@@ -834,7 +834,7 @@
     <value>版本 {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>用於安裝、啟動和管理 pi-web 的 Windows 系統匣啟動器。</value>
+    <value>基於 pi / pi-web 的 Windows 7–11 通用 Harness 解決方案。</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>作者：{0}</value>
