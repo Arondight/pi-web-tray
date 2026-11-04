@@ -1346,6 +1346,48 @@ namespace PiWebTray
             // the positive path is exercised by the manual checklist in README.md.
             Check("closed port reports closed", !Net.IsPortOpen(1, 300));
             Check("closed port has no HTTP", !Net.IsHttpOk("http://127.0.0.1:1/", 500));
+
+            // Regression: some Windows builds report a newly created listener with a
+            // bogus state (0 or FIN_WAIT_1). The listener table must still find it and
+            // identify the owning process.
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            try
+            {
+                listener.Start();
+                int openPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+                Check("open port reports open", Net.IsPortOpen(openPort, 500));
+                CheckEqual("open port owner is current process",
+                    System.Diagnostics.Process.GetCurrentProcess().Id,
+                    TcpListenerTable.ListenerPid(openPort));
+            }
+            finally
+            {
+                listener.Stop();
+            }
+
+            // The listener table has a different row layout for IPv6; make sure the
+            // PID lookup stays correct there as well. IPv6 may be disabled on old systems.
+            TcpListener listener6 = null;
+            try
+            {
+                listener6 = new TcpListener(IPAddress.IPv6Loopback, 0);
+                listener6.Server.SetSocketOption(
+                    SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, true);
+                listener6.Start();
+                int openPort6 = ((IPEndPoint)listener6.LocalEndpoint).Port;
+                Check("IPv6 open port reports open", Net.IsPortOpen(openPort6, 500));
+                CheckEqual("IPv6 open port owner is current process",
+                    System.Diagnostics.Process.GetCurrentProcess().Id,
+                    TcpListenerTable.ListenerPid(openPort6));
+            }
+            catch (SocketException)
+            {
+                // IPv6 is optional on the systems this tray supports.
+            }
+            finally
+            {
+                if (listener6 != null) listener6.Stop();
+            }
         }
 
         // The updater's zip-slip defence had no test before; it is the only security

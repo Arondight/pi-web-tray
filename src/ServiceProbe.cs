@@ -323,6 +323,12 @@ namespace PiWebTray
 
         private static int FindListenerPid(int port)
         {
+            // The listener-only table keeps the owning PID even when Windows reports a
+            // bogus state for a newly created listener. Use it before spawning netstat,
+            // whose output is filtered on the (possibly wrong) LISTEN state.
+            int pid = TcpListenerTable.ListenerPid(port);
+            if (pid > 0) return pid;
+
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
