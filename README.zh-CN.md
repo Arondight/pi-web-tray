@@ -2,61 +2,75 @@
 
 [English](README.md) | **简体中文**
 
-基于 pi 和 pi-web 的 Windows 7 至 11 通用 Harness 解决方案。一个托盘程序完成运行环境
-检测、依赖安装与更新、服务托管和自更新。
+基于 pi 和 pi-web 的 Windows 7 至 11 通用 Harness 解决方案。在托盘软件中完成运行环境检测、依赖安装与更新、服务托管和自更新。
 
-- **一键使用** — 启动 pi-web 并打开浏览器；服务已在运行时只打开浏览器。
-- **安装托管** — 检测 Node.js 22.19+，通过 npm 安装 pi-web 和 pi 命令行。
-- **状态可见** — 彩色托盘图标、通知，以及可暂停/筛选的实时日志。
-- **开机自启动** — 普通 Run 键或管理员计划任务，登录时不打开浏览器。
-- **端口安全** — 用原生 API 识别监听进程，绝不误杀无关程序。
-- **自更新** — GitHub release、SHA-256 校验、清理旧版本文件。
-- **绿色便携** — 无需安装程序，无第三方运行时依赖（.NET Framework 4.8）。
-- **三语界面** — 英文、简体中文、繁体中文。
+- **一键使用** — 安装并管理 pi 和 pi-web，一键启停。
+- **状态可见** — 彩色托盘图标、通知，以及实时日志。
+- **开机自启动** — 使用普通 Run 键或管理员计划任务设置开机自启动。
+- **端口安全** — 用原生 API 识别监听进程，不误杀无关程序。
+- **自更新** — 检测并更新软件、清理旧版本文件。
+- **绿色便携** — 无需安装，无第三方运行时依赖。
 
 ## 运行要求
 
-| 组件           | 要求                                                 |
-| -------------- | ---------------------------------------------------- |
-| Windows        | 7 SP1、8、8.1、10 或 11（建议 64 位）                |
-| .NET Framework | 4.8 — 见下方 Windows 7 说明                          |
-| Node.js        | 22.19 或更新版本，含 npm                             |
-| 网络           | 可访问 npm registry（可用镜像）；更新时需访问 GitHub |
+| 组件           | 要求                                  |
+| -------------- | ------------------------------------- |
+| Windows        | 7 SP1、8、8.1、10 或 11（建议 64 位） |
+| .NET Framework | 4.8 — 见下方 Windows 7 说明           |
+| Node.js        | 22.19 或更新版本，含 npm              |
+
+Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。pi-web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上托盘可以运行，但服务或终端可能不可用。
 
 ### Windows 7 运行库
 
-Windows 7 需要 **.NET Framework 4.8**，不是 4.8.1：4.8.1 不支持 Windows 7，
-但系统提示仍可能打开 4.8.1 的下载页。请从这里安装 4.8：
+Windows 7 需要 **.NET Framework 4.8**，请从这里安装：
 
 <https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48>
 
 请将 `pi-web-tray.exe.config` 与可执行文件放在同一目录。
 
-Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开
-一个未签名的社区构建，本项目不生产也不验证该构建。pi-web 终端需要 ConPTY
-（Windows 10 1809+），因此在旧系统上托盘可以运行，但服务或终端可能不可用。
-Windows 7 和 Windows 8.1 已停止微软支持，使用风险由用户自行承担。
+## 推荐安装的软件
+
+本软件不依赖 Python 3 和 PowerShell，但是安装它们可以增强 pi 的能力。
+
+### Python 3
+
+Windows 10 / 11：直接用官方下载页，按系统架构选择安装包（非 32 位系统请选 64 位），安装时勾选 **Add python.exe to PATH**。
+
+<https://www.python.org/downloads/>
+
+旧版 Windows 已不再获得当前 Python 版本的安装包，以下是最新仍提供安装包的版本：
+
+| 系统        | 提供官方安装包的最高版本 | 官方下载页面                                           |
+| ----------- | ------------------------ | ------------------------------------------------------ |
+| Windows 7   | Python 3.8.10            | https://www.python.org/downloads/release/python-3810/  |
+| Windows 8   | Python 3.8.10            | https://www.python.org/downloads/release/python-3810/  |
+| Windows 8.1 | Python 3.13.17           | https://www.python.org/downloads/release/python-31317/ |
+
+### PowerShell
+
+Windows 8.1、10、11 可以安装最新的 PowerShell，从官方发布页下载：
+
+<https://github.com/PowerShell/PowerShell/releases>
+
+Windows 7 SP1 需要安装 Windows Management Framework 5.1，以获得 Windows PowerShell 5.1：
+
+<https://www.microsoft.com/en-us/download/details.aspx?id=54616>
+
+Windows 8 无法升级 PowerShell，只能使用系统自带的 3.0 版本。
 
 ## 快速开始
 
 1. 下载并解压发布包。
-2. 将 `pi-web-tray.exe`、`pi-web-tray.exe.config`、`pi-web-tray.files.txt` 和
-   `zh-Hans` / `zh-Hant` 目录放在同一目录。
-3. 运行 `pi-web-tray.exe`。
+2. 运行 `pi-web-tray.exe`。
 
-首次启动会检查环境、安装缺失依赖、启动 pi-web 并打开浏览器。若缺少 Node.js，
-程序会说明所需版本、提供下载页并退出；安装 Node.js 22.19+ 后重新运行即可。
-配置与日志（`server.log`、`install.log`、`update.log`）默认在可执行文件同目录；位于
-`Program Files` 等受保护目录时改在 `%LOCALAPPDATA%\pi-web-tray`。
-`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
+首次启动会检查环境、安装缺失依赖、启动 pi-web 并打开浏览器。若缺少 Node.js，软件会说明所需版本、提供下载页并退出；安装 Node.js 后重新运行即可。
 
-首次对话前，请在 **Models** 面板登录模型提供方，或执行 `pi auth login`。
-pi-web 与 pi 共用 `~/.pi/agent` 中的凭据。
+配置与日志默认在可执行文件同目录；位于 `Program Files` 等受保护目录时改在 `%LOCALAPPDATA%\pi-web-tray`。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
 
 ## 托盘菜单
 
-图标颜色即可看出状态：绿色运行中、灰色已停止、橙色忙、蓝色缺少依赖、红色错误。
-菜单内容与当前状态一致：
+图标颜色即可看出状态：绿色运行中、灰色已停止、橙色忙、蓝色缺少依赖、红色错误。菜单内容与当前状态一致：
 
 ```text
 ● 运行中 · 127.0.0.1:30141 · 管理员模式
@@ -90,23 +104,15 @@ pi-web 与 pi 共用 `~/.pi/agent` 中的凭据。
 退出并停止 pi-web
 ```
 
-- 左键单击托盘图标：服务未运行时启动并打开浏览器；已运行时仅打开浏览器。
-  **启动服务** 和 **重新启动服务** 不会打开浏览器。
-- **更新 pi-web 和 pi** 会先停止 pi-web（npm 无法替换运行中的包），
-  `InstallPiCli=1` 时同时更新两个包；只有更新前服务在运行才自动重启。
-  进度窗口支持取消。
-- **更新本软件** 校验 release 的 SHA-256、替换文件（必要时 UAC），
-  保留服务运行状态，并清理新版本已移除的文件。取消会立即中止下载请求。
-- 监听端口不是 pi-web 时报告 **端口冲突**：不会视为运行中，也不会停止或杀掉它；
-  请在 **设置** 中修改 `Port`。
-- pi-web 意外退出会通知；`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1`
-  会在启动后检查新版本。
+- **更新 pi-web 和 pi** 会先停止 pi-web，配置 `InstallPiCli=1` 时同时更新两个包；只有更新前服务在运行才自动重启。进度窗口支持取消。
+- 监听端口不是 pi-web 时报告 **端口冲突**：不会视为运行中，也不会停止或杀掉它；请在 **设置** 中修改 `Port`。
+- pi-web 意外退出会通知；`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
 
 ## 配置
 
-`pi-web-tray.ini` 在首次启动时生成：普通目录在可执行文件旁，受保护目录在
-`%LOCALAPPDATA%\pi-web-tray`。带注释的样例见
-[`config/pi-web-tray.ini`](config/pi-web-tray.ini)。
+### 配置文件
+
+在首次启动时生成 `pi-web-tray.ini`，普通目录在可执行文件旁，受保护目录在 `%LOCALAPPDATA%\pi-web-tray`。带注释的样例见 [`config/pi-web-tray.ini`](config/pi-web-tray.ini)。
 
 | 键                 | 默认值          | 说明                                                 |
 | ------------------ | --------------- | ---------------------------------------------------- |
@@ -124,6 +130,8 @@ pi-web 与 pi 共用 `~/.pi/agent` 中的凭据。
 | `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                 |
 
 值支持 `%ENV%` 展开；含 `;` 或 `#` 的值可加引号；注释符号前需有空白。
+
+### 环境变量
 
 | 环境变量                     | 说明                            |
 | ---------------------------- | ------------------------------- |
@@ -153,57 +161,27 @@ pi-web-tray.exe --help           显示命令行帮助。
 
 ## 从源码构建
 
-需要 Windows 10/11、Visual Studio 2022/2026（.NET 桌面开发工作负载）和
-.NET Framework 4.8 targeting pack（或 .NET SDK 8+）。
+需要 Windows 11、Visual Studio 2026 和 .NET Framework 4.8 targeting pack（或 .NET SDK 8+）。
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
-cd pi-web-tray
-build.cmd
+cd .\pi-web-tray
+.\build.cmd
 ```
-
-输出：`artifacts\pi-web-tray.exe`、`pi-web-tray.exe.config` 以及 `zh-Hans` /
-`zh-Hant` 资源目录。应用本身无 NuGet 依赖；测试项目会还原 MSTest。
-构建前请先退出运行中的 `pi-web-tray.exe`。
-`scripts\package-release.ps1` 生成发布包和文件清单。
-
-## 故障排查
-
-| 现象                   | 处理方法                                                                                       |
-| ---------------------- | ---------------------------------------------------------------------------------------------- |
-| 提示需要 Node.js       | 程序会提供下载页并退出；安装 Node.js 22.19+ 后重新运行。仍检测不到时在 ini 中设置 `NodePath`。 |
-| 安装失败               | 查看 `install.log`：npm 全局目录不可写、`InstallTag` 无效、代理或网络问题。                    |
-| 更新失败               | 查看 `update.log`：常见原因是取消 UAC、代理或网络；可重新执行 **更新本软件**。                 |
-| 红色图标，端口冲突     | 其他程序占用了端口，请在 **设置** 中换一个空闲端口；托盘不会杀掉它。                           |
-| 红色图标，服务失败     | 查看 `server.log`：`EADDRINUSE` 表示端口冲突，`Cannot find module` 通常表示安装不完整。        |
-| `Cannot launch conpty` | ConPTY 需要 Windows 10 1809+；Node.js 可用的环境下聊天和工具仍可使用。                         |
-| 开机自启动无效         | 检查托盘菜单状态，然后检查 `HKCU\...\Run` 或 `schtasks /query /tn PiWebTray`。                 |
-| pi 更新失败            | pi 可能正在运行并占用文件；请退出 pi 后重试 **更新 pi-web 和 pi**。                            |
-| 需要更多诊断           | 执行 `pi-web-tray.exe --diag` 查看 `diag.txt`；托盘崩溃时查看 `crash.log`。                    |
 
 ## 安全与限制
 
 - 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权；无遥测、无网络监听。
-- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验；更新助手还会校验
-  目标安装与暂存文件指纹。发布包未签名，首次运行可能触发 SmartScreen。
-- `NodePath`、`ServerScript`、`WorkingDir`、`NpmRegistry`、`InstallTag` 属于受信任配置：
-  可写的 ini 等同于代码执行权限。
-- npm 12 默认阻止依赖脚本。安装 pi-web 时一次性传入 `--allow-scripts`，pi CLI 使用
-  `--ignore-scripts`；不会修改 npm 配置。
-- 管理员自启动要求当前账户是管理员，且是整机范围。托盘以管理员运行时，
-  `--stop` / `--quit` 需在管理员命令行执行；托盘菜单始终可用。
+- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验；更新助手还会校验目标安装与暂存文件指纹。发布包未签名，首次运行可能触发 SmartScreen。
+- 管理员自启动要求当前账户是管理员，且是整机范围。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行；托盘菜单始终可用。
 
 ## 相关项目
 
-Pi Web Tray 只负责安装和启动 [pi-web](https://github.com/agegr/pi-web)
-（`@agegr/pi-web`）与 [pi](https://github.com/earendil-works/pi)
-（`@earendil-works/pi-coding-agent`），不包含也不修改它们；相关问题请提交到各自仓库。
+Pi Web Tray 只负责安装和启动 [pi-web](https://github.com/agegr/pi-web)（`@agegr/pi-web`）与 [pi](https://github.com/earendil-works/pi)（`@earendil-works/pi-coding-agent`），不包含也不修改它们；相关问题请提交到各自仓库。
 
 ## 参与贡献
 
-参与前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。安全问题请按照 [SECURITY.md](SECURITY.md)
-报告。
+参与前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。安全问题请按照 [SECURITY.md](SECURITY.md) 报告。
 
 ## 许可证
 

@@ -17,6 +17,13 @@ namespace PiWebTray
     {
         private void BeginEnvironmentCheck(bool thenStart, bool openBrowser)
         {
+            BeginEnvironmentCheck(thenStart, openBrowser, 0);
+        }
+
+        // delayMs gives a login-time probe a moment: antivirus may still be scanning
+        // node.exe and the profile/registry may not be fully ready right after logon.
+        private void BeginEnvironmentCheck(bool thenStart, bool openBrowser, int delayMs)
+        {
             lock (_checkLock)
             {
                 if (_checkRunning)
@@ -40,6 +47,11 @@ namespace PiWebTray
 
             Thread worker = new Thread(delegate ()
             {
+                if (delayMs > 0)
+                {
+                    try { Thread.Sleep(delayMs); } catch (Exception) { }
+                }
+
                 ProbeResult result = null;
                 try
                 {
@@ -126,7 +138,6 @@ namespace PiWebTray
             }
 
             bool firstCheck = _firstCheck;
-            _firstCheck = false;
 
             _probe = result;
             _config.NodePath = result.NodePath;
@@ -144,6 +155,22 @@ namespace PiWebTray
                     _installAfterCheckOpen = false;
                 }
 
+                if (firstCheck && _firstCheckRetries < 2)
+                {
+                    // A login-time probe can lose a race with antivirus or profile setup
+                    // and report a perfectly installed Node.js as missing. Re-probe twice
+                    // before telling the user to install it and exiting.
+                    _firstCheckRetries++;
+                    _phase = Phase.Checking;
+                    UpdateUi();
+                    BeginEnvironmentCheck(thenStart, openBrowser,
+                        _firstCheckRetries == 1 ? 2000 : 4000);
+                    return;
+                }
+
+                _firstCheck = false;
+                _firstCheckRetries = 0;
+
                 _phase = Phase.NeedsNode;
                 UpdateUi();
                 if (firstCheck)
@@ -159,6 +186,9 @@ namespace PiWebTray
                     L.T("notify.needsNodeBody", result.NodeIssue()));
                 return;
             }
+
+            _firstCheck = false;
+            _firstCheckRetries = 0;
 
             if (result.NeedsPiWeb)
             {

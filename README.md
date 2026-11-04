@@ -2,67 +2,76 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A universal Windows 7 to 11 harness for [pi](https://github.com/earendil-works/pi) and
-[pi-web](https://github.com/agegr/pi-web). One tray app detects the runtime, installs and
-updates the npm packages, hosts the service and updates itself.
+A universal Windows 7 to 11 harness for pi and pi-web. One tray app provides runtime detection, dependency installation and updates, service hosting and self-update.
 
-- **One click** — start pi-web and open the browser, or just open it when it is running.
-- **Setup included** — finds Node.js 22.19+, installs pi-web and the pi CLI with npm.
-- **Visible state** — color-coded icon, notifications and live service/install/update logs.
-- **Start at login** — normal Run key or elevated scheduled task, without a browser.
-- **Port safe** — identifies the listener with native APIs and never kills a stranger.
-- **Self-update** — GitHub release, SHA-256 verification, stale-file cleanup.
-- **Portable** — no installer, no third-party runtime dependencies (.NET Framework 4.8).
-- **Localized** — English, Simplified Chinese and Traditional Chinese.
+- **One click** — installs and manages pi and pi-web; start or stop them with one click.
+- **Visible state** — color-coded tray icon, notifications and live logs.
+- **Start at login** — uses the standard Run key or an administrator scheduled task.
+- **Port safe** — native process APIs identify the listener; unrelated programs are never
+  killed.
+- **Self-update** — checks for updates, updates the app and removes files from older releases.
+- **Portable** — no installer, no third-party runtime dependencies.
 
 ## Requirements
 
-| Component      | Requirement                                                       |
-| -------------- | ----------------------------------------------------------------- |
-| Windows        | 7 SP1, 8, 8.1, 10 or 11 (64-bit recommended)                      |
-| .NET Framework | 4.8 — see the Windows 7 note below                                |
-| Node.js        | 22.19 or later, with npm                                          |
-| Network        | npm registry (`NpmRegistry` may use a mirror); GitHub for updates |
+| Component      | Requirement                                  |
+| -------------- | -------------------------------------------- |
+| Windows        | 7 SP1, 8, 8.1, 10 or 11 (64-bit recommended) |
+| .NET Framework | 4.8 — see the Windows 7 note below           |
+| Node.js        | 22.19 or later, with npm                     |
+
+Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. pi-web's terminal needs ConPTY (Windows 10 1809+), so the tray may run on legacy systems while the service or terminal is unavailable.
 
 ### Windows 7 runtime
 
-Windows 7 needs **.NET Framework 4.8**, not 4.8.1: 4.8.1 does not support Windows 7,
-even though the system dialog may still offer it. Install 4.8 from:
+Windows 7 needs **.NET Framework 4.8**; install it from:
 
 <https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48>
 
 Keep `pi-web-tray.exe.config` next to the executable.
 
-Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for
-confirmation and then opens an unsigned community build; it is not produced or verified
-by this project. pi-web's terminal needs ConPTY (Windows 10 1809+), so on legacy systems
-the tray may run while the service or the terminal is unavailable. Windows 7 and
-Windows 8.1 are out of Microsoft support; use them at your own risk.
+## Recommended software
+
+Pi Web Tray does not require Python 3 or PowerShell, but installing them extends what pi can do.
+
+### Python 3
+
+Windows 10 and 11: use the official download page and pick the installer for your architecture (64-bit unless the system is 32-bit). Tick **Add python.exe to PATH**:
+
+<https://www.python.org/downloads/>
+
+Older Windows releases no longer receive current Python installers. The newest releases that still ship one:
+
+| System      | Newest release with an installer | Official download page                                 |
+| ----------- | -------------------------------- | ------------------------------------------------------ |
+| Windows 7   | Python 3.8.10                    | https://www.python.org/downloads/release/python-3810/  |
+| Windows 8   | Python 3.8.10                    | https://www.python.org/downloads/release/python-3810/  |
+| Windows 8.1 | Python 3.13.17                   | https://www.python.org/downloads/release/python-31317/ |
+
+### PowerShell
+
+Windows 8.1, 10 and 11 can install the latest PowerShell from the official releases page:
+
+<https://github.com/PowerShell/PowerShell/releases>
+
+Windows 7 SP1 needs Windows Management Framework 5.1 to get Windows PowerShell 5.1:
+
+<https://www.microsoft.com/en-us/download/details.aspx?id=54616>
+
+Windows 8 cannot update PowerShell; only the built-in 3.0 is available.
 
 ## Quick start
 
 1. Download and extract the release archive.
-2. Keep `pi-web-tray.exe`, `pi-web-tray.exe.config`, `pi-web-tray.files.txt` and the
-   `zh-Hans` / `zh-Hant` folders together.
-3. Run `pi-web-tray.exe`.
+2. Run `pi-web-tray.exe`.
 
-On first start the app checks the environment, installs what is missing, starts pi-web
-and opens the browser. If Node.js is missing, it explains what is required, offers the
-download page and exits; install Node.js 22.19+ and run it again. Configuration and logs
-(`server.log`, `install.log`,
-`update.log`) live next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` when the
-executable is in a protected directory such as `Program Files`. The
-`pi-web-tray.files.txt` manifest is used by future updates to remove dropped files; do
-not delete it.
+On first start the app checks the environment, installs missing dependencies, starts pi-web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again.
 
-Before the first conversation, sign in to a model provider in the **Models** panel or
-run `pi auth login`. pi-web and pi share credentials in `~/.pi/agent`.
+Configuration and logs live next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` for protected directories. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
 ## Tray menu
 
-The icon color shows the state at a glance: green = running, grey = stopped,
-orange = busy, blue = prerequisites missing, red = error. The menu follows the
-service state:
+The icon color shows the state at a glance: green = running, grey = stopped, orange = busy, blue = prerequisites missing, red = error. The menu follows the service state:
 
 ```text
 ● Running · 127.0.0.1:30141 · administrator mode
@@ -96,24 +105,15 @@ About
 Exit and stop pi-web
 ```
 
-- Left click starts pi-web and opens the browser, or only opens the browser when the
-  service is already running. **Start**/**Restart** never open a browser.
-- **Update pi-web and pi** stops pi-web first (npm cannot replace a running package),
-  installs both packages when `InstallPiCli=1`, and restarts the service only if it was
-  running before. A progress window can cancel the install.
-- **Update this app** verifies the release SHA-256, replaces files (UAC when needed),
-  preserves the service state and removes files the new release no longer contains.
-  Cancel aborts the active download immediately.
-- A listener that is not pi-web is reported as a **port conflict**; the tray neither
-  treats it as running nor stops it. Change `Port` in Settings.
-- If pi-web stops unexpectedly, the tray reports it and can restart it when
-  `AutoRestart=1`. `AutoCheckUpdates=1` checks for a new release shortly after startup.
+- **Update pi-web and pi** stops pi-web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
+- A listener that is not pi-web is reported as a **port conflict**: the tray neither treats it as running nor stops or kills it; change `Port` in **Settings**.
+- If pi-web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 
 ## Configuration
 
-`pi-web-tray.ini` is generated on first start next to the executable, or in
-`%LOCALAPPDATA%\pi-web-tray` for protected directories. A commented sample is in
-[`config/pi-web-tray.ini`](config/pi-web-tray.ini).
+### Configuration file
+
+`pi-web-tray.ini` is created on first start next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` for protected directories. A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
 
 | Key                | Default         | Description                                              |
 | ------------------ | --------------- | -------------------------------------------------------- |
@@ -121,17 +121,18 @@ Exit and stop pi-web
 | `WorkingDir`       | `%USERPROFILE%` | Service working directory and pi's default project root. |
 | `AutoInstall`      | `1`             | Install pi-web automatically when missing.               |
 | `AutoRestart`      | `0`             | Restart pi-web after an unexpected stop.                 |
-| `AutoCheckUpdates` | `0`             | Check for a tray update shortly after startup.           |
+| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                   |
 | `InstallPiCli`     | `1`             | Install the pi CLI together with pi-web.                 |
 | `InstallTag`       | `latest`        | npm distribution tag or exact version.                   |
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.  |
 | `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.       |
 | `ServerScript`     | empty           | Explicit `pi-web.js`; empty enables auto-detection.      |
 | `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.            |
-| `AutostartAdmin`   | `0`             | Use admin rights for start at login (menu-managed).      |
+| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).          |
 
-`%ENV%` values are expanded; values containing `;` or `#` may be quoted. Comments start
-with `;` or `#` after whitespace.
+Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
+
+### Environment variables
 
 | Variable                     | Description                            |
 | ---------------------------- | -------------------------------------- |
@@ -161,60 +162,27 @@ Unknown arguments return exit code 2.
 
 ## Build from source
 
-Windows 10/11, Visual Studio 2022/2026 with the .NET desktop workload and the .NET
-Framework 4.8 targeting pack (or .NET SDK 8+).
+Requires Windows 11, Visual Studio 2026 and the .NET Framework 4.8 targeting pack (or .NET SDK 8+).
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
-cd pi-web-tray
-build.cmd
+cd .\pi-web-tray
+.\build.cmd
 ```
-
-Output: `artifacts\pi-web-tray.exe`, `pi-web-tray.exe.config` and the `zh-Hans` /
-`zh-Hant` resource folders. The application has no NuGet dependencies; the test project
-restores MSTest. Close a running `pi-web-tray.exe` before building.
-`scripts\package-release.ps1` creates the release archive and its file manifest.
-
-## Troubleshooting
-
-| Symptom                          | Action                                                                                                                          |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| "Node.js is required" on startup | The app offers the download page and exits. Install Node.js 22.19+, then run it again; set `NodePath` if detection still fails. |
-| Installation failed              | Check `install.log`: unwritable npm prefix, invalid `InstallTag`, proxy or network.                                             |
-| Update failed                    | Check `update.log`: cancelled UAC, proxy or network; retry **Update this app**.                                                 |
-| Red icon, port conflict          | Another program owns the port; choose a free one in **Settings**. The tray never kills it.                                      |
-| Red icon, service failed         | Check `server.log`: `EADDRINUSE` means port conflict, `Cannot find module` an incomplete install.                               |
-| `Cannot launch conpty`           | ConPTY needs Windows 10 1809+. Chat and tools still work where Node.js runs.                                                    |
-| Start at login does not work     | Check the tray menu, then `HKCU\...\Run` or `schtasks /query /tn PiWebTray`.                                                    |
-| pi update failed                 | pi is probably running and holds its files; close pi and retry **Update pi-web and pi**.                                        |
-| More diagnostics                 | Run `pi-web-tray.exe --diag`; see `diag.txt`. A crashed tray logs to `crash.log`.                                               |
 
 ## Security and limitations
 
-- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry
-  and no network listener.
-- Updates come from GitHub over HTTPS and are verified against the published SHA-256; the
-  helper also validates the target and a staging fingerprint. Releases are unsigned, so
-  SmartScreen may warn on first run.
-- `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` are trusted
-  configuration: treat a writable ini as code execution.
-- npm 12 blocks install scripts by default. The pi-web step passes a one-off
-  `--allow-scripts` allowlist; the pi CLI uses `--ignore-scripts`. npm configuration is
-  never modified.
-- Admin start-at-login requires an admin account and is machine-wide. If the tray runs
-  elevated, use an elevated console for `--stop` / `--quit`; the menu always works.
+- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no network listener.
+- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper also validates the target installation and a staging fingerprint. Releases are unsigned, so SmartScreen may warn on first run.
+- Admin start-at-login requires an admin account and is machine-wide. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
 
 ## Related projects
 
-Pi Web Tray installs and launches [pi-web](https://github.com/agegr/pi-web)
-(`@agegr/pi-web`) and [pi](https://github.com/earendil-works/pi)
-(`@earendil-works/pi-coding-agent`). It does not bundle or modify them; report their
-issues to their own repositories.
+Pi Web Tray installs and launches [pi-web](https://github.com/agegr/pi-web) (`@agegr/pi-web`) and [pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-coding-agent`). It does not bundle or modify them; report their issues to their own repositories.
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-Report vulnerabilities according to [SECURITY.md](SECURITY.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Report vulnerabilities according to [SECURITY.md](SECURITY.md).
 
 ## License
 
