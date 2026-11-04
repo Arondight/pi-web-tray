@@ -161,8 +161,9 @@ namespace PiWebTray
             proxyLine.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             proxyLine.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             proxyLine.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            _proxy.Dock = DockStyle.Fill;
+            _proxy.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             _proxy.Margin = new Padding(0, 0, 6, 0);
+            _testProxy.Anchor = AnchorStyles.Left;
             _testProxy.Margin = new Padding(0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
@@ -219,7 +220,16 @@ namespace PiWebTray
             base.OnShown(e);
             // NumericUpDown and ComboBox fixed widths can be collapsed by the
             // DPI-scaled TableLayoutPanel; apply them after the final layout pass.
-            double scale = DeviceDpi / 96.0;
+            // CreateGraphics works on Windows 7-11; DeviceDpi may still report 96.
+            double scale = 1.0;
+            try
+            {
+                using (Graphics graphics = CreateGraphics())
+                    scale = graphics.DpiX / 96.0;
+            }
+            catch (Exception)
+            {
+            }
             _port.Width = (int)Math.Round(120 * scale);
             _language.Width = (int)Math.Round(220 * scale);
         }
@@ -259,11 +269,24 @@ namespace PiWebTray
             label.Text = labelText;
             label.AutoSize = true;
             label.TextAlign = ContentAlignment.MiddleLeft;
+            // AutoSize keeps the label at its text width; anchoring right puts every
+            // label's right edge on the same line, next to the input column.
+            label.Anchor = AnchorStyles.Right;
             label.Margin = new Padding(0, 6, 12, 6);
             root.Controls.Add(label, 0, row);
 
-            control.Margin = new Padding(0, 4, 0, 4);
-            if (!(control is CheckBox) && !(control is NumericUpDown) && !(control is ComboBox))
+            // NumericUpDown margins are scaled repeatedly at 200% DPI. Keep this row
+            // compact and let the label determine its height.
+            if (control is NumericUpDown)
+                control.Margin = Padding.Empty;
+            else
+                control.Margin = new Padding(0, 4, 0, 4);
+
+            if (control is TextBox)
+                control.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            else if (control is CheckBox || control is NumericUpDown || control is ComboBox)
+                control.Anchor = AnchorStyles.Left;
+            else
                 control.Dock = DockStyle.Fill;
             root.Controls.Add(control, 1, row);
         }
@@ -280,12 +303,14 @@ namespace PiWebTray
             line.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             line.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             line.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            textBox.Dock = DockStyle.Fill;
+            textBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            textBox.Margin = new Padding(0, 0, 6, 0);
             line.Controls.Add(textBox, 0, 0);
 
             Button button = new Button();
             button.Text = buttonText;
             button.AutoSize = true;
+            button.Anchor = AnchorStyles.Left;
             button.Margin = new Padding(6, 0, 0, 0);
             button.Click += browse;
             line.Controls.Add(button, 1, 0);
