@@ -145,12 +145,24 @@ namespace PiWebTray
 
             if (IsPiWebCommandLine(commandLine))
             {
+                int listenerPid = pid;
+                string scriptPath = ExtractScriptPath(commandLine);
+                // pi-web can spawn a child `next start` process that owns the
+                // listening socket. Its own command line has @agegr\pi-web but no
+                // pi-web.js; the parent node process carries the actual script path.
+                int parentPid = pid;
+                for (int depth = 0; string.IsNullOrEmpty(scriptPath) && depth < 3; depth++)
+                {
+                    parentPid = NativeProcess.ParentPid(parentPid);
+                    if (parentPid <= 4) break;
+                    scriptPath = ExtractScriptPath(ReadCommandLine(parentPid));
+                }
                 return new PortOwnerInfo
                 {
                     Owner = PortOwner.PiWeb,
-                    Pid = pid,
+                    Pid = listenerPid,
                     Detail = "pi-web command line",
-                    ScriptPath = ExtractScriptPath(commandLine)
+                    ScriptPath = scriptPath
                 };
             }
 

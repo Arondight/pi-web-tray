@@ -929,6 +929,10 @@ namespace PiWebTray
                 @"""C:\Program Files\nodejs\node.exe"" ""C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js"" --no-open -p 30141"));
             Check("pi-web command line package", ServiceProbe.IsPiWebCommandLine(
                 "node /usr/lib/node_modules/@agegr/pi-web/bin/pi-web.js"));
+            CheckEqual("pi-web script path extraction",
+                @"C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js",
+                ServiceProbe.ExtractScriptPath(
+                    @"""C:\Program Files\nodejs\node.exe"" ""C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js"" --no-open -p 30141"));
             Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
                 @"node C:\work\other.js"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));

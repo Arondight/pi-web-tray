@@ -506,8 +506,18 @@ namespace PiWebTray
 
             if (IsOurPiWeb(owner)) return true;
             if (owner.Pid <= 0) return false;
-            if (owner.Pid == _server.Id) return true;
-            return ServiceProbe.ParentPid(owner.Pid) == _server.Id;
+            return IsDescendantOf(owner.Pid, _server.Id);
+        }
+
+        private static bool IsDescendantOf(int pid, int rootPid)
+        {
+            if (rootPid <= 0) return false;
+            for (int depth = 0; depth < 12 && pid > 4; depth++)
+            {
+                if (pid == rootPid) return true;
+                pid = ServiceProbe.ParentPid(pid);
+            }
+            return false;
         }
 
         private void NotifyPortConflict()
