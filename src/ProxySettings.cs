@@ -7,9 +7,11 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 
@@ -315,6 +317,7 @@ namespace PiWebTray
         private readonly ProxySettings _proxy;
         private readonly TcpListener _listener;
         private readonly List<TcpClient> _clients = new List<TcpClient>();
+        private readonly List<TcpClient> _remotes = new List<TcpClient>();
         private readonly object _lock = new object();
         private volatile bool _closed;
 
@@ -353,6 +356,15 @@ namespace PiWebTray
             TcpClient remote = null;
             try
             {
+                // The bridge is a process-local implementation detail. Do not let other
+                // local users or programs inherit the configured proxy credentials.
+                if (!IsCurrentProcessClient(client))
+                {
+                    try { Write(client.GetStream(), "HTTP/1.1 403 Forbidden\r\n\r\n"); }
+                    catch (Exception) { }
+                    return;
+                }
+
                 NetworkStream clientStream = client.GetStream();
                 clientStream.ReadTimeout = 60000;
                 clientStream.WriteTimeout = 60000;
@@ -390,10 +402,11 @@ namespace PiWebTray
                 int port;
                 if (!SplitAuthority(parts[1], out host, out port)) return;
                 remote = Socks5Client.Connect(_proxy, host, port, 15000);
+                lock (_lock) _remotes.Add(remote);
                 remote.ReceiveTimeout = 600000;
                 remote.SendTimeout = 600000;
                 Write(clientStream, "HTTP/1.1 200 Connection established\r\n\r\n");
-                Relay(clientStream, remote.GetStream());
+                Relay(clientStream, remote);
             }
             catch (Exception)
             {
@@ -401,8 +414,37 @@ namespace PiWebTray
             finally
             {
                 try { client.Close(); } catch (Exception) { }
-                if (remote != null) try { remote.Close(); } catch (Exception) { }
+                if (remote != null)
+                {
+                    try { remote.Close(); } catch (Exception) { }
+                    lock (_lock) _remotes.Remove(remote);
+                }
                 lock (_lock) _clients.Remove(client);
+            }
+        }
+
+        private static bool IsCurrentProcessClient(TcpClient client)
+        {
+            try
+            {
+                IPEndPoint local = client.Client.LocalEndPoint as IPEndPoint;
+                IPEndPoint remote = client.Client.RemoteEndPoint as IPEndPoint;
+                if (local == null || remote == null) return false;
+                if (!IPAddress.IsLoopback(local.Address) || !IPAddress.IsLoopback(remote.Address))
+                    return false;
+
+                int current = Process.GetCurrentProcess().Id;
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    int owner = TcpTable.Owner(remote.Port, local.Port);
+                    if (owner > 0) return owner == current;
+                    Thread.Sleep(10);
+                }
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
@@ -431,18 +473,20 @@ namespace PiWebTray
             stream.Flush();
         }
 
-        private static void Relay(Stream client, Stream remote)
+        private static void Relay(Stream client, TcpClient remoteClient)
         {
+            NetworkStream remote = remoteClient.GetStream();
             Thread upload = new Thread(delegate ()
             {
-                // Do not close remote when the client side becomes idle: a large
-                // download may have no upload traffic for much longer than its timeout.
-                try { Copy(client, remote); } catch (Exception) { }
+                // A client EOF means the tunnel is finished (for example after a
+                // response). A read timeout only means the upload side is idle; do
+                // not abort a large download in that case.
+                if (Copy(client, remote)) TryClose(remoteClient);
             });
             Thread download = new Thread(delegate ()
             {
-                try { Copy(remote, client); } catch (Exception) { }
-                try { client.Close(); } catch (Exception) { }
+                Copy(remote, client);
+                TryClose(client);
             });
             upload.IsBackground = true;
             download.IsBackground = true;
@@ -451,19 +495,95 @@ namespace PiWebTray
             // The download direction determines when the TLS/HTTP response is done.
             // Waiting on upload first would truncate large updates after a fixed timeout.
             download.Join(10 * 60 * 1000);
-            try { client.Close(); } catch (Exception) { }
-            try { remote.Close(); } catch (Exception) { }
+            TryClose(client);
+            TryClose(remoteClient);
             upload.Join(5000);
         }
 
-        private static void Copy(Stream input, Stream output)
+        private static bool Copy(Stream input, Stream output)
         {
             byte[] buffer = new byte[81920];
-            int read;
-            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+            try
             {
-                output.Write(buffer, 0, read);
-                output.Flush();
+                int read;
+                while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    output.Write(buffer, 0, read);
+                    output.Flush();
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static void TryClose(IDisposable disposable)
+        {
+            try { disposable.Dispose(); } catch (Exception) { }
+        }
+
+        private static class TcpTable
+        {
+            private const int AfInet = 2;
+            private const int TcpTableOwnerPidAll = 5;
+            private const uint ErrorInsufficientBuffer = 122;
+
+            [StructLayout(LayoutKind.Sequential)]
+            private struct MibTcpRowOwnerPid
+            {
+                public uint State;
+                public uint LocalAddress;
+                public uint LocalPort;
+                public uint RemoteAddress;
+                public uint RemotePort;
+                public uint OwningPid;
+            }
+
+            [DllImport("iphlpapi.dll", SetLastError = true)]
+            private static extern uint GetExtendedTcpTable(IntPtr table, ref int size,
+                bool order, int addressFamily, int tableClass, uint reserved);
+
+            internal static int Owner(int localPort, int remotePort)
+            {
+                int size = 0;
+                uint result = GetExtendedTcpTable(IntPtr.Zero, ref size, true, AfInet,
+                    TcpTableOwnerPidAll, 0);
+                if (result != 0 && result != ErrorInsufficientBuffer) return 0;
+                if (size <= 0) return 0;
+
+                IntPtr table = Marshal.AllocHGlobal(size);
+                try
+                {
+                    result = GetExtendedTcpTable(table, ref size, true, AfInet,
+                        TcpTableOwnerPidAll, 0);
+                    if (result != 0) return 0;
+
+                    int count = Marshal.ReadInt32(table);
+                    int rowSize = Marshal.SizeOf(typeof(MibTcpRowOwnerPid));
+                    for (int i = 0; i < count; i++)
+                    {
+                        IntPtr row = new IntPtr(table.ToInt64() + 4 + (long)i * rowSize);
+                        MibTcpRowOwnerPid entry = (MibTcpRowOwnerPid)Marshal.PtrToStructure(
+                            row, typeof(MibTcpRowOwnerPid));
+                        if (NetworkPort(entry.LocalPort) == localPort
+                            && NetworkPort(entry.RemotePort) == remotePort)
+                        {
+                            return (int)entry.OwningPid;
+                        }
+                    }
+                    return 0;
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(table);
+                }
+            }
+
+            private static int NetworkPort(uint value)
+            {
+                return (int)(((value & 0xFF) << 8) | ((value >> 8) & 0xFF));
             }
         }
 
@@ -474,10 +594,11 @@ namespace PiWebTray
             lock (_lock)
             {
                 foreach (TcpClient client in _clients)
-                {
                     try { client.Close(); } catch (Exception) { }
-                }
+                foreach (TcpClient remote in _remotes)
+                    try { remote.Close(); } catch (Exception) { }
                 _clients.Clear();
+                _remotes.Clear();
             }
         }
     }
@@ -519,6 +640,19 @@ namespace PiWebTray
                 }
                 error = "";
                 return true;
+            }
+        }
+
+        internal static void Reset()
+        {
+            lock (Sync)
+            {
+                if (_bridge != null)
+                {
+                    try { _bridge.Dispose(); } catch (Exception) { }
+                    _bridge = null;
+                }
+                _current = null;
             }
         }
 

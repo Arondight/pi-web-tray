@@ -38,7 +38,8 @@ namespace PiWebTray
             }
         }
 
-        internal static bool StartHelper(Config config, string staging, ApplyStartMode mode, bool elevated, out string error)
+        internal static bool StartHelper(Config config, string staging, ApplyStartMode mode, bool elevated,
+            bool waitForService, out string error)
         {
             error = "";
             string logPath = SafeFullPath(config.UpdateLogFile);
@@ -61,7 +62,8 @@ namespace PiWebTray
                 string stagingHash = ComputeStagingHash(staging);
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
-                    mode, elevated, logPath, L.Current, dataDir, stagingHash, config.Port);
+                    mode, elevated, logPath, L.Current, dataDir, stagingHash,
+                    waitForService ? config.Port : 0);
 
                 AppendLog(logPath, "launch helper: " + helper);
                 AppendLog(logPath, "staging hash : " + stagingHash);
@@ -231,8 +233,7 @@ namespace PiWebTray
                 // If ExitApp could not stop the old listener (slow taskkill, elevated
                 // process, or a failed CLI stop), starting a new tray now would only
                 // hit a port conflict. Do not copy anything until the port is free.
-                if (mode == ApplyStartMode.ServiceSilent && port > 0
-                    && !Net.WaitPortClosed(port, 30000))
+                if (port > 0 && !Net.WaitPortClosed(port, 30000))
                 {
                     AppendLog(logPath, "service still owns port " + port + "; update aborted");
                     MessageBox.Show(L.T("update.error.serviceStillRunning", port),
@@ -427,7 +428,7 @@ namespace PiWebTray
             if (hasPort
                 && (!int.TryParse(args[index + 10], NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out port)
-                    || port <= 0 || port > 65535))
+                    || port < 0 || port > 65535))
             {
                 return false;
             }

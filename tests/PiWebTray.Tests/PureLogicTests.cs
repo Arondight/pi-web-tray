@@ -1,8 +1,8 @@
 // Pi Web Tray — pure-logic tests
 //
 // Run with `dotnet test`. These tests cover parsing, comparison, quoting, ini reading,
-// localisation completeness and icon encoding. They do not access the network or change
-// machine state.
+// localisation completeness and icon encoding. They use only local loopback sockets and
+// do not access external networks or change machine state.
 //
 // Output is English on purpose: it is developer-facing, not part of the localised UI.
 
@@ -46,6 +46,8 @@ namespace PiWebTray
             PendingInstallTests();
             ProxySettingsTests();
             ProxyConnectionTests();
+            SocksBridgeTests();
+            ProxyResetTests();
             NodeDownloadTests();
             QuoteTests();
             IniReadTests();
@@ -323,6 +325,189 @@ namespace PiWebTray
             worker.IsBackground = true;
             worker.Start();
             return port;
+        }
+
+        private static void SocksBridgeTests()
+        {
+            int echoPort = StartEchoServer();
+            int socksPort = StartForwardingSocksProxy(echoPort);
+            ProxySettings proxy;
+            string error;
+            Check("bridge SOCKS proxy parses",
+                ProxySettings.TryParse("socks5://127.0.0.1:" + socksPort, out proxy, out error));
+
+            using (SocksHttpBridge bridge = new SocksHttpBridge(proxy))
+            using (TcpClient client = new TcpClient())
+            {
+                client.ReceiveTimeout = 5000;
+                client.SendTimeout = 5000;
+                client.Connect(IPAddress.Loopback, bridge.Port);
+                NetworkStream stream = client.GetStream();
+                byte[] connect = Encoding.ASCII.GetBytes(
+                    "CONNECT 127.0.0.1:" + echoPort + " HTTP/1.1\r\n"
+                    + "Host: 127.0.0.1:" + echoPort + "\r\n\r\n");
+                stream.Write(connect, 0, connect.Length);
+                stream.Flush();
+
+                string header = ReadHeader(stream);
+                Check("bridge accepts the current process",
+                    header != null && header.StartsWith("HTTP/1.1 200", StringComparison.Ordinal));
+                if (header == null || !header.StartsWith("HTTP/1.1 200", StringComparison.Ordinal))
+                    return;
+
+                byte[] payload = new byte[] { 1, 2, 3 };
+                stream.Write(payload, 0, payload.Length);
+                stream.Flush();
+                byte[] reply = new byte[3];
+                ReadExact(stream, reply);
+                Check("bridge relays tunnel bytes",
+                    reply[0] == 1 && reply[1] == 2 && reply[2] == 3);
+            }
+        }
+
+        private static void ProxyResetTests()
+        {
+            ProxyTransport.Reset();
+            string error;
+            Check("proxy reset configures a bridge",
+                ProxyTransport.Configure("socks5://127.0.0.1:1", out error));
+            System.Reflection.FieldInfo field = typeof(ProxyTransport).GetField(
+                "_bridge", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            SocksHttpBridge bridge = field == null ? null : field.GetValue(null) as SocksHttpBridge;
+            Check("proxy bridge exists before reset", bridge != null);
+            if (bridge == null)
+            {
+                ProxyTransport.Reset();
+                return;
+            }
+
+            ProxyTransport.Reset();
+            SocksHttpBridge after = field.GetValue(null) as SocksHttpBridge;
+            Check("proxy reset releases the bridge", after == null);
+            ProxyTransport.Reset();
+        }
+
+        private static int StartEchoServer()
+        {
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            Thread worker = new Thread(delegate ()
+            {
+                try
+                {
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        byte[] payload = new byte[3];
+                        ReadExact(stream, payload);
+                        stream.Write(payload, 0, payload.Length);
+                        stream.Flush();
+                    }
+                }
+                catch (Exception) { }
+                finally { listener.Stop(); }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+            return port;
+        }
+
+        private static int StartForwardingSocksProxy(int echoPort)
+        {
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            Thread worker = new Thread(delegate ()
+            {
+                try
+                {
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        byte[] greeting = new byte[3];
+                        ReadExact(stream, greeting);
+                        stream.Write(new byte[] { 5, 0 }, 0, 2);
+
+                        byte[] request = new byte[4];
+                        ReadExact(stream, request);
+                        if (request[3] == 1) ReadExact(stream, new byte[6]);
+                        else if (request[3] == 4) ReadExact(stream, new byte[18]);
+                        else
+                        {
+                            int length = stream.ReadByte();
+                            if (length < 0) return;
+                            ReadExact(stream, new byte[length + 2]);
+                        }
+
+                        using (TcpClient target = new TcpClient())
+                        {
+                            target.Connect(IPAddress.Loopback, echoPort);
+                            stream.Write(new byte[] { 5, 0, 0, 1, 127, 0, 0, 1, 0, 0 }, 0, 10);
+                            RelayRaw(client, target);
+                        }
+                    }
+                }
+                catch (Exception) { }
+                finally { listener.Stop(); }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+            return port;
+        }
+
+        private static void RelayRaw(TcpClient first, TcpClient second)
+        {
+            NetworkStream left = first.GetStream();
+            NetworkStream right = second.GetStream();
+            Thread upload = new Thread(delegate ()
+            {
+                try { CopyRaw(left, right); } catch (Exception) { }
+            });
+            Thread download = new Thread(delegate ()
+            {
+                try { CopyRaw(right, left); } catch (Exception) { }
+            });
+            upload.IsBackground = true;
+            download.IsBackground = true;
+            upload.Start();
+            download.Start();
+            upload.Join(5000);
+            download.Join(5000);
+        }
+
+        private static void CopyRaw(Stream input, Stream output)
+        {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                output.Write(buffer, 0, read);
+                output.Flush();
+            }
+        }
+
+        private static string ReadHeader(Stream stream)
+        {
+            MemoryStream data = new MemoryStream();
+            int state = 0;
+            while (data.Length < 8192)
+            {
+                int value = stream.ReadByte();
+                if (value < 0) break;
+                data.WriteByte((byte)value);
+                if ((state == 0 && value == '\r') || (state == 1 && value == '\n')
+                    || (state == 2 && value == '\r') || (state == 3 && value == '\n'))
+                {
+                    state++;
+                    if (state == 4) break;
+                }
+                else
+                {
+                    state = value == '\r' ? 1 : 0;
+                }
+            }
+            return data.Length == 0 ? null : Encoding.ASCII.GetString(data.ToArray());
         }
 
         private static void ReadExact(Stream stream, byte[] buffer)
@@ -739,6 +924,18 @@ namespace PiWebTray
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash,
                 out parsedPort);
             Check("helper args parse optional port", portParsed && parsedPort == 30141);
+
+            bool noWaitParsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\data\\update.log", "en", "C:\\data",
+                    stagingHashArg, "0"
+                },
+                out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out parsedPort);
+            Check("helper args accept zero wait port", noWaitParsed && parsedPort == 0);
 
             Check("helper args reject missing values", !Updater.TryParseApplyArgs(
                 new string[] { "--apply-update", "C:\\stage" },

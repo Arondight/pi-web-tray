@@ -292,7 +292,10 @@ namespace PiWebTray
                         || (_updateStartedWithServiceRunning && _config.AutoRestart)
                         ? ApplyStartMode.ServiceSilent
                         : ApplyStartMode.TrayOnly;
-                    ok = Updater.StartHelper(_config, staging, mode, elevated, out error);
+                    bool waitForService = mode == ApplyStartMode.ServiceSilent
+                        || _updateStartedWithServiceRunning;
+                    ok = Updater.StartHelper(_config, staging, mode, elevated,
+                        waitForService, out error);
                 }
                 catch (Exception ex)
                 {

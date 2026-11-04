@@ -446,6 +446,7 @@ namespace PiWebTray
             LanguageOption language = _language.SelectedItem as LanguageOption;
             string languageValue = language == null ? L.Auto : language.Value;
 
+            string oldProxy = _config.Proxy ?? "";
             List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
             values.Add(new KeyValuePair<string, string>("Port", port.ToString(CultureInfo.InvariantCulture)));
             values.Add(new KeyValuePair<string, string>("WorkingDir", workingDir));
@@ -476,6 +477,8 @@ namespace PiWebTray
             _config.InstallTag = tag;
             _config.NpmRegistry = registry;
             _config.Proxy = proxy;
+            if (!string.Equals(oldProxy, proxy, StringComparison.Ordinal))
+                ProxyTransport.Reset();
             _config.NodePath = nodePath;
             _config.ServerScript = serverScript;
 
