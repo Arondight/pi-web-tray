@@ -356,6 +356,11 @@ namespace PiWebTray
             TcpClient remote = null;
             try
             {
+                lock (_lock)
+                {
+                    if (_closed) return;
+                }
+
                 // The bridge is a process-local implementation detail. Do not let other
                 // local users or programs inherit the configured proxy credentials.
                 if (!IsCurrentProcessClient(client))
@@ -402,7 +407,11 @@ namespace PiWebTray
                 int port;
                 if (!SplitAuthority(parts[1], out host, out port)) return;
                 remote = Socks5Client.Connect(_proxy, host, port, 15000);
-                lock (_lock) _remotes.Add(remote);
+                lock (_lock)
+                {
+                    if (_closed) return;
+                    _remotes.Add(remote);
+                }
                 remote.ReceiveTimeout = 600000;
                 remote.SendTimeout = 600000;
                 Write(clientStream, "HTTP/1.1 200 Connection established\r\n\r\n");

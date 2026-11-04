@@ -360,14 +360,9 @@ namespace PiWebTray
                     File.WriteAllLines(temp, lines.ToArray(), new UTF8Encoding(true));
                     if (File.Exists(IniPath))
                     {
-                        try
-                        {
-                            File.Replace(temp, IniPath, backup, true);
-                        }
-                        catch (Exception)
-                        {
-                            File.Copy(temp, IniPath, true);
-                        }
+                        // Keep the old file untouched if the atomic replacement cannot
+                        // complete; a non-atomic copy could truncate the configuration.
+                        File.Replace(temp, IniPath, backup, true);
                     }
                     else
                     {

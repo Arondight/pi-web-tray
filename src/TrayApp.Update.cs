@@ -287,7 +287,7 @@ namespace PiWebTray
                 try
                 {
                     ServiceProbe.Invalidate();
-                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                     ApplyStartMode mode = IsOurPiWeb(owner) || TrayOwnsPort(owner) || _restartAfterUpdate
                         || (_updateStartedWithServiceRunning && _config.AutoRestart)
                         ? ApplyStartMode.ServiceSilent

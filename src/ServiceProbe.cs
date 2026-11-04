@@ -40,6 +40,7 @@ namespace PiWebTray
         private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(3);
 
         private static int _cachePort = -1;
+        private static string _cacheScript = "";
         private static PortOwnerInfo _cache;
         private static DateTime _cacheAt = DateTime.MinValue;
         private static int _cacheGeneration;
@@ -66,15 +67,23 @@ namespace PiWebTray
 
         internal static PortOwnerInfo Inspect(int port)
         {
+            return Inspect(port, "");
+        }
+
+        internal static PortOwnerInfo Inspect(int port, string expectedScript)
+        {
+            expectedScript = (expectedScript ?? "").Trim();
             int generation;
             lock (CacheLock)
             {
-                if (_cache != null && _cachePort == port && DateTime.Now - _cacheAt < CacheLifetime)
+                if (_cache != null && _cachePort == port
+                    && string.Equals(_cacheScript, expectedScript, StringComparison.OrdinalIgnoreCase)
+                    && DateTime.Now - _cacheAt < CacheLifetime)
                     return _cache;
                 generation = _cacheGeneration;
             }
 
-            PortOwnerInfo result = InspectUncached(port);
+            PortOwnerInfo result = InspectUncached(port, expectedScript);
 
             lock (CacheLock)
             {
@@ -83,6 +92,7 @@ namespace PiWebTray
                 if (generation == _cacheGeneration)
                 {
                     _cachePort = port;
+                    _cacheScript = expectedScript;
                     _cache = result;
                     _cacheAt = DateTime.Now;
                 }
@@ -97,11 +107,12 @@ namespace PiWebTray
                 _cacheGeneration++;
                 _cache = null;
                 _cachePort = -1;
+                _cacheScript = "";
                 _cacheAt = DateTime.MinValue;
             }
         }
 
-        private static PortOwnerInfo InspectUncached(int port)
+        private static PortOwnerInfo InspectUncached(int port, string expectedScript)
         {
             if (!Net.IsPortOpen(port, 250))
             {
@@ -143,10 +154,12 @@ namespace PiWebTray
 
             string commandLine = pid > 4 ? ReadCommandLine(pid) : "";
 
-            if (IsPiWebCommandLine(commandLine))
+            string expectedPath = ExtractScriptPath(commandLine, expectedScript);
+            if (IsPiWebCommandLine(commandLine) || expectedPath.Length > 0)
             {
                 int listenerPid = pid;
-                string scriptPath = ExtractScriptPath(commandLine);
+                string scriptPath = expectedPath;
+                if (scriptPath.Length == 0) scriptPath = ExtractScriptPath(commandLine);
                 // pi-web can spawn a child `next start` process that owns the
                 // listening socket. Its own command line has @agegr\pi-web but no
                 // pi-web.js; the parent node process carries the actual script path.
@@ -155,7 +168,9 @@ namespace PiWebTray
                 {
                     parentPid = NativeProcess.ParentPid(parentPid);
                     if (parentPid <= 4) break;
-                    scriptPath = ExtractScriptPath(ReadCommandLine(parentPid));
+                    scriptPath = ExtractScriptPath(ReadCommandLine(parentPid), expectedScript);
+                    if (scriptPath.Length == 0)
+                        scriptPath = ExtractScriptPath(ReadCommandLine(parentPid));
                 }
                 return new PortOwnerInfo
                 {
@@ -221,19 +236,44 @@ namespace PiWebTray
         // (same session) is not mistaken for the service this tray manages.
         internal static string ExtractScriptPath(string commandLine)
         {
+            return ExtractScriptPath(commandLine, "");
+        }
+
+        internal static string ExtractScriptPath(string commandLine, string expectedScript)
+        {
             if (string.IsNullOrEmpty(commandLine)) return "";
 
             foreach (Match match in QuotedArgument.Matches(commandLine))
             {
                 string value = match.Groups[1].Value;
-                if (value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0) return value;
+                if (IsExpectedScript(value, expectedScript)
+                    || value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return value;
             }
             foreach (string raw in commandLine.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string value = raw.Trim('"');
-                if (value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0) return value;
+                if (IsExpectedScript(value, expectedScript)
+                    || value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return value;
             }
             return "";
+        }
+
+        private static bool IsExpectedScript(string value, string expectedScript)
+        {
+            if (string.IsNullOrEmpty(value) || string.IsNullOrEmpty(expectedScript)) return false;
+            try
+            {
+                return string.Equals(
+                    Path.GetFullPath(value),
+                    Path.GetFullPath(expectedScript),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         internal static bool MatchesExpectedScript(PortOwnerInfo owner, string expectedScript)

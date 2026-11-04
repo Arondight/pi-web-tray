@@ -48,10 +48,11 @@ namespace PiWebTray
             // was invalidated while it was in flight.
             ServiceProbe.Invalidate();
             int port = _port;
+            string expectedScript = ExpectedPiWebScript();
             Thread worker = new Thread(delegate ()
             {
                 PortOwnerInfo result = null;
-                try { result = ServiceProbe.Inspect(port); }
+                try { result = ServiceProbe.Inspect(port, expectedScript); }
                 catch (Exception) { result = OwnerCheckFailed(); }
                 if (result == null) result = OwnerCheckFailed();
                 lock (_ownerLock)

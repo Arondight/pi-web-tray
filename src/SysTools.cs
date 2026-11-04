@@ -69,6 +69,18 @@ namespace PiWebTray
             return false;
         }
 
+        internal static bool WaitPortOpen(int port, int timeoutMs)
+        {
+            int waited = 0;
+            while (waited < timeoutMs)
+            {
+                if (IsPortOpen(port, 200)) return true;
+                Thread.Sleep(150);
+                waited += 150;
+            }
+            return false;
+        }
+
         // An open port does not mean Next.js answers yet; used after install to confirm the service works
         internal static bool IsHttpOk(string url, int timeoutMs)
         {

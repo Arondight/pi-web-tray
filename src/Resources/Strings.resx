@@ -318,6 +318,9 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
   <data name="install.stoppedNoTray" xml:space="preserve">
     <value>Pi Web was stopped for this install and was not restarted (no tray is running).</value>
   </data>
+  <data name="install.restartFailed" xml:space="preserve">
+    <value>Pi Web did not open port {0} after the install. Check the service log.</value>
+  </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web is ready</value>
   </data>
@@ -994,7 +997,7 @@ See {1} for details.</value>
     <value>Select Pi Web script</value>
   </data>
   <data name="settings.restartNote" xml:space="preserve">
-    <value>Port, language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
+    <value>Port changes require Pi Web to be stopped first. Language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>Save</value>
@@ -1019,6 +1022,9 @@ See {1} for details.</value>
   </data>
   <data name="settings.portInUseTitle" xml:space="preserve">
     <value>Port in use</value>
+  </data>
+  <data name="settings.portRequiresStopped" xml:space="preserve">
+    <value>Stop Pi Web before changing the port.</value>
   </data>
   <data name="settings.portInUseBody" xml:space="preserve">
     <value>Port {0} is used by another program. Save anyway?</value>
@@ -1090,7 +1096,7 @@ See {1} for details.</value>
     <value>Settings saved</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>Restart Pi Web Tray to apply port, language, working directory and path changes.</value>
+    <value>Restart Pi Web Tray to apply language, working directory and path changes.</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>Refresh</value>

@@ -318,6 +318,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   <data name="install.stoppedNoTray" xml:space="preserve">
     <value>Pi Web 已为本次安装停止，且未重新启动（没有正在运行的托盘）。</value>
   </data>
+  <data name="install.restartFailed" xml:space="preserve">
+    <value>安装后 Pi Web 没有打开端口 {0}。请查看服务日志。</value>
+  </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web 已就绪</value>
   </data>
@@ -994,7 +997,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>选择 Pi Web 脚本</value>
   </data>
   <data name="settings.restartNote" xml:space="preserve">
-    <value>端口、语言、工作目录和工具路径在重启 Pi Web Tray 后生效。依赖设置在下一次安装时生效。</value>
+    <value>端口修改需要先停止 Pi Web。语言、工作目录和工具路径在重启 Pi Web Tray 后生效。依赖设置在下一次安装时生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>保存</value>
@@ -1019,6 +1022,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   </data>
   <data name="settings.portInUseTitle" xml:space="preserve">
     <value>端口已被占用</value>
+  </data>
+  <data name="settings.portRequiresStopped" xml:space="preserve">
+    <value>请先停止 Pi Web 再修改端口。</value>
   </data>
   <data name="settings.portInUseBody" xml:space="preserve">
     <value>端口 {0} 已被其他程序占用。仍要保存吗？</value>
@@ -1090,7 +1096,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>设置已保存</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>请重启 Pi Web Tray 以应用端口、语言、工作目录和路径更改。</value>
+    <value>请重启 Pi Web Tray 以应用语言、工作目录和路径更改。</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>刷新</value>

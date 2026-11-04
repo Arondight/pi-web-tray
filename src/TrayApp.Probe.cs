@@ -188,11 +188,12 @@ namespace PiWebTray
 
                 _phase = Phase.NeedsNode;
                 UpdateUi();
-                if (firstCheck)
+                if (firstCheck && _autoStartService)
                 {
-                    // Nothing useful can run without Node.js, and a tray that stays behind
-                    // keeps a stale environment (PATH/PATH from logon), so ask once, offer
-                    // the download page and exit instead of sitting in a broken state.
+                    // A tray-only instance intentionally does not start Pi Web; keep it
+                    // available for Settings and a later retry when Node.js is installed.
+                    // A normal/start-no-open/autostart instance cannot do useful work
+                    // without Node.js, so ask once, offer the download page and exit.
                     ShowMissingNodeAndExit(result);
                     return;
                 }
@@ -268,6 +269,8 @@ namespace PiWebTray
 
         private void RunSelfCheck()
         {
+            if (_selfCheckRunning) return;
+            _selfCheckRunning = true;
             Thread worker = new Thread(delegate ()
             {
                 try
@@ -288,6 +291,7 @@ namespace PiWebTray
             ProbeResult result = _selfCheckResult;
             string error = _selfCheckError;
             if (result == null && error == null) return;
+            _selfCheckRunning = false;
             _selfCheckResult = null;
             _selfCheckError = null;
 

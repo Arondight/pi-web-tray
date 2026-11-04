@@ -265,10 +265,45 @@ namespace PiWebTray
 
         private void ShowSettings()
         {
-            using (SettingsForm form = new SettingsForm(_config))
+            int previousPort = _port;
+            // A running/starting/stopping service owns the old port. Changing the
+            // configured port without restarting the whole tray would make CLI
+            // commands and the service state disagree, so require a stopped service.
+            bool allowPortChange = _phase != Phase.Running && _phase != Phase.Starting
+                && _phase != Phase.Stopping && _phase != Phase.Installing
+                && _phase != Phase.Checking;
+            using (SettingsForm form = new SettingsForm(_config, allowPortChange))
             {
                 if (form.ShowDialog() == DialogResult.OK)
                 {
+                    bool portRejected = false;
+                    if (_config.Port != previousPort)
+                    {
+                        // The state can change while the modal dialog is open (for example
+                        // an auto-restart or a start signal). Never adopt a new port while
+                        // a service may still own the old one.
+                        bool canApplyPort = _phase != Phase.Running && _phase != Phase.Starting
+                            && _phase != Phase.Stopping && _phase != Phase.Installing
+                            && _phase != Phase.Checking
+                            && (_phase == Phase.PortConflict || !Net.IsPortOpen(previousPort, 200));
+                        if (!canApplyPort)
+                        {
+                            _config.Port = previousPort;
+                            _config.SetValue("Port", previousPort.ToString());
+                            portRejected = true;
+                            MessageBox.Show(L.T("settings.portRequiresStopped"),
+                                L.T("settings.title"),
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+                        }
+                        else
+                        {
+                            _port = _config.Port;
+                            if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
+                            TrayState.Save(Process.GetCurrentProcess().Id, _elevated, _port);
+                            UpdateUi();
+                        }
+                    }
                     if (_config.AutoCheckUpdates)
                     {
                         if (_autoUpdateCheckAt == DateTime.MinValue)
@@ -283,7 +318,8 @@ namespace PiWebTray
                         _autoRestartAt = DateTime.MinValue;
                         _autoRestartAttempts = 0;
                     }
-                    Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
+                    if (!portRejected)
+                        Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
                 }
             }
         }
@@ -347,7 +383,10 @@ namespace PiWebTray
                 MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.Yes) return;
 
-            if (!Sys.RunElevated(Application.ExecutablePath, ""))
+            string arguments = !_autoStartService && _phase != Phase.Running
+                ? "--tray-only"
+                : (!_initialOpenBrowser ? "--start-no-open" : "");
+            if (!Sys.RunElevated(Application.ExecutablePath, arguments))
                 NotifyError(L.T("notify.adminRestartFailed"), L.T("notify.adminRestartFailedBody"));
         }
 

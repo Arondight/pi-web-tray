@@ -43,6 +43,11 @@ namespace PiWebTray
         private readonly TextBox _serverScript;
 
         internal SettingsForm(Config config)
+            : this(config, true)
+        {
+        }
+
+        internal SettingsForm(Config config, bool allowPortChange)
         {
             SuspendLayout();
             _config = config;
@@ -90,6 +95,7 @@ namespace PiWebTray
             _port.Maximum = 65535;
             _port.Value = Math.Max(1, Math.Min(65535, config.Port));
             _port.Width = 120;
+            _port.Enabled = allowPortChange;
             _port.AutoSize = false;
             _port.Anchor = AnchorStyles.Left;
             AddRow(root, 0, L.T("settings.port"), _port);

@@ -6,6 +6,7 @@
 
 using System;
 using System.Drawing;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -232,7 +233,8 @@ namespace PiWebTray
                 try
                 {
                     listening = Net.IsPortOpen(_config.Port, 300);
-                    owner = ServiceProbe.Inspect(_config.Port);
+                    ServiceProbe.Invalidate();
+                    owner = ServiceProbe.Inspect(_config.Port, ExpectedScript());
                 }
                 catch (Exception)
                 {
@@ -309,7 +311,8 @@ namespace PiWebTray
                 {
                     result = EnvironmentProbe.Detect(_config);
                     listening = Net.IsPortOpen(_config.Port, 300);
-                    owner = ServiceProbe.Inspect(_config.Port);
+                    ServiceProbe.Invalidate();
+                    owner = ServiceProbe.Inspect(_config.Port, ExpectedScript());
                 }
                 catch (Exception ex)
                 {
@@ -365,6 +368,15 @@ namespace PiWebTray
         {
             int index = grid.Rows.Add(item, value);
             grid.Rows[index].Cells[1].ToolTipText = value;
+        }
+
+        private string ExpectedScript()
+        {
+            if (!string.IsNullOrEmpty(_config.ServerScript) && File.Exists(_config.ServerScript))
+                return _config.ServerScript;
+            if (_probe != null && _probe.PiWebFound && !string.IsNullOrEmpty(_probe.PiWebScript))
+                return _probe.PiWebScript;
+            return _config.ServerScript ?? "";
         }
 
         private string NodeStatus()

@@ -67,7 +67,7 @@ namespace PiWebTray
                     // stop/kill decision beats responsiveness, and a frozen window that
                     // is already closing is not user-visible.
                     ServiceProbe.Invalidate();
-                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                     bool ownedByTray = TrayOwnsPort(owner);
                     bool ourPiWeb = IsOurPiWeb(owner);
                     if ((owner.IsUnknown || owner.Owner == PortOwner.None
@@ -97,7 +97,7 @@ namespace PiWebTray
                         if (Net.IsPortOpen(_port, 200))
                         {
                             ServiceProbe.Invalidate();
-                            owner = ServiceProbe.Inspect(_port);
+                            owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                             if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                             {
                                 Sys.KillByPort(_port);

@@ -59,7 +59,7 @@ namespace PiWebTray
         private readonly bool _autoStartService;
         private readonly bool _initialOpenBrowser;
         private readonly Mutex _mutex;
-        private readonly int _port;
+        private int _port;
 
         private readonly NotifyIcon _tray = new NotifyIcon();
         private readonly ContextMenuStrip _menu = new ContextMenuStrip();
@@ -145,6 +145,7 @@ namespace PiWebTray
         // self check result: computed on a thread, shown from the UI thread
         private volatile ProbeResult _selfCheckResult;
         private volatile string _selfCheckError;
+        private bool _selfCheckRunning;
 
         // autostart operation (background -> UI thread)
         private readonly object _autoLock = new object();

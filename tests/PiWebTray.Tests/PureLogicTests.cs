@@ -1256,6 +1256,11 @@ namespace PiWebTray
                 @"C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js",
                 ServiceProbe.ExtractScriptPath(
                     @"""C:\Program Files\nodejs\node.exe"" ""C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js"" --no-open -p 30141"));
+            string customScript = Path.Combine(Path.GetTempPath(), "Pi Web Scripts", "server.js");
+            string customLine = "\"C:\\Program Files\\nodejs\\node.exe\" \"" +
+                customScript + "\" --no-open -p 30141";
+            CheckEqual("custom expected script path extraction",
+                customScript, ServiceProbe.ExtractScriptPath(customLine, customScript));
             Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
                 @"node C:\work\other.js"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));

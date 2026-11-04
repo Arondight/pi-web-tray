@@ -140,7 +140,7 @@ namespace PiWebTray
                 || (owner != null && ShouldStopServiceForInstall(_phase, true,
                     IsOurPiWeb(owner), TrayOwnsPort(owner)));
             _installStartAfter = needsStop || thenStart;
-            _installOpenAfter = needsStop ? false : thenOpen;
+            _installOpenAfter = thenOpen;
 
             // npm cannot replace a globally installed package while its node process is
             // running. Stop pi-web first, then continue with the same requested mode.
