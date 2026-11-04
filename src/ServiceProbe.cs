@@ -161,7 +161,7 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.PiWeb,
                     Pid = listenerPid,
-                    Detail = "pi-web command line",
+                    Detail = "Pi Web command line",
                     ScriptPath = scriptPath
                 };
             }
@@ -175,13 +175,13 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.PiWeb,
                     Pid = pid,
-                    Detail = "pi-web HTTP response"
+                    Detail = "Pi Web HTTP response"
                 };
             }
 
             string detail = string.IsNullOrEmpty(commandLine)
                 ? "process details are unavailable"
-                : "process is not pi-web";
+                : "process is not Pi Web";
             string imagePath = pid > 4 ? NativeProcess.ImagePath(pid) : "";
             if (!string.IsNullOrEmpty(imagePath)) detail += " (" + imagePath + ")";
 

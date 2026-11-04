@@ -346,7 +346,7 @@ namespace PiWebTray
 
             _tray.ContextMenuStrip = _menu;
             _tray.Visible = true;
-            _tray.Text = "Pi Web";
+            _tray.Text = Program.AppName;
             _tray.MouseClick += delegate (object sender, MouseEventArgs e)
             {
                 if (e.Button == MouseButtons.Left) OpenOrStart();

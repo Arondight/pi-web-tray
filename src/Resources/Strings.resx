@@ -19,7 +19,7 @@
     <value>Node.js required</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>pi-web not installed</value>
+    <value>Pi Web not installed</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>Installing… {0}</value>
@@ -52,7 +52,7 @@
     <value>(checking)</value>
   </data>
   <data name="status.tooltip" xml:space="preserve">
-    <value>Pi Web — {0}</value>
+    <value>Pi Web Tray — {0}</value>
   </data>
   <data name="status.bulletOn" xml:space="preserve">
     <value>● </value>
@@ -61,7 +61,7 @@
     <value>○ </value>
   </data>
   <data name="menu.open" xml:space="preserve">
-    <value>Open Pi Web</value>
+    <value>Open Pi Web in Browser</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
     <value>Start and open Pi Web</value>
@@ -79,10 +79,10 @@
     <value>Restart service</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>Update pi-web and pi</value>
+    <value>Update Pi Web and Pi</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>Install pi-web dependencies</value>
+    <value>Install Pi Web dependencies</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>Download Node.js</value>
@@ -99,7 +99,7 @@ Continue?</value>
     <value>Node.js is not available for this system</value>
   </data>
   <data name="node.unsupportedBody" xml:space="preserve">
-    <value>This 32-bit Windows version has no Node.js 22 build, and pi-web requires Node.js 22.19 or newer. Use a 64-bit system, or install Node.js 22 manually from another source.</value>
+    <value>This 32-bit Windows version has no Node.js 22 build, and Pi Web requires Node.js 22.19 or newer. Use a 64-bit system, or install Node.js 22 manually from another source.</value>
   </data>
   <data name="node.missingTitle" xml:space="preserve">
     <value>Node.js is required</value>
@@ -136,7 +136,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Start at login as administrator: {0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>Exit and stop pi-web</value>
+    <value>Exit and stop Pi Web</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>yes</value>
@@ -202,10 +202,10 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>npm global directory</value>
   </data>
   <data name="probe.piweb" xml:space="preserve">
-    <value>pi-web</value>
+    <value>Pi Web</value>
   </data>
   <data name="probe.picli" xml:space="preserve">
-    <value>pi command line</value>
+    <value>Pi command line</value>
   </data>
   <data name="probe.requirement" xml:space="preserve">
     <value>Requires {0} or newer: {1}</value>
@@ -214,10 +214,10 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Result</value>
   </data>
   <data name="probe.ready" xml:space="preserve">
-    <value>Ready to start pi-web</value>
+    <value>Ready to start Pi Web</value>
   </data>
   <data name="probe.needPiweb" xml:space="preserve">
-    <value>pi-web is not installed</value>
+    <value>Pi Web is not installed</value>
   </data>
   <data name="probe.note" xml:space="preserve">
     <value>Note</value>
@@ -268,22 +268,22 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>The installation timed out after 45 minutes. Check the network connection and retry.</value>
   </data>
   <data name="install.doneBody" xml:space="preserve">
-    <value>Installed: pi-web {0}{1}</value>
+    <value>Installed: Pi Web {0}{1}</value>
   </data>
   <data name="install.donePi" xml:space="preserve">
-    <value>, pi {0}</value>
+    <value>, Pi {0}</value>
   </data>
   <data name="install.ready" xml:space="preserve">
     <value>Ready</value>
   </data>
   <data name="install.unverifiedBody" xml:space="preserve">
-    <value>npm reported success, but pi-web was not found. Check permissions and the global npm directory. Log: {0}</value>
+    <value>npm reported success, but Pi Web was not found. Check permissions and the global npm directory. Log: {0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
-    <value>npm reported success, but the pi command line was not found. Check the global npm directory. Log: {0}</value>
+    <value>npm reported success, but the Pi command line was not found. Check the global npm directory. Log: {0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>The pi CLI could not be updated. If pi is running, close it and use "Update pi-web and pi" again. See {0}.</value>
+    <value>The Pi CLI could not be updated. If Pi is running, close it and use "Update Pi Web and Pi" again. See {0}.</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>npm exited with code {0}. Log: {1}</value>
@@ -313,10 +313,10 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Environment information:</value>
   </data>
   <data name="install.stopFirst" xml:space="preserve">
-    <value>Stopping pi-web first (npm cannot update it while it runs).</value>
+    <value>Stopping Pi Web first (npm cannot update it while it runs).</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>pi-web was stopped for this install and was not restarted (no tray is running).</value>
+    <value>Pi Web was stopped for this install and was not restarted (no tray is running).</value>
   </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web is ready</value>
@@ -346,7 +346,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Cannot open the link</value>
   </data>
   <data name="notify.noPiwebTitle" xml:space="preserve">
-    <value>pi-web was not found</value>
+    <value>Pi Web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
     <value>Use the tray menu to update dependencies.</value>
@@ -361,7 +361,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Installation in progress</value>
   </data>
   <data name="exit.installingBody" xml:space="preserve">
-    <value>npm is still installing packages. Exiting now aborts the installation and may leave pi-web partially installed.
+    <value>npm is still installing packages. Exiting now aborts the installation and may leave Pi Web partially installed.
 
 Exit anyway?</value>
   </data>
@@ -393,7 +393,7 @@ Exit anyway?</value>
     <value>{0}. Select the tray icon after installing Node.js.</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
-    <value>pi-web is not installed</value>
+    <value>Pi Web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
     <value>Use the tray menu to update dependencies.</value>
@@ -414,7 +414,7 @@ Exit anyway?</value>
     <value>Environment check error: {0}</value>
   </data>
   <data name="sc.title" xml:space="preserve">
-    <value>Pi Web environment check</value>
+    <value>Pi Web Tray environment check</value>
   </data>
   <data name="check.component" xml:space="preserve">
     <value>Component</value>
@@ -540,7 +540,7 @@ Exit anyway?</value>
     <value>Environment probe failed: {0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>pi-web is running with administrator rights</value>
+    <value>Pi Web is running with administrator rights</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
     <value>The tray is running elevated.
@@ -552,7 +552,7 @@ To start the service, use the tray icon menu, or right-click the desktop shortcu
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>The previous tray instance did not exit.
-Choose “Exit and stop pi-web” from the tray menu first, then retry.</value>
+Choose “Exit and stop Pi Web” from the tray menu first, then retry.</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray encountered an error. Details were written to crash.log:
@@ -574,10 +574,10 @@ Use --help to see the supported options.</value>
     <value>exe</value>
   </data>
   <data name="help.launch" xml:space="preserve">
-    <value>Start pi-web, install missing dependencies, and open the browser.</value>
+    <value>Start Pi Web, install missing dependencies, and open the browser.</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>Used by start-at-login; starts the tray and pi-web without opening a browser.</value>
+    <value>Used by start-at-login; starts the tray and Pi Web without opening a browser.</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>Request the running tray to stop the service; the tray remains.</value>
@@ -598,7 +598,7 @@ Use --help to see the supported options.</value>
     <value>Write a diagnostic snapshot to diag.txt.</value>
   </data>
   <data name="help.makeico" xml:space="preserve">
-    <value>Generate pi-web-tray.ico (build tool).</value>
+    <value>Generate the Pi Web Tray icon (build tool).</value>
   </data>
   <data name="help.version" xml:space="preserve">
     <value>Print the version.</value>
@@ -622,7 +622,7 @@ Use --help to see the supported options.</value>
     <value>UI language: auto / en / zh / zh-Hant.</value>
   </data>
   <data name="help.envTest" xml:space="preserve">
-    <value>Test hooks: simulate missing Node.js / pi-web / pi.</value>
+    <value>Test hooks: simulate missing Node.js / Pi Web / Pi.</value>
   </data>
   <data name="langcheck.ok" xml:space="preserve">
     <value>All {0} strings are complete for {1} languages.</value>
@@ -643,16 +643,16 @@ Use --help to see the supported options.</value>
     <value>; Restart the tray after editing</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
-    <value>; pi-web port (default 30141)</value>
+    <value>; Pi Web port (default 30141)</value>
   </data>
   <data name="ini.workdirC" xml:space="preserve">
-    <value>; Service working directory (pi's default project directory)</value>
+    <value>; Service working directory (Pi's default project directory)</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; Install pi-web automatically when missing (first installation usually takes 10-20 minutes)</value>
+    <value>; Install Pi Web automatically when missing (first installation usually takes 10-20 minutes)</value>
   </data>
   <data name="ini.piCliC" xml:space="preserve">
-    <value>; Also install the pi command line (shared configuration with pi-web)</value>
+    <value>; Also install the Pi command line (shared configuration with Pi Web)</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; npm dist-tag or exact version</value>
@@ -732,7 +732,7 @@ Use --help to see the supported options.</value>
 Current version: {0}
 Latest version: {1}
 
-The tray will stop pi-web, update the application files and restart. Continue?</value>
+The tray will stop Pi Web, update the application files and restart. Continue?</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>The installation directory requires administrator rights. Windows will ask for permission (UAC) before the files are replaced.</value>
@@ -847,7 +847,7 @@ See {1} for details.</value>
     <value>The update was applied, but the new tray could not be started.</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
-    <value>pi-web is still using port {0}. The update was not applied; stop the service and try again.</value>
+    <value>Pi Web is still using port {0}. The update was not applied; stop the service and try again.</value>
   </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>The previous files could not be fully restored. A backup was kept at: {0}</value>
@@ -862,7 +862,7 @@ See {1} for details.</value>
     <value>Version {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>A Windows 7 to 11 harness for pi and pi-web.</value>
+    <value>A Windows 7 to 11 harness for Pi and Pi Web.</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>Author: {0}</value>
@@ -898,16 +898,16 @@ See {1} for details.</value>
     <value>Port {0} is already used by another program. Stop that program or change the port in Settings.</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
-    <value>pi-web stopped</value>
+    <value>Pi Web stopped</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>pi-web stopped unexpectedly. Click the tray icon to restart it.</value>
+    <value>Pi Web stopped unexpectedly. Click the tray icon to restart it.</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0} (listening={1}, owner={2})</value>
   </data>
   <data name="check.ownerPiweb" xml:space="preserve">
-    <value>pi-web</value>
+    <value>Pi Web</value>
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>another program or unknown</value>
@@ -943,10 +943,10 @@ See {1} for details.</value>
     <value>Install missing dependencies automatically</value>
   </data>
   <data name="settings.installPiCli" xml:space="preserve">
-    <value>Install the pi command line with pi-web</value>
+    <value>Install the Pi command line with Pi Web</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
-    <value>Restart pi-web automatically if it stops</value>
+    <value>Restart Pi Web automatically if it stops</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
     <value>Check for Pi Web Tray updates at startup</value>
@@ -985,13 +985,13 @@ See {1} for details.</value>
     <value>Node.js path (optional)</value>
   </data>
   <data name="settings.serverScript" xml:space="preserve">
-    <value>pi-web script (optional)</value>
+    <value>Pi Web script (optional)</value>
   </data>
   <data name="settings.selectNode" xml:space="preserve">
     <value>Select node.exe</value>
   </data>
   <data name="settings.selectServer" xml:space="preserve">
-    <value>Select pi-web.js</value>
+    <value>Select Pi Web script</value>
   </data>
   <data name="settings.restartNote" xml:space="preserve">
     <value>Port, language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
@@ -1009,7 +1009,7 @@ See {1} for details.</value>
     <value>The selected Node.js executable does not exist.</value>
   </data>
   <data name="settings.invalidServerScript" xml:space="preserve">
-    <value>The selected pi-web script does not exist.</value>
+    <value>The selected Pi Web script does not exist.</value>
   </data>
   <data name="settings.invalidRegistry" xml:space="preserve">
     <value>Enter an absolute http:// or https:// registry URL, or leave it empty.</value>
@@ -1078,7 +1078,7 @@ See {1} for details.</value>
     <value>Restart as administrator</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>Restart Pi Web Tray with administrator rights? pi-web will restart.</value>
+    <value>Restart Pi Web Tray with administrator rights? Pi Web will restart.</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>Could not restart as administrator</value>
@@ -1096,7 +1096,7 @@ See {1} for details.</value>
     <value>Refresh</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>Installing pi-web dependencies</value>
+    <value>Installing Pi Web dependencies</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>Step {0} of {1}: {2}</value>
@@ -1120,10 +1120,10 @@ See {1} for details.</value>
     <value>Installing {0}/{1} · {2}</value>
   </data>
   <data name="notify.autoRestartTitle" xml:space="preserve">
-    <value>Restarting pi-web</value>
+    <value>Restarting Pi Web</value>
   </data>
   <data name="notify.autoRestartBody" xml:space="preserve">
-    <value>pi-web will restart in {0} seconds.</value>
+    <value>Pi Web will restart in {0} seconds.</value>
   </data>
   <data name="menu.updateAvailable" xml:space="preserve">
     <value>Update available: {0}</value>
@@ -1135,10 +1135,10 @@ See {1} for details.</value>
     <value>Pi Web Tray {0} is available. Select the tray menu to update.</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>Update pi-web and pi</value>
+    <value>Update Pi Web and Pi</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>Reinstall or update pi-web and pi now? pi-web will be stopped temporarily. This can take several minutes.</value>
+    <value>Reinstall or update Pi Web and Pi now? Pi Web will be stopped temporarily. This can take several minutes.</value>
   </data>
   <data name="log.close" xml:space="preserve">
     <value>Close</value>
@@ -1162,16 +1162,16 @@ See {1} for details.</value>
     <value>Could not reach GitHub. Check the network and proxy settings.</value>
   </data>
   <data name="ini.autoRestartC" xml:space="preserve">
-    <value>; Restart pi-web automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
+    <value>; Restart Pi Web automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
     <value>; Check for Pi Web Tray updates at startup (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>Start the tray only; do not start pi-web.</value>
+    <value>Start the tray only; do not start Pi Web.</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>Start the tray and pi-web without opening the browser (used after updates).</value>
+    <value>Start the tray and Pi Web without opening the browser (used after updates).</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>Updating Pi Web Tray</value>
@@ -1219,12 +1219,12 @@ See {1} for details.</value>
     <value>No lines match "{0}".</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>Update pi-web</value>
+    <value>Update Pi Web</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>Update pi-web dependencies</value>
+    <value>Update Pi Web dependencies</value>
   </data>
   <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>Reinstall or update pi-web now? pi-web will be stopped temporarily. This can take several minutes.</value>
+    <value>Reinstall or update Pi Web now? Pi Web will be stopped temporarily. This can take several minutes.</value>
   </data>
 </root>

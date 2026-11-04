@@ -54,10 +54,10 @@ Before a release, manually check:
 - high-DPI scaling and the Settings window on a small screen;
 - log pause/resume and filtering;
 - update cancellation while a download is in progress;
-- update while pi-web is stopped (service restart after the update);
-- dependency update while pi-web is running (service must stop before npm runs);
-- dependency update while pi-web is stopped (the service must stay stopped);
-- pi CLI version changes after a forced dependency update;
+- update while Pi Web is stopped (service restart after the update);
+- dependency update while Pi Web is running (service must stop before npm runs);
+- dependency update while Pi Web is stopped (the service must stay stopped);
+- Pi CLI version changes after a forced dependency update;
 - Node.js download link on Windows 7/8 (confirmation, 32-bit message) and 8.1/10;
 - desktop shortcut creation, including removal of the old "Pi Web.lnk";
 - stale-file cleanup from a release manifest;

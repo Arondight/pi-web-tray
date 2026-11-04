@@ -19,7 +19,7 @@
     <value>需要安装 Node.js</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>需要安装 pi-web</value>
+    <value>需要安装 Pi Web</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>安装中… {0}</value>
@@ -52,7 +52,7 @@
     <value>（检查中）</value>
   </data>
   <data name="status.tooltip" xml:space="preserve">
-    <value>Pi Web — {0}</value>
+    <value>Pi Web Tray — {0}</value>
   </data>
   <data name="status.bulletOn" xml:space="preserve">
     <value>● </value>
@@ -61,7 +61,7 @@
     <value>○ </value>
   </data>
   <data name="menu.open" xml:space="preserve">
-    <value>打开 Pi Web</value>
+    <value>在浏览器中打开 Pi Web</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
     <value>启动并打开 Pi Web</value>
@@ -79,10 +79,10 @@
     <value>重新启动服务</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>更新 pi-web 和 pi</value>
+    <value>更新 Pi Web 和 Pi</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>安装 pi-web 依赖</value>
+    <value>安装 Pi Web 依赖</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>下载 Node.js</value>
@@ -99,7 +99,7 @@
     <value>该系统没有可用的 Node.js</value>
   </data>
   <data name="node.unsupportedBody" xml:space="preserve">
-    <value>此 32 位 Windows 没有 Node.js 22 构建，而 pi-web 需要 Node.js 22.19 或更高版本。请使用 64 位系统，或从其他来源手动安装 Node.js 22。</value>
+    <value>此 32 位 Windows 没有 Node.js 22 构建，而 Pi Web 需要 Node.js 22.19 或更高版本。请使用 64 位系统，或从其他来源手动安装 Node.js 22。</value>
   </data>
   <data name="node.missingTitle" xml:space="preserve">
     <value>需要 Node.js</value>
@@ -136,7 +136,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>自启动时使用管理员权限：{0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>退出并停止 pi-web</value>
+    <value>退出并停止 Pi Web</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>是</value>
@@ -202,10 +202,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>npm 全局目录</value>
   </data>
   <data name="probe.piweb" xml:space="preserve">
-    <value>pi-web</value>
+    <value>Pi Web</value>
   </data>
   <data name="probe.picli" xml:space="preserve">
-    <value>pi 命令行</value>
+    <value>Pi 命令行</value>
   </data>
   <data name="probe.requirement" xml:space="preserve">
     <value>要求 {0} 或更高：{1}</value>
@@ -214,10 +214,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>结论</value>
   </data>
   <data name="probe.ready" xml:space="preserve">
-    <value>可以启动 pi-web</value>
+    <value>可以启动 Pi Web</value>
   </data>
   <data name="probe.needPiweb" xml:space="preserve">
-    <value>pi-web 尚未安装</value>
+    <value>Pi Web 尚未安装</value>
   </data>
   <data name="probe.note" xml:space="preserve">
     <value>注意</value>
@@ -268,22 +268,22 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>安装超时（45 分钟）。请检查网络连接后重试。</value>
   </data>
   <data name="install.doneBody" xml:space="preserve">
-    <value>安装完成：pi-web {0}{1}</value>
+    <value>安装完成：Pi Web {0}{1}</value>
   </data>
   <data name="install.donePi" xml:space="preserve">
-    <value>，pi {0}</value>
+    <value>，Pi {0}</value>
   </data>
   <data name="install.ready" xml:space="preserve">
     <value>已就绪</value>
   </data>
   <data name="install.unverifiedBody" xml:space="preserve">
-    <value>npm 报告成功，但未找到 pi-web。请检查权限或全局 npm 目录。日志：{0}</value>
+    <value>npm 报告成功，但未找到 Pi Web。请检查权限或全局 npm 目录。日志：{0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
-    <value>npm 报告成功，但未找到 pi 命令行。请检查全局 npm 目录。日志：{0}</value>
+    <value>npm 报告成功，但未找到 Pi 命令行。请检查全局 npm 目录。日志：{0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>无法更新 pi 命令行。如果 pi 正在运行，请先退出，然后再次使用“更新 pi-web 和 pi”。详见 {0}。</value>
+    <value>无法更新 Pi 命令行。如果 Pi 正在运行，请先退出，然后再次使用“更新 Pi Web 和 Pi”。详见 {0}。</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>安装失败（npm 退出码 {0}）。日志：{1}</value>
@@ -313,10 +313,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>环境信息：</value>
   </data>
   <data name="install.stopFirst" xml:space="preserve">
-    <value>正在先停止 pi-web（npm 无法在它运行时更新）。</value>
+    <value>正在先停止 Pi Web（npm 无法在它运行时更新）。</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>pi-web 已为本次安装停止，且未重新启动（没有正在运行的托盘）。</value>
+    <value>Pi Web 已为本次安装停止，且未重新启动（没有正在运行的托盘）。</value>
   </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web 已就绪</value>
@@ -346,7 +346,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>无法打开链接</value>
   </data>
   <data name="notify.noPiwebTitle" xml:space="preserve">
-    <value>未找到 pi-web</value>
+    <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
     <value>请使用托盘菜单更新依赖。</value>
@@ -361,7 +361,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>安装进行中</value>
   </data>
   <data name="exit.installingBody" xml:space="preserve">
-    <value>npm 仍在安装依赖。现在退出将中断安装，可能导致 pi-web 处于未完成状态。
+    <value>npm 仍在安装依赖。现在退出将中断安装，可能导致 Pi Web 处于未完成状态。
 
 仍要退出吗？</value>
   </data>
@@ -393,7 +393,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>{0}。安装完成后选择托盘图标以继续。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
-    <value>pi-web 尚未安装</value>
+    <value>Pi Web 尚未安装</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
     <value>请使用托盘菜单更新依赖。</value>
@@ -414,7 +414,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>环境自检错误：{0}</value>
   </data>
   <data name="sc.title" xml:space="preserve">
-    <value>Pi Web 环境自检</value>
+    <value>Pi Web Tray 环境检查</value>
   </data>
   <data name="check.component" xml:space="preserve">
     <value>组件</value>
@@ -540,7 +540,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>环境探测失败：{0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>pi-web 正在以管理员权限运行</value>
+    <value>Pi Web 正在以管理员权限运行</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
     <value>托盘程序当前以管理员权限运行。
@@ -552,7 +552,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>先前的托盘实例未退出。
-请先从托盘菜单选择“退出并停止 pi-web”，然后重试。</value>
+请先从托盘菜单选择“退出并停止 Pi Web”，然后重试。</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray 发生错误，详细信息已写入 crash.log：
@@ -574,10 +574,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>exe</value>
   </data>
   <data name="help.launch" xml:space="preserve">
-    <value>启动 pi-web，安装缺失的依赖，并打开浏览器。</value>
+    <value>启动 Pi Web，安装缺失的依赖，并打开浏览器。</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>由开机自启动使用；启动托盘和 pi-web，但不打开浏览器。</value>
+    <value>由开机自启动使用；启动托盘和 Pi Web，但不打开浏览器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>请求当前托盘停止服务；托盘继续运行。</value>
@@ -598,7 +598,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>将诊断快照写入 diag.txt。</value>
   </data>
   <data name="help.makeico" xml:space="preserve">
-    <value>生成 pi-web-tray.ico（构建工具）。</value>
+    <value>生成 Pi Web Tray 图标（构建工具）。</value>
   </data>
   <data name="help.version" xml:space="preserve">
     <value>显示版本。</value>
@@ -622,7 +622,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>界面语言：auto / en / zh / zh-Hant。</value>
   </data>
   <data name="help.envTest" xml:space="preserve">
-    <value>测试用模拟：模拟未安装 Node.js、pi-web 或 pi。</value>
+    <value>测试用模拟：模拟未安装 Node.js、Pi Web 或 Pi。</value>
   </data>
   <data name="langcheck.ok" xml:space="preserve">
     <value>{0} 条文案，{1} 种语言，全部完整。</value>
@@ -643,16 +643,16 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>; 修改后需重新启动托盘程序</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
-    <value>; pi-web 端口，默认 30141</value>
+    <value>; Pi Web 端口，默认 30141</value>
   </data>
   <data name="ini.workdirC" xml:space="preserve">
-    <value>; 服务工作目录（pi 的默认项目目录）</value>
+    <value>; 服务工作目录（Pi 的默认项目目录）</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; 缺少 pi-web 时自动安装（首次约需 10~20 分钟）</value>
+    <value>; 缺少 Pi Web 时自动安装（首次约需 10~20 分钟）</value>
   </data>
   <data name="ini.piCliC" xml:space="preserve">
-    <value>; 同时安装 pi 命令行（终端中的 pi，与 pi-web 共用配置）</value>
+    <value>; 同时安装 Pi 命令行（终端中的 Pi，与 Pi Web 共用配置）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安装的 npm 版本标签，可改成具体版本号</value>
@@ -732,7 +732,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
 当前版本：{0}
 最新版本：{1}
 
-托盘将停止 pi-web、更新程序文件并重启。是否继续？</value>
+托盘将停止 Pi Web、更新程序文件并重启。是否继续？</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>安装目录需要管理员权限。替换文件前 Windows 会请求权限（UAC）。</value>
@@ -847,7 +847,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>更新已应用，但无法启动新的托盘。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
-    <value>pi-web 仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
+    <value>Pi Web 仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
   </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>未能完整恢复旧文件。备份保留在：{0}</value>
@@ -862,7 +862,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>版本 {0}</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>基于 pi 和 pi-web 的 Windows 7 至 11 通用 Harness 解决方案。</value>
+    <value>基于 Pi 和 Pi Web 的 Windows 7 至 11 通用 Harness 解决方案。</value>
   </data>
   <data name="about.author" xml:space="preserve">
     <value>作者：{0}</value>
@@ -898,16 +898,16 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>端口 {0} 已被其他程序占用。请停止该程序或在设置中修改端口。</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
-    <value>pi-web 已停止</value>
+    <value>Pi Web 已停止</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>pi-web 意外退出。点击托盘图标可重新启动。</value>
+    <value>Pi Web 意外退出。点击托盘图标可重新启动。</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0}（监听中={1}，所有者={2}）</value>
   </data>
   <data name="check.ownerPiweb" xml:space="preserve">
-    <value>pi-web</value>
+    <value>Pi Web</value>
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>其他程序或未知</value>
@@ -943,10 +943,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>自动安装缺失依赖</value>
   </data>
   <data name="settings.installPiCli" xml:space="preserve">
-    <value>随 pi-web 安装 pi 命令行</value>
+    <value>随 Pi Web 安装 Pi 命令行</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
-    <value>pi-web 停止后自动重启</value>
+    <value>Pi Web 停止后自动重启</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
     <value>启动时检查 Pi Web Tray 更新</value>
@@ -985,13 +985,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>Node.js 路径（可选）</value>
   </data>
   <data name="settings.serverScript" xml:space="preserve">
-    <value>pi-web 脚本（可选）</value>
+    <value>Pi Web 脚本（可选）</value>
   </data>
   <data name="settings.selectNode" xml:space="preserve">
     <value>选择 node.exe</value>
   </data>
   <data name="settings.selectServer" xml:space="preserve">
-    <value>选择 pi-web.js</value>
+    <value>选择 Pi Web 脚本</value>
   </data>
   <data name="settings.restartNote" xml:space="preserve">
     <value>端口、语言、工作目录和工具路径在重启 Pi Web Tray 后生效。依赖设置在下一次安装时生效。</value>
@@ -1009,7 +1009,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>选择的 Node.js 可执行文件不存在。</value>
   </data>
   <data name="settings.invalidServerScript" xml:space="preserve">
-    <value>选择的 pi-web 脚本不存在。</value>
+    <value>选择的 Pi Web 脚本不存在。</value>
   </data>
   <data name="settings.invalidRegistry" xml:space="preserve">
     <value>请输入以 http:// 或 https:// 开头的完整源地址，或留空。</value>
@@ -1078,7 +1078,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>以管理员身份重启</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以管理员权限重启 Pi Web Tray？pi-web 将重新启动。</value>
+    <value>是否以管理员权限重启 Pi Web Tray？Pi Web 将重新启动。</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>无法以管理员身份重启</value>
@@ -1096,7 +1096,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>刷新</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>正在安装 pi-web 依赖</value>
+    <value>正在安装 Pi Web 依赖</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>步骤 {0}/{1}：{2}</value>
@@ -1120,10 +1120,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>正在安装 {0}/{1} · {2}</value>
   </data>
   <data name="notify.autoRestartTitle" xml:space="preserve">
-    <value>正在重启 pi-web</value>
+    <value>正在重启 Pi Web</value>
   </data>
   <data name="notify.autoRestartBody" xml:space="preserve">
-    <value>pi-web 将在 {0} 秒后重启。</value>
+    <value>Pi Web 将在 {0} 秒后重启。</value>
   </data>
   <data name="menu.updateAvailable" xml:space="preserve">
     <value>有可用更新：{0}</value>
@@ -1135,10 +1135,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>Pi Web Tray {0} 已可用。请选择托盘菜单进行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>更新 pi-web 和 pi</value>
+    <value>更新 Pi Web 和 Pi</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>现在重新安装或更新 pi-web 和 pi 吗？pi-web 会暂时停止，这可能需要几分钟。</value>
+    <value>现在重新安装或更新 Pi Web 和 Pi 吗？Pi Web 会暂时停止，这可能需要几分钟。</value>
   </data>
   <data name="log.close" xml:space="preserve">
     <value>关闭</value>
@@ -1162,16 +1162,16 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>无法连接 GitHub，请检查网络和代理设置。</value>
   </data>
   <data name="ini.autoRestartC" xml:space="preserve">
-    <value>; pi-web 意外停止时自动重启（1 = 启用，0 = 禁用）</value>
+    <value>; Pi Web 意外停止时自动重启（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
     <value>; 启动时检查 Pi Web Tray 更新（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>仅启动托盘，不启动 pi-web。</value>
+    <value>仅启动托盘，不启动 Pi Web。</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>启动托盘和 pi-web，但不打开浏览器（更新后使用）。</value>
+    <value>启动托盘和 Pi Web，但不打开浏览器（更新后使用）。</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>正在更新 Pi Web Tray</value>
@@ -1219,12 +1219,12 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>没有匹配“{0}”的行。</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>更新 pi-web</value>
+    <value>更新 Pi Web</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>更新 pi-web 依赖</value>
+    <value>更新 Pi Web 依赖</value>
   </data>
   <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>现在重新安装或更新 pi-web 吗？pi-web 会暂时停止，这可能需要几分钟。</value>
+    <value>现在重新安装或更新 Pi Web 吗？Pi Web 会暂时停止，这可能需要几分钟。</value>
   </data>
 </root>

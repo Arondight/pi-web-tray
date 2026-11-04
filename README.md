@@ -2,9 +2,9 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A universal Windows 7 to 11 harness for pi and pi-web. One tray app provides runtime detection, dependency installation and updates, service hosting and self-update.
+Pi Web Tray is a universal Windows 7 to 11 harness for Pi and Pi Web. It provides runtime detection, dependency installation and updates, service hosting and self-update.
 
-- **One click** — installs and manages pi and pi-web; start or stop them with one click.
+- **One click** — installs and manages Pi and Pi Web; start or stop them with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
 - **Start at login** — uses the standard Run key or an administrator scheduled task.
 - **Port safe** — native process APIs identify the listener; unrelated programs are never killed.
@@ -13,13 +13,15 @@ A universal Windows 7 to 11 harness for pi and pi-web. One tray app provides run
 
 ## Requirements
 
-| Component      | Requirement                                  |
-| -------------- | -------------------------------------------- |
-| Windows        | 7 SP1, 8, 8.1, 10 or 11 (64-bit recommended) |
-| .NET Framework | 4.8 — see the Windows 7 note below           |
-| Node.js        | 22.19 or later, with npm                     |
+| Component      | Requirement                           |
+| -------------- | ------------------------------------- |
+| Windows        | 7 SP1, 8, 8.1, 10 or 11 (64-bit only) |
+| .NET Framework | 4.8 — see the Windows 7 note below    |
+| Node.js        | 22.19 or later, with npm              |
 
-Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. pi-web's terminal needs ConPTY (Windows 10 1809+), so the tray may run on legacy systems while the service or terminal is unavailable.
+**64-bit Windows is required.** 32-bit Windows is not supported.
+
+Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so the tray may run on legacy systems while the service or terminal is unavailable.
 
 ### Windows 7 runtime
 
@@ -27,7 +29,7 @@ Windows 7 SP1 needs [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/down
 
 ## Recommended software
 
-Pi Web Tray does not require Python 3 or PowerShell, but installing them extends what pi can do.
+Pi Web Tray does not require Python 3 or PowerShell, but installing them extends what Pi can do.
 
 ### Python 3
 
@@ -50,7 +52,7 @@ Windows 8.1, 10 and 11 can install the latest PowerShell from the [official rele
 1. Download and extract the release archive.
 2. Run `.\pi-web-tray.exe`.
 
-On first start the app checks the environment, installs missing dependencies, starts pi-web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
+On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
 
 Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
@@ -61,12 +63,12 @@ The icon color shows the state at a glance: green = running, grey = stopped, ora
 ```text
 ● Running · 127.0.0.1:30141 · administrator mode
 ---------------------------------------
-Open Pi Web
+Open Pi Web in Browser
 Start service
 Stop service
 Restart service
 ---------------------------------------
-Update pi-web and pi
+Update Pi Web and Pi
 Update this app
 Download Node.js
 ---------------------------------------
@@ -87,12 +89,12 @@ Start at login as administrator: no
 ---------------------------------------
 Restart as administrator
 About
-Exit and stop pi-web
+Exit and stop Pi Web
 ```
 
-- **Update pi-web and pi** stops pi-web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
+- **Update Pi Web and Pi** stops Pi Web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
 - A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
-- If pi-web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
+- If Pi Web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 
 ## Configuration
 
@@ -102,12 +104,12 @@ Exit and stop pi-web
 
 | Key                | Default         | Description                                                                               |
 | ------------------ | --------------- | ----------------------------------------------------------------------------------------- |
-| `Port`             | `30141`         | pi-web listening port.                                                                    |
-| `WorkingDir`       | `%USERPROFILE%` | Service working directory and pi's default project root.                                  |
-| `AutoInstall`      | `1`             | Install pi-web automatically when missing.                                                |
-| `AutoRestart`      | `0`             | Restart pi-web after an unexpected stop.                                                  |
+| `Port`             | `30141`         | Pi Web listening port.                                                                    |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                  |
+| `AutoInstall`      | `1`             | Install Pi Web automatically when missing.                                                |
+| `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                  |
 | `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                    |
-| `InstallPiCli`     | `1`             | Install the pi CLI together with pi-web.                                                  |
+| `InstallPiCli`     | `1`             | Install the Pi CLI together with Pi Web.                                                  |
 | `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                    |
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                   |
 | `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy, e.g. `http://127.0.0.1:7890` or `socks5://127.0.0.1:1080`. |
@@ -118,7 +120,7 @@ Exit and stop pi-web
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 
-The data directory is per user because the ini may contain registry or proxy credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction. When `Proxy` is set, update checks, downloads and npm/pi-web child processes use it; the **Test** button in Settings checks proxy connectivity without saving.
+The data directory is per user because the ini may contain registry or proxy credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction. When `Proxy` is set, update checks, downloads and npm/Pi Web child processes use it; the **Test** button in Settings checks proxy connectivity without saving.
 
 ### Environment variables
 
@@ -128,12 +130,12 @@ The data directory is per user because the ini may contain registry or proxy cre
 | `PI_WEB_TRAY_LANG`           | Overrides the UI language.                        |
 | `PI_WEB_TRAY_HOME`           | Overrides the data directory.                     |
 | `PI_WEB_TRAY_PORTABLE`       | `1` keeps the ini and logs beside the executable. |
-| `HTTP_PROXY` / `HTTPS_PROXY` | Used by npm and pi-web model requests.            |
+| `HTTP_PROXY` / `HTTPS_PROXY` | Used by npm and Pi Web model requests.            |
 
 ## Command line
 
 ```text
-.\pi-web-tray.exe                   Start pi-web and open the browser.
+.\pi-web-tray.exe                   Start Pi Web and open the browser.
 .\pi-web-tray.exe --autostart       Start tray and service without a browser.
 .\pi-web-tray.exe --tray-only       Start the tray only.
 .\pi-web-tray.exe --start-no-open   Start the service without a browser.
@@ -168,7 +170,7 @@ cd .\pi-web-tray
 
 ## Related projects
 
-Pi Web Tray installs and launches [pi-web](https://github.com/agegr/pi-web) (`@agegr/pi-web`) and [pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-coding-agent`). It does not bundle or modify them; report their issues to their own repositories.
+Pi Web Tray installs and launches [Pi Web](https://github.com/agegr/pi-web) (`@agegr/pi-web`) and [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-coding-agent`). It does not bundle or modify them; report their issues to their own repositories.
 
 ## Contributing
 

@@ -281,7 +281,7 @@ namespace PiWebTray
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
-            Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: pi-web is still running");
+            Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: Pi Web is still running");
             if (notify && _phase != Phase.PortConflict)
             {
                 NotifyWarning(L.T("notify.stopFailedTitle"), L.T("notify.stopFailedBody", _port));
