@@ -205,18 +205,59 @@ namespace PiWebTray
             grid.Columns.Add(item);
             grid.Columns.Add(value);
 
-            bool listening = false;
-            PortOwnerInfo owner = null;
-            try
-            {
-                listening = Net.IsPortOpen(_config.Port, 300);
-                owner = ServiceProbe.Inspect(_config.Port);
-            }
-            catch (Exception)
-            {
-            }
-            PopulateSoftwareGrid(grid, listening, owner);
+            // The owner probe can take seconds (netstat + HTTP fallback). Populate the
+            // static rows immediately and refresh the port owner on a background worker
+            // after the form is shown.
+            PopulateSoftwareGrid(grid, false, null);
             return grid;
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            RefreshPortOwner();
+        }
+
+        private void RefreshPortOwner()
+        {
+            if (_refreshing) return;
+            _refreshing = true;
+            _refresh.Enabled = false;
+            UseWaitCursor = true;
+
+            Thread worker = new Thread(delegate ()
+            {
+                bool listening = false;
+                PortOwnerInfo owner = null;
+                try
+                {
+                    listening = Net.IsPortOpen(_config.Port, 300);
+                    owner = ServiceProbe.Inspect(_config.Port);
+                }
+                catch (Exception)
+                {
+                }
+
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke(new Action(delegate ()
+                        {
+                            if (IsDisposed) return;
+                            _refreshing = false;
+                            _refresh.Enabled = true;
+                            UseWaitCursor = false;
+                            PopulateSoftwareGrid(_softwareGrid, listening, owner);
+                        }));
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
         }
 
         private void PopulateRuntimeGrid(DataGridView grid)

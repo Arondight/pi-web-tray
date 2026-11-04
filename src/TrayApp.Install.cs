@@ -20,6 +20,10 @@ namespace PiWebTray
         // or an icon click passes its own intent instead of reusing _autoStartService.
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
+            // A newer explicit action owns the phase now; do not let a stale phase-resolve
+            // or start continuation overwrite it later.
+            ClearPendingOwnerActions(false);
+
             // A previous npm run may have been interrupted. Force a clean reinstall so a
             // partial package directory is not mistaken for a working dependency.
             if (Installer.HasPending(_config)) force = true;
@@ -94,6 +98,7 @@ namespace PiWebTray
         private void ContinueBeginInstall(bool force, bool thenStart, bool thenOpen, PortOwnerInfo owner)
         {
             // The phase may have changed while the owner check ran
+            if (_phase == Phase.Starting || _phase == Phase.Stopping) return;
             if (_installAfterStop)
             {
                 _installAfterStopForce = _installAfterStopForce || force;

@@ -145,6 +145,7 @@ namespace PiWebTray
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
             try { _menu.Dispose(); } catch (Exception) { }
             try { _openSignal.Close(); } catch (Exception) { }
+            try { _startSignal.Close(); } catch (Exception) { }
             try { _stopSignal.Close(); } catch (Exception) { }
             try { _quitSignal.Close(); } catch (Exception) { }
             try { Icons.DisposeCache(); } catch (Exception) { }

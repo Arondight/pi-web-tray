@@ -265,7 +265,7 @@ namespace PiWebTray
 
         private void ShowSettings()
         {
-            using (SettingsForm form = new SettingsForm(_config, ExpectedPiWebScript()))
+            using (SettingsForm form = new SettingsForm(_config))
             {
                 if (form.ShowDialog() == DialogResult.OK)
                 {

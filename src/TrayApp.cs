@@ -65,6 +65,7 @@ namespace PiWebTray
         private readonly ContextMenuStrip _menu = new ContextMenuStrip();
         private readonly System.Windows.Forms.Timer _timer = new System.Windows.Forms.Timer();
         private readonly EventWaitHandle _openSignal;
+        private readonly EventWaitHandle _startSignal;
         private readonly EventWaitHandle _stopSignal;
         private readonly EventWaitHandle _quitSignal;
 
@@ -225,6 +226,7 @@ namespace PiWebTray
 
             bool created;
             _openSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.OpenSignalName, out created);
+            _startSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StartSignalName, out created);
             _stopSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StopSignalName, out created);
             _quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitSignalName, out created);
 
@@ -377,9 +379,11 @@ namespace PiWebTray
             if (_exiting) return;
 
             bool openSignal = false;
+            bool startSignal = false;
             bool stopSignal = false;
             bool quitSignal = false;
             try { openSignal = _openSignal.WaitOne(0); } catch (Exception) { }
+            try { startSignal = _startSignal.WaitOne(0); } catch (Exception) { }
             try { stopSignal = _stopSignal.WaitOne(0); } catch (Exception) { }
             try { quitSignal = _quitSignal.WaitOne(0); } catch (Exception) { }
 
@@ -389,6 +393,7 @@ namespace PiWebTray
                 return;
             }
             if (stopSignal) StopServer();
+            if (startSignal) StartServer(false);
 
             PollAutostartOp();
             DispatchOwnerCheck();

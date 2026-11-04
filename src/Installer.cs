@@ -134,6 +134,22 @@ namespace PiWebTray
             return trimmed;
         }
 
+        // Used by the console --install path before stopping a running service: an
+        // up-to-date installation must not be stopped or restarted just to print "none".
+        internal static bool HasInstallWork(Config config)
+        {
+            try
+            {
+                ProbeResult probe = EnvironmentProbe.Detect(config);
+                if (probe.NeedsNode) return false;
+                return StepsToInstall(probe, config, HasPending(config)).Count > 0;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Which packages need installing. force = reinstall/update even when the package is
         // already present (the "Install / update dependencies" menu item).
         internal static List<string> PackagesToInstall(ProbeResult probe, Config config, bool force)

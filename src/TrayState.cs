@@ -35,6 +35,7 @@ namespace PiWebTray
 
         internal static string MutexName { get { return @"Local\" + BaseName + ".C2B1B0" + Suffix; } }
         internal static string OpenSignalName { get { return @"Local\" + BaseName + ".Open" + Suffix; } }
+        internal static string StartSignalName { get { return @"Local\" + BaseName + ".Start" + Suffix; } }
         internal static string StopSignalName { get { return @"Local\" + BaseName + ".Stop" + Suffix; } }
         internal static string QuitSignalName { get { return @"Local\" + BaseName + ".Quit" + Suffix; } }
 

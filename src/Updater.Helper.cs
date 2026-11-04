@@ -262,6 +262,11 @@ namespace PiWebTray
         {
             try
             {
+                // Only the known crash shape is safe to repair: the target lost its
+                // executable between moving it to the backup and copying the new one.
+                // Do not turn recovery into a generic "restore any backup" operation.
+                if (File.Exists(Path.Combine(target, "pi-web-tray.exe"))) return false;
+
                 string[] backups = Directory.GetDirectories(target, ".pi-web-tray-backup-*");
                 Array.Sort(backups, StringComparer.OrdinalIgnoreCase);
                 foreach (string backup in backups)

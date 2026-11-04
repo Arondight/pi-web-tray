@@ -42,6 +42,7 @@ namespace PiWebTray
         private static int _cachePort = -1;
         private static PortOwnerInfo _cache;
         private static DateTime _cacheAt = DateTime.MinValue;
+        private static int _cacheGeneration;
         private static string _currentUserSid;
 
         private static string CurrentUserSid()
@@ -65,19 +66,26 @@ namespace PiWebTray
 
         internal static PortOwnerInfo Inspect(int port)
         {
+            int generation;
             lock (CacheLock)
             {
                 if (_cache != null && _cachePort == port && DateTime.Now - _cacheAt < CacheLifetime)
                     return _cache;
+                generation = _cacheGeneration;
             }
 
             PortOwnerInfo result = InspectUncached(port);
 
             lock (CacheLock)
             {
-                _cachePort = port;
-                _cache = result;
-                _cacheAt = DateTime.Now;
+                // A background probe can finish after Invalidate(). Do not let it
+                // repopulate the cache with a result that was explicitly discarded.
+                if (generation == _cacheGeneration)
+                {
+                    _cachePort = port;
+                    _cache = result;
+                    _cacheAt = DateTime.Now;
+                }
             }
             return result;
         }
@@ -86,6 +94,7 @@ namespace PiWebTray
         {
             lock (CacheLock)
             {
+                _cacheGeneration++;
                 _cache = null;
                 _cachePort = -1;
                 _cacheAt = DateTime.MinValue;

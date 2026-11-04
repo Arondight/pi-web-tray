@@ -526,8 +526,9 @@ namespace PiWebTray
             // npm cannot replace a globally installed package while its node process runs.
             // The tray's install path stops pi-web first (TrayApp.BeginInstall); the CLI
             // path must do the same, or the install fails with a locked package directory.
-            bool stopped;
-            if (!StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
+            bool hasWork = dryRun || Installer.HasInstallWork(config);
+            bool stopped = false;
+            if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
 
             int code = Installer.RunInConsole(config, dryRun);
 
@@ -581,8 +582,8 @@ namespace PiWebTray
         {
             if (TrayRunning())
             {
-                // The running tray opens or starts the service on this signal
-                SendSignal(Instance.OpenSignalName);
+                // Start without opening a browser: --install must not turn into "open pi-web".
+                SendSignal(Instance.StartSignalName);
                 return;
             }
             ConsoleHost.WriteLine(L.T("install.stoppedNoTray"));

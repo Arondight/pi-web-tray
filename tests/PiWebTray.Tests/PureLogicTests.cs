@@ -167,6 +167,15 @@ namespace PiWebTray
             CheckEqual("redacts npm _password registry form",
                 "//registry.example.test/:_password=***",
                 Shell.RedactSecrets("//registry.example.test/:_password=hunter2"));
+            CheckEqual("redacts npm registry path token form",
+                "//registry.example.test/repository/npm/:_authToken=***",
+                Shell.RedactSecrets("//registry.example.test/repository/npm/:_authToken=npm-secret"));
+            CheckEqual("redacts bare npm api_key",
+                "api_key=***",
+                Shell.RedactSecrets("api_key=s3cr3t"));
+            CheckEqual("redacts bare npm client_secret",
+                "client_secret=***",
+                Shell.RedactSecrets("client_secret=shh"));
             CheckEqual("redacts api_key",
                 "https://example.test/?api_key=***",
                 Shell.RedactSecrets("https://example.test/?api_key=s3cr3t"));
@@ -1053,6 +1062,7 @@ namespace PiWebTray
             string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
             string originalPort = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT");
             string originalLang = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
+            string originalPortable = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE");
             string temp = Path.Combine(Path.GetTempPath(), "pi-web-tray-selftest-" + Guid.NewGuid().ToString("N"));
             try
             {
@@ -1060,6 +1070,7 @@ namespace PiWebTray
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", null);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", null);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", null);
 
                 Config config = Config.Load(true);
 
@@ -1113,6 +1124,7 @@ namespace PiWebTray
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", originalPort);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", originalLang);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", originalPortable);
                 try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
             }
         }

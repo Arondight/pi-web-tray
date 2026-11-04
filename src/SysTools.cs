@@ -469,7 +469,11 @@ namespace PiWebTray
         // and echoed by npm config output. It has no ? or & prefix and no URL userinfo, so
         // the patterns above never match it.
         private static readonly Regex NpmRegistrySecret = new Regex(
-            @"(//[^/\s""]+/:(?:_authToken|_password|_auth)=)[^\s""]+",
+            @"(//[^\s""]+?/:(?:_authToken|_password|_auth|api_key|private_token|client_secret)=)[^\s""]+",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // Bare .npmrc keys (api_key=..., client_secret=...) have no ?/& query marker.
+        private static readonly Regex BareSecret = new Regex(
+            @"(^|[\s;])((?:api_key|private_token|client_secret|_authToken|_password|_auth|token|password)=)[^\s"";]+",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         internal static string RedactSecrets(string text)
@@ -478,6 +482,7 @@ namespace PiWebTray
             text = UrlUserInfo.Replace(text, "$1***@");
             text = QuerySecret.Replace(text, "$1***");
             text = NpmRegistrySecret.Replace(text, "$1***");
+            text = BareSecret.Replace(text, "$1$2***");
             return text;
         }
 
