@@ -34,7 +34,8 @@ namespace PiWebTray
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
-            MinimizeBox = false;
+            // Match the environment check window: a taskbar button implies a working minimize.
+            MinimizeBox = true;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;

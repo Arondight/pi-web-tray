@@ -24,6 +24,7 @@ namespace PiWebTray
             using (CheckForm form = new CheckForm(config, probe, false))
             {
                 Assert.AreEqual(L.T("sc.title"), form.Text);
+                Assert.IsTrue(form.MinimizeBox, "A resizable taskbar window should minimize.");
 
                 List<DataGridView> tables = FindControls<DataGridView>(form);
                 Assert.AreEqual(2, tables.Count);

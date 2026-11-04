@@ -32,7 +32,9 @@ namespace PiWebTray
             Text = L.T("sc.title");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.Sizable;
-            MinimizeBox = false;
+            // Resizable windows with a taskbar button should really minimize; otherwise
+            // the system menu shows a dead "Minimize" item.
+            MinimizeBox = true;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
             AutoScaleMode = AutoScaleMode.Font;
