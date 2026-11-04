@@ -82,7 +82,11 @@ namespace PiWebTray
                 {
                     label = L.T("update.status.applying");
                 }
-                color = Icons.BusyColor;
+
+                // Checking and downloading do not stop Pi Web. Keep the phase colour
+                // (green while running) and put update progress in the tooltip/menu.
+                // Only the apply stage stops and restarts the tray.
+                if (_updateStage == UpdateStage.Applying) color = Icons.BusyColor;
             }
 
             if (_currentIcon == null || !_iconColor.Equals(color))

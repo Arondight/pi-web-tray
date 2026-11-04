@@ -58,7 +58,17 @@ Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_
 
 ## Tray menu
 
-The icon color shows the state at a glance: green = running, grey = stopped, orange = busy, blue = prerequisites missing, red = error. The menu follows the service state:
+The icon colour shows the state at a glance:
+
+| Colour    | State                                                                  |
+| --------- | ---------------------------------------------------------------------- |
+| 🟢 Green  | Running                                                                |
+| ⚪ Grey   | Stopped                                                                |
+| 🟠 Orange | Busy: installing, starting/stopping the service, or applying an update |
+| 🔵 Blue   | Missing prerequisites (Node.js / Pi Web)                               |
+| 🔴 Red    | Error or port conflict                                                 |
+
+The menu follows the service state:
 
 ```text
 ● Running · 127.0.0.1:30141 · administrator mode
