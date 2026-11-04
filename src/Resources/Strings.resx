@@ -843,6 +843,9 @@ See {1} for details.</value>
   <data name="update.error.restart" xml:space="preserve">
     <value>The update was applied, but the new tray could not be started.</value>
   </data>
+  <data name="update.error.serviceStillRunning" xml:space="preserve">
+    <value>pi-web is still using port {0}. The update was not applied; stop the service and try again.</value>
+  </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>The previous files could not be fully restored. A backup was kept at: {0}</value>
   </data>

@@ -558,6 +558,7 @@ namespace PiWebTray
             string dataDir;
             string stagingHash;
             int parentPid;
+            int parsedPort;
             ApplyStartMode mode;
             bool originalElevated;
             string stagingHashArg = new string('a', 64);
@@ -600,6 +601,18 @@ namespace PiWebTray
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
             Check("service-silent mode parsed", silentParsed && mode == ApplyStartMode.ServiceSilent);
+
+            bool portParsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "service-silent", "0", "C:\\data\\update.log", "en", "C:\\data",
+                    stagingHashArg, "30141"
+                },
+                out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out parsedPort);
+            Check("helper args parse optional port", portParsed && parsedPort == 30141);
 
             Check("helper args reject missing values", !Updater.TryParseApplyArgs(
                 new string[] { "--apply-update", "C:\\stage" },

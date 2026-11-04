@@ -80,7 +80,12 @@ namespace PiWebTray
                     }
                     else
                     {
-                        StopServer();
+                        // ExitApp stops the timer before this point, so StopServer's
+                        // asynchronous owner-check continuation would never run. Use the
+                        // synchronous owner result we already have and start the stop worker
+                        // directly; otherwise the update helper could restart a new tray
+                        // while the old pi-web still owns the port.
+                        ContinueStopServer(owner);
                         // Wait until it is really stopped, keeping the message loop alive meanwhile
                         int waited = 0;
                         while (waited < 8000 && Net.IsPortOpen(_port, 200))

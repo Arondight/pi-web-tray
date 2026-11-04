@@ -843,6 +843,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="update.error.restart" xml:space="preserve">
     <value>更新已套用，但無法啟動新的系統匣。</value>
   </data>
+  <data name="update.error.serviceStillRunning" xml:space="preserve">
+    <value>pi-web 仍占用連接埠 {0}，更新未套用；請停止服務後重試。</value>
+  </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>未能完整還原舊檔案。備份保留在：{0}</value>
   </data>

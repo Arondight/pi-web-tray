@@ -61,7 +61,7 @@ namespace PiWebTray
                 string stagingHash = ComputeStagingHash(staging);
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
-                    mode, elevated, logPath, L.Current, dataDir, stagingHash);
+                    mode, elevated, logPath, L.Current, dataDir, stagingHash, config.Port);
 
                 AppendLog(logPath, "launch helper: " + helper);
                 AppendLog(logPath, "staging hash : " + stagingHash);
@@ -99,7 +99,7 @@ namespace PiWebTray
 
         internal static string BuildApplyArguments(string staging, string target, int parentPid,
             ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
-            string stagingHash)
+            string stagingHash, int port)
         {
             return "--apply-update "
                 + Shell.QuoteArg(staging) + " "
@@ -110,7 +110,8 @@ namespace PiWebTray
                 + Shell.QuoteArg(logPath) + " "
                 + Shell.QuoteArg(language ?? "") + " "
                 + Shell.QuoteArg(dataDir) + " "
-                + Shell.QuoteArg(stagingHash);
+                + Shell.QuoteArg(stagingHash) + " "
+                + port.ToString(CultureInfo.InvariantCulture);
         }
 
         internal static string ModeText(ApplyStartMode mode)
@@ -128,13 +129,14 @@ namespace PiWebTray
             string language;
             string dataDir;
             string stagingHash;
+            int port;
             int parentPid;
             ApplyStartMode mode;
             bool originalElevated;
 
             if (!TryParseApplyArgs(args, out staging, out target, out parentPid,
                 out mode, out originalElevated, out logPath, out language,
-                out dataDir, out stagingHash))
+                out dataDir, out stagingHash, out port))
             {
                 Application.EnableVisualStyles();
                 MessageBox.Show(L.T("update.error.badArgs"), L.T("update.applyFailedTitle"),
@@ -224,6 +226,19 @@ namespace PiWebTray
                 else
                 {
                     AppendLog(logPath, "staging hash absent (legacy tray)");
+                }
+
+                // If ExitApp could not stop the old listener (slow taskkill, elevated
+                // process, or a failed CLI stop), starting a new tray now would only
+                // hit a port conflict. Do not copy anything until the port is free.
+                if (mode == ApplyStartMode.ServiceSilent && port > 0
+                    && !Net.WaitPortClosed(port, 30000))
+                {
+                    AppendLog(logPath, "service still owns port " + port + "; update aborted");
+                    MessageBox.Show(L.T("update.error.serviceStillRunning", port),
+                        L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    OfferStartAfterFailure(target, mode, logPath);
+                    return 1;
                 }
 
                 UpdateCopyResult copy = CopyFiles(staging, target, logPath);
@@ -352,12 +367,24 @@ namespace PiWebTray
             out int parentPid, out ApplyStartMode mode, out bool originalElevated,
             out string logPath, out string language, out string dataDir, out string stagingHash)
         {
+            int port;
+            return TryParseApplyArgs(args, out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out port);
+        }
+
+        internal static bool TryParseApplyArgs(string[] args, out string staging, out string target,
+            out int parentPid, out ApplyStartMode mode, out bool originalElevated,
+            out string logPath, out string language, out string dataDir, out string stagingHash,
+            out int port)
+        {
             staging = "";
             target = "";
             logPath = "";
             language = "";
             dataDir = "";
             stagingHash = "";
+            port = 0;
             parentPid = 0;
             mode = ApplyStartMode.Tray;
             originalElevated = false;
@@ -372,9 +399,10 @@ namespace PiWebTray
                 }
             }
 
-            // The hash argument is optional so a helper from a newer release can still
-            // apply an update started by an older tray that used the nine-argument form.
-            bool hasHash = args.Length == index + 10;
+            // The hash is optional for a helper from a newer release; the port was
+            // added later and is likewise optional for old trays.
+            bool hasPort = args.Length == index + 11;
+            bool hasHash = args.Length == index + 10 || hasPort;
             if (index < 0 || (args.Length != index + 9 && !hasHash)) return false;
 
             staging = args[index + 1];
@@ -396,6 +424,13 @@ namespace PiWebTray
             language = args[index + 7];
             dataDir = args[index + 8];
             if (hasHash) stagingHash = args[index + 9];
+            if (hasPort
+                && (!int.TryParse(args[index + 10], NumberStyles.Integer,
+                        CultureInfo.InvariantCulture, out port)
+                    || port <= 0 || port > 65535))
+            {
+                return false;
+            }
 
             // The helper is elevated. Keep its log and staging inside the installation's
             // data/target roots so forged arguments cannot turn AppendLog into an
