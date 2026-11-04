@@ -344,7 +344,34 @@ namespace PiWebTray
                     }
                 }
 
-                File.WriteAllLines(IniPath, lines.ToArray(), new UTF8Encoding(true));
+                // Write beside the ini and replace atomically; a crash must not leave
+                // the user with a truncated configuration file.
+                string temp = IniPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                string backup = IniPath + "." + Guid.NewGuid().ToString("N") + ".bak";
+                try
+                {
+                    File.WriteAllLines(temp, lines.ToArray(), new UTF8Encoding(true));
+                    if (File.Exists(IniPath))
+                    {
+                        try
+                        {
+                            File.Replace(temp, IniPath, backup, true);
+                        }
+                        catch (Exception)
+                        {
+                            File.Copy(temp, IniPath, true);
+                        }
+                    }
+                    else
+                    {
+                        File.Move(temp, IniPath);
+                    }
+                }
+                finally
+                {
+                    try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                    try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
+                }
                 return true;
             }
             catch (Exception)

@@ -1,6 +1,6 @@
 # Contributing to Pi Web Tray
 
-Thanks for taking the time to contribute. This project is a Windows tray application with no third-party runtime dependencies; the goal is to keep it easy to build, easy to audit and compatible with **Windows 7 SP1, 8.1, 10 and 11** (with .NET Framework 4.8 installed).
+Thanks for taking the time to contribute. This project is a Windows tray application with no third-party runtime dependencies; the goal is to keep it easy to build, easy to audit and compatible with **Windows 7 SP1, 8, 8.1, 10 and 11** (with .NET Framework 4.8 installed).
 
 ## Before you start
 

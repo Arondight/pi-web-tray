@@ -59,7 +59,7 @@ namespace PiWebTray
 
                     if (arguments.Length == 0 || cmdPath != null)
                     {
-                        if (WaitForNewTray(dataDir, parentPid, 10000))
+                        if (WaitForNewTray(dataDir, parentPid, 10000, exe))
                         {
                             AppendLog(logPath, "new tray observed after explorer restart");
                             return true;
@@ -91,7 +91,7 @@ namespace PiWebTray
                 using (Process tray = Process.Start(direct))
                 {
                     if (tray == null) return false;
-                    if (WaitForTrayProcess(tray, dataDir, parentPid, 15000)) return true;
+                    if (WaitForTrayProcess(tray, dataDir, parentPid, 15000, exe)) return true;
                 }
                 AppendLog(logPath, "new tray did not start");
                 return false;
@@ -103,12 +103,13 @@ namespace PiWebTray
             }
         }
 
-        private static bool WaitForTrayProcess(Process tray, string dataDir, int oldPid, int timeoutMs)
+        private static bool WaitForTrayProcess(Process tray, string dataDir, int oldPid,
+            int timeoutMs, string expectedExe)
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             while (DateTime.Now < deadline)
             {
-                if (WaitForNewTray(dataDir, oldPid, 250)) return true;
+                if (WaitForNewTray(dataDir, oldPid, 250, expectedExe)) return true;
                 try { if (tray.HasExited) return false; }
                 catch (Exception) { return false; }
             }
@@ -177,7 +178,8 @@ namespace PiWebTray
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PICLI"));
         }
 
-        private static bool WaitForNewTray(string dataDir, int oldPid, int timeoutMs)
+        private static bool WaitForNewTray(string dataDir, int oldPid, int timeoutMs,
+            string expectedExe)
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             string path = Path.Combine(dataDir, "state.ini");
@@ -199,7 +201,19 @@ namespace PiWebTray
                         {
                             continue;
                         }
-                        if (pid > 0 && pid != oldPid && Sys.ProcessAlive(pid)) return true;
+                        if (pid <= 0 || pid == oldPid || !Sys.ProcessAlive(pid)) continue;
+                        if (!string.IsNullOrEmpty(expectedExe))
+                        {
+                            string image = NativeProcess.ImagePath(pid);
+                            if (!string.IsNullOrEmpty(image)
+                                && !string.Equals(Path.GetFullPath(image),
+                                    Path.GetFullPath(expectedExe),
+                                    StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+                        }
+                        return true;
                     }
                 }
                 catch (Exception)

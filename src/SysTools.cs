@@ -436,9 +436,8 @@ namespace PiWebTray
 
         internal static string ComSpec()
         {
-            // A stale or manipulated ComSpec must not decide which shell runs the service.
-            string spec = Environment.GetEnvironmentVariable("ComSpec");
-            if (!string.IsNullOrEmpty(spec) && File.Exists(spec)) return spec;
+            // Never use the user-controlled ComSpec variable here: this shell can be
+            // started with the tray's elevated token.
             return Sys.SystemExecutable("cmd.exe");
         }
 

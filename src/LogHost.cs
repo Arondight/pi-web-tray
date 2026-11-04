@@ -8,6 +8,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Windows.Forms;
 
 namespace PiWebTray
 {
@@ -23,6 +24,10 @@ namespace PiWebTray
 
             string path = args[index + 1];
             if (string.IsNullOrEmpty(path)) return 2;
+
+            // This process can be started by an elevated tray. Never let a forged
+            // --log-host argument append to an arbitrary protected file.
+            if (!IsAllowedPath(path)) return 2;
 
             long maxBytes = 4 * 1024 * 1024;
             if (index + 2 < args.Length)
@@ -92,6 +97,27 @@ namespace PiWebTray
             if (output != null)
             {
                 try { output.Dispose(); } catch (Exception) { }
+            }
+        }
+
+        private static bool IsAllowedPath(string path)
+        {
+            try
+            {
+                string full = Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string data = Path.GetFullPath(TrayState.Folder)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                string baseDir = Path.GetFullPath(Path.GetDirectoryName(Application.ExecutablePath))
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                return full.StartsWith(data, StringComparison.OrdinalIgnoreCase)
+                    || full.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 

@@ -308,7 +308,10 @@ namespace PiWebTray
             try
             {
                 if (!File.Exists(_config.IniPath)) File.WriteAllText(_config.IniPath, "");
-                using (Process notepad = Process.Start("notepad.exe", Shell.Quote(_config.IniPath)))
+                // Resolve from the system directory too; the tray may be elevated and
+                // must not pick up a notepad.exe from the current directory or PATH.
+                using (Process notepad = Process.Start(Sys.SystemExecutable("notepad.exe"),
+                    Shell.Quote(_config.IniPath)))
                 {
                 }
             }

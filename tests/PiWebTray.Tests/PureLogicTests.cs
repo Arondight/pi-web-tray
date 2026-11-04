@@ -564,18 +564,18 @@ namespace PiWebTray
             bool parsed = Updater.TryParseApplyArgs(
                 new string[]
                 {
-                    "--apply-update", "C:\\stage", "C:\\target", "1234",
-                    "tray-only", "0", "C:\\update.log", "zh", "C:\\data", stagingHashArg
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\data\\update.log", "zh", "C:\\data", stagingHashArg
                 },
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
             Check("helper args parse", parsed);
-            CheckEqual("helper staging", "C:\\stage", staging);
+            CheckEqual("helper staging", "C:\\data\\update\\stage", staging);
             CheckEqual("helper target", "C:\\target", target);
             CheckEqual("helper parent pid", 1234, parentPid);
             CheckEqual("helper mode", ApplyStartMode.TrayOnly, mode);
             CheckEqual("helper elevated", false, originalElevated);
-            CheckEqual("helper log", "C:\\update.log", logPath);
+            CheckEqual("helper log", "C:\\data\\update.log", logPath);
             CheckEqual("helper language", "zh", language);
             CheckEqual("helper data dir", "C:\\data", dataDir);
             CheckEqual("helper staging hash", stagingHashArg, stagingHash);
@@ -583,8 +583,8 @@ namespace PiWebTray
             bool legacyParsed = Updater.TryParseApplyArgs(
                 new string[]
                 {
-                    "--apply-update", "C:\\stage", "C:\\target", "1234",
-                    "tray-only", "0", "C:\\update.log", "zh", "C:\\data"
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\data\\update.log", "zh", "C:\\data"
                 },
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
@@ -594,8 +594,8 @@ namespace PiWebTray
             bool silentParsed = Updater.TryParseApplyArgs(
                 new string[]
                 {
-                    "--apply-update", "C:/stage", "C:/target", "1234",
-                    "service-silent", "0", "C:/update.log", "en", "C:/data", stagingHashArg
+                    "--apply-update", "C:/data/update/stage", "C:/target", "1234",
+                    "service-silent", "0", "C:/data/update.log", "en", "C:/data", stagingHashArg
                 },
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
@@ -605,6 +605,26 @@ namespace PiWebTray
                 new string[] { "--apply-update", "C:\\stage" },
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
+            Check("helper args reject a log path outside the install/data roots",
+                !Updater.TryParseApplyArgs(
+                    new string[]
+                    {
+                        "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                        "tray-only", "0", "C:\\Windows\\evil.log", "en", "C:\\data", stagingHashArg
+                    },
+                    out staging, out target, out parentPid, out mode,
+                    out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
+            Check("helper args reject staging outside the install/data roots",
+                !Updater.TryParseApplyArgs(
+                    new string[]
+                    {
+                        "--apply-update", "C:\\Windows\\stage", "C:\\target", "1234",
+                        "tray-only", "0", "C:\\data\\update.log", "en", "C:\\data", stagingHashArg
+                    },
+                    out staging, out target, out parentPid, out mode,
+                    out originalElevated, out logPath, out language, out dataDir, out stagingHash));
 
             string error;
             string json = @"{

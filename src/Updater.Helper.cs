@@ -44,12 +44,17 @@ namespace PiWebTray
             string logPath = SafeFullPath(config.UpdateLogFile);
             try
             {
-                string helper = Path.Combine(staging, "pi-web-tray.exe");
-                if (!File.Exists(helper))
+                // The staged executable is payload, not a safe process to launch with
+                // elevation: staging is user-writable and can be replaced after the hash
+                // is computed. Run the already-installed helper instead; it validates the
+                // staged payload after the UAC prompt.
+                string stagedExe = Path.Combine(staging, "pi-web-tray.exe");
+                if (!File.Exists(stagedExe))
                 {
                     error = L.T("update.error.noHelper");
                     return false;
                 }
+                string helper = Application.ExecutablePath;
 
                 string target = SafeFullPath(config.BaseDir);
                 string dataDir = SafeFullPath(config.DataDir);
@@ -391,7 +396,41 @@ namespace PiWebTray
             language = args[index + 7];
             dataDir = args[index + 8];
             if (hasHash) stagingHash = args[index + 9];
-            return staging.Length > 0 && target.Length > 0 && dataDir.Length > 0;
+
+            // The helper is elevated. Keep its log and staging inside the installation's
+            // data/target roots so forged arguments cannot turn AppendLog into an
+            // arbitrary elevated file writer.
+            staging = SafeFullPath(staging);
+            target = SafeFullPath(target);
+            logPath = SafeFullPath(logPath);
+            dataDir = SafeFullPath(dataDir);
+            if (staging.Length == 0 || target.Length == 0 || dataDir.Length == 0
+                || logPath.Length == 0)
+            {
+                return false;
+            }
+            if (!IsPathUnder(logPath, dataDir) && !IsPathUnder(logPath, target))
+                return false;
+            if (!IsPathUnder(staging, dataDir) && !IsPathUnder(staging, target))
+                return false;
+            return true;
+        }
+
+        private static bool IsPathUnder(string path, string root)
+        {
+            try
+            {
+                string fullPath = Path.GetFullPath(path)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string fullRoot = Path.GetFullPath(root)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                return fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private static bool WaitForParent(int pid, int timeoutMs)

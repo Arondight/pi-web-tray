@@ -8,6 +8,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Windows.Forms;
 
 namespace PiWebTray
 {
@@ -90,7 +91,25 @@ namespace PiWebTray
             // The state file can be left over from a crash: if the pid is gone it is ignored
             int pid;
             if (!int.TryParse(ReadValue("Pid="), out pid) || pid <= 0) return false;
-            return Sys.ProcessAlive(pid);
+            if (!Sys.ProcessAlive(pid)) return false;
+
+            // A same-user process can edit state.ini; an unrelated PID must not be
+            // reported as an elevated tray, and the image path is a cheap sanity check.
+            try
+            {
+                string image = NativeProcess.ImagePath(pid);
+                if (!string.IsNullOrEmpty(image)
+                    && !string.Equals(Path.GetFullPath(image),
+                        Path.GetFullPath(Application.ExecutablePath),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return true;
         }
 
         private static string ReadValue(string prefix)
