@@ -76,6 +76,9 @@ namespace PiWebTray
                 Assert.IsTrue(form.Controls.Count > 0);
                 AssertDpiScaling(form);
 
+                List<Button> buttons = FindControls<Button>(form);
+                Assert.AreEqual(1, buttons.Count, "About window should only contain the close button.");
+
                 List<LinkLabel> links = FindControls<LinkLabel>(form);
                 Assert.AreEqual(1, links.Count, "About window should contain one project link.");
                 LinkArea area = links[0].LinkArea;

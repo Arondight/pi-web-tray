@@ -694,10 +694,10 @@ Use --help to see the supported options.</value>
     <value>{0} (listening={1})</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>Update this app</value>
+    <value>Update Pi Web Tray</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>Updating this app...</value>
+    <value>Updating Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>About</value>

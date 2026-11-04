@@ -11,13 +11,11 @@ namespace PiWebTray
 {
     internal sealed class AboutForm : Form
     {
-        private readonly Action _onCheckUpdates;
         private Icon _formIcon;
 
-        internal AboutForm(Action onCheckUpdates = null)
+        internal AboutForm()
         {
             SuspendLayout();
-            _onCheckUpdates = onCheckUpdates;
             Text = L.T("about.title");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -120,20 +118,6 @@ namespace PiWebTray
             close.Click += delegate { Close(); };
 
             buttons.Controls.Add(close);
-
-            if (_onCheckUpdates != null)
-            {
-                Button updates = new Button();
-                updates.Text = L.T("about.checkUpdates");
-                updates.AutoSize = true;
-                updates.MinimumSize = new Size(88, 0);
-                updates.Click += delegate
-                {
-                    Close();
-                    _onCheckUpdates();
-                };
-                buttons.Controls.Add(updates);
-            }
 
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);

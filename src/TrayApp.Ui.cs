@@ -257,7 +257,7 @@ namespace PiWebTray
 
         private void ShowAbout()
         {
-            using (AboutForm form = new AboutForm(delegate { BeginUpdateCheck(false); }))
+            using (AboutForm form = new AboutForm())
             {
                 form.ShowDialog();
             }

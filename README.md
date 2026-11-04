@@ -69,7 +69,7 @@ Stop service
 Restart service
 ---------------------------------------
 Update Pi Web and Pi
-Update this app
+Update Pi Web Tray
 Download Node.js
 ---------------------------------------
 Environment check

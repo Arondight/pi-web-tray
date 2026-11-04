@@ -694,10 +694,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>{0}（监听中={1}）</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>更新本软件</value>
+    <value>更新 Pi Web Tray</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>正在更新本软件...</value>
+    <value>正在更新 Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
     <value>关于</value>
