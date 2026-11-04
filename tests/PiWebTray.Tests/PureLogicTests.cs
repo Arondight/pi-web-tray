@@ -10,7 +10,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace PiWebTray
@@ -41,6 +44,8 @@ namespace PiWebTray
             PathSplitTests();
             ConfigSafetyTests();
             PendingInstallTests();
+            ProxySettingsTests();
+            ProxyConnectionTests();
             NodeDownloadTests();
             QuoteTests();
             IniReadTests();
@@ -152,6 +157,12 @@ namespace PiWebTray
             CheckEqual("redacts URL user info",
                 "https://***@example.test/path",
                 Shell.RedactSecrets("https://user:pass@example.test/path"));
+            CheckEqual("redacts SOCKS proxy user info",
+                "socks5://***@127.0.0.1:1080",
+                Shell.RedactSecrets("socks5://user:pass@127.0.0.1:1080"));
+            CheckEqual("redacts legacy SOCKS proxy user info",
+                "socks://***@127.0.0.1:1080",
+                Shell.RedactSecrets("socks://user:pass@127.0.0.1:1080"));
             CheckEqual("redacts query tokens",
                 "https://example.test/?token=***&x=1",
                 Shell.RedactSecrets("https://example.test/?token=secret&x=1"));
@@ -208,6 +219,121 @@ namespace PiWebTray
             CheckEqual("path split first", "C:\\a", dirs[0]);
             CheckEqual("path split second", "C:\\b", dirs[1]);
             CheckEqual("path split empty", 0, EnvironmentProbe.SplitPath("").Count);
+        }
+
+        private static void ProxySettingsTests()
+        {
+            ProxySettings proxy;
+            string error;
+            Check("empty proxy is valid", ProxySettings.TryParse("", out proxy, out error));
+            CheckEqual("empty proxy kind", ProxyKind.None, proxy.Kind);
+            Check("HTTP proxy parses",
+                ProxySettings.TryParse("http://127.0.0.1:7890", out proxy, out error)
+                && proxy.Kind == ProxyKind.Http && proxy.Host == "127.0.0.1" && proxy.Port == 7890);
+            Check("SOCKS5 proxy parses",
+                ProxySettings.TryParse("socks5://user:pass@127.0.0.1:1080", out proxy, out error)
+                && proxy.Kind == ProxyKind.Socks5 && proxy.User == "user" && proxy.Password == "pass");
+            CheckEqual("proxy display hides credentials", "socks5://127.0.0.1:1080", proxy.Display);
+            Check("invalid proxy scheme rejected",
+                !ProxySettings.TryParse("ftp://127.0.0.1:21", out proxy, out error));
+            Check("proxy path rejected",
+                !ProxySettings.TryParse("http://127.0.0.1:8080/path", out proxy, out error));
+        }
+
+        private static void ProxyConnectionTests()
+        {
+            int httpPort = StartHttpProxy();
+            string error;
+            Check("HTTP proxy test", ProxySettings.Test("http://127.0.0.1:" + httpPort, out error));
+            int socksPort = StartSocksProxy();
+            Check("SOCKS proxy test", ProxySettings.Test("socks5://127.0.0.1:" + socksPort, out error));
+        }
+
+        private static int StartHttpProxy()
+        {
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            Thread worker = new Thread(delegate ()
+            {
+                try
+                {
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        byte[] buffer = new byte[4096];
+                        int total = 0;
+                        while (total < buffer.Length)
+                        {
+                            int read = stream.Read(buffer, total, buffer.Length - total);
+                            if (read <= 0) break;
+                            total += read;
+                            string text = Encoding.ASCII.GetString(buffer, 0, total);
+                            if (text.Contains("\r\n\r\n")) break;
+                        }
+                        byte[] reply = Encoding.ASCII.GetBytes(
+                            "HTTP/1.1 200 Connection established\r\n\r\n");
+                        stream.Write(reply, 0, reply.Length);
+                    }
+                }
+                catch (Exception) { }
+                finally { listener.Stop(); }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+            return port;
+        }
+
+        private static int StartSocksProxy()
+        {
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            Thread worker = new Thread(delegate ()
+            {
+                try
+                {
+                    using (TcpClient client = listener.AcceptTcpClient())
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        byte[] greeting = new byte[3];
+                        ReadExact(stream, greeting);
+                        byte[] method = new byte[] { 5, 0 };
+                        stream.Write(method, 0, method.Length);
+
+                        byte[] request = new byte[4];
+                        ReadExact(stream, request);
+                        if (request[3] == 3)
+                        {
+                            int length = stream.ReadByte();
+                            if (length < 0) return;
+                            byte[] rest = new byte[length + 2];
+                            ReadExact(stream, rest);
+                        }
+                        byte[] reply = new byte[]
+                        {
+                            5, 0, 0, 1, 127, 0, 0, 1, 0, 80
+                        };
+                        stream.Write(reply, 0, reply.Length);
+                    }
+                }
+                catch (Exception) { }
+                finally { listener.Stop(); }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+            return port;
+        }
+
+        private static void ReadExact(Stream stream, byte[] buffer)
+        {
+            int offset = 0;
+            while (offset < buffer.Length)
+            {
+                int read = stream.Read(buffer, offset, buffer.Length - offset);
+                if (read <= 0) throw new EndOfStreamException();
+                offset += read;
+            }
         }
 
         private static void PendingInstallTests()
@@ -1121,6 +1247,7 @@ namespace PiWebTray
                 Check("field default pi CLI install", fresh.InstallPiCli);
                 CheckEqual("field default install tag", "latest", fresh.InstallTag);
                 CheckEqual("field default registry is empty", "", fresh.NpmRegistry);
+                CheckEqual("field default proxy is empty", "", fresh.Proxy);
                 CheckEqual("field default language", "auto", fresh.Language);
                 Check("field default admin autostart is off", !fresh.AutostartAdmin);
 
@@ -1134,6 +1261,7 @@ namespace PiWebTray
                 Check("default pi CLI install is on", config.InstallPiCli);
                 CheckEqual("default install tag", "latest", config.InstallTag);
                 CheckEqual("default registry is empty", "", config.NpmRegistry);
+                CheckEqual("default proxy is empty", "", config.Proxy);
                 CheckEqual("default language", "auto", config.Language);
                 Check("default admin autostart is off", !config.AutostartAdmin);
                 Check("default working dir is the profile", Directory.Exists(config.WorkingDir));
@@ -1149,11 +1277,12 @@ namespace PiWebTray
                 Check("ini documents the pi CLI", content.Contains("InstallPiCli=1"));
                 Check("ini documents the install tag", content.Contains("InstallTag=latest"));
                 Check("ini documents npm registry", content.Contains("NpmRegistry="));
+                Check("ini documents proxy", content.Contains("Proxy="));
                 Check("ini documents node path", content.Contains("NodePath="));
                 Check("ini documents the server script", content.Contains("ServerScript="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 13 documented keys", 13, CountIniKeys(content));
             }
             finally
             {

@@ -460,7 +460,7 @@ namespace PiWebTray
 
         // Never persist credentials embedded in registry URLs (or query tokens) in logs.
         private static readonly Regex UrlUserInfo = new Regex(
-            @"(https?://)[^/@\s]+@", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            @"((?:https?|socks(?:5h?)?)://)[^/@\s]+@", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex QuerySecret = new Regex(
             @"([?&](?:auth|token|password|_authToken|access_token|authToken|npm_token|apikey|api_key|private_token|client_secret)=)[^&\s""]+",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);

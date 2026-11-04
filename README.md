@@ -100,24 +100,25 @@ Exit and stop pi-web
 
 `pi-web-tray.ini` lives in `%LOCALAPPDATA%\pi-web-tray` by default so separate Windows users do not share settings; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs next to the executable. A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
 
-| Key                | Default         | Description                                              |
-| ------------------ | --------------- | -------------------------------------------------------- |
-| `Port`             | `30141`         | pi-web listening port.                                   |
-| `WorkingDir`       | `%USERPROFILE%` | Service working directory and pi's default project root. |
-| `AutoInstall`      | `1`             | Install pi-web automatically when missing.               |
-| `AutoRestart`      | `0`             | Restart pi-web after an unexpected stop.                 |
-| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                   |
-| `InstallPiCli`     | `1`             | Install the pi CLI together with pi-web.                 |
-| `InstallTag`       | `latest`        | npm distribution tag or exact version.                   |
-| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.  |
-| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.       |
-| `ServerScript`     | empty           | Explicit `pi-web.js`; empty enables auto-detection.      |
-| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.            |
-| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).          |
+| Key                | Default         | Description                                                                               |
+| ------------------ | --------------- | ----------------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | pi-web listening port.                                                                    |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory and pi's default project root.                                  |
+| `AutoInstall`      | `1`             | Install pi-web automatically when missing.                                                |
+| `AutoRestart`      | `0`             | Restart pi-web after an unexpected stop.                                                  |
+| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                    |
+| `InstallPiCli`     | `1`             | Install the pi CLI together with pi-web.                                                  |
+| `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                    |
+| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                   |
+| `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy, e.g. `http://127.0.0.1:7890` or `socks5://127.0.0.1:1080`. |
+| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                        |
+| `ServerScript`     | empty           | Explicit `pi-web.js`; empty enables auto-detection.                                       |
+| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                             |
+| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).                                           |
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 
-The data directory is per user because the ini may contain registry credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction.
+The data directory is per user because the ini may contain registry or proxy credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction. When `Proxy` is set, update checks, downloads and npm/pi-web child processes use it; the **Test** button in Settings checks proxy connectivity without saving.
 
 ### Environment variables
 

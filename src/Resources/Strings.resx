@@ -660,6 +660,9 @@ Use --help to see the supported options.</value>
   <data name="ini.registryC" xml:space="preserve">
     <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
   </data>
+  <data name="ini.proxyC" xml:space="preserve">
+    <value>; Optional HTTP or SOCKS5 proxy, e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080</value>
+  </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; Leave empty for automatic detection; override only if required</value>
   </data>
@@ -953,6 +956,30 @@ See {1} for details.</value>
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm registry (optional)</value>
+  </data>
+  <data name="settings.proxy" xml:space="preserve">
+    <value>Proxy (optional)</value>
+  </data>
+  <data name="settings.testProxy" xml:space="preserve">
+    <value>Test</value>
+  </data>
+  <data name="settings.proxyTesting" xml:space="preserve">
+    <value>Testing...</value>
+  </data>
+  <data name="settings.proxyOk" xml:space="preserve">
+    <value>Proxy connection succeeded.</value>
+  </data>
+  <data name="settings.proxyFailed" xml:space="preserve">
+    <value>Proxy connection failed: {0}</value>
+  </data>
+  <data name="settings.invalidProxy" xml:space="preserve">
+    <value>Enter http://host:port or socks5://host:port.</value>
+  </data>
+  <data name="settings.noProxy" xml:space="preserve">
+    <value>No proxy is configured.</value>
+  </data>
+  <data name="settings.proxyNoResponse" xml:space="preserve">
+    <value>The proxy did not return an HTTP response.</value>
   </data>
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js path (optional)</value>

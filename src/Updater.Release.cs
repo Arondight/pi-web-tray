@@ -22,12 +22,20 @@ namespace PiWebTray
     {
         internal static ReleaseInfo FindLatest(out string error)
         {
-            return FindLatest(null, out error);
+            return FindLatest(null, null, out error);
         }
 
         internal static ReleaseInfo FindLatest(UpdateCancellation cancellation, out string error)
         {
+            return FindLatest(null, cancellation, out error);
+        }
+
+        internal static ReleaseInfo FindLatest(Config config, UpdateCancellation cancellation,
+            out string error)
+        {
             error = "";
+            if (!ProxyTransport.Configure(config == null ? "" : config.Proxy, out error))
+                return null;
             string json = GetText(LatestReleaseUrl, 20000, true, cancellation, out error);
             if (json == null) return null;
             return ParseRelease(json, out error);

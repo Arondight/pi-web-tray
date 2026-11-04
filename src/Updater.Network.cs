@@ -34,6 +34,7 @@ namespace PiWebTray
             request.ReadWriteTimeout = timeoutMs;
             request.AllowAutoRedirect = true;
             request.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
+            ProxyTransport.Apply(request);
             return request;
         }
 

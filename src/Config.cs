@@ -25,6 +25,7 @@ namespace PiWebTray
         internal bool InstallPiCli = true;
         internal string InstallTag = "latest";
         internal string NpmRegistry = "";
+        internal string Proxy = "";
         internal string WorkingDir;
         internal string NodePath;
         internal string ServerScript;
@@ -139,6 +140,9 @@ namespace PiWebTray
                             break;
                         case "npmregistry":
                             if (value.Length > 0) config.NpmRegistry = value;
+                            break;
+                        case "proxy":
+                            if (value.Length > 0) config.Proxy = value;
                             break;
                         case "language":
                             if (value.Length > 0) config.Language = value;
@@ -277,6 +281,9 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.registryC"));
                 sb.AppendLine("NpmRegistry=");
+                sb.AppendLine();
+                sb.AppendLine(L.T("ini.proxyC"));
+                sb.AppendLine("Proxy=");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.lookupC"));
                 sb.AppendLine("NodePath=");

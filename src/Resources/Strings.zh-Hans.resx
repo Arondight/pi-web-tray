@@ -660,6 +660,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   <data name="ini.registryC" xml:space="preserve">
     <value>; 自定义 npm 来源，留空使用 npm 默认值（例如 https://registry.npmmirror.com）</value>
   </data>
+  <data name="ini.proxyC" xml:space="preserve">
+    <value>; 可选的 HTTP 或 SOCKS5 代理，例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080</value>
+  </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下两项留空时将自动检测，通常无需修改</value>
   </data>
@@ -953,6 +956,30 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm 源（可选）</value>
+  </data>
+  <data name="settings.proxy" xml:space="preserve">
+    <value>代理（可选）</value>
+  </data>
+  <data name="settings.testProxy" xml:space="preserve">
+    <value>测试</value>
+  </data>
+  <data name="settings.proxyTesting" xml:space="preserve">
+    <value>测试中...</value>
+  </data>
+  <data name="settings.proxyOk" xml:space="preserve">
+    <value>代理连接成功。</value>
+  </data>
+  <data name="settings.proxyFailed" xml:space="preserve">
+    <value>代理连接失败：{0}</value>
+  </data>
+  <data name="settings.invalidProxy" xml:space="preserve">
+    <value>请输入 http://host:port 或 socks5://host:port。</value>
+  </data>
+  <data name="settings.noProxy" xml:space="preserve">
+    <value>未配置代理。</value>
+  </data>
+  <data name="settings.proxyNoResponse" xml:space="preserve">
+    <value>代理没有返回 HTTP 响应。</value>
   </data>
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js 路径（可选）</value>

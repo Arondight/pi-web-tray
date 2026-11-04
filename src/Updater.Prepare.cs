@@ -31,6 +31,12 @@ namespace PiWebTray
             error = "";
             try
             {
+                if (!ProxyTransport.Configure(config.Proxy, out error))
+                {
+                    AppendLog(config.UpdateLogFile, "proxy configuration failed: " + error);
+                    return null;
+                }
+
                 string root = SafeFullPath(Path.Combine(config.DataDir, "update"));
                 CleanupOld(root);
 

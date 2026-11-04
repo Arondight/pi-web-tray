@@ -739,6 +739,14 @@ namespace PiWebTray
                 psi.WorkingDirectory = _config.WorkingDir;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
+                if (!string.IsNullOrEmpty(_config.Proxy))
+                {
+                    psi.EnvironmentVariables["HTTP_PROXY"] = _config.Proxy;
+                    psi.EnvironmentVariables["HTTPS_PROXY"] = _config.Proxy;
+                    psi.EnvironmentVariables["ALL_PROXY"] = _config.Proxy;
+                    if (string.IsNullOrEmpty(psi.EnvironmentVariables["NO_PROXY"]))
+                        psi.EnvironmentVariables["NO_PROXY"] = "localhost,127.0.0.1,::1";
+                }
 
                 // An elevated tray passes its token to the child, which is exactly what "run as admin" means here
                 _server = Process.Start(psi);

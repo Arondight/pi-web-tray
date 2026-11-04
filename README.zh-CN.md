@@ -100,24 +100,25 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 
 `pi-web-tray.ini` 默认位于 `%LOCALAPPDATA%\pi-web-tray`，不同 Windows 用户不会共享设置；设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁。带注释的样例见 [`config/pi-web-tray.ini`](config/pi-web-tray.ini)。
 
-| 键                 | 默认值          | 说明                                                 |
-| ------------------ | --------------- | ---------------------------------------------------- |
-| `Port`             | `30141`         | pi-web 监听端口。                                    |
-| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 pi 的默认项目目录。               |
-| `AutoInstall`      | `1`             | 缺少 pi-web 时自动安装。                             |
-| `AutoRestart`      | `0`             | pi-web 意外停止后自动重启。                          |
-| `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                 |
-| `InstallPiCli`     | `1`             | 同时安装 pi 命令行。                                 |
-| `InstallTag`       | `latest`        | npm 分发标签或具体版本号。                           |
-| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。 |
-| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                      |
-| `ServerScript`     | 空              | 指定 `pi-web.js`；留空自动检测。                     |
-| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。             |
-| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                 |
+| 键                 | 默认值          | 说明                                                                                  |
+| ------------------ | --------------- | ------------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | pi-web 监听端口。                                                                     |
+| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 pi 的默认项目目录。                                                |
+| `AutoInstall`      | `1`             | 缺少 pi-web 时自动安装。                                                              |
+| `AutoRestart`      | `0`             | pi-web 意外停止后自动重启。                                                           |
+| `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                                                  |
+| `InstallPiCli`     | `1`             | 同时安装 pi 命令行。                                                                  |
+| `InstallTag`       | `latest`        | npm 分发标签或具体版本号。                                                            |
+| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                  |
+| `Proxy`            | 空              | 可选的 HTTP 或 SOCKS5 代理，如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`。 |
+| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                       |
+| `ServerScript`     | 空              | 指定 `pi-web.js`；留空自动检测。                                                      |
+| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                              |
+| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                                                  |
 
 值支持 `%ENV%` 展开；含 `;` 或 `#` 的值可加引号；注释符号前需有空白。
 
-数据目录按用户隔离，因为 ini 可能包含源凭据，日志可能包含项目数据；不要在共享目录中使用便携模式。避免把凭据写进 `NpmRegistry`，请在 npm 自己的 `.npmrc` 中配置认证，并把 ini 当作机密文件。托盘会在日志中隐藏 URL 用户信息和 token 查询参数；仅在日志宿主子进程无法启动时才启用的 `1>>` 兼容回退不经过脱敏。
+数据目录按用户隔离，因为 ini 可能包含源或代理凭据，日志可能包含项目数据；不要在共享目录中使用便携模式。避免把凭据写进 `NpmRegistry`，请在 npm 自己的 `.npmrc` 中配置认证，并把 ini 当作机密文件。托盘会在日志中隐藏 URL 用户信息和 token 查询参数；仅在日志宿主子进程无法启动时才启用的 `1>>` 兼容回退不经过脱敏。设置 `Proxy` 后，更新检查、下载以及 npm/pi-web 子进程都会使用该代理；设置窗口中的 **测试** 按钮只测试代理连通性，不会保存。
 
 ### 环境变量
 

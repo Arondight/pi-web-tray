@@ -61,7 +61,7 @@ namespace PiWebTray
             Thread worker = new Thread(delegate ()
             {
                 string error;
-                ReleaseInfo release = Updater.FindLatest(cancellation, out error);
+                ReleaseInfo release = Updater.FindLatest(_config, cancellation, out error);
                 lock (_updateLock)
                 {
                     if (generation != _updateGeneration) return;

@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace PiWebTray
@@ -36,6 +37,8 @@ namespace PiWebTray
         private readonly CheckBox _autoCheckUpdates;
         private readonly TextBox _installTag;
         private readonly TextBox _npmRegistry;
+        private readonly TextBox _proxy;
+        private readonly Button _testProxy;
         private readonly TextBox _nodePath;
         private readonly TextBox _serverScript;
 
@@ -76,10 +79,10 @@ namespace PiWebTray
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 12;
+            root.RowCount = 13;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < 13; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             scroll.Controls.Add(root);
 
             _port = new NumericUpDown();
@@ -87,6 +90,7 @@ namespace PiWebTray
             _port.Maximum = 65535;
             _port.Value = Math.Max(1, Math.Min(65535, config.Port));
             _port.Width = 120;
+            _port.AutoSize = false;
             _port.Anchor = AnchorStyles.Left;
             AddRow(root, 0, L.T("settings.port"), _port);
 
@@ -98,6 +102,8 @@ namespace PiWebTray
             _language = new ComboBox();
             _language.DropDownStyle = ComboBoxStyle.DropDownList;
             _language.Width = 220;
+            _language.AutoSize = false;
+            _language.MinimumSize = new Size(220, 0);
             _language.Anchor = AnchorStyles.Left;
             AddLanguageItems(config.Language);
             AddRow(root, 2, L.T("settings.language"), _language);
@@ -134,14 +140,37 @@ namespace PiWebTray
             _npmRegistry.Text = config.NpmRegistry ?? "";
             AddRow(root, 8, L.T("settings.npmRegistry"), _npmRegistry);
 
+            _proxy = new TextBox();
+            _proxy.Text = config.Proxy ?? "";
+            _testProxy = new Button();
+            _testProxy.Text = L.T("settings.testProxy");
+            _testProxy.AutoSize = true;
+            _testProxy.MinimumSize = new Size(88, 0);
+            _testProxy.Click += delegate { TestProxy(); };
+            TableLayoutPanel proxyLine = new TableLayoutPanel();
+            proxyLine.Dock = DockStyle.Fill;
+            proxyLine.AutoSize = true;
+            proxyLine.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            proxyLine.ColumnCount = 2;
+            proxyLine.RowCount = 1;
+            proxyLine.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            proxyLine.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            proxyLine.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            _proxy.Dock = DockStyle.Fill;
+            _proxy.Margin = new Padding(0, 0, 6, 0);
+            _testProxy.Margin = new Padding(0);
+            proxyLine.Controls.Add(_proxy, 0, 0);
+            proxyLine.Controls.Add(_testProxy, 1, 0);
+            AddRow(root, 9, L.T("settings.proxy"), proxyLine);
+
             _nodePath = new TextBox();
             _nodePath.Text = config.NodePath ?? "";
-            AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
+            AddBrowseRow(root, 10, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.selectNode"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
             _serverScript = new TextBox();
             _serverScript.Text = config.ServerScript ?? "";
-            AddBrowseRow(root, 10, L.T("settings.serverScript"), _serverScript,
+            AddBrowseRow(root, 11, L.T("settings.serverScript"), _serverScript,
                 L.T("settings.selectServer"), delegate { BrowseFile(_serverScript, L.T("settings.selectServer"), "pi-web.js|pi-web.js|*.js|*.js"); });
 
             Label note = new Label();
@@ -149,7 +178,7 @@ namespace PiWebTray
             note.AutoSize = true;
             note.MaximumSize = new Size(520, 0);
             note.Margin = new Padding(0, 12, 0, 12);
-            root.Controls.Add(note, 0, 11);
+            root.Controls.Add(note, 0, 12);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -183,6 +212,16 @@ namespace PiWebTray
 
             AcceptButton = save;
             CancelButton = cancel;
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            // NumericUpDown and ComboBox fixed widths can be collapsed by the
+            // DPI-scaled TableLayoutPanel; apply them after the final layout pass.
+            double scale = DeviceDpi / 96.0;
+            _port.Width = (int)Math.Round(120 * scale);
+            _language.Width = (int)Math.Round(220 * scale);
         }
 
         private void AddLanguageItems(string current)
@@ -234,6 +273,8 @@ namespace PiWebTray
         {
             TableLayoutPanel line = new TableLayoutPanel();
             line.Dock = DockStyle.Fill;
+            line.AutoSize = true;
+            line.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             line.ColumnCount = 2;
             line.RowCount = 1;
             line.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -281,6 +322,49 @@ namespace PiWebTray
             }
         }
 
+        private void TestProxy()
+        {
+            string text = (_proxy.Text ?? "").Trim();
+            ProxySettings parsed;
+            string error;
+            if (!ProxySettings.TryParse(text, out parsed, out error))
+            {
+                ShowError(error);
+                _proxy.Focus();
+                return;
+            }
+
+            _testProxy.Enabled = false;
+            _testProxy.Text = L.T("settings.proxyTesting");
+            Thread worker = new Thread(delegate ()
+            {
+                string testError;
+                bool ok = ProxySettings.Test(text, out testError);
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke(new Action(delegate ()
+                        {
+                            if (IsDisposed) return;
+                            _testProxy.Enabled = true;
+                            _testProxy.Text = L.T("settings.testProxy");
+                            if (ok)
+                                MessageBox.Show(this, L.T("settings.proxyOk"),
+                                    Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            else
+                                ShowError(L.T("settings.proxyFailed", testError ?? ""));
+                        }));
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
         private void SaveSettings()
         {
             string workingDir = (_workingDir.Text ?? "").Trim();
@@ -316,6 +400,18 @@ namespace PiWebTray
                 {
                     ShowError(L.T("settings.invalidRegistry"));
                     _npmRegistry.Focus();
+                    return;
+                }
+            }
+
+            string proxy = (_proxy.Text ?? "").Trim();
+            if (proxy.Length > 0)
+            {
+                string proxyError;
+                if (!ProxySettings.TryParse(proxy, out _, out proxyError))
+                {
+                    ShowError(proxyError);
+                    _proxy.Focus();
                     return;
                 }
             }
@@ -360,6 +456,7 @@ namespace PiWebTray
             values.Add(new KeyValuePair<string, string>("AutoCheckUpdates", _autoCheckUpdates.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallTag", tag));
             values.Add(new KeyValuePair<string, string>("NpmRegistry", registry));
+            values.Add(new KeyValuePair<string, string>("Proxy", proxy));
             values.Add(new KeyValuePair<string, string>("NodePath", nodePath));
             values.Add(new KeyValuePair<string, string>("ServerScript", serverScript));
 
@@ -378,6 +475,7 @@ namespace PiWebTray
             _config.AutoCheckUpdates = _autoCheckUpdates.Checked;
             _config.InstallTag = tag;
             _config.NpmRegistry = registry;
+            _config.Proxy = proxy;
             _config.NodePath = nodePath;
             _config.ServerScript = serverScript;
 
