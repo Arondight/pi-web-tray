@@ -302,6 +302,9 @@ namespace PiWebTray
             _adminAutostartItem.Click += delegate { ToggleAdminAutostart(); };
 
             _restartAdminItem = new ToolStripMenuItem(L.T("menu.restartAdmin"));
+            // Disable immediately in an elevated process; do not wait for the first
+            // environment-check UpdateUi(), because the menu may be opened before it.
+            _restartAdminItem.Enabled = !_elevated;
             _restartAdminItem.Click += delegate { RestartAsAdministrator(); };
 
             _aboutItem = new ToolStripMenuItem(L.T("menu.about"));

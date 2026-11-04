@@ -187,13 +187,6 @@ namespace PiWebTray
                 return WaitForTrayExit(30000) ? 0 : 1;
             }
 
-            // A tray-only start must not turn into "start the service" when another
-            // tray already owns the instance. A no-browser start must not open a
-            // browser either; send the specific start signal instead.
-            if (isTrayOnly) return 0;
-            if (isStartNoOpen)
-                return SendSignal(Instance.StartSignalName) ? 0 : 1;
-
             bool portOpen = Net.IsPortOpen(config.Port, 300);
 
             // Cannot open the other instance's mutex: it runs at a higher integrity level (admin)
@@ -213,24 +206,43 @@ namespace PiWebTray
                 return 0;
             }
 
+            bool existingElevated = TrayState.InstanceIsElevated();
+
             if (!elevated)
             {
+                // A tray-only start must not start the service; a no-browser start
+                // must not open a browser. Send the specific signal to the tray.
+                if (isTrayOnly) return 0;
+                if (isStartNoOpen)
+                    return SendSignal(Instance.StartSignalName) ? 0 : 1;
+
                 // Normal double-click: let the running tray start/open it
                 SendSignal(Instance.OpenSignalName);
                 return 0;
             }
 
-            // Elevated start: if the other instance is already elevated and the service runs, just open the browser
-            if (portOpen && TrayState.InstanceIsElevated())
+            // An already-elevated tray keeps handling the flags itself. Do not replace
+            // it just because a no-browser start was requested.
+            if (existingElevated)
             {
-                PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config));
-                if (owner.IsPiWeb && ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
-                    OpenBrowser(config.Port);
-                else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
-                return 0;
+                if (isTrayOnly) return 0;
+                if (isStartNoOpen)
+                    return SendSignal(Instance.StartSignalName) ? 0 : 1;
+
+                // A plain elevated start with the service running just opens the browser.
+                if (portOpen)
+                {
+                    PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config));
+                    if (owner.IsPiWeb && ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
+                        OpenBrowser(config.Port);
+                    else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
+                    return 0;
+                }
             }
 
-            // Elevated takeover: tell the old instance to stop and exit, then take over as administrator
+            // Elevated takeover: this must also run for --tray-only and --start-no-open
+            // when the running tray is not elevated. Otherwise those flags return early
+            // and the old tray keeps the instance alive.
             SendSignal(Instance.QuitSignalName);
             Mutex taken;
             bool denied;
