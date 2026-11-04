@@ -1,6 +1,6 @@
 # Pi Web Tray - smoke tests used by CI and by contributors before a release.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\verify.ps1
-#        powershell ... -File scripts\verify.ps1 -ExePath artifacts\pi-web-tray.exe
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify.ps1
+#        powershell ... -File .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe
 param(
     [string]$ExePath = "artifacts\pi-web-tray.exe"
 )
@@ -10,7 +10,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 if (-not (Test-Path $ExePath)) {
-    throw "Executable not found: $ExePath. Run build.cmd first."
+    throw "Executable not found: $ExePath. Run .\build.cmd first."
 }
 $exe = (Resolve-Path $ExePath).Path
 

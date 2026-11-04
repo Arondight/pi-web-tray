@@ -36,15 +36,15 @@ jobs:
 
       - name: Build
         shell: cmd
-        run: build.cmd --no-pause
+        run: .\build.cmd --no-pause
 
       - name: Verify Windows 7 to 11 compatibility
         shell: pwsh
-        run: .\scripts\check-compat.ps1 -ArtifactDir artifacts
+        run: .\scripts\check-compat.ps1 -ArtifactDir .\artifacts
 
       - name: Check .NET formatting
         shell: pwsh
-        run: dotnet format PiWebTray.sln --no-restore --verify-no-changes
+        run: dotnet format .\PiWebTray.sln --no-restore --verify-no-changes
 
       - name: Check documentation formatting
         shell: pwsh
@@ -52,15 +52,15 @@ jobs:
 
       - name: Unit tests
         shell: pwsh
-        run: dotnet test tests\PiWebTray.Tests\PiWebTray.Tests.csproj -c Release --nologo
+        run: dotnet test .\tests\PiWebTray.Tests\PiWebTray.Tests.csproj -c Release --nologo
 
       - name: Smoke tests
         shell: pwsh
-        run: .\scripts\verify.ps1 -ExePath artifacts\pi-web-tray.exe
+        run: .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe
 
       - name: Package release candidate
         shell: pwsh
-        run: .\scripts\package-release.ps1 -ArtifactDir artifacts
+        run: .\scripts\package-release.ps1 -ArtifactDir .\artifacts
 
       - name: Smoke test release archive
         shell: pwsh
@@ -102,7 +102,7 @@ jobs:
       - name: Verify tag matches the product version
         shell: pwsh
         run: |
-          $version = (Get-Item artifacts/pi-web-tray.exe).VersionInfo.ProductVersion
+          $version = (Get-Item .\artifacts\pi-web-tray.exe).VersionInfo.ProductVersion
           $expected = "v$version"
           if ($env:GITHUB_REF_NAME -ne $expected) {
             throw "Tag $env:GITHUB_REF_NAME does not match product version $version (expected $expected)"

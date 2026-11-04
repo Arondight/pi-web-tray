@@ -23,11 +23,15 @@ Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** �
 
 ### Windows 7 运行库
 
-Windows 7 需要 **.NET Framework 4.8**，请从这里安装：
+Windows 7 SP1 需要 **.NET Framework 4.8**，请从这里安装：
 
 <https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48>
 
 请将 `pi-web-tray.exe.config` 与可执行文件放在同一目录。
+
+托盘自更新还需要 TLS 1.2。如果无法访问 GitHub，请安装 Windows 7 的 TLS 1.2 更新（KB3140245）：
+
+<https://support.microsoft.com/help/3140245>
 
 ## 推荐安装的软件
 
@@ -62,7 +66,7 @@ Windows 8 无法升级 PowerShell，只能使用系统自带的 3.0 版本。
 ## 快速开始
 
 1. 下载并解压发布包。
-2. 运行 `pi-web-tray.exe`。
+2. 运行 `.\pi-web-tray.exe`。
 
 首次启动会检查环境、安装缺失依赖、启动 pi-web 并打开浏览器。若缺少 Node.js，软件会说明所需版本、提供下载页并退出；安装 Node.js 后重新运行即可。
 
@@ -143,25 +147,25 @@ Windows 8 无法升级 PowerShell，只能使用系统自带的 3.0 版本。
 ## 命令行
 
 ```text
-pi-web-tray.exe                  启动 pi-web 并打开浏览器。
-pi-web-tray.exe --autostart      启动托盘和服务，不打开浏览器。
-pi-web-tray.exe --tray-only      仅启动托盘。
-pi-web-tray.exe --start-no-open  启动服务，不打开浏览器。
-pi-web-tray.exe --stop           停止服务，保留托盘。
-pi-web-tray.exe --quit           停止服务并退出。
-pi-web-tray.exe --check          检查环境（0 = 就绪，1 = 缺少组件）。
-pi-web-tray.exe --install        安装依赖，不启动托盘。
-pi-web-tray.exe --dry-run        与 --install 配合，仅打印 npm 命令。
-pi-web-tray.exe --diag           将诊断快照写入 diag.txt。
-pi-web-tray.exe --version        显示版本。
-pi-web-tray.exe --help           显示命令行帮助。
+.\pi-web-tray.exe                   启动 pi-web 并打开浏览器。
+.\pi-web-tray.exe --autostart       启动托盘和服务，不打开浏览器。
+.\pi-web-tray.exe --tray-only       仅启动托盘。
+.\pi-web-tray.exe --start-no-open   启动服务，不打开浏览器。
+.\pi-web-tray.exe --stop            停止服务，保留托盘。
+.\pi-web-tray.exe --quit            停止服务并退出。
+.\pi-web-tray.exe --check           检查环境（0 = 就绪，1 = 缺少组件）。
+.\pi-web-tray.exe --install         安装依赖，不启动托盘。
+.\pi-web-tray.exe --dry-run         与 --install 配合，仅打印 npm 命令。
+.\pi-web-tray.exe --diag            将诊断快照写入 diag.txt。
+.\pi-web-tray.exe --version         显示版本。
+.\pi-web-tray.exe --help            显示命令行帮助。
 ```
 
 未知参数返回退出码 2。
 
 ## 从源码构建
 
-需要 Windows 11、Visual Studio 2026 和 .NET Framework 4.8 targeting pack（或 .NET SDK 8+）。
+需要 Windows 11 和 Visual Studio 2026，安装 **.NET 桌面开发** 工作负载（其中包含 .NET Framework 4.8 targeting pack）。
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git

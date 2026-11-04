@@ -1,8 +1,8 @@
 # Set the Pi Web Tray product version.
 #
 # Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-version.ps1 0.2.0
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\set-version.ps1 v0.2.0
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\set-version.ps1 0.2.0
+#   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\set-version.ps1 v0.2.0
 #
 # The script updates the version fields in src/PiWebTray.csproj and the application
 # identity in src/app.manifest. It also updates the bug report version placeholder when

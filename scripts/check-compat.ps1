@@ -1,6 +1,6 @@
 # Verify that the build still targets .NET Framework 4.8 and produces an AnyCPU,
 # IL-only executable for Windows 7 SP1 through Windows 11.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-compat.ps1
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1
 param(
     [string]$ArtifactDir = "artifacts",
     [string]$ProjectPath = "src/PiWebTray.csproj",
@@ -61,7 +61,7 @@ Assert-Compatibility ($manifest -match 'Microsoft\.Windows\.Common-Controls') `
     "app.manifest must reference Common Controls 6.0"
 
 $exe = Join-Path $ArtifactDir "pi-web-tray.exe"
-Assert-Compatibility (Test-Path $exe) "Missing $exe. Run build.cmd first."
+Assert-Compatibility (Test-Path $exe) "Missing $exe. Run .\build.cmd first."
 
 $configPath = Join-Path $ArtifactDir "pi-web-tray.exe.config"
 Assert-Compatibility (Test-Path $configPath) "Missing $configPath"

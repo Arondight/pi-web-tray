@@ -1,5 +1,5 @@
 # Build a release zip from an already compiled artifact directory.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\package-release.ps1
+# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package-release.ps1
 param(
     [string]$ArtifactDir = "artifacts"
 )
@@ -9,7 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 $exe = Join-Path $ArtifactDir "pi-web-tray.exe"
-if (-not (Test-Path $exe)) { throw "Missing $exe. Run build.cmd first." }
+if (-not (Test-Path $exe)) { throw "Missing $exe. Run .\build.cmd first." }
 
 $version = (Get-Item $exe).VersionInfo.ProductVersion
 if ([string]::IsNullOrWhiteSpace($version)) { $version = "dev" }

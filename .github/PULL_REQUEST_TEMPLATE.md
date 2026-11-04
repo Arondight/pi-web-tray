@@ -12,8 +12,8 @@
 
 ## Verification
 
-- [ ] `build.cmd --no-pause` succeeds
-- [ ] `scripts\verify.ps1 -ExePath artifacts\pi-web-tray.exe` passes
+- [ ] `.\build.cmd --no-pause` succeeds
+- [ ] `.\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe` passes
 - [ ] Manual tray checks done for affected states (if UI changed)
 - [ ] User-visible changes are described in this pull request
 - [ ] No new NuGet/third-party runtime dependency

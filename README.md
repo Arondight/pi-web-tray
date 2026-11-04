@@ -7,8 +7,7 @@ A universal Windows 7 to 11 harness for pi and pi-web. One tray app provides run
 - **One click** — installs and manages pi and pi-web; start or stop them with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
 - **Start at login** — uses the standard Run key or an administrator scheduled task.
-- **Port safe** — native process APIs identify the listener; unrelated programs are never
-  killed.
+- **Port safe** — native process APIs identify the listener; unrelated programs are never killed.
 - **Self-update** — checks for updates, updates the app and removes files from older releases.
 - **Portable** — no installer, no third-party runtime dependencies.
 
@@ -24,11 +23,15 @@ Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** 
 
 ### Windows 7 runtime
 
-Windows 7 needs **.NET Framework 4.8**; install it from:
+Windows 7 SP1 needs **.NET Framework 4.8**; install it from:
 
 <https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48>
 
 Keep `pi-web-tray.exe.config` next to the executable.
+
+Tray self-update also needs TLS 1.2; if GitHub cannot be reached, install the Windows 7 TLS 1.2 update (KB3140245):
+
+<https://support.microsoft.com/help/3140245>
 
 ## Recommended software
 
@@ -63,7 +66,7 @@ Windows 8 cannot update PowerShell; only the built-in 3.0 is available.
 ## Quick start
 
 1. Download and extract the release archive.
-2. Run `pi-web-tray.exe`.
+2. Run `.\pi-web-tray.exe`.
 
 On first start the app checks the environment, installs missing dependencies, starts pi-web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again.
 
@@ -144,25 +147,25 @@ Values support `%ENV%` expansion; quote values containing `;` or `#`; comments n
 ## Command line
 
 ```text
-pi-web-tray.exe                  Start pi-web and open the browser.
-pi-web-tray.exe --autostart      Start tray and service without a browser.
-pi-web-tray.exe --tray-only      Start the tray only.
-pi-web-tray.exe --start-no-open  Start the service without a browser.
-pi-web-tray.exe --stop           Stop the service, keep the tray.
-pi-web-tray.exe --quit           Stop the service and exit.
-pi-web-tray.exe --check          Check the environment (0 = ready, 1 = missing).
-pi-web-tray.exe --install        Install dependencies without the tray.
-pi-web-tray.exe --dry-run        With --install, print the npm commands only.
-pi-web-tray.exe --diag           Write a diagnostic snapshot to diag.txt.
-pi-web-tray.exe --version        Print the version.
-pi-web-tray.exe --help           Show command-line help.
+.\pi-web-tray.exe                   Start pi-web and open the browser.
+.\pi-web-tray.exe --autostart       Start tray and service without a browser.
+.\pi-web-tray.exe --tray-only       Start the tray only.
+.\pi-web-tray.exe --start-no-open   Start the service without a browser.
+.\pi-web-tray.exe --stop            Stop the service, keep the tray.
+.\pi-web-tray.exe --quit            Stop the service and exit.
+.\pi-web-tray.exe --check           Check the environment (0 = ready, 1 = missing).
+.\pi-web-tray.exe --install         Install dependencies without the tray.
+.\pi-web-tray.exe --dry-run         With --install, print the npm commands only.
+.\pi-web-tray.exe --diag            Write a diagnostic snapshot to diag.txt.
+.\pi-web-tray.exe --version         Print the version.
+.\pi-web-tray.exe --help            Show command-line help.
 ```
 
 Unknown arguments return exit code 2.
 
 ## Build from source
 
-Requires Windows 11, Visual Studio 2026 and the .NET Framework 4.8 targeting pack (or .NET SDK 8+).
+Requires Windows 11 and Visual Studio 2026 with the **.NET desktop development** workload (it includes the .NET Framework 4.8 targeting pack).
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
