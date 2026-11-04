@@ -37,6 +37,12 @@ namespace PiWebTray
         ServiceSilent
     }
 
+    internal sealed class UpdateCopyResult
+    {
+        internal string Backup = "";
+        internal System.Collections.Generic.List<string> Managed = new System.Collections.Generic.List<string>();
+    }
+
     internal sealed class ReleaseInfo
     {
         internal string Tag = "";

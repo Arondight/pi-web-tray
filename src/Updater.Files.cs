@@ -20,7 +20,7 @@ namespace PiWebTray
 {
     internal static partial class Updater
     {
-        internal static void CopyFiles(string staging, string target, string logPath)
+        internal static UpdateCopyResult CopyFiles(string staging, string target, string logPath)
         {
             string backupRoot = Path.Combine(target, ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
             List<string> copied = new List<string>();
@@ -36,19 +36,8 @@ namespace PiWebTray
 
             try
             {
-                // Remove stale backups from an earlier failed attempt. A failed copy is
-                // rolled back immediately, so anything left here is no longer needed.
-                try
-                {
-                    foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
-                    {
-                        try { Directory.Delete(old, true); } catch (Exception) { }
-                    }
-                }
-                catch (Exception)
-                {
-                }
-
+                // Never delete an older backup here: it may be the only copy left after a
+                // crash during a previous update. Successful updates remove it explicitly.
                 Directory.CreateDirectory(backupRoot);
 
                 foreach (string source in files)
@@ -79,10 +68,13 @@ namespace PiWebTray
             catch (Exception)
             {
                 // Put the previous installation back so a failed copy does not leave a
-                // half-updated application that cannot start.
+                // half-updated application that cannot start. If a restore fails, keep the
+                // backup directory for manual recovery instead of deleting the only copy.
+                bool restored = true;
                 for (int i = copied.Count - 1; i >= 0; i--)
                 {
-                    try { File.Delete(copied[i]); } catch (Exception) { }
+                    try { File.Delete(copied[i]); }
+                    catch (Exception) { restored = false; }
                 }
                 for (int i = backupSources.Count - 1; i >= 0; i--)
                 {
@@ -94,18 +86,24 @@ namespace PiWebTray
                     }
                     catch (Exception)
                     {
+                        restored = false;
                     }
                 }
-                try { Directory.Delete(backupRoot, true); } catch (Exception) { }
+                if (restored)
+                {
+                    try { Directory.Delete(backupRoot, true); } catch (Exception) { }
+                }
+                else
+                {
+                    AppendLog(logPath, "copy rollback incomplete; backup kept: " + backupRoot);
+                }
                 throw;
             }
 
-            try { Directory.Delete(backupRoot, true); } catch (Exception) { }
-
-            // The file list is written by the release package. On the first update from
-            // an older release there is no list, so stale files can only be cleaned from
-            // the next update onward. User data and logs are never in the list.
-            CleanupStaleFiles(target, newManaged, logPath);
+            UpdateCopyResult result = new UpdateCopyResult();
+            result.Backup = backupRoot;
+            result.Managed = newManaged;
+            return result;
         }
 
         private static List<string> ManagedFiles(string staging, List<string> files)
@@ -121,7 +119,7 @@ namespace PiWebTray
             return result;
         }
 
-        private static void CleanupStaleFiles(string target, List<string> newManaged, string logPath)
+        internal static void CleanupStaleFiles(string target, List<string> newManaged, string logPath)
         {
             string manifest = Path.Combine(target, ManifestName);
             List<string> oldManaged = ReadManifest(manifest);
@@ -182,6 +180,87 @@ namespace PiWebTray
                 // The files themselves were copied successfully; a missing manifest only
                 // means the next update cannot remove stale files.
                 AppendLog(logPath, "write manifest failed: " + ex.Message);
+            }
+        }
+
+        internal static void DeleteBackup(string backupRoot)
+        {
+            if (string.IsNullOrEmpty(backupRoot)) return;
+            try { if (Directory.Exists(backupRoot)) Directory.Delete(backupRoot, true); } catch (Exception) { }
+        }
+
+        internal static void DeleteOldBackups(string target)
+        {
+            try
+            {
+                foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
+                {
+                    try { Directory.Delete(old, true); } catch (Exception) { }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // If the new executable does not come up, put the previous release back. Stale-file
+        // cleanup is deferred until after a successful restart, so the old installation is
+        // still complete when this runs.
+        internal static bool Rollback(string backupRoot, string target, List<string> newManaged, string logPath)
+        {
+            if (string.IsNullOrEmpty(backupRoot) || !Directory.Exists(backupRoot)) return false;
+            try
+            {
+                List<string> files = new List<string>(Directory.GetFiles(backupRoot, "*", SearchOption.AllDirectories));
+                HashSet<string> oldFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (string file in files) oldFiles.Add(RelativePath(backupRoot, file).Replace('\\', '/'));
+
+                bool complete = true;
+                foreach (string relative in newManaged)
+                {
+                    if (oldFiles.Contains(relative)) continue;
+                    string destination = SafeTargetPath(target, relative);
+                    if (destination == null || !File.Exists(destination)) continue;
+                    try { File.SetAttributes(destination, FileAttributes.Normal); File.Delete(destination); }
+                    catch (Exception) { complete = false; }
+                    DeleteEmptyParents(target, destination);
+                }
+
+                foreach (string file in files)
+                {
+                    string relative = RelativePath(backupRoot, file);
+                    string destination = Path.Combine(target, relative);
+                    string parent = Path.GetDirectoryName(destination);
+                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                    try
+                    {
+                        if (File.Exists(destination))
+                        {
+                            File.SetAttributes(destination, FileAttributes.Normal);
+                            File.Delete(destination);
+                        }
+                        File.Move(file, destination);
+                    }
+                    catch (Exception ex)
+                    {
+                        complete = false;
+                        AppendLog(logPath, "rollback restore failed: " + relative + " (" + ex.Message + ")");
+                    }
+                }
+                if (complete)
+                {
+                    DeleteBackup(backupRoot);
+                    AppendLog(logPath, "rollback complete");
+                    return true;
+                }
+
+                AppendLog(logPath, "rollback incomplete; backup kept: " + backupRoot);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "rollback failed: " + ex.Message);
+                return false;
             }
         }
 

@@ -201,10 +201,16 @@ namespace PiWebTray
             else if (!string.IsNullOrEmpty(allowScripts) && NpmMajor(npmVersion) >= 12)
                 sb.Append(" --allow-scripts ").Append(Shell.Quote(allowScripts));
 
-            if (!string.IsNullOrEmpty(config.NpmRegistry))
-                sb.Append(" --registry ").Append(Shell.Quote(config.NpmRegistry));
-
             return sb.ToString();
+        }
+
+        // Registry credentials must not appear in the child's command line. npm reads this
+        // standard environment variable just like --registry, but process viewers cannot
+        // scrape it from the command line.
+        internal static void ApplyRegistryEnvironment(Config config, IDictionary<string, string> env)
+        {
+            if (config == null || env == null || string.IsNullOrEmpty(config.NpmRegistry)) return;
+            env["npm_config_registry"] = config.NpmRegistry;
         }
 
         // npm accepts only package names and optional version selectors here. Reject anything
@@ -289,6 +295,43 @@ namespace PiWebTray
             return MergeAllowScripts(ReadConfiguredAllowScripts(probe, env, workingDir), PiWebScriptPackages);
         }
 
+        // A marker survives a crash or a failed npm run. The next install attempt is then
+        // forced to reinstall both packages instead of trusting a half-written directory.
+        internal static string PendingMarker(Config config)
+        {
+            return Path.Combine(config.OutputDir, "install.pending");
+        }
+
+        internal static bool HasPending(Config config)
+        {
+            try { return File.Exists(PendingMarker(config)); }
+            catch (Exception) { return false; }
+        }
+
+        private static void MarkPending(Config config)
+        {
+            try
+            {
+                Directory.CreateDirectory(config.OutputDir);
+                File.WriteAllText(PendingMarker(config),
+                    DateTime.UtcNow.ToString("o"), new UTF8Encoding(false));
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        internal static void ClearPending(Config config)
+        {
+            try
+            {
+                if (File.Exists(PendingMarker(config))) File.Delete(PendingMarker(config));
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         // Synchronous install; the caller runs it on a background thread
         internal static InstallResult Install(Config config, ProbeResult probe, bool force, Action<string> onLine)
         {
@@ -299,6 +342,7 @@ namespace PiWebTray
             List<InstallStep> steps = StepsToInstall(probe, config, force);
             if (steps.Count == 0)
             {
+                ClearPending(config);
                 result.Success = true;
                 result.Message = L.T("install.none");
                 return result;
@@ -330,6 +374,8 @@ namespace PiWebTray
             {
             }
 
+            ApplyRegistryEnvironment(config, env);
+            MarkPending(config);
             ProcessResult last = null;
             bool ok = true;
             bool piCliFailed = false;
@@ -372,11 +418,14 @@ namespace PiWebTray
                         45 * 60 * 1000,
                         delegate (string line)
                         {
-                            AppendLog(config, line);
-                            Update(stepNo, steps.Count, L.T("install.stepTitle"), line, DateTime.Now - started, true);
+                            // Never expose registry credentials through the progress UI or
+                            // the CLI, not just in install.log.
+                            string safeLine = Shell.RedactSecrets(line);
+                            AppendLog(config, safeLine);
+                            Update(stepNo, steps.Count, L.T("install.stepTitle"), safeLine, DateTime.Now - started, true);
                             if (onLine != null)
                             {
-                                try { onLine(line); } catch (Exception) { }
+                                try { onLine(safeLine); } catch (Exception) { }
                             }
                         },
                         env,
@@ -421,6 +470,7 @@ namespace PiWebTray
 
             if (ok && piWebOk && piCliOk)
             {
+                ClearPending(config);
                 result.Success = true;
                 string piWebVersion = after.PiWebVersion.Length > 0 ? after.PiWebVersion : L.T("install.ready");
                 string piCliPart = after.PiCliFound
@@ -481,6 +531,7 @@ namespace PiWebTray
             {
                 try
                 {
+                    line = Shell.RedactSecrets(line);
                     Directory.CreateDirectory(Path.GetDirectoryName(config.InstallLogFile));
                     FileInfo info = new FileInfo(config.InstallLogFile);
                     if (info.Exists && info.Length > 4 * 1024 * 1024)
@@ -505,9 +556,11 @@ namespace PiWebTray
             ConsoleHost.WriteLine(L.T("install.envHeader"));
             ConsoleHost.WriteLine(probe.Summary());
 
-            List<InstallStep> steps = StepsToInstall(probe, config, false);
+            bool force = HasPending(config);
+            List<InstallStep> steps = StepsToInstall(probe, config, force);
             if (steps.Count == 0)
             {
+                ClearPending(config);
                 ConsoleHost.WriteLine(L.T("install.none"));
                 return 0;
             }
@@ -521,12 +574,16 @@ namespace PiWebTray
 
             ConsoleHost.WriteLine(L.T("install.willRun"));
             IDictionary<string, string> env = ProcessRunner.WithPathPrefix(Path.GetDirectoryName(probe.NodePath));
+            ApplyRegistryEnvironment(config, env);
+            if (!string.IsNullOrEmpty(config.NpmRegistry))
+                ConsoleHost.WriteLine("  npm_config_registry=" + Shell.RedactSecrets(config.NpmRegistry));
             string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
             foreach (InstallStep step in steps)
             {
                 string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
                     probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
-                ConsoleHost.WriteLine("  " + Shell.Quote(probe.NodePath) + " " + arguments);
+                ConsoleHost.WriteLine("  " + Shell.Quote(probe.NodePath) + " "
+                    + Shell.RedactSecrets(arguments));
             }
 
             if (dryRun)
@@ -535,7 +592,8 @@ namespace PiWebTray
                 return 0;
             }
 
-            InstallResult result = Install(config, probe, false, delegate (string line) { ConsoleHost.WriteLine("  " + line); });
+            InstallResult result = Install(config, probe, HasPending(config),
+                delegate (string line) { ConsoleHost.WriteLine("  " + line); });
             ConsoleHost.WriteLine("");
             ConsoleHost.WriteLine((result.Success ? L.T("install.donePrefix") : L.T("install.failedPrefix")) + result.Message);
             return result.Success ? 0 : 1;

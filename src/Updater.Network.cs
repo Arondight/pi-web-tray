@@ -138,7 +138,7 @@ namespace PiWebTray
                         path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
                     using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
                     {
-                        writer.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + line);
+                        writer.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + Shell.RedactSecrets(line));
                     }
                 }
                 catch (Exception)

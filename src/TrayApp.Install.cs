@@ -20,6 +20,10 @@ namespace PiWebTray
         // or an icon click passes its own intent instead of reusing _autoStartService.
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
+            // A previous npm run may have been interrupted. Force a clean reinstall so a
+            // partial package directory is not mistaken for a working dependency.
+            if (Installer.HasPending(_config)) force = true;
+
             if (_installAfterStop)
             {
                 _installAfterStopForce = _installAfterStopForce || force;
@@ -185,7 +189,7 @@ namespace PiWebTray
 
             ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            return ShouldStopServiceForInstall(_phase, true, owner.IsPiWeb, TrayOwnsPort());
+            return ShouldStopServiceForInstall(_phase, true, IsOurPiWeb(owner), TrayOwnsPort());
         }
 
         internal static bool ShouldStopServiceForInstall(Phase phase, bool portOpen,

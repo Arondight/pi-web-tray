@@ -13,6 +13,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 
 namespace PiWebTray
@@ -23,6 +24,7 @@ namespace PiWebTray
         private const uint PROCESS_QUERY_INFORMATION = 0x0400;
         private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
         private const uint PROCESS_VM_READ = 0x0010;
+        private const uint TOKEN_QUERY = 0x0008;
         private const int ProcessBasicInformation = 0;
         private const int ProcessWow64Information = 26;
 
@@ -79,6 +81,13 @@ namespace PiWebTray
         private static extern bool QueryFullProcessImageNameW(IntPtr process, int flags,
             StringBuilder name, ref int size);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool ProcessIdToSessionId(uint processId, out uint sessionId);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(IntPtr processHandle, uint desiredAccess,
+            out IntPtr tokenHandle);
+
         [DllImport("ntdll.dll")]
         private static extern int NtQueryInformationProcess(IntPtr process, int informationClass,
             ref PROCESS_BASIC_INFORMATION information, int informationLength, out int returnLength);
@@ -86,6 +95,59 @@ namespace PiWebTray
         [DllImport("ntdll.dll")]
         private static extern int NtQueryInformationProcess(IntPtr process, int informationClass,
             ref IntPtr information, int informationLength, out int returnLength);
+
+        // Windows session id (RDP / console / fast user switching). Cross-session ports are
+        // not ours even when another user runs the same pi-web package.
+        internal static int SessionId(int pid)
+        {
+            if (pid <= 0) return -1;
+            uint session;
+            try
+            {
+                return ProcessIdToSessionId((uint)pid, out session) ? (int)session : -1;
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
+        }
+
+        // Best effort: protected processes can deny token access. Returns "" when the SID
+        // cannot be read; callers then fall back to the script-path check.
+        internal static string UserSid(int pid)
+        {
+            if (pid <= 0) return "";
+
+            IntPtr process = IntPtr.Zero;
+            IntPtr token = IntPtr.Zero;
+            try
+            {
+                process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+                if (process == IntPtr.Zero) return "";
+                if (!OpenProcessToken(process, TOKEN_QUERY, out token) || token == IntPtr.Zero)
+                    return "";
+
+                using (WindowsIdentity identity = new WindowsIdentity(token))
+                {
+                    return identity.User != null ? identity.User.Value : "";
+                }
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+            finally
+            {
+                if (token != IntPtr.Zero)
+                {
+                    try { CloseHandle(token); } catch (Exception) { }
+                }
+                if (process != IntPtr.Zero)
+                {
+                    try { CloseHandle(process); } catch (Exception) { }
+                }
+            }
+        }
 
         internal static int ParentPid(int pid)
         {

@@ -215,17 +215,25 @@ namespace PiWebTray
                     AppendLog(logPath, "staging hash absent (legacy tray)");
                 }
 
-                CopyFiles(staging, target, logPath);
+                UpdateCopyResult copy = CopyFiles(staging, target, logPath);
                 AppendLog(logPath, "copy complete");
 
                 if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
                 {
-                    MessageBox.Show(L.T("update.error.restart"), L.T("update.applyFailedTitle"),
+                    bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
+                    string message = L.T("update.error.restart");
+                    if (!rolledBack)
+                        message += Environment.NewLine + Environment.NewLine
+                            + L.T("update.rollbackBackup", copy.Backup);
+                    MessageBox.Show(message, L.T("update.applyFailedTitle"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                     OfferStartAfterFailure(target, mode, logPath);
                     return 1;
                 }
 
+                CleanupStaleFiles(target, copy.Managed, logPath);
+                DeleteBackup(copy.Backup);
+                DeleteOldBackups(target);
                 AppendLog(logPath, "restart requested");
                 return 0;
             }

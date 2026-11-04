@@ -66,7 +66,9 @@ namespace PiWebTray
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port);
                     bool ownedByTray = TrayOwnsPort();
-                    if ((owner.IsUnknown || owner.Owner == PortOwner.None) && !ownedByTray)
+                    bool ourPiWeb = IsOurPiWeb(owner);
+                    if ((owner.IsUnknown || owner.Owner == PortOwner.None
+                        || (owner.IsPiWeb && !ourPiWeb)) && !ownedByTray)
                     {
                         // Another program owns the port. Leave it alone and keep the
                         // exit fast instead of waiting for a service that is not ours.
@@ -88,7 +90,7 @@ namespace PiWebTray
                         {
                             ServiceProbe.Invalidate();
                             owner = ServiceProbe.Inspect(_port);
-                            if (owner.IsPiWeb || TrayOwnsPort())
+                            if (IsOurPiWeb(owner) || TrayOwnsPort())
                             {
                                 Sys.KillByPort(_port);
                             }

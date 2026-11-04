@@ -1,9 +1,9 @@
 // Pi Web Tray — configuration
 //
-// The config file is pi-web-tray.ini:
-//   system install (Program Files etc.): the ini next to the exe is only a template;
-//   the real file lives in %LOCALAPPDATA%\pi-web-tray\. Otherwise the ini next to the exe is used.
-//
+// The config file is pi-web-tray.ini in %LOCALAPPDATA%\pi-web-tray (per user).
+// A portable installation can set PI_WEB_TRAY_PORTABLE=1 to keep the ini and logs
+// next to the executable; that is not recommended in a shared directory because
+// the ini may contain registry credentials and the logs may contain user data.
 // All paths support %ENV% expansion.
 
 using System;
@@ -56,7 +56,8 @@ namespace PiWebTray
             // otherwise they would read the main instance's ini (port included) and could stop its service.
             bool isolated = Instance.Suffix.Length > 0;
             bool systemInstall = IsSystemDirectory(config.BaseDir);
-            bool useDataDir = isolated || systemInstall;
+            bool portable = IsTruthy(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE"), false);
+            bool useDataDir = ShouldUseDataDir(isolated, systemInstall, portable);
             config.OutputDir = useDataDir ? config.DataDir : config.BaseDir;
             config.LogFile = Path.Combine(config.OutputDir, "server.log");
             config.InstallLogFile = Path.Combine(config.OutputDir, "install.log");
@@ -350,6 +351,14 @@ namespace PiWebTray
             {
                 return false;
             }
+        }
+
+        // Per-user data is the safe default: the ini may hold registry credentials and
+        // the logs may hold prompts or file contents. Portable mode is an explicit opt-in.
+        internal static bool ShouldUseDataDir(bool isolated, bool systemInstall, bool portable)
+        {
+            if (isolated || systemInstall) return true;
+            return !portable;
         }
 
         internal static bool IsSystemDirectory(string dir)

@@ -23,15 +23,7 @@ Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** 
 
 ### Windows 7 runtime
 
-Windows 7 SP1 needs **.NET Framework 4.8**; install it from:
-
-<https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48>
-
-Keep `pi-web-tray.exe.config` next to the executable.
-
-Tray self-update also needs TLS 1.2; if GitHub cannot be reached, install the Windows 7 TLS 1.2 update (KB3140245):
-
-<https://support.microsoft.com/help/3140245>
+Windows 7 SP1 needs [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48). Tray self-update also needs TLS 1.2; if GitHub cannot be reached, install the [Windows 7 TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
 ## Recommended software
 
@@ -39,38 +31,28 @@ Pi Web Tray does not require Python 3 or PowerShell, but installing them extends
 
 ### Python 3
 
-Windows 10 and 11: use the official download page and pick the installer for your architecture (64-bit unless the system is 32-bit). Tick **Add python.exe to PATH**:
-
-<https://www.python.org/downloads/>
+Windows 10 and 11: use the [official download page](https://www.python.org/downloads/). Tick **Add python.exe to PATH**:
 
 Older Windows releases no longer receive current Python installers. The newest releases that still ship one:
 
-| System      | Newest release with an installer | Official download page                                 |
-| ----------- | -------------------------------- | ------------------------------------------------------ |
-| Windows 7   | Python 3.8.10                    | https://www.python.org/downloads/release/python-3810/  |
-| Windows 8   | Python 3.8.10                    | https://www.python.org/downloads/release/python-3810/  |
-| Windows 8.1 | Python 3.13.17                   | https://www.python.org/downloads/release/python-31317/ |
+| System      | Newest release with an installer                                         |
+| ----------- | ------------------------------------------------------------------------ |
+| Windows 7   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8.1 | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 
 ### PowerShell
 
-Windows 8.1, 10 and 11 can install the latest PowerShell from the official releases page:
-
-<https://github.com/PowerShell/PowerShell/releases>
-
-Windows 7 SP1 needs Windows Management Framework 5.1 to get Windows PowerShell 5.1:
-
-<https://www.microsoft.com/en-us/download/details.aspx?id=54616>
-
-Windows 8 cannot update PowerShell; only the built-in 3.0 is available.
+Windows 8.1, 10 and 11 can install the latest PowerShell from the [official releases page](https://github.com/PowerShell/PowerShell/releases). Windows 7 SP1 needs [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) to get Windows PowerShell 5.1. Windows 8 cannot update PowerShell, only the built-in 3.0 is available.
 
 ## Quick start
 
 1. Download and extract the release archive.
 2. Run `.\pi-web-tray.exe`.
 
-On first start the app checks the environment, installs missing dependencies, starts pi-web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again.
+On first start the app checks the environment, installs missing dependencies, starts pi-web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
 
-Configuration and logs live next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` for protected directories. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
+Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
 ## Tray menu
 
@@ -109,14 +91,14 @@ Exit and stop pi-web
 ```
 
 - **Update pi-web and pi** stops pi-web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
-- A listener that is not pi-web is reported as a **port conflict**: the tray neither treats it as running nor stops or kills it; change `Port` in **Settings**.
+- A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If pi-web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 
 ## Configuration
 
 ### Configuration file
 
-`pi-web-tray.ini` is created on first start next to the executable, or in `%LOCALAPPDATA%\pi-web-tray` for protected directories. A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
+`pi-web-tray.ini` lives in `%LOCALAPPDATA%\pi-web-tray` by default so separate Windows users do not share settings; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs next to the executable. A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
 
 | Key                | Default         | Description                                              |
 | ------------------ | --------------- | -------------------------------------------------------- |
@@ -135,14 +117,17 @@ Exit and stop pi-web
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 
+The data directory is per user because the ini may contain registry credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs.
+
 ### Environment variables
 
-| Variable                     | Description                            |
-| ---------------------------- | -------------------------------------- |
-| `PI_WEB_TRAY_PORT`           | Overrides the configured port.         |
-| `PI_WEB_TRAY_LANG`           | Overrides the UI language.             |
-| `PI_WEB_TRAY_HOME`           | Overrides the data directory.          |
-| `HTTP_PROXY` / `HTTPS_PROXY` | Used by npm and pi-web model requests. |
+| Variable                     | Description                                       |
+| ---------------------------- | ------------------------------------------------- |
+| `PI_WEB_TRAY_PORT`           | Overrides the configured port.                    |
+| `PI_WEB_TRAY_LANG`           | Overrides the UI language.                        |
+| `PI_WEB_TRAY_HOME`           | Overrides the data directory.                     |
+| `PI_WEB_TRAY_PORTABLE`       | `1` keeps the ini and logs beside the executable. |
+| `HTTP_PROXY` / `HTTPS_PROXY` | Used by npm and pi-web model requests.            |
 
 ## Command line
 
@@ -177,7 +162,8 @@ cd .\pi-web-tray
 
 - Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no network listener.
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper also validates the target installation and a staging fingerprint. Releases are unsigned, so SmartScreen may warn on first run.
-- Admin start-at-login requires an admin account and is machine-wide. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
+- Admin start-at-login requires an admin account and creates an on-logon task for the current user; the task name includes the user SID, so another user's task is not overwritten.
+- `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
 
 ## Related projects
 

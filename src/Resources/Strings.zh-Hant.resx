@@ -837,6 +837,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="update.error.restart" xml:space="preserve">
     <value>更新已套用，但無法啟動新的系統匣。</value>
   </data>
+  <data name="update.rollbackBackup" xml:space="preserve">
+    <value>未能完整還原舊檔案。備份保留在：{0}</value>
+  </data>
   <data name="update.error.unknown" xml:space="preserve">
     <value>未知錯誤。</value>
   </data>
@@ -896,6 +899,12 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>其他程式或未知</value>
+  </data>
+  <data name="check.ownerOtherSession" xml:space="preserve">
+    <value>另一個使用者工作階段</value>
+  </data>
+  <data name="check.ownerOtherUser" xml:space="preserve">
+    <value>另一個使用者</value>
   </data>
   <data name="check.ownerNone" xml:space="preserve">
     <value>無</value>

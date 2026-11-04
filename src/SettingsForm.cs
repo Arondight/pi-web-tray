@@ -27,6 +27,7 @@ namespace PiWebTray
         }
 
         private readonly Config _config;
+        private readonly string _expectedScript;
         private readonly NumericUpDown _port;
         private readonly TextBox _workingDir;
         private readonly ComboBox _language;
@@ -40,9 +41,15 @@ namespace PiWebTray
         private readonly TextBox _serverScript;
 
         internal SettingsForm(Config config)
+            : this(config, config == null ? "" : config.ServerScript)
+        {
+        }
+
+        internal SettingsForm(Config config, string expectedScript)
         {
             SuspendLayout();
             _config = config;
+            _expectedScript = expectedScript ?? "";
 
             Text = L.T("settings.title");
             StartPosition = FormStartPosition.CenterScreen;
@@ -333,7 +340,8 @@ namespace PiWebTray
             if (port != _config.Port)
             {
                 PortOwnerInfo owner = ServiceProbe.Inspect(port);
-                if (owner.IsUnknown)
+                if (owner.IsUnknown
+                    || (owner.IsPiWeb && !ServiceProbe.MatchesExpectedScript(owner, _expectedScript)))
                 {
                     DialogResult answer = MessageBox.Show(
                         this,

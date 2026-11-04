@@ -38,6 +38,8 @@ namespace PiWebTray
             VersionParseTests();
             ClipTests();
             PathSplitTests();
+            ConfigSafetyTests();
+            PendingInstallTests();
             NodeDownloadTests();
             QuoteTests();
             IniReadTests();
@@ -50,7 +52,9 @@ namespace PiWebTray
             InstallServiceStopTests();
             UpdateCancellationTests();
             UpdateCopyTests();
+            UpdateRollbackTests();
             UpdateTargetTests();
+            LogHostTests();
             ServiceProbeTests();
             StateFileTests();
             HttpProbeTestsSkip();
@@ -118,6 +122,53 @@ namespace PiWebTray
             CheckEqual("clip tiny budget", 3, Shell.Clip(new string('x', 10), 3).Length);
         }
 
+        private static void ConfigSafetyTests()
+        {
+            Check("data directory is the default", Config.ShouldUseDataDir(false, false, false));
+            Check("system installs use the data directory", Config.ShouldUseDataDir(false, true, true));
+            Check("portable mode is an explicit opt-in", !Config.ShouldUseDataDir(false, false, true));
+            Check("isolated instances never share the ini", Config.ShouldUseDataDir(true, false, true));
+            Check("the admin task is per user",
+                Autostart.TaskName.StartsWith("PiWebTray-", StringComparison.Ordinal)
+                && !string.Equals(Autostart.TaskName, Autostart.LegacyTaskName, StringComparison.Ordinal));
+
+            string currentSid;
+            using (System.Security.Principal.WindowsIdentity identity =
+                System.Security.Principal.WindowsIdentity.GetCurrent())
+            {
+                currentSid = identity.User.Value;
+            }
+            CheckEqual("process user SID is readable", currentSid,
+                NativeProcess.UserSid(System.Diagnostics.Process.GetCurrentProcess().Id));
+
+            CheckEqual("redacts URL user info",
+                "https://***@example.test/path",
+                Shell.RedactSecrets("https://user:pass@example.test/path"));
+            CheckEqual("redacts query tokens",
+                "https://example.test/?token=***&x=1",
+                Shell.RedactSecrets("https://example.test/?token=secret&x=1"));
+            CheckEqual("keeps ordinary URLs",
+                "https://registry.example.test/",
+                Shell.RedactSecrets("https://registry.example.test/"));
+            CheckEqual("redacts access tokens",
+                "https://example.test/?access_token=***",
+                Shell.RedactSecrets("https://example.test/?access_token=secret"));
+
+            PortOwnerInfo owner = new PortOwnerInfo
+            {
+                Owner = PortOwner.PiWeb,
+                ScriptPath = @"C:\one\pi-web.js"
+            };
+            Check("accepts the same pi-web script",
+                ServiceProbe.MatchesExpectedScript(owner, @"c:\ONE\pi-web.js"));
+            Check("rejects another installation",
+                !ServiceProbe.MatchesExpectedScript(owner, @"C:\two\pi-web.js"));
+            Check("rejects a command line without a script path",
+                !ServiceProbe.MatchesExpectedScript(new PortOwnerInfo { Owner = PortOwner.PiWeb }, @"C:\two\pi-web.js"));
+            Check("rejects an unknown expected script",
+                !ServiceProbe.MatchesExpectedScript(owner, ""));
+        }
+
         private static void PathSplitTests()
         {
             List<string> dirs = EnvironmentProbe.SplitPath(" C:\\a ;\"C:\\b\";;c:\\A ");
@@ -125,6 +176,26 @@ namespace PiWebTray
             CheckEqual("path split first", "C:\\a", dirs[0]);
             CheckEqual("path split second", "C:\\b", dirs[1]);
             CheckEqual("path split empty", 0, EnvironmentProbe.SplitPath("").Count);
+        }
+
+        private static void PendingInstallTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-pending-" + Guid.NewGuid().ToString("N"));
+            Config config = new Config();
+            config.OutputDir = root;
+            try
+            {
+                Directory.CreateDirectory(root);
+                Check("no pending install initially", !Installer.HasPending(config));
+                File.WriteAllText(Installer.PendingMarker(config), "partial", Encoding.UTF8);
+                Check("pending install is detected", Installer.HasPending(config));
+                Installer.ClearPending(config);
+                Check("pending install can be cleared", !Installer.HasPending(config));
+            }
+            finally
+            {
+                try { Directory.Delete(root, true); } catch (Exception) { }
+            }
         }
 
         private static void NodeDownloadTests()
@@ -353,7 +424,11 @@ namespace PiWebTray
 
             config.NpmRegistry = "https://registry.npmmirror.com";
             string withRegistry = Installer.BuildArguments(config, "npm-cli.js", web, "12.2.1", false, Installer.PiWebScriptPackages);
-            Check("npm args include quoted registry", withRegistry.Contains("--registry \"https://registry.npmmirror.com\""));
+            Check("npm args never include registry credentials", !withRegistry.Contains("--registry"));
+            Dictionary<string, string> registryEnv = new Dictionary<string, string>();
+            Installer.ApplyRegistryEnvironment(config, registryEnv);
+            CheckEqual("registry uses the npm environment", "https://registry.npmmirror.com",
+                registryEnv["npm_config_registry"]);
 
             Check("pi-web never ignores scripts", !webArgs.Contains("--ignore-scripts"));
             Check("npm 12 allows pi-web scripts", webArgs.Contains("--allow-scripts \"@agegr/pi-web,node-pty\""));
@@ -629,7 +704,7 @@ namespace PiWebTray
                     stagingHash1 != Updater.ComputeStagingHash(staging));
                 File.Delete(Path.Combine(staging, "extra.txt"));
 
-                Updater.CopyFiles(staging, target, logPath);
+                UpdateCopyResult copy = Updater.CopyFiles(staging, target, logPath);
 
                 CheckEqual("update replaces exe", "new", File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
                 CheckEqual("update copies config", "config", File.ReadAllText(Path.Combine(target, "pi-web-tray.exe.config")));
@@ -639,6 +714,12 @@ namespace PiWebTray
                     File.ReadAllText(Path.Combine(target, "zh-Hans", "pi-web-tray.resources.dll")));
                 CheckEqual("update copies the sample config", "sample",
                     File.ReadAllText(Path.Combine(target, "config", "pi-web-tray.ini")));
+                Check("update keeps a backup until restart", Directory.Exists(copy.Backup));
+                Check("update defers stale cleanup",
+                    File.Exists(Path.Combine(target, "old.txt")));
+
+                Updater.CleanupStaleFiles(target, copy.Managed, logPath);
+
                 Check("update removes stale file", !File.Exists(Path.Combine(target, "old.txt")));
                 Check("update removes empty stale directory",
                     !Directory.Exists(Path.Combine(target, "zh-Hant")));
@@ -648,8 +729,47 @@ namespace PiWebTray
                 Check("manifest lists new executable", manifest.Contains("pi-web-tray.exe"));
                 Check("manifest lists copied config", manifest.Contains("config/pi-web-tray.ini"));
                 Check("manifest drops stale file", !manifest.Contains("old.txt"));
+
+                Updater.DeleteBackup(copy.Backup);
                 Check("update leaves no backup directory",
                     Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateRollbackTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-rollback-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string staging = Path.Combine(root, "staging");
+            string logPath = Path.Combine(root, "update.log");
+            try
+            {
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(staging);
+                File.WriteAllText(Path.Combine(target, "pi-web-tray.exe"), "old");
+                File.WriteAllText(Path.Combine(target, "keep.txt"), "keep");
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
+                File.WriteAllText(Path.Combine(staging, "new-only.txt"), "new");
+
+                UpdateCopyResult copy = Updater.CopyFiles(staging, target, logPath);
+                CheckEqual("rollback setup replaces exe", "new",
+                    File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+                Check("rollback setup copies new file",
+                    File.Exists(Path.Combine(target, "new-only.txt")));
+
+                Check("rollback completes", Updater.Rollback(copy.Backup, target, copy.Managed, logPath));
+
+                CheckEqual("rollback restores the old executable", "old",
+                    File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+                Check("rollback removes files new to the release",
+                    !File.Exists(Path.Combine(target, "new-only.txt")));
+                Check("rollback keeps unmanaged files",
+                    File.Exists(Path.Combine(target, "keep.txt")));
+                Check("rollback removes the backup", !Directory.Exists(copy.Backup));
             }
             finally
             {
@@ -682,6 +802,43 @@ namespace PiWebTray
             finally
             {
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void LogHostTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-loghost-" + Guid.NewGuid().ToString("N"));
+            string path = Path.Combine(root, "server.log");
+            try
+            {
+                Directory.CreateDirectory(root);
+                using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 200))))
+                {
+                    LogHost.Append(input, path, 100);
+                }
+
+                CheckEqual("log host writes the first chunk", 201L, new FileInfo(path).Length);
+
+                using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes("next")))
+                {
+                    LogHost.Append(input, path, 100);
+                }
+                CheckEqual("log host rotates before crossing the limit", 201L, new FileInfo(path + ".1").Length);
+                CheckEqual("log host appends after rotation", "next" + "\n", File.ReadAllText(path));
+
+                File.Delete(path);
+                File.Delete(path + ".1");
+                using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(
+                    "https://user:pass@example.test/?token=secret")))
+                {
+                    LogHost.Append(input, path, 1024 * 1024);
+                }
+                CheckEqual("log host redacts registry credentials",
+                    "https://***@example.test/?token=***" + "\n", File.ReadAllText(path));
+            }
+            finally
+            {
+                try { Directory.Delete(root, true); } catch (Exception) { }
             }
         }
 

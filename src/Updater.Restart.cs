@@ -90,14 +90,31 @@ namespace PiWebTray
                 direct.UseShellExecute = true;
                 using (Process tray = Process.Start(direct))
                 {
+                    if (tray == null) return false;
+                    if (WaitForTrayProcess(tray, dataDir, parentPid, 15000)) return true;
                 }
-                return true;
+                AppendLog(logPath, "new tray did not start");
+                return false;
             }
             catch (Exception ex)
             {
                 AppendLog(logPath, "restart failed: " + ex);
                 return false;
             }
+        }
+
+        private static bool WaitForTrayProcess(Process tray, string dataDir, int oldPid, int timeoutMs)
+        {
+            DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+            while (DateTime.Now < deadline)
+            {
+                if (WaitForNewTray(dataDir, oldPid, 250)) return true;
+                try { if (tray.HasExited) return false; }
+                catch (Exception) { return false; }
+            }
+            // Still alive but no state file (for example an unwritable data directory):
+            // keep it rather than rolling back a working process.
+            try { return !tray.HasExited; } catch (Exception) { return false; }
         }
 
         private static string LaunchViaExplorerCommand(string dataDir, string target,
@@ -143,6 +160,7 @@ namespace PiWebTray
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG"))
+                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_NODE"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PIWEB"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PICLI"));

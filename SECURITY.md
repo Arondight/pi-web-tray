@@ -28,12 +28,14 @@ Pi Web Tray is a local desktop launcher. It:
 - runs elevated only when the user explicitly chooses "Run as administrator";
 - starts `node` / `npm` as the current user and never requests credentials;
 - reads `pi-web-tray.ini` and environment variables controlled by the current user;
-- creates an `HKCU\...\Run` value or an on-logon scheduled task only when the user turns on start-at-login; the administrator task requires the current account to be an administrator;
+- creates an `HKCU\...\Run` value or an on-logon scheduled task only when the user turns on start-at-login; the administrator task requires the current account to be an administrator and its name includes the user SID, so users do not overwrite each other's task;
 - identifies the process that owns the configured port and reports a port conflict instead of treating or killing an unrelated listener as pi-web;
 - checks GitHub for updates only when the user selects **Update Pi Web Tray** (or opts into automatic checks), downloads the release archive over HTTPS, verifies its SHA-256 checksum, and starts an elevated helper only when the installation directory needs elevation and the user accepts the UAC prompt (or the tray is already elevated);
+- stores its configuration and logs in the current user's `%LOCALAPPDATA%\pi-web-tray` by default; `PI_WEB_TRAY_PORTABLE=1` is an explicit opt-in that is not suitable for a shared directory;
+- redacts URL user info and token query values from its logs, and rotates `server.log`, `install.log` and `update.log` at 4 MB;
 - does not contain telemetry or network listeners.
 
-The tray intentionally trusts the configured `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` values. Treat a writable configuration file as equivalent to code execution for the current user. Do not point these settings at untrusted paths or registries.
+The tray intentionally trusts the configured `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` values. Treat a writable configuration file as equivalent to code execution for the current user. Do not point these settings at untrusted paths or registries. Avoid embedding credentials in `NpmRegistry`: the ini is plain text, and although the tray redacts common URL and query-token forms in its logs, it cannot guarantee that every third-party tool uses a redactable format. Prefer npm's own authentication configuration.
 
 Updates are staged in the user's data directory before an elevated helper replaces files in a protected installation directory. Only accept the UAC prompt when you started the update from the tray, and do not let untrusted programs write to the update staging directory while a prompt is pending. The helper refuses a target that is not a Pi Web Tray installation and re-checks a fingerprint of the staged files after the UAC prompt; these checks reduce the risk but do not replace code signing. The release file manifest is used only to remove files that were managed by the previous release; it is not an integrity check and does not replace the SHA-256 checksum.
 

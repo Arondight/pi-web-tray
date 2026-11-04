@@ -6,6 +6,9 @@
 
 using System;
 using System.Diagnostics;
+using System.IO;
+using System.Security.Principal;
+using System.Text.RegularExpressions;
 
 namespace PiWebTray
 {
@@ -21,6 +24,9 @@ namespace PiWebTray
         internal PortOwner Owner;
         internal int Pid;
         internal string Detail = "";
+        internal string ScriptPath = "";
+        internal bool ForeignSession;
+        internal bool ForeignUser;
 
         internal bool IsPiWeb { get { return Owner == PortOwner.PiWeb; } }
         internal bool IsUnknown { get { return Owner == PortOwner.Unknown; } }
@@ -28,12 +34,34 @@ namespace PiWebTray
 
     internal static class ServiceProbe
     {
+        private static readonly Regex QuotedArgument = new Regex("\"([^\"]+)\"", RegexOptions.Compiled);
+
         private static readonly object CacheLock = new object();
         private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(3);
 
         private static int _cachePort = -1;
         private static PortOwnerInfo _cache;
         private static DateTime _cacheAt = DateTime.MinValue;
+        private static string _currentUserSid;
+
+        private static string CurrentUserSid()
+        {
+            if (_currentUserSid == null)
+            {
+                try
+                {
+                    using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                    {
+                        _currentUserSid = identity.User != null ? identity.User.Value : "";
+                    }
+                }
+                catch (Exception)
+                {
+                    _currentUserSid = "";
+                }
+            }
+            return _currentUserSid;
+        }
 
         internal static PortOwnerInfo Inspect(int port)
         {
@@ -72,6 +100,38 @@ namespace PiWebTray
             }
 
             int pid = FindListenerPid(port);
+
+            // Another Windows session can run the same pi-web package on the same port.
+            // It is never "our" service and must never be opened or stopped by this tray.
+            int ownerSession = pid > 4 ? NativeProcess.SessionId(pid) : -1;
+            if (ownerSession >= 0 && ownerSession != Process.GetCurrentProcess().SessionId)
+            {
+                return new PortOwnerInfo
+                {
+                    Owner = PortOwner.Unknown,
+                    Pid = pid,
+                    ForeignSession = true,
+                    Detail = "another Windows session"
+                };
+            }
+
+            // Same session but another user (for example runas / a shared global install)
+            // is still not our service. If the token cannot be read, fall through to the
+            // script-path check.
+            string ownerSid = pid > 4 ? NativeProcess.UserSid(pid) : "";
+            string currentSid = CurrentUserSid();
+            if (ownerSid.Length > 0 && currentSid.Length > 0
+                && !string.Equals(ownerSid, currentSid, StringComparison.OrdinalIgnoreCase))
+            {
+                return new PortOwnerInfo
+                {
+                    Owner = PortOwner.Unknown,
+                    Pid = pid,
+                    ForeignUser = true,
+                    Detail = "another user"
+                };
+            }
+
             string commandLine = pid > 4 ? ReadCommandLine(pid) : "";
 
             if (IsPiWebCommandLine(commandLine))
@@ -80,7 +140,8 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.PiWeb,
                     Pid = pid,
-                    Detail = "pi-web command line"
+                    Detail = "pi-web command line",
+                    ScriptPath = ExtractScriptPath(commandLine)
                 };
             }
 
@@ -114,6 +175,8 @@ namespace PiWebTray
         internal static string OwnerText(PortOwnerInfo owner)
         {
             if (owner == null) return L.T("check.ownerNone");
+            if (owner.ForeignSession) return L.T("check.ownerOtherSession");
+            if (owner.ForeignUser) return L.T("check.ownerOtherUser");
             if (owner.IsPiWeb) return L.T("check.ownerPiweb");
             if (owner.IsUnknown) return L.T("check.ownerOther");
             return L.T("check.ownerNone");
@@ -131,6 +194,46 @@ namespace PiWebTray
             if (text.IndexOf("@agegr\\pi-web", StringComparison.Ordinal) >= 0) return true;
             if (text.IndexOf("@agegr/pi-web", StringComparison.Ordinal) >= 0) return true;
             return false;
+        }
+
+        // Extract the pi-web.js path from a command line so a different installation
+        // (same session) is not mistaken for the service this tray manages.
+        internal static string ExtractScriptPath(string commandLine)
+        {
+            if (string.IsNullOrEmpty(commandLine)) return "";
+
+            foreach (Match match in QuotedArgument.Matches(commandLine))
+            {
+                string value = match.Groups[1].Value;
+                if (value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0) return value;
+            }
+            foreach (string raw in commandLine.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                string value = raw.Trim('"');
+                if (value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0) return value;
+            }
+            return "";
+        }
+
+        internal static bool MatchesExpectedScript(PortOwnerInfo owner, string expectedScript)
+        {
+            if (owner == null || !owner.IsPiWeb) return false;
+            // Ownership requires both paths. A listener whose command line does not expose
+            // pi-web.js (including the HTTP fallback) is not proof that it is our service.
+            if (string.IsNullOrEmpty(expectedScript) || string.IsNullOrEmpty(owner.ScriptPath))
+                return false;
+            try
+            {
+                return string.Equals(
+                    Path.GetFullPath(owner.ScriptPath),
+                    Path.GetFullPath(expectedScript),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                // A path we cannot normalize is not proof of ownership.
+                return false;
+            }
         }
 
         internal static int ParseListenerPid(string netstatOutput, int port)

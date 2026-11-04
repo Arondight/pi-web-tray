@@ -186,7 +186,7 @@ namespace PiWebTray
                 }
 
                 string text;
-                using (FileStream stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (FileStream stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
                     long start = Math.Max(0, stream.Length - TailBytes);
                     stream.Seek(start, SeekOrigin.Begin);

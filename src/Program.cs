@@ -65,6 +65,18 @@ namespace PiWebTray
                 return Updater.Apply(args);
             }
 
+            // Internal mode: the service pipes its output here so the log can be rotated
+            // while node still runs. It has no config, tray, mutex, or UI. The check mode
+            // lets the tray verify that this child can be created before relying on it.
+            if (Has(args, "--log-host-check"))
+            {
+                return 0;
+            }
+            if (Has(args, "--log-host"))
+            {
+                return LogHost.Run(args);
+            }
+
             config = Config.Load(true);
 
             string unknown = FindUnknownArgument(args);
@@ -175,7 +187,8 @@ namespace PiWebTray
                 if (portOpen)
                 {
                     PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
-                    if (owner.IsPiWeb) OpenBrowser(config.Port);
+                    if (owner.IsPiWeb && ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
+                        OpenBrowser(config.Port);
                     else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
                 }
                 else
@@ -196,7 +209,8 @@ namespace PiWebTray
             if (portOpen && TrayState.InstanceIsElevated())
             {
                 PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
-                if (owner.IsPiWeb) OpenBrowser(config.Port);
+                if (owner.IsPiWeb && ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
+                    OpenBrowser(config.Port);
                 else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
                 return 0;
             }
@@ -213,6 +227,11 @@ namespace PiWebTray
                     PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
                     if (owner.IsPiWeb)
                     {
+                        if (!ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
+                        {
+                            Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
+                            return 0;
+                        }
                         Sys.KillByPort(config.Port);
                         Net.WaitPortClosed(config.Port, 8000);
                     }
@@ -368,6 +387,28 @@ namespace PiWebTray
             }
         }
 
+        // The CLI paths do not have the tray's cached probe result; detect the installed
+        // script before treating a listener as ours. An unknown path must never match.
+        private static string ExpectedPiWebScript(Config config)
+        {
+            if (!string.IsNullOrEmpty(config.ServerScript) && File.Exists(config.ServerScript))
+                return config.ServerScript;
+
+            ProbeResult probe = null;
+            try { probe = EnvironmentProbe.Detect(config); }
+            catch (Exception) { }
+            return ExpectedPiWebScript(config, probe);
+        }
+
+        private static string ExpectedPiWebScript(Config config, ProbeResult probe)
+        {
+            string script = config.ServerScript;
+            if (!string.IsNullOrEmpty(script) && File.Exists(script)) return script;
+            if (probe != null && probe.PiWebFound && !string.IsNullOrEmpty(probe.PiWebScript))
+                return probe.PiWebScript;
+            return script;
+        }
+
         // No tray is running, so stop the service through the CLI. A listener that
         // cannot be identified as pi-web is never killed.
         private static bool StopServiceWithoutTray(Config config)
@@ -383,8 +424,15 @@ namespace PiWebTray
             if (owner.Owner == PortOwner.None) return true;
 
             ProbeResult probe = EnvironmentProbe.Detect(config);
-            string script = config.ServerScript;
-            if (string.IsNullOrEmpty(script) && probe.PiWebFound) script = probe.PiWebScript;
+            string script = ExpectedPiWebScript(config, probe);
+
+            // A different pi-web installation on the same port is not ours; never stop it.
+            if (owner.IsPiWeb && !ServiceProbe.MatchesExpectedScript(owner, script))
+            {
+                ConsoleHost.TryAttach();
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                return false;
+            }
 
             if (!string.IsNullOrEmpty(script) && File.Exists(script))
             {
@@ -397,7 +445,7 @@ namespace PiWebTray
             {
                 ServiceProbe.Invalidate();
                 owner = ServiceProbe.Inspect(config.Port);
-                if (!owner.IsPiWeb)
+                if (!owner.IsPiWeb || !ServiceProbe.MatchesExpectedScript(owner, script))
                 {
                     ConsoleHost.TryAttach();
                     ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));

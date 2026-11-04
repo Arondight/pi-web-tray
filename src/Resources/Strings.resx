@@ -837,6 +837,9 @@ See {1} for details.</value>
   <data name="update.error.restart" xml:space="preserve">
     <value>The update was applied, but the new tray could not be started.</value>
   </data>
+  <data name="update.rollbackBackup" xml:space="preserve">
+    <value>The previous files could not be fully restored. A backup was kept at: {0}</value>
+  </data>
   <data name="update.error.unknown" xml:space="preserve">
     <value>Unknown error.</value>
   </data>
@@ -896,6 +899,12 @@ See {1} for details.</value>
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>another program or unknown</value>
+  </data>
+  <data name="check.ownerOtherSession" xml:space="preserve">
+    <value>another user session</value>
+  </data>
+  <data name="check.ownerOtherUser" xml:space="preserve">
+    <value>another user</value>
   </data>
   <data name="check.ownerNone" xml:space="preserve">
     <value>none</value>

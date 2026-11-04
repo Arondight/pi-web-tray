@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -15,6 +16,24 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        // Must mirror StartServer: a configured script wins only while it still exists;
+        // otherwise the probe result is what the service will actually launch.
+        private string ExpectedPiWebScript()
+        {
+            string script = _config.ServerScript;
+            if (!string.IsNullOrEmpty(script) && File.Exists(script)) return script;
+            if (_probe != null && _probe.PiWebFound && !string.IsNullOrEmpty(_probe.PiWebScript))
+                return _probe.PiWebScript;
+            return script;
+        }
+
+        // A pi-web listener is ours only when its script path matches the installed one.
+        // Another installation (or another user session) must be left alone.
+        private bool IsOurPiWeb(PortOwnerInfo owner)
+        {
+            return ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript());
+        }
+
         private void PollStarting()
         {
             bool dead = false;
@@ -31,7 +50,7 @@ namespace PiWebTray
                 // the HTTP response. This prevents another program on the same port from
                 // being marked as a successful start.
                 PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                if (!owner.IsPiWeb && !TrayOwnsPort())
+                if (!IsOurPiWeb(owner) && !TrayOwnsPort())
                 {
                     if (DateTime.Now > _startDeadline)
                         FailStart(L.T("notify.startFailedTimeout", _port));
@@ -125,7 +144,7 @@ namespace PiWebTray
                 {
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                    if (owner.IsPiWeb || TrayOwnsPort())
+                    if (IsOurPiWeb(owner) || TrayOwnsPort())
                     {
                         _stopEscalatedAt = DateTime.Now;
                         Sys.KillByPort(_port);
@@ -193,10 +212,12 @@ namespace PiWebTray
                 _lastOwnerCheck = DateTime.Now;
                 ServiceProbe.Invalidate();
                 PortOwnerInfo current = ServiceProbe.Inspect(_port);
-                if (current.IsPiWeb) return;
-                if (current.IsUnknown && TrayOwnsPort()) return;
+                if (IsOurPiWeb(current)) return;
+                // The command line can be unreadable while cmd still owns the tree;
+                // the tracked child is enough evidence in that case.
+                if ((current.IsUnknown || current.IsPiWeb) && TrayOwnsPort()) return;
 
-                _phase = current.IsUnknown ? Phase.PortConflict : Phase.Stopped;
+                _phase = (current.IsUnknown || current.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
@@ -208,7 +229,7 @@ namespace PiWebTray
             }
 
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            if (owner.IsPiWeb)
+            if (IsOurPiWeb(owner))
             {
                 _phase = Phase.Running;
                 _lastNotified = "";
@@ -216,7 +237,7 @@ namespace PiWebTray
                 _restartAfterUpdate = false;
                 UpdateUi();
             }
-            else if (owner.IsUnknown)
+            else if (owner.IsUnknown || owner.IsPiWeb)
             {
                 if (_phase != Phase.PortConflict)
                 {
@@ -245,7 +266,7 @@ namespace PiWebTray
             }
 
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            if (owner.IsPiWeb) return true;
+            if (IsOurPiWeb(owner)) return true;
             if (owner.Pid <= 0) return false;
             if (owner.Pid == _server.Id) return true;
             return ServiceProbe.ParentPid(owner.Pid) == _server.Id;
@@ -257,8 +278,9 @@ namespace PiWebTray
 
             ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            if (owner.IsPiWeb) return Phase.Running;
-            if (owner.IsUnknown) return Phase.PortConflict;
+            if (IsOurPiWeb(owner)) return Phase.Running;
+            if ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort()) return Phase.Running;
+            if (owner.IsUnknown || owner.IsPiWeb) return Phase.PortConflict;
             return Phase.Stopped;
         }
 
@@ -321,6 +343,28 @@ namespace PiWebTray
             NotifyWarning(L.T("notify.autoRestartTitle"), L.T("notify.autoRestartBody", delay));
         }
 
+        // If a child process cannot be created (security software, a broken image, or a
+        // policy), fall back to cmd redirection instead of making the service depend on a
+        // broken pipe. Log rotation is then limited to service start.
+        private bool LogHostAvailable()
+        {
+            try
+            {
+                ProcessResult check = ProcessRunner.Run(
+                    Application.ExecutablePath,
+                    "--log-host-check",
+                    _config.WorkingDir,
+                    3000,
+                    null,
+                    null);
+                return check.Started && !check.TimedOut && check.ExitCode == 0;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private void StartServer(bool openBrowser)
         {
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
@@ -329,7 +373,7 @@ namespace PiWebTray
             if (Net.IsPortOpen(_port, 300))
             {
                 PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                if (owner.IsPiWeb)
+                if (IsOurPiWeb(owner))
                 {
                     _phase = Phase.Running;
                     _lastNotified = "";
@@ -341,7 +385,7 @@ namespace PiWebTray
                     if (openBrowser) OpenBrowser();
                     return;
                 }
-                if (owner.IsUnknown)
+                if (owner.IsUnknown || owner.IsPiWeb)
                 {
                     if (TrayOwnsPort())
                     {
@@ -362,11 +406,7 @@ namespace PiWebTray
                 // continue and try to start the service.
             }
 
-            string script = _config.ServerScript;
-            if (string.IsNullOrEmpty(script) || !File.Exists(script))
-            {
-                if (_probe != null && _probe.PiWebFound) script = _probe.PiWebScript;
-            }
+            string script = ExpectedPiWebScript();
 
             if (string.IsNullOrEmpty(script) || !File.Exists(script))
             {
@@ -381,11 +421,27 @@ namespace PiWebTray
             RotateLog();
             try
             {
-                // Redirect output to the log through cmd: the tray is not in the pipe chain, so
-                // the service does not die when the tray exits and the pipe closes.
-                string command = Shell.Quote(node) + " " + Shell.Quote(script)
-                    + " --no-open -p " + _port
-                    + " 1>>" + Shell.Quote(_config.LogFile) + " 2>&1";
+                // Pipe the output through a separate log-host process. cmd cannot rotate a
+                // file it redirects itself, while the host owns its log and can rotate it at
+                // any time. Neither the tray nor the pipe has to stay alive for the service.
+                string command;
+                if (LogHostAvailable())
+                {
+                    string logHost = Shell.Quote(Application.ExecutablePath)
+                        + " --log-host " + Shell.Quote(_config.LogFile) + " "
+                        + MaxLogBytes.ToString(CultureInfo.InvariantCulture);
+                    command = Shell.Quote(node) + " " + Shell.Quote(script)
+                        + " --no-open -p " + _port
+                        + " 2>&1 | " + logHost;
+                }
+                else
+                {
+                    // Last-resort compatibility path; this loses live rotation but keeps
+                    // the service startable if the log-host child cannot be launched.
+                    command = Shell.Quote(node) + " " + Shell.Quote(script)
+                        + " --no-open -p " + _port
+                        + " 1>>" + Shell.Quote(_config.LogFile) + " 2>&1";
+                }
 
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Shell.ComSpec();
@@ -476,11 +532,11 @@ namespace PiWebTray
             ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
             bool ownedByTray = TrayOwnsPort();
-            if (!owner.IsPiWeb && !ownedByTray)
+            if (!IsOurPiWeb(owner) && !ownedByTray)
             {
                 _pendingRestart = false;
                 _pendingOpenBrowser = false;
-                _phase = owner.IsUnknown ? Phase.PortConflict : Phase.Stopped;
+                _phase = (owner.IsUnknown || owner.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
@@ -492,8 +548,7 @@ namespace PiWebTray
             UpdateUi();
 
             // pi-web's own stop command starts node and takes a while, so run it in the background
-            string script = _config.ServerScript;
-            if (string.IsNullOrEmpty(script)) script = _probe != null ? _probe.PiWebScript : null;
+            string script = ExpectedPiWebScript();
 
             if (!string.IsNullOrEmpty(script) && File.Exists(script))
             {

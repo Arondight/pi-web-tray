@@ -1,10 +1,12 @@
 // Pi Web Tray — start at login
 //
 // Two mutually exclusive modes: normal permissions write HKCU\...\Run; admin rights use
-// an on-logon scheduled task (no UAC prompt). Only one may exist, or login starts two trays.
+// an on-logon scheduled task. Only one may exist, or login starts two trays.
 
 using System;
 using System.Diagnostics;
+using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using Microsoft.Win32;
 
@@ -14,7 +16,44 @@ namespace PiWebTray
     {
         internal const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         internal const string RunValueName = "PiWebTray";
-        internal const string TaskName = "PiWebTray";
+        internal const string LegacyTaskName = "PiWebTray";
+
+        // A machine-wide task name lets two users overwrite each other's admin autostart.
+        // Keep one task per user; the legacy "PiWebTray" task is removed when possible.
+        private static string _taskName;
+        internal static string TaskName
+        {
+            get
+            {
+                if (_taskName == null) _taskName = "PiWebTray-" + CurrentUserKey();
+                return _taskName;
+            }
+        }
+
+        private static string CurrentUserKey()
+        {
+            try
+            {
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity.User != null)
+                    {
+                        string sid = identity.User.Value;
+                        if (sid.Length > 0) return sid;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            StringBuilder sb = new StringBuilder();
+            foreach (char c in Environment.UserName ?? "user")
+            {
+                if (char.IsLetterOrDigit(c) || c == '-' || c == '_') sb.Append(c);
+            }
+            return sb.Length == 0 ? "user" : sb.ToString();
+        }
 
         internal static string Describe(bool task, bool run)
         {
@@ -62,11 +101,16 @@ namespace PiWebTray
 
         internal static bool QueryTask()
         {
+            return QueryTask(TaskName);
+        }
+
+        private static bool QueryTask(string name)
+        {
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Sys.SystemExecutable("schtasks.exe");
-                psi.Arguments = "/query /tn " + Shell.Quote(TaskName);
+                psi.Arguments = "/query /tn " + Shell.Quote(name);
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;
@@ -112,6 +156,9 @@ namespace PiWebTray
 
         internal static bool CreateTask(bool elevated, string executablePath)
         {
+            // Remove the legacy machine-wide task first so login cannot start both.
+            if (QueryTask(LegacyTaskName) && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
+
             string taskCommand = "\\\"" + executablePath + "\\\" --autostart";
             string args = "/create /f /tn " + Shell.Quote(TaskName)
                 + " /sc onlogon /rl highest /tr " + Shell.Quote(taskCommand);
@@ -128,16 +175,26 @@ namespace PiWebTray
 
         internal static bool DeleteTask(bool elevated)
         {
-            if (!QueryTask()) return true;
+            bool current = QueryTask();
+            bool legacy = QueryTask(LegacyTaskName);
+            if (!current && !legacy) return true;
 
-            if (!Launch(elevated, "/delete /f /tn " + Shell.Quote(TaskName))) return false;
+            if (current && !DeleteTaskByName(elevated, TaskName)) return false;
+            if (legacy && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
+            return true;
+        }
+
+        private static bool DeleteTaskByName(bool elevated, string name)
+        {
+            if (!QueryTask(name)) return true;
+            if (!Launch(elevated, "/delete /f /tn " + Shell.Quote(name))) return false;
 
             for (int i = 0; i < 40; i++)
             {
                 Thread.Sleep(200);
-                if (!QueryTask()) return true;
+                if (!QueryTask(name)) return true;
             }
-            return !QueryTask();
+            return !QueryTask(name);
         }
 
         // Run directly when already elevated; otherwise go through runas (one UAC prompt)

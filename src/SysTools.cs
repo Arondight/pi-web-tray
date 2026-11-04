@@ -13,6 +13,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 namespace PiWebTray
@@ -456,6 +457,21 @@ namespace PiWebTray
         internal static string LocalAppData()
         {
             return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+
+        // Never persist credentials embedded in registry URLs (or query tokens) in logs.
+        private static readonly Regex UrlUserInfo = new Regex(
+            @"(https?://)[^/@\s]+@", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex QuerySecret = new Regex(
+            @"([?&](?:auth|token|password|_authToken|access_token|authToken|npm_token|apikey)=)[^&\s""]+",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        internal static string RedactSecrets(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            text = UrlUserInfo.Replace(text, "$1***@");
+            text = QuerySecret.Replace(text, "$1***");
+            return text;
         }
 
         // NotifyIcon.Text is capped at 63 chars; longer values throw
