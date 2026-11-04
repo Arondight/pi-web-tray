@@ -63,6 +63,7 @@ namespace PiWebTray
             UpdateRollbackTests();
             UpdateTargetTests();
             LogHostTests();
+            LogViewTests();
             ServiceProbeTests();
             StateFileTests();
             HttpProbeTestsSkip();
@@ -1205,14 +1206,17 @@ namespace PiWebTray
                     LogHost.Append(input, path, 100);
                 }
 
-                CheckEqual("log host writes the first chunk", 201L, new FileInfo(path).Length);
+                CheckEqual("log host writes the first chunk",
+                    200L + Environment.NewLine.Length, new FileInfo(path).Length);
 
                 using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes("next")))
                 {
                     LogHost.Append(input, path, 100);
                 }
-                CheckEqual("log host rotates before crossing the limit", 201L, new FileInfo(path + ".1").Length);
-                CheckEqual("log host appends after rotation", "next" + "\n", File.ReadAllText(path));
+                CheckEqual("log host rotates before crossing the limit",
+                    200L + Environment.NewLine.Length, new FileInfo(path + ".1").Length);
+                CheckEqual("log host appends after rotation",
+                    "next" + Environment.NewLine, File.ReadAllText(path));
 
                 File.Delete(path);
                 File.Delete(path + ".1");
@@ -1222,12 +1226,27 @@ namespace PiWebTray
                     LogHost.Append(input, path, 1024 * 1024);
                 }
                 CheckEqual("log host redacts registry credentials",
-                    "https://***@example.test/?token=***" + "\n", File.ReadAllText(path));
+                    "https://***@example.test/?token=***" + Environment.NewLine, File.ReadAllText(path));
             }
             finally
             {
                 try { Directory.Delete(root, true); } catch (Exception) { }
             }
+        }
+
+        private static void LogViewTests()
+        {
+            string nl = Environment.NewLine;
+            CheckEqual("log view keeps CRLF", "a" + nl + "b",
+                LogForm.NormalizeLineEndings("a\r\nb"));
+            CheckEqual("log view normalizes LF", "a" + nl + "b",
+                LogForm.NormalizeLineEndings("a\nb"));
+            CheckEqual("log view normalizes CR", "a" + nl + "b",
+                LogForm.NormalizeLineEndings("a\rb"));
+            CheckEqual("log view normalizes mixed endings",
+                "a" + nl + "b" + nl + "c" + nl + "d",
+                LogForm.NormalizeLineEndings("a\r\nb\nc\rd"));
+            CheckEqual("log view leaves empty text", "", LogForm.NormalizeLineEndings(""));
         }
 
         private static void ServiceProbeTests()

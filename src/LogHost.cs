@@ -74,7 +74,10 @@ namespace PiWebTray
                     {
                         // Redact credentials before they reach server.log. npm can echo its
                         // registry URL (including userinfo or tokens) in error output.
-                        byte[] bytes = Encoding.UTF8.GetBytes(Shell.RedactSecrets(line) + "\n");
+                        // Use the Windows line ending: the tray's TextBox and Notepad only
+                        // treat CRLF as a line break.
+                        byte[] bytes = Encoding.UTF8.GetBytes(
+                            Shell.RedactSecrets(line) + Environment.NewLine);
                         if (output.Length > 0 && output.Length + bytes.Length > maxBytes)
                         {
                             output.Dispose();

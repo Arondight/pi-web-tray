@@ -197,6 +197,10 @@ namespace PiWebTray
                     if (start > 0) text = L.T("log.truncated") + Environment.NewLine + text;
                 }
 
+                // Older logs and the cmd 1>> fallback are LF-only. WinForms needs CRLF
+                // to lay out lines correctly, and normalizing also fixes mixed endings.
+                text = NormalizeLineEndings(text);
+
                 string filter = (_filter.Text ?? "").Trim();
                 if (filter.Length > 0) text = FilterLines(text, filter);
 
@@ -224,6 +228,12 @@ namespace PiWebTray
             {
                 if (force) _text.Text = ex.Message;
             }
+        }
+
+        internal static string NormalizeLineEndings(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            return text.Replace("\r\n", "\n").Replace('\r', '\n').Replace("\n", Environment.NewLine);
         }
 
         internal static string FilterLines(string text, string filter)
