@@ -312,6 +312,12 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   <data name="install.envHeader" xml:space="preserve">
     <value>环境信息：</value>
   </data>
+  <data name="install.stopFirst" xml:space="preserve">
+    <value>正在先停止 pi-web（npm 无法在它运行时更新）。</value>
+  </data>
+  <data name="install.stoppedNoTray" xml:space="preserve">
+    <value>pi-web 已为本次安装停止，且未重新启动（没有正在运行的托盘）。</value>
+  </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web 已就绪</value>
   </data>

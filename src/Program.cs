@@ -171,12 +171,17 @@ namespace PiWebTray
 
             if (isStop)
             {
-                return SendSignal(Instance.StopSignalName) ? 0 : 1;
+                // The signal only asks the tray to stop the service. A privileged tray can
+                // fail to kill it from this shell; verify the port actually closed so the
+                // exit code reflects reality instead of the signal delivery.
+                if (!SendSignal(Instance.StopSignalName)) return 1;
+                return Net.WaitPortClosed(config.Port, 30000) ? 0 : 1;
             }
 
             if (isQuit)
             {
-                return SendSignal(Instance.QuitSignalName) ? 0 : 1;
+                if (!SendSignal(Instance.QuitSignalName)) return 1;
+                return Net.WaitPortClosed(config.Port, 30000) ? 0 : 1;
             }
 
             bool portOpen = Net.IsPortOpen(config.Port, 300);
@@ -454,7 +459,11 @@ namespace PiWebTray
                 Sys.KillByPort(config.Port);
                 Net.WaitPortClosed(config.Port, 5000);
             }
-            return true;
+
+            // The exit code must tell the truth: a privileged listener can survive a
+            // non-elevated taskkill, and a chained `--stop && ...` script must not be
+            // told the service stopped when it did not.
+            return !Net.IsPortOpen(config.Port, 300);
         }
 
         private static void OpenBrowser(int port)
@@ -513,7 +522,84 @@ namespace PiWebTray
         private static int RunInstall(Config config, bool dryRun)
         {
             ConsoleHost.TryAttach();
-            return Installer.RunInConsole(config, dryRun);
+
+            // npm cannot replace a globally installed package while its node process runs.
+            // The tray's install path stops pi-web first (TrayApp.BeginInstall); the CLI
+            // path must do the same, or the install fails with a locked package directory.
+            bool stopped;
+            if (!StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
+
+            int code = Installer.RunInConsole(config, dryRun);
+
+            // Restore what was stopped: a tray path restarts the service it stopped for an
+            // install; the CLI path asks a running tray to start it again.
+            if (stopped && !dryRun) RestartServiceAfterConsoleInstall(config);
+            return code;
+        }
+
+        // Mirror TrayApp.ShouldStopServiceForInstall: only stop a listener that is really
+        // ours (the expected script on its command line). Another user's pi-web is left alone.
+        private static bool StopServiceForConsoleInstall(Config config, bool dryRun, out bool stopped)
+        {
+            stopped = false;
+            if (!Net.IsPortOpen(config.Port, 300)) return true;
+
+            ServiceProbe.Invalidate();
+            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port);
+            if (!owner.IsPiWeb) return true;
+
+            string script = ExpectedPiWebScript(config);
+            if (!ServiceProbe.MatchesExpectedScript(owner, script)) return true;
+
+            if (dryRun) return true;
+
+            ConsoleHost.WriteLine(L.T("install.stopFirst"));
+            if (TrayRunning())
+            {
+                // Ask the running tray: it owns the process tree, and its explicit stop
+                // path keeps the service down (auto-restart only covers unexpected stops).
+                if (!SendSignal(Instance.StopSignalName))
+                {
+                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", config.Port));
+                    return false;
+                }
+                if (!Net.WaitPortClosed(config.Port, 30000))
+                {
+                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", config.Port));
+                    return false;
+                }
+                stopped = true;
+                return true;
+            }
+
+            // StopServiceWithoutTray prints its own conflict error
+            stopped = StopServiceWithoutTray(config);
+            return stopped;
+        }
+
+        private static void RestartServiceAfterConsoleInstall(Config config)
+        {
+            if (TrayRunning())
+            {
+                // The running tray opens or starts the service on this signal
+                SendSignal(Instance.OpenSignalName);
+                return;
+            }
+            ConsoleHost.WriteLine(L.T("install.stoppedNoTray"));
+        }
+
+        // True when another tray instance owns the single-instance mutex. A denied
+        // acquire also counts: an elevated tray is running.
+        private static bool TrayRunning()
+        {
+            Mutex mutex;
+            bool denied;
+            if (TryAcquireMutex(0, out mutex, out denied))
+            {
+                ReleaseMutex(mutex);
+                return false;
+            }
+            return true;
         }
 
         // --diag: write runtime state, real autostart state and the menu texts to diag.txt

@@ -44,7 +44,7 @@ namespace PiWebTray
                     {
                         AppendLog(logPath, "restart via explorer (de-elevate)");
                         ProcessStartInfo viaExplorer = new ProcessStartInfo();
-                        viaExplorer.FileName = "explorer.exe";
+                        viaExplorer.FileName = ExplorerExe();
                         viaExplorer.Arguments = Shell.QuoteArg(exe);
                         viaExplorer.WorkingDirectory = target;
                         viaExplorer.UseShellExecute = true;
@@ -138,7 +138,7 @@ namespace PiWebTray
                 AppendLog(logPath, "restart command: " + cmdPath);
 
                 ProcessStartInfo viaExplorer = new ProcessStartInfo();
-                viaExplorer.FileName = "explorer.exe";
+                viaExplorer.FileName = ExplorerExe();
                 viaExplorer.Arguments = Shell.QuoteArg(cmdPath);
                 viaExplorer.WorkingDirectory = target;
                 viaExplorer.UseShellExecute = true;
@@ -152,6 +152,17 @@ namespace PiWebTray
                 AppendLog(logPath, "explorer command failed: " + ex.Message);
                 return null;
             }
+        }
+
+        // explorer.exe lives in %windir%, not in System32, and it must never be started
+        // by its bare name: ShellExecute resolves a bare name through the caller's current
+        // directory and PATH, so an imposter explorer.exe in a writable directory would run
+        // elevated here. Resolve the absolute path instead, mirroring Sys.SystemExecutable.
+        private static string ExplorerExe()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
+                "explorer.exe");
         }
 
         private static bool HasCustomEnvironment()

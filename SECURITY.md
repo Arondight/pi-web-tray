@@ -32,7 +32,7 @@ Pi Web Tray is a local desktop launcher. It:
 - identifies the process that owns the configured port and reports a port conflict instead of treating or killing an unrelated listener as pi-web;
 - checks GitHub for updates only when the user selects **Update Pi Web Tray** (or opts into automatic checks), downloads the release archive over HTTPS, verifies its SHA-256 checksum, and starts an elevated helper only when the installation directory needs elevation and the user accepts the UAC prompt (or the tray is already elevated);
 - stores its configuration and logs in the current user's `%LOCALAPPDATA%\pi-web-tray` by default; `PI_WEB_TRAY_PORTABLE=1` is an explicit opt-in that is not suitable for a shared directory;
-- redacts URL user info and token query values from its logs, and rotates `server.log`, `install.log` and `update.log` at 4 MB;
+- redacts URL user info and token query values from its logs, and rotates `server.log`, `install.log` and `update.log` at 4 MB; the last-resort `1>>` service-output fallback (used only when the log-host child process cannot start) writes unredacted output without rotation;
 - does not contain telemetry or network listeners.
 
 The tray intentionally trusts the configured `NodePath`, `ServerScript`, `WorkingDir`, `NpmRegistry` and `InstallTag` values. Treat a writable configuration file as equivalent to code execution for the current user. Do not point these settings at untrusted paths or registries. Avoid embedding credentials in `NpmRegistry`: the ini is plain text, and although the tray redacts common URL and query-token forms in its logs, it cannot guarantee that every third-party tool uses a redactable format. Prefer npm's own authentication configuration.

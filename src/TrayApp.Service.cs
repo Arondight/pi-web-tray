@@ -16,6 +16,157 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        // ---------------- port ownership probe (background -> UI thread) ----------------
+
+        // ServiceProbe.Inspect can take seconds: a netstat child process, then a 1500 ms
+        // HTTP fallback that fires exactly when a privileged or foreign process holds the
+        // port. Running it on the UI thread froze the tray in the PortConflict steady
+        // state, so the poll loop follows the same worker + lock + done pattern as
+        // BeginTaskRefresh/PollTaskRefresh: request here, consume the finished result.
+        private void BeginOwnerCheck()
+        {
+            int generation;
+            lock (_ownerLock)
+            {
+                if (_ownerCheckRunning) return;
+                _ownerCheckRunning = true;
+                _ownerCheckDone = false;
+                _ownerCheckResult = null;
+                generation = ++_ownerCheckGeneration;
+            }
+
+            int port = _port;
+            Thread worker = new Thread(delegate ()
+            {
+                PortOwnerInfo result = null;
+                try { result = ServiceProbe.Inspect(port); }
+                catch (Exception) { }
+                lock (_ownerLock)
+                {
+                    // An invalidate that arrived while this worker was running bumped
+                    // the generation; a stale result would mislead a stop/kill decision,
+                    // so drop it.
+                    if (generation == _ownerCheckGeneration)
+                    {
+                        _ownerCheckResult = result;
+                        _ownerCheckDone = true;
+                    }
+                    _ownerCheckRunning = false;
+                }
+            });
+            worker.IsBackground = true;
+            try { worker.Start(); }
+            catch (Exception)
+            {
+                lock (_ownerLock) _ownerCheckRunning = false;
+            }
+        }
+
+        // Returns the finished result, or null while a check has not finished yet. The
+        // result slot is consumed exactly once.
+        private PortOwnerInfo TakeOwnerCheck()
+        {
+            lock (_ownerLock)
+            {
+                if (!_ownerCheckDone) return null;
+                _ownerCheckDone = false;
+                PortOwnerInfo result = _ownerCheckResult;
+                _ownerCheckResult = null;
+                return result;
+            }
+        }
+
+        // Drop a finished or in-flight result so the next check starts from scratch.
+        // Used where a decision must be based on fresh data, mirroring Invalidate().
+        private void InvalidateOwnerCheck()
+        {
+            lock (_ownerLock)
+            {
+                _ownerCheckGeneration++;
+                _ownerCheckDone = false;
+                _ownerCheckResult = null;
+            }
+        }
+
+        // Deliver a finished owner check to the action that requested it. Runs before the
+        // phase poll so a user action is never lost while a check is in flight. Continuation
+        // entry points re-check the phase: it can change while the check runs.
+        private void DispatchOwnerCheck()
+        {
+            if (_stopAfterOwnerCheck)
+            {
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null) { BeginOwnerCheck(); return; }
+                _stopAfterOwnerCheck = false;
+                ContinueStopServer(owner);
+                return;
+            }
+            if (_startAfterOwnerCheck)
+            {
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null) { BeginOwnerCheck(); return; }
+                bool open = _startAfterOwnerCheckOpen;
+                _startAfterOwnerCheck = false;
+                _startAfterOwnerCheckOpen = false;
+                ContinueStartServer(owner, open);
+                return;
+            }
+            if (_resolveAfterOwnerCheck)
+            {
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null) { BeginOwnerCheck(); return; }
+                _resolveAfterOwnerCheck = false;
+                _phase = PhaseFromOwner(owner);
+                if (_phase == Phase.Running) _runningSince = DateTime.Now;
+                UpdateUi();
+                if (_phase == Phase.PortConflict) NotifyPortConflict();
+                return;
+            }
+            if (_installAfterOwnerCheck)
+            {
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null) { BeginOwnerCheck(); return; }
+                bool force = _installAfterOwnerCheckForce;
+                bool start = _installAfterOwnerCheckStart;
+                bool open = _installAfterOwnerCheckOpen;
+                _installAfterOwnerCheck = false;
+                _installAfterOwnerCheckForce = false;
+                _installAfterOwnerCheckStart = false;
+                _installAfterOwnerCheckOpen = false;
+                ContinueBeginInstall(force, start, open, owner);
+            }
+        }
+
+        // The phase implied by an owner result; shared by the poll loop and the resolve
+        // continuation (ResolveServicePhase stays synchronous for one-shot callers).
+        private Phase PhaseFromOwner(PortOwnerInfo owner)
+        {
+            if (IsOurPiWeb(owner)) return Phase.Running;
+            if ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort(owner)) return Phase.Running;
+            if (owner.IsUnknown || owner.IsPiWeb) return Phase.PortConflict;
+            return Phase.Stopped;
+        }
+
+        // ResolveServicePhase() without blocking the UI thread: the phase is applied when
+        // the background owner check finishes (DispatchOwnerCheck).
+        private void RequestResolveServicePhase()
+        {
+            if (!Net.IsPortOpen(_port, 200))
+            {
+                _phase = Phase.Stopped;
+                return;
+            }
+            PortOwnerInfo owner = TakeOwnerCheck();
+            if (owner == null)
+            {
+                ServiceProbe.Invalidate();
+                _resolveAfterOwnerCheck = true;
+                BeginOwnerCheck();
+                return;
+            }
+            _phase = PhaseFromOwner(owner);
+        }
+
         // Must mirror StartServer: a configured script wins only while it still exists;
         // otherwise the probe result is what the service will actually launch.
         private string ExpectedPiWebScript()
@@ -48,9 +199,15 @@ namespace PiWebTray
             {
                 // Make sure the listener is actually our pi-web process before accepting
                 // the HTTP response. This prevents another program on the same port from
-                // being marked as a successful start.
-                PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                if (!IsOurPiWeb(owner) && !TrayOwnsPort())
+                // being marked as a successful start. The check runs in the background;
+                // this tick only consumes a finished result.
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null)
+                {
+                    BeginOwnerCheck();
+                    return;
+                }
+                if (!IsOurPiWeb(owner) && !TrayOwnsPort(owner))
                 {
                     if (DateTime.Now > _startDeadline)
                         FailStart(L.T("notify.startFailedTimeout", _port));
@@ -77,7 +234,7 @@ namespace PiWebTray
                 _lastNotified = "";
                 _lastOwnerCheck = DateTime.Now;
                 _autoRestartAt = DateTime.MinValue;
-                _autoRestartAttempts = 0;
+                _runningSince = DateTime.Now;
                 _restartAfterUpdate = false;
                 bool open = _openWhenReady;
                 _openWhenReady = false;
@@ -142,9 +299,15 @@ namespace PiWebTray
                 // an unknown listener that took the port.
                 if (_stopEscalatedAt == DateTime.MinValue)
                 {
-                    ServiceProbe.Invalidate();
-                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                    if (IsOurPiWeb(owner) || TrayOwnsPort())
+                    PortOwnerInfo owner = TakeOwnerCheck();
+                    if (owner == null)
+                    {
+                        // The decision to kill must be based on fresh data, but never on the
+                        // UI thread; the result is consumed on a later tick.
+                        BeginOwnerCheck();
+                        return;
+                    }
+                    if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                     {
                         _stopEscalatedAt = DateTime.Now;
                         Sys.KillByPort(_port);
@@ -162,7 +325,11 @@ namespace PiWebTray
                 }
                 else if (DateTime.Now > _stopEscalatedAt.AddSeconds(6))
                 {
-                    _phase = Phase.Running;
+                    // The kill may still not have closed the port (a privileged listener,
+                    // or the pid was reused). Re-derive the phase from the real owner
+                    // instead of hard-coding Running, which would show a green icon while
+                    // someone else's process holds the port.
+                    _phase = ResolveServicePhase();
                     _pendingRestart = false;
                     _pendingOpenBrowser = false;
                     AbortInstallAfterStop(false);
@@ -208,14 +375,20 @@ namespace PiWebTray
             {
                 // Re-verify occasionally so a different listener taking the port does not
                 // stay green forever. Critical stop/exit paths also invalidate the cache.
+                // _lastOwnerCheck is only advanced when a result is consumed, so an
+                // in-flight check is retried on the next tick instead of being dropped.
                 if (DateTime.Now - _lastOwnerCheck < TimeSpan.FromSeconds(30)) return;
+                PortOwnerInfo current = TakeOwnerCheck();
+                if (current == null)
+                {
+                    BeginOwnerCheck();
+                    return;
+                }
                 _lastOwnerCheck = DateTime.Now;
-                ServiceProbe.Invalidate();
-                PortOwnerInfo current = ServiceProbe.Inspect(_port);
                 if (IsOurPiWeb(current)) return;
                 // The command line can be unreadable while cmd still owns the tree;
                 // the tracked child is enough evidence in that case.
-                if ((current.IsUnknown || current.IsPiWeb) && TrayOwnsPort()) return;
+                if ((current.IsUnknown || current.IsPiWeb) && TrayOwnsPort(current)) return;
 
                 _phase = (current.IsUnknown || current.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
@@ -228,12 +401,18 @@ namespace PiWebTray
                 return;
             }
 
-            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+            PortOwnerInfo owner = TakeOwnerCheck();
+            if (owner == null)
+            {
+                BeginOwnerCheck();
+                return;
+            }
             if (IsOurPiWeb(owner))
             {
                 _phase = Phase.Running;
                 _lastNotified = "";
                 _lastOwnerCheck = DateTime.Now;
+                _runningSince = DateTime.Now;
                 _restartAfterUpdate = false;
                 UpdateUi();
             }
@@ -253,7 +432,7 @@ namespace PiWebTray
             }
         }
 
-        private bool TrayOwnsPort()
+        private bool TrayOwnsPort(PortOwnerInfo owner)
         {
             if (_server == null) return false;
             try
@@ -265,7 +444,6 @@ namespace PiWebTray
                 return false;
             }
 
-            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
             if (IsOurPiWeb(owner)) return true;
             if (owner.Pid <= 0) return false;
             if (owner.Pid == _server.Id) return true;
@@ -278,10 +456,7 @@ namespace PiWebTray
 
             ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            if (IsOurPiWeb(owner)) return Phase.Running;
-            if ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort()) return Phase.Running;
-            if (owner.IsUnknown || owner.IsPiWeb) return Phase.PortConflict;
-            return Phase.Stopped;
+            return PhaseFromOwner(owner);
         }
 
         private void NotifyPortConflict()
@@ -334,6 +509,17 @@ namespace PiWebTray
             if (!_config.AutoRestart || _exiting || UpdateBusy()) return;
             if (_probe == null || !_probe.Ready) return;
             if (_phase == Phase.Installing || _phase == Phase.Starting || _phase == Phase.Stopping) return;
+
+            // A service that only stayed up briefly is the same failure, not a success:
+            // only a run that lasted long enough earns a fresh retry budget. Otherwise a
+            // run-then-die service would be restarted forever at the 5 s interval.
+            if (_runningSince != DateTime.MinValue
+                && DateTime.Now - _runningSince >= TimeSpan.FromSeconds(StableRunSeconds))
+            {
+                _autoRestartAttempts = 0;
+            }
+            _runningSince = DateTime.MinValue;
+
             if (_autoRestartAt != DateTime.MinValue) return;
             if (_autoRestartAttempts >= 3) return;
 
@@ -365,21 +551,57 @@ namespace PiWebTray
             }
         }
 
+        // Probed once in the background together with the environment check: the 3 s
+        // self-probe must not run on the UI thread on every service start. A failed
+        // first probe is kept: a log-host child that could not be created once is
+        // unlikely to become creatable, and the 1>> fallback keeps the service startable.
+        private bool LogHostAvailableCached()
+        {
+            int state = _logHostState;
+            if (state == 1) return true;
+            if (state == 0) return false;
+            return LogHostAvailable();   // safety net: no environment check has finished yet
+        }
+
         private void StartServer(bool openBrowser)
         {
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
 
-            ServiceProbe.Invalidate();
             if (Net.IsPortOpen(_port, 300))
             {
-                PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                ServiceProbe.Invalidate();
+                InvalidateOwnerCheck();
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null)
+                {
+                    // The ownership check (netstat child process plus the HTTP fallback)
+                    // can take seconds; run it in the background and continue when the
+                    // result arrives instead of freezing the UI thread.
+                    _startAfterOwnerCheck = true;
+                    _startAfterOwnerCheckOpen = openBrowser;
+                    BeginOwnerCheck();
+                    return;
+                }
+                ContinueStartServer(owner, openBrowser);
+                return;
+            }
+            ContinueStartServer(null, openBrowser);
+        }
+
+        private void ContinueStartServer(PortOwnerInfo owner, bool openBrowser)
+        {
+            // The phase may have changed while the owner check ran
+            if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+
+            if (owner != null)
+            {
                 if (IsOurPiWeb(owner))
                 {
                     _phase = Phase.Running;
                     _lastNotified = "";
                     _lastOwnerCheck = DateTime.Now;
                     _autoRestartAt = DateTime.MinValue;
-                    _autoRestartAttempts = 0;
+                    _runningSince = DateTime.Now;
                     _restartAfterUpdate = false;
                     UpdateUi();
                     if (openBrowser) OpenBrowser();
@@ -387,11 +609,12 @@ namespace PiWebTray
                 }
                 if (owner.IsUnknown || owner.IsPiWeb)
                 {
-                    if (TrayOwnsPort())
+                    if (TrayOwnsPort(owner))
                     {
                         _phase = Phase.Running;
                         _lastNotified = "";
                         _lastOwnerCheck = DateTime.Now;
+                        _runningSince = DateTime.Now;
                         _restartAfterUpdate = false;
                         UpdateUi();
                         if (openBrowser) OpenBrowser();
@@ -425,7 +648,7 @@ namespace PiWebTray
                 // file it redirects itself, while the host owns its log and can rotate it at
                 // any time. Neither the tray nor the pipe has to stay alive for the service.
                 string command;
-                if (LogHostAvailable())
+                if (LogHostAvailableCached())
                 {
                     string logHost = Shell.Quote(Application.ExecutablePath)
                         + " --log-host " + Shell.Quote(_config.LogFile) + " "
@@ -436,8 +659,10 @@ namespace PiWebTray
                 }
                 else
                 {
-                    // Last-resort compatibility path; this loses live rotation but keeps
-                    // the service startable if the log-host child cannot be launched.
+                    // Last-resort compatibility path: this loses live rotation and bypasses
+                    // the log-host's redaction (npm credential forms would land in server.log
+                    // as-is), but keeps the service startable when the log-host child cannot
+                    // be launched. SECURITY.md documents this residual risk.
                     command = Shell.Quote(node) + " " + Shell.Quote(script)
                         + " --no-open -p " + _port
                         + " 1>>" + Shell.Quote(_config.LogFile) + " 2>&1";
@@ -478,6 +703,7 @@ namespace PiWebTray
             _restartAfterUpdate = false;
             _autoRestartAt = DateTime.MinValue;
             _autoRestartAttempts = 0;
+            _runningSince = DateTime.MinValue;
 
             // Do not touch the state machine while no service state has been reached
             if (_phase == Phase.Checking || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
@@ -530,8 +756,26 @@ namespace PiWebTray
             // exception is a service started by this tray (the tracked cmd child), whose
             // owner may be temporarily unreadable by the native process probe.
             ServiceProbe.Invalidate();
-            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            bool ownedByTray = TrayOwnsPort();
+            InvalidateOwnerCheck();
+            PortOwnerInfo owner = TakeOwnerCheck();
+            if (owner == null)
+            {
+                // Deciding whether the listener may be killed must be based on fresh data,
+                // but the probe can take seconds; continue when the result arrives instead
+                // of freezing the UI thread.
+                _stopAfterOwnerCheck = true;
+                BeginOwnerCheck();
+                return;
+            }
+            ContinueStopServer(owner);
+        }
+
+        private void ContinueStopServer(PortOwnerInfo owner)
+        {
+            // The phase may have changed while the owner check ran
+            if (_phase == Phase.Stopping || _phase == Phase.Installing) return;
+
+            bool ownedByTray = TrayOwnsPort(owner);
             if (!IsOurPiWeb(owner) && !ownedByTray)
             {
                 _pendingRestart = false;
@@ -539,6 +783,10 @@ namespace PiWebTray
                 _phase = (owner.IsUnknown || owner.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
+                // When the stop was dispatched through the background owner check, no
+                // caller is left to abort a pending install after the decision; the
+                // foreign-listener verdict is known here, so clean it up now.
+                AbortInstallAfterStop(false);
                 return;
             }
 

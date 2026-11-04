@@ -63,9 +63,12 @@ namespace PiWebTray
 
                 if (Net.IsPortOpen(_port, 200))
                 {
+                    // Synchronous on purpose: this is the exit path, correctness of the
+                    // stop/kill decision beats responsiveness, and a frozen window that
+                    // is already closing is not user-visible.
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-                    bool ownedByTray = TrayOwnsPort();
+                    bool ownedByTray = TrayOwnsPort(owner);
                     bool ourPiWeb = IsOurPiWeb(owner);
                     if ((owner.IsUnknown || owner.Owner == PortOwner.None
                         || (owner.IsPiWeb && !ourPiWeb)) && !ownedByTray)
@@ -90,7 +93,7 @@ namespace PiWebTray
                         {
                             ServiceProbe.Invalidate();
                             owner = ServiceProbe.Inspect(_port);
-                            if (IsOurPiWeb(owner) || TrayOwnsPort())
+                            if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                             {
                                 Sys.KillByPort(_port);
                             }

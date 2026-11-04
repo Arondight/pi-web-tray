@@ -99,8 +99,11 @@ namespace PiWebTray
                     }
                     else
                     {
-                        // Let the async output callbacks flush what is left
-                        try { process.WaitForExit(); } catch (Exception) { }
+                        // Let the async output callbacks flush what is left, but bounded: a
+                        // grandchild that inherited the pipe and never exits keeps EOF away
+                        // forever, which would hang the caller even though the child exited.
+                        // Losing the tail of the output beats never returning.
+                        try { process.WaitForExit(5000); } catch (Exception) { }
                     }
 
                     try { result.ExitCode = process.ExitCode; }

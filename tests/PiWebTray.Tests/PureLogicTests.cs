@@ -9,6 +9,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -58,6 +59,8 @@ namespace PiWebTray
             ServiceProbeTests();
             StateFileTests();
             HttpProbeTestsSkip();
+            UpdaterExtractTests();
+            ConfigDefaultTests();
 
             Console.WriteLine();
             if (Failures.Count == 0)
@@ -141,6 +144,11 @@ namespace PiWebTray
             CheckEqual("process user SID is readable", currentSid,
                 NativeProcess.UserSid(System.Diagnostics.Process.GetCurrentProcess().Id));
 
+            // Only the prefix was asserted before: a machine-wide task name regression
+            // (same prefix, no SID) would have passed unnoticed.
+            Check("admin task name ends with the current user SID",
+                Autostart.TaskName.EndsWith(currentSid, StringComparison.Ordinal));
+
             CheckEqual("redacts URL user info",
                 "https://***@example.test/path",
                 Shell.RedactSecrets("https://user:pass@example.test/path"));
@@ -153,6 +161,21 @@ namespace PiWebTray
             CheckEqual("redacts access tokens",
                 "https://example.test/?access_token=***",
                 Shell.RedactSecrets("https://example.test/?access_token=secret"));
+            CheckEqual("redacts npm _authToken registry form",
+                "//registry.example.test/:_authToken=***",
+                Shell.RedactSecrets("//registry.example.test/:_authToken=npm-secret"));
+            CheckEqual("redacts npm _password registry form",
+                "//registry.example.test/:_password=***",
+                Shell.RedactSecrets("//registry.example.test/:_password=hunter2"));
+            CheckEqual("redacts api_key",
+                "https://example.test/?api_key=***",
+                Shell.RedactSecrets("https://example.test/?api_key=s3cr3t"));
+            CheckEqual("redacts private_token",
+                "https://example.test/?private_token=***",
+                Shell.RedactSecrets("https://example.test/?private_token=glpat-x"));
+            CheckEqual("redacts client_secret",
+                "https://example.test/?client_secret=***",
+                Shell.RedactSecrets("https://example.test/?client_secret=shh"));
 
             PortOwnerInfo owner = new PortOwnerInfo
             {
@@ -883,19 +906,19 @@ namespace PiWebTray
                     {
                         System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo();
                         psi.FileName = wow64;
-                        psi.Arguments = "/c ping -n 4 127.0.0.1 >nul";
+                        // Long-lived on purpose: a short-lived child let the check silently
+                        // skip before, and the child must still be alive while probed.
+                        psi.Arguments = "/c ping -n 30 127.0.0.1 >nul";
                         psi.UseShellExecute = false;
                         psi.CreateNoWindow = true;
                         using (System.Diagnostics.Process child = System.Diagnostics.Process.Start(psi))
                         {
                             try
                             {
-                                if (!child.HasExited)
-                                {
-                                    string wowLine = NativeProcess.CommandLine(child.Id);
-                                    Check("wow64 command line", wowLine.IndexOf(
-                                        "cmd.exe", StringComparison.OrdinalIgnoreCase) >= 0);
-                                }
+                                Check("wow64 child alive during probe", !child.HasExited);
+                                string wowLine = NativeProcess.CommandLine(child.Id);
+                                Check("wow64 command line", wowLine.IndexOf(
+                                    "cmd.exe", StringComparison.OrdinalIgnoreCase) >= 0);
                             }
                             finally
                             {
@@ -949,6 +972,161 @@ namespace PiWebTray
             // the positive path is exercised by the manual checklist in README.md.
             Check("closed port reports closed", !Net.IsPortOpen(1, 300));
             Check("closed port has no HTTP", !Net.IsHttpOk("http://127.0.0.1:1/", 500));
+        }
+
+        // The updater's zip-slip defence had no test before; it is the only security
+        // component on the extract path. A crafted archive must be rejected while its
+        // harmless entries stay where they belong.
+        private static void UpdaterExtractTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-extract-" + Guid.NewGuid().ToString("N"));
+            string dir = Path.Combine(root, "extract");
+            try
+            {
+                Directory.CreateDirectory(dir);
+
+                // 1. A relative parent escape mixed with a normal entry
+                string zip = Path.Combine(root, "update.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    WriteZipEntry(archive, "pi-web-tray.exe", "new exe");
+                    WriteZipEntry(archive, "../evil.txt", "escaped");
+                }
+
+                bool threw = false;
+                try { Updater.Extract(zip, dir); }
+                catch (InvalidDataException) { threw = true; }
+                Check("zip-slip entry rejected", threw);
+                Check("zip-slip wrote nothing outside the target",
+                    !File.Exists(Path.Combine(root, "evil.txt")));
+
+                // 2. An absolute path entry
+                zip = Path.Combine(root, "absolute.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    WriteZipEntry(archive, Path.GetPathRoot(dir).TrimEnd('\\', '/') + "\\pi-web-tray-evil.txt", "absolute");
+                }
+
+                threw = false;
+                try { Updater.Extract(zip, dir); }
+                catch (InvalidDataException) { threw = true; }
+                Check("absolute path entry rejected", threw);
+
+                // 3. A well-formed archive with nested entries extracts normally
+                zip = Path.Combine(root, "clean.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    WriteZipEntry(archive, "pi-web-tray.exe", "new exe");
+                    WriteZipEntry(archive, "zh-Hans/pi-web-tray.resources.dll", "dll");
+                }
+
+                Updater.Extract(zip, dir);
+                CheckEqual("clean archive extracts the executable", "new exe",
+                    File.ReadAllText(Path.Combine(dir, "pi-web-tray.exe")));
+                CheckEqual("clean archive extracts nested entries", "dll",
+                    File.ReadAllText(Path.Combine(dir, "zh-Hans", "pi-web-tray.resources.dll")));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void WriteZipEntry(ZipArchive archive, string name, string content)
+        {
+            ZipArchiveEntry entry = archive.CreateEntry(name);
+            using (Stream stream = entry.Open())
+            using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
+            {
+                writer.Write(content);
+            }
+        }
+
+        // The documented defaults were never asserted against the code before; the ini is
+        // the contract users read (README table) and Config.WriteDefaultIni writes.
+        private static void ConfigDefaultTests()
+        {
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            string originalPort = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT");
+            string originalLang = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
+            string temp = Path.Combine(Path.GetTempPath(), "pi-web-tray-selftest-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", null);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", null);
+
+                Config config = Config.Load(true);
+
+                // Field defaults (used when a key is absent from the ini) are part of the
+                // documented contract too; the ini value covering them is not enough.
+                Config fresh = new Config();
+                CheckEqual("field default port", 30141, fresh.Port);
+                Check("field default auto install", fresh.AutoInstall);
+                Check("field default auto restart is off", !fresh.AutoRestart);
+                Check("field default auto update check is off", !fresh.AutoCheckUpdates);
+                Check("field default pi CLI install", fresh.InstallPiCli);
+                CheckEqual("field default install tag", "latest", fresh.InstallTag);
+                CheckEqual("field default registry is empty", "", fresh.NpmRegistry);
+                CheckEqual("field default language", "auto", fresh.Language);
+                Check("field default admin autostart is off", !fresh.AutostartAdmin);
+
+                string ini = Path.Combine(temp, "pi-web-tray.ini");
+                Check("default ini is written on first run", File.Exists(ini));
+
+                CheckEqual("default port", 30141, config.Port);
+                Check("default auto install is on", config.AutoInstall);
+                Check("default auto restart is off", !config.AutoRestart);
+                Check("default auto update check is off", !config.AutoCheckUpdates);
+                Check("default pi CLI install is on", config.InstallPiCli);
+                CheckEqual("default install tag", "latest", config.InstallTag);
+                CheckEqual("default registry is empty", "", config.NpmRegistry);
+                CheckEqual("default language", "auto", config.Language);
+                Check("default admin autostart is off", !config.AutostartAdmin);
+                Check("default working dir is the profile", Directory.Exists(config.WorkingDir));
+                CheckEqual("default node path is empty", "", config.NodePath ?? "");
+                CheckEqual("default server script is empty", "", config.ServerScript ?? "");
+
+                string content = File.ReadAllText(ini);
+                Check("ini documents the port", content.Contains("Port=30141"));
+                Check("ini documents the working dir", content.Contains("WorkingDir=%USERPROFILE%"));
+                Check("ini documents auto install", content.Contains("AutoInstall=1"));
+                Check("ini documents auto restart", content.Contains("AutoRestart=0"));
+                Check("ini documents update checks", content.Contains("AutoCheckUpdates=0"));
+                Check("ini documents the pi CLI", content.Contains("InstallPiCli=1"));
+                Check("ini documents the install tag", content.Contains("InstallTag=latest"));
+                Check("ini documents npm registry", content.Contains("NpmRegistry="));
+                Check("ini documents node path", content.Contains("NodePath="));
+                Check("ini documents the server script", content.Contains("ServerScript="));
+                Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
+                Check("ini documents the language", content.Contains("Language=auto"));
+                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", originalPort);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", originalLang);
+                try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
+            }
+        }
+
+        private static int CountIniKeys(string content)
+        {
+            int count = 0;
+            foreach (string rawLine in content.Split('\n'))
+            {
+                string line = rawLine.Trim();
+                if (line.Length == 0 || line[0] == ';' || line[0] == '#') continue;
+                if (line.IndexOf('=') > 0) count++;
+            }
+            return count;
         }
     }
 }

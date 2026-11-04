@@ -60,9 +60,20 @@ namespace PiWebTray
                 catch (Exception)
                 {
                 }
+
+                // Probe the log-host child once, here in the background: StartServer needs
+                // the answer, and the 3 s self-probe must not run on the UI thread.
+                int logHostState = _logHostState;
+                if (logHostState == -1)
+                {
+                    try { logHostState = LogHostAvailable() ? 1 : 0; }
+                    catch (Exception) { }
+                }
+
                 lock (_checkLock)
                 {
                     _checkResult = result;
+                    _checkLogHostState = logHostState;
                     _checkRunning = false;
                     _checkDone = true;
                 }
@@ -76,6 +87,7 @@ namespace PiWebTray
             ProbeResult result;
             bool thenStart;
             bool openBrowser;
+            int logHostState;
             lock (_checkLock)
             {
                 if (!_checkDone) return;
@@ -83,7 +95,10 @@ namespace PiWebTray
                 result = _checkResult;
                 thenStart = _checkThenStart;
                 openBrowser = _checkOpenBrowser;
+                logHostState = _checkLogHostState;
             }
+
+            if (logHostState >= 0) _logHostState = logHostState;
 
             ApplyCheckResult(result, thenStart, openBrowser);
             if (_exiting) return;
@@ -213,7 +228,7 @@ namespace PiWebTray
             }
 
             _lastNotified = "";
-            _phase = ResolveServicePhase();
+            RequestResolveServicePhase();
             UpdateUi();
             if (_phase == Phase.PortConflict) NotifyPortConflict();
         }

@@ -276,17 +276,28 @@ namespace PiWebTray
             UpdateUi();
             Notify(L.T("update.applyingTitle"), L.T("update.applyingBody", release.Version));
 
-            ServiceProbe.Invalidate();
-            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            ApplyStartMode mode = IsOurPiWeb(owner) || TrayOwnsPort() || _restartAfterUpdate
-                || (_updateStartedWithServiceRunning && _config.AutoRestart)
-                ? ApplyStartMode.ServiceSilent
-                : ApplyStartMode.TrayOnly;
             bool elevated = _elevated;
             Thread worker = new Thread(delegate ()
             {
+                // The apply mode depends on the port owner, and probing it (netstat child
+                // process plus the HTTP fallback) can take seconds; doing it here keeps the
+                // UI thread free. The stop/kill itself still happens in ExitApp.
                 string error;
-                bool ok = Updater.StartHelper(_config, staging, mode, elevated, out error);
+                bool ok = false;
+                try
+                {
+                    ServiceProbe.Invalidate();
+                    PortOwnerInfo owner = ServiceProbe.Inspect(_port);
+                    ApplyStartMode mode = IsOurPiWeb(owner) || TrayOwnsPort(owner) || _restartAfterUpdate
+                        || (_updateStartedWithServiceRunning && _config.AutoRestart)
+                        ? ApplyStartMode.ServiceSilent
+                        : ApplyStartMode.TrayOnly;
+                    ok = Updater.StartHelper(_config, staging, mode, elevated, out error);
+                }
+                catch (Exception ex)
+                {
+                    error = ex.Message;
+                }
                 lock (_updateLock)
                 {
                     if (generation != _updateGeneration) return;

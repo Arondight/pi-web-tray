@@ -167,7 +167,13 @@ namespace PiWebTray
                 // replace code signing, but it stops writes to unrelated protected
                 // directories when the helper is invoked with forged arguments.
                 string targetReason;
-                if (!IsPiWebTrayInstallation(target, out targetReason))
+                bool validInstallation = IsPiWebTrayInstallation(target, out targetReason);
+                if (!validInstallation && TryRecoverFromBackup(target, logPath))
+                {
+                    AppendLog(logPath, "target recovered from a leftover backup");
+                    validInstallation = IsPiWebTrayInstallation(target, out targetReason);
+                }
+                if (!validInstallation)
                 {
                     AppendLog(logPath, "target is not a Pi Web Tray installation: " + targetReason);
                     MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
@@ -245,6 +251,31 @@ namespace PiWebTray
                 OfferStartAfterFailure(target, mode, logPath);
                 return 1;
             }
+        }
+
+        // A previous update can crash between moving pi-web-tray.exe into its backup and
+        // copying the new one: the target then has no executable, every later update is
+        // rejected by the installation check, and DeleteOldBackups would eventually remove
+        // the leftover backup (the only surviving copy). Roll it back so this and future
+        // updates work again without manual recovery.
+        private static bool TryRecoverFromBackup(string target, string logPath)
+        {
+            try
+            {
+                string[] backups = Directory.GetDirectories(target, ".pi-web-tray-backup-*");
+                Array.Sort(backups, StringComparer.OrdinalIgnoreCase);
+                foreach (string backup in backups)
+                {
+                    if (!File.Exists(Path.Combine(backup, "pi-web-tray.exe"))) continue;
+                    AppendLog(logPath, "target incomplete; recovering from " + backup);
+                    if (Rollback(backup, target, new List<string>(), logPath)) return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "backup recovery failed: " + ex.Message);
+            }
+            return false;
         }
 
         internal static bool IsPiWebTrayInstallation(string target, out string reason)

@@ -1,11 +1,12 @@
-# ---- project-specific ----
-# Not covered by the standard .NET block below.
+# harness
+.omo/
+
+# project-specific
 *.exe
 *.pdb
 *.zip
 
-# ---- runtime files created next to the exe ----
-# Keep only the sample in config/.
+# runtime files created next to the exe
 /pi-web-tray.ini
 !/config/pi-web-tray.ini
 /pi-web-tray.ico
@@ -21,10 +22,10 @@ state.ini
 pi-web-tray.files.txt
 .pi-web-tray-backup-*/
 
-# ---- formatting tools ----
+# formatting tools
 node_modules/
 
-# ---- Visual Studio / IDE ----
+# IDE
 .vs/
 .idea/
 *.user
@@ -34,7 +35,7 @@ node_modules/
 *.opendb
 .vscode/
 
-# ---- OS ----
+# OS
 Thumbs.db
 desktop.ini
 .DS_Store

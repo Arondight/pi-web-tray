@@ -69,10 +69,71 @@ namespace PiWebTray
                 return;
             }
 
+            // The stop decision needs the port owner; probing it can take seconds, so it
+            // runs in the background and the install continues when the result arrives.
+            if (_phase != Phase.Running && Net.IsPortOpen(_port, 200))
+            {
+                ServiceProbe.Invalidate();
+                InvalidateOwnerCheck();
+                PortOwnerInfo owner = TakeOwnerCheck();
+                if (owner == null)
+                {
+                    _installAfterOwnerCheck = true;
+                    _installAfterOwnerCheckForce = force;
+                    _installAfterOwnerCheckStart = thenStart;
+                    _installAfterOwnerCheckOpen = thenOpen;
+                    BeginOwnerCheck();
+                    return;
+                }
+                ContinueBeginInstall(force, thenStart, thenOpen, owner);
+                return;
+            }
+            ContinueBeginInstall(force, thenStart, thenOpen, null);
+        }
+
+        private void ContinueBeginInstall(bool force, bool thenStart, bool thenOpen, PortOwnerInfo owner)
+        {
+            // The phase may have changed while the owner check ran
+            if (_installAfterStop)
+            {
+                _installAfterStopForce = _installAfterStopForce || force;
+                _installStartAfter = _installStartAfter || thenStart;
+                _installOpenAfter = _installOpenAfter || thenOpen;
+                return;
+            }
+            if (_phase == Phase.Installing) return;
+
+            ProbeResult probe = _probe;
+            if (probe == null)
+            {
+                BeginEnvironmentCheck(thenStart, thenOpen);
+                return;
+            }
+            if (probe.NeedsNode)
+            {
+                // The environment check can finish while the owner check runs; re-guard
+                // here so an install queued before that result is not started anyway.
+                _phase = Phase.NeedsNode;
+                UpdateUi();
+                NotifyWarningOnce("needs-node-install",
+                    L.T("notify.noNodeInstallTitle"),
+                    L.T("notify.noNodeInstallBody", probe.NodeIssue()));
+                return;
+            }
+            List<string> packages = Installer.PackagesToInstall(probe, _config, force);
+            if (packages.Count == 0)
+            {
+                BeginEnvironmentCheck(thenStart, thenOpen);
+                return;
+            }
+
             // Remember the requested intent before any stop: a service that was stopped on
             // purpose stays stopped after a menu-driven update, while a running service (or
-            // an explicit start request) is started again.
-            bool needsStop = InstallNeedsStop();
+            // an explicit start request) is started again. Running implies the port is ours
+            // (this tray started it), so no owner result is needed in that case.
+            bool needsStop = _phase == Phase.Running
+                || (owner != null && ShouldStopServiceForInstall(_phase, true,
+                    IsOurPiWeb(owner), TrayOwnsPort(owner)));
             _installStartAfter = needsStop || thenStart;
             _installOpenAfter = needsStop ? false : thenOpen;
 
@@ -86,9 +147,13 @@ namespace PiWebTray
                 _pendingRestart = false;
                 _pendingOpenBrowser = false;
 
+                // The stop may have to wait for the background owner check; in that case
+                // _phase is still unchanged here. Do not abort: the stop continuation
+                // (ContinueStopServer -> Stopping -> PollStopping -> ContinueInstallAfterStop)
+                // completes the hand-off, and a foreign owner aborts the install there.
                 StopServer();
                 if (_phase == Phase.Stopped) ContinueInstallAfterStop();
-                else if (_phase != Phase.Stopping) AbortInstallAfterStop(false);
+                else if (_phase != Phase.Stopping && !_stopAfterOwnerCheck) AbortInstallAfterStop(false);
                 return;
             }
 
@@ -182,16 +247,8 @@ namespace PiWebTray
             }
         }
 
-        private bool InstallNeedsStop()
-        {
-            if (_phase == Phase.Running) return true;
-            if (!Net.IsPortOpen(_port, 200)) return false;
-
-            ServiceProbe.Invalidate();
-            PortOwnerInfo owner = ServiceProbe.Inspect(_port);
-            return ShouldStopServiceForInstall(_phase, true, IsOurPiWeb(owner), TrayOwnsPort());
-        }
-
+        // Kept as a pure function so the install-stop decision stays testable; the owner
+        // result now comes from the background owner check (ContinueBeginInstall).
         internal static bool ShouldStopServiceForInstall(Phase phase, bool portOpen,
             bool ownerIsPiWeb, bool ownedByTray)
         {

@@ -463,7 +463,13 @@ namespace PiWebTray
         private static readonly Regex UrlUserInfo = new Regex(
             @"(https?://)[^/@\s]+@", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex QuerySecret = new Regex(
-            @"([?&](?:auth|token|password|_authToken|access_token|authToken|npm_token|apikey)=)[^&\s""]+",
+            @"([?&](?:auth|token|password|_authToken|access_token|authToken|npm_token|apikey|api_key|private_token|client_secret)=)[^&\s""]+",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // npm's own authentication form as persisted in .npmrc ("//registry.example.com/:_authToken=SECRET")
+        // and echoed by npm config output. It has no ? or & prefix and no URL userinfo, so
+        // the patterns above never match it.
+        private static readonly Regex NpmRegistrySecret = new Regex(
+            @"(//[^/\s""]+/:(?:_authToken|_password|_auth)=)[^\s""]+",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         internal static string RedactSecrets(string text)
@@ -471,6 +477,7 @@ namespace PiWebTray
             if (string.IsNullOrEmpty(text)) return text;
             text = UrlUserInfo.Replace(text, "$1***@");
             text = QuerySecret.Replace(text, "$1***");
+            text = NpmRegistrySecret.Replace(text, "$1***");
             return text;
         }
 

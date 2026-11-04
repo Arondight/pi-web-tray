@@ -312,6 +312,12 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
   <data name="install.envHeader" xml:space="preserve">
     <value>Environment information:</value>
   </data>
+  <data name="install.stopFirst" xml:space="preserve">
+    <value>Stopping pi-web first (npm cannot update it while it runs).</value>
+  </data>
+  <data name="install.stoppedNoTray" xml:space="preserve">
+    <value>pi-web was stopped for this install and was not restarted (no tray is running).</value>
+  </data>
   <data name="notify.readyTitle" xml:space="preserve">
     <value>Pi Web is ready</value>
   </data>

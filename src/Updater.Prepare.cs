@@ -241,7 +241,9 @@ namespace PiWebTray
             }
         }
 
-        private static void Extract(string zipPath, string targetDir)
+        // Security-critical component (zip-slip defence); internal so the test suite can
+        // exercise it directly.
+        internal static void Extract(string zipPath, string targetDir)
         {
             string root = Path.GetFullPath(targetDir);
             string prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)

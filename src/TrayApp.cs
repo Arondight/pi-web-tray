@@ -50,6 +50,10 @@ namespace PiWebTray
         private const int StartTimeoutSeconds = 180;
         private const long MaxLogBytes = 4 * 1024 * 1024;
 
+        // A service must stay up this long before its restart counter is reset; shorter
+        // runs are treated as the same crash loop (see ScheduleAutoRestart).
+        private const int StableRunSeconds = 60;
+
         private readonly Config _config;
         private readonly bool _elevated;
         private readonly bool _autoStartService;
@@ -134,6 +138,7 @@ namespace PiWebTray
         private volatile bool _stopWorkerRunning;
         private DateTime _autoRestartAt = DateTime.MinValue;
         private int _autoRestartAttempts;
+        private DateTime _runningSince = DateTime.MinValue;
         private DateTime _lastOwnerCheck = DateTime.MinValue;
 
         // self check result: computed on a thread, shown from the UI thread
@@ -173,6 +178,33 @@ namespace PiWebTray
         private DateTime _taskCacheAt = DateTime.MinValue;
         private bool _taskRefreshRunning;
         private bool _taskRefreshDone;
+
+        // port ownership probe (background -> UI thread): ServiceProbe.Inspect can block
+        // for seconds (a netstat child process plus an HTTP fallback that fires exactly
+        // when a privileged or foreign process holds the port). The UI thread only
+        // requests checks and consumes finished results; it never waits for one.
+        private readonly object _ownerLock = new object();
+        private bool _ownerCheckRunning;
+        private bool _ownerCheckDone;
+        private PortOwnerInfo _ownerCheckResult;
+        private int _ownerCheckGeneration;
+
+        // Actions that wait for an owner-check result; recorded on the UI thread and
+        // delivered by DispatchOwnerCheck once the background check has finished.
+        private bool _stopAfterOwnerCheck;
+        private bool _startAfterOwnerCheck;
+        private bool _startAfterOwnerCheckOpen;
+        private bool _resolveAfterOwnerCheck;
+        private bool _installAfterOwnerCheck;
+        private bool _installAfterOwnerCheckForce;
+        private bool _installAfterOwnerCheckStart;
+        private bool _installAfterOwnerCheckOpen;
+
+        // log-host availability: probed once in the background together with the
+        // environment check, because the 3 s self-probe must not run on the UI thread
+        // on every service start
+        private volatile int _logHostState = -1;   // -1 unknown, 0 unavailable, 1 available
+        private int _checkLogHostState = -1;       // handed over by the check worker
 
         // readiness: "port accepts connections" is not the same as "the app answers HTTP"
         private readonly object _readyLock = new object();
@@ -359,6 +391,7 @@ namespace PiWebTray
             if (stopSignal) StopServer();
 
             PollAutostartOp();
+            DispatchOwnerCheck();
             PollEnvironmentCheck();
             PollInstall();
             PollSelfCheck();

@@ -117,7 +117,7 @@ Exit and stop pi-web
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 
-The data directory is per user because the ini may contain registry credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs.
+The data directory is per user because the ini may contain registry credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction.
 
 ### Environment variables
 
