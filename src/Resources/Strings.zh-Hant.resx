@@ -987,16 +987,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js 路徑（選填）</value>
   </data>
-  <data name="settings.serverScript" xml:space="preserve">
-    <value>Pi Web 指令碼（選填）</value>
-  </data>
-  <data name="settings.selectNode" xml:space="preserve">
+<data name="settings.selectNode" xml:space="preserve">
     <value>選擇 node.exe</value>
   </data>
-  <data name="settings.selectServer" xml:space="preserve">
-    <value>選擇 Pi Web 指令碼</value>
-  </data>
-  <data name="settings.restartNote" xml:space="preserve">
+<data name="settings.restartNote" xml:space="preserve">
     <value>連接埠修改需要先停止 Pi Web。語言、工作目錄和工具路徑在重新啟動 Pi Web Tray 後生效。依賴設定會在下一次安裝時生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
@@ -1011,10 +1005,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="settings.invalidNodePath" xml:space="preserve">
     <value>選擇的 Node.js 執行檔不存在。</value>
   </data>
-  <data name="settings.invalidServerScript" xml:space="preserve">
-    <value>選擇的 Pi Web 指令碼不存在。</value>
-  </data>
-  <data name="settings.invalidRegistry" xml:space="preserve">
+<data name="settings.invalidRegistry" xml:space="preserve">
     <value>請輸入以 http:// 或 https:// 開頭的完整來源位址，或留空。</value>
   </data>
   <data name="settings.invalidTag" xml:space="preserve">

@@ -987,16 +987,10 @@ See {1} for details.</value>
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js path (optional)</value>
   </data>
-  <data name="settings.serverScript" xml:space="preserve">
-    <value>Pi Web script (optional)</value>
-  </data>
-  <data name="settings.selectNode" xml:space="preserve">
+<data name="settings.selectNode" xml:space="preserve">
     <value>Select node.exe</value>
   </data>
-  <data name="settings.selectServer" xml:space="preserve">
-    <value>Select Pi Web script</value>
-  </data>
-  <data name="settings.restartNote" xml:space="preserve">
+<data name="settings.restartNote" xml:space="preserve">
     <value>Port changes require Pi Web to be stopped first. Language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
@@ -1011,10 +1005,7 @@ See {1} for details.</value>
   <data name="settings.invalidNodePath" xml:space="preserve">
     <value>The selected Node.js executable does not exist.</value>
   </data>
-  <data name="settings.invalidServerScript" xml:space="preserve">
-    <value>The selected Pi Web script does not exist.</value>
-  </data>
-  <data name="settings.invalidRegistry" xml:space="preserve">
+<data name="settings.invalidRegistry" xml:space="preserve">
     <value>Enter an absolute http:// or https:// registry URL, or leave it empty.</value>
   </data>
   <data name="settings.invalidTag" xml:space="preserve">

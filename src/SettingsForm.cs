@@ -40,7 +40,6 @@ namespace PiWebTray
         private readonly TextBox _proxy;
         private readonly Button _testProxy;
         private readonly TextBox _nodePath;
-        private readonly TextBox _serverScript;
 
         internal SettingsForm(Config config)
             : this(config, true)
@@ -84,10 +83,10 @@ namespace PiWebTray
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 13;
+            root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            for (int i = 0; i < 13; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             scroll.Controls.Add(root);
 
             _port = new NumericUpDown();
@@ -174,17 +173,12 @@ namespace PiWebTray
             AddBrowseRow(root, 10, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.selectNode"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
-            _serverScript = new TextBox();
-            _serverScript.Text = config.ServerScript ?? "";
-            AddBrowseRow(root, 11, L.T("settings.serverScript"), _serverScript,
-                L.T("settings.selectServer"), delegate { BrowseFile(_serverScript, L.T("settings.selectServer"), "pi-web.js|pi-web.js|*.js|*.js"); });
-
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
             note.AutoSize = true;
             note.MaximumSize = new Size(520, 0);
             note.Margin = new Padding(0, 12, 0, 12);
-            root.Controls.Add(note, 0, 12);
+            root.Controls.Add(note, 0, 11);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -389,14 +383,6 @@ namespace PiWebTray
                 return;
             }
 
-            string serverScript = (_serverScript.Text ?? "").Trim();
-            if (serverScript.Length > 0 && !File.Exists(serverScript))
-            {
-                ShowError(L.T("settings.invalidServerScript"));
-                _serverScript.Focus();
-                return;
-            }
-
             string registry = (_npmRegistry.Text ?? "").Trim();
             if (registry.Length > 0)
             {
@@ -465,7 +451,6 @@ namespace PiWebTray
             values.Add(new KeyValuePair<string, string>("NpmRegistry", registry));
             values.Add(new KeyValuePair<string, string>("Proxy", proxy));
             values.Add(new KeyValuePair<string, string>("NodePath", nodePath));
-            values.Add(new KeyValuePair<string, string>("ServerScript", serverScript));
 
             if (!_config.SetValues(values))
             {
@@ -486,7 +471,6 @@ namespace PiWebTray
             if (!string.Equals(oldProxy, proxy, StringComparison.Ordinal))
                 ProxyTransport.Reset();
             _config.NodePath = nodePath;
-            _config.ServerScript = serverScript;
 
             DialogResult = DialogResult.OK;
             Close();
