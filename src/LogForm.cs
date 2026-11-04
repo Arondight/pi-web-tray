@@ -28,6 +28,7 @@ namespace PiWebTray
 
         internal LogForm(string path, string title)
         {
+            SuspendLayout();
             _path = path;
 
             Text = title;
@@ -38,7 +39,9 @@ namespace PiWebTray
             MinimizeBox = true;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(760, 520);
             MinimumSize = new Size(560, 360);
             Icon = Icons.WindowIcon();
@@ -120,6 +123,9 @@ namespace PiWebTray
             root.Controls.Add(_text, 0, 1);
             root.Controls.Add(buttons, 0, 2);
             Controls.Add(root);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             AcceptButton = close;
             CancelButton = close;

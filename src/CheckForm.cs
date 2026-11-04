@@ -25,6 +25,7 @@ namespace PiWebTray
 
         internal CheckForm(Config config, ProbeResult probe, bool elevated)
         {
+            SuspendLayout();
             _config = config;
             _probe = probe ?? new ProbeResult();
             _elevated = elevated;
@@ -37,7 +38,9 @@ namespace PiWebTray
             MinimizeBox = true;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(920, 640);
             MinimumSize = new Size(760, 540);
             Icon = Icons.WindowIcon();
@@ -98,6 +101,9 @@ namespace PiWebTray
             root.Controls.Add(softwareGroup, 0, 2);
             root.Controls.Add(buttons, 0, 3);
             Controls.Add(root);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             CancelButton = close;
         }

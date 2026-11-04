@@ -16,6 +16,7 @@ namespace PiWebTray
 
         internal AboutForm(Action onCheckUpdates = null)
         {
+            SuspendLayout();
             _onCheckUpdates = onCheckUpdates;
             Text = L.T("about.title");
             StartPosition = FormStartPosition.CenterScreen;
@@ -24,7 +25,9 @@ namespace PiWebTray
             MinimizeBox = false;
             ShowInTaskbar = false;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(500, 320);
             try
             {
@@ -135,6 +138,9 @@ namespace PiWebTray
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);
             Controls.Add(root);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             AcceptButton = close;
             CancelButton = close;

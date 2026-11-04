@@ -26,6 +26,7 @@ namespace PiWebTray
 
         internal InstallForm()
         {
+            SuspendLayout();
             Text = L.T("install.progressTitle");
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -34,7 +35,9 @@ namespace PiWebTray
             ControlBox = false;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(600, 320);
             Icon = Icons.WindowIcon();
             _started = DateTime.Now;
@@ -96,6 +99,9 @@ namespace PiWebTray
             root.Controls.Add(_output, 0, 3);
             root.Controls.Add(buttons, 0, 4);
             Controls.Add(root);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             CancelButton = _cancel;
             _timer = new Timer();

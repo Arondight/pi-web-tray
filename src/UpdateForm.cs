@@ -21,6 +21,7 @@ namespace PiWebTray
 
         internal UpdateForm(Action onCancel)
         {
+            SuspendLayout();
             _onCancel = onCancel;
 
             Text = L.T("update.progressTitle");
@@ -31,7 +32,9 @@ namespace PiWebTray
             ControlBox = false;
             ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(560, 190);
             Icon = Icons.WindowIcon();
 
@@ -74,6 +77,9 @@ namespace PiWebTray
             root.Controls.Add(_progress, 0, 1);
             root.Controls.Add(buttons, 0, 2);
             Controls.Add(root);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             CancelButton = _cancel;
             SetState(L.T("update.status.checking"), -1, true);

@@ -25,6 +25,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("sc.title"), form.Text);
                 Assert.IsTrue(form.MinimizeBox, "A resizable taskbar window should minimize.");
+                AssertDpiScaling(form);
 
                 List<DataGridView> tables = FindControls<DataGridView>(form);
                 Assert.AreEqual(2, tables.Count);
@@ -73,6 +74,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("about.title"), form.Text);
                 Assert.IsTrue(form.Controls.Count > 0);
+                AssertDpiScaling(form);
 
                 List<LinkLabel> links = FindControls<LinkLabel>(form);
                 Assert.AreEqual(1, links.Count, "About window should contain one project link.");
@@ -97,6 +99,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("settings.title"), form.Text);
                 Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle);
+                AssertDpiScaling(form);
                 Assert.IsTrue(form.MinimumSize.Width > 0);
             }
         }
@@ -107,6 +110,7 @@ namespace PiWebTray
             using (UpdateForm form = new UpdateForm(null))
             {
                 Assert.AreEqual(L.T("update.progressTitle"), form.Text);
+                AssertDpiScaling(form);
             }
         }
 
@@ -116,6 +120,7 @@ namespace PiWebTray
             using (InstallForm form = new InstallForm())
             {
                 Assert.AreEqual(L.T("install.progressTitle"), form.Text);
+                AssertDpiScaling(form);
             }
         }
 
@@ -142,12 +147,21 @@ namespace PiWebTray
                 {
                     Assert.AreEqual("log", form.Text);
                     Assert.AreEqual(2, FindControls<TextBox>(form).Count);
+                    AssertDpiScaling(form);
                 }
             }
             finally
             {
                 try { File.Delete(path); } catch (Exception) { }
             }
+        }
+
+        private static void AssertDpiScaling(Form form)
+        {
+            Assert.AreEqual(AutoScaleMode.Dpi, form.AutoScaleMode,
+                "Forms must scale with the real DPI, not a font baseline.");
+            Assert.AreEqual(form.CurrentAutoScaleDimensions, form.AutoScaleDimensions,
+                "DPI scaling must be armed after all controls are created.");
         }
 
         private static List<T> FindControls<T>(Control parent) where T : Control

@@ -41,6 +41,7 @@ namespace PiWebTray
 
         internal SettingsForm(Config config)
         {
+            SuspendLayout();
             _config = config;
 
             Text = L.T("settings.title");
@@ -50,7 +51,9 @@ namespace PiWebTray
             MinimizeBox = false;
             ShowInTaskbar = false;
             Font = SystemFonts.MessageBoxFont;
-            AutoScaleMode = AutoScaleMode.Font;
+            // Scaling runs on ResumeLayout, after the whole control tree exists.
+            AutoScaleDimensions = new SizeF(96F, 96F);
+            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(720, 560);
             MinimumSize = new Size(560, 420);
             Icon = Icons.WindowIcon();
@@ -174,6 +177,9 @@ namespace PiWebTray
             outer.Controls.Add(scroll, 0, 0);
             outer.Controls.Add(buttons, 0, 1);
             Controls.Add(outer);
+
+            ResumeLayout(false);
+            PerformLayout();
 
             AcceptButton = save;
             CancelButton = cancel;
