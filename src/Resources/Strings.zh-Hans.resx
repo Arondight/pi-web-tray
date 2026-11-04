@@ -661,7 +661,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>; 自定义 npm 来源，留空使用 npm 默认值（例如 https://registry.npmmirror.com）</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; 可选的 HTTP 或 SOCKS5 代理，例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080</value>
+    <value>; 可选的 HTTP 或 SOCKS5 代理，仅用于 Pi Web Tray 更新</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下两项留空时将自动检测，通常无需修改</value>
@@ -958,7 +958,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>npm 源（可选）</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>代理（可选）</value>
+    <value>更新代理（可选）</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>测试</value>

@@ -391,7 +391,6 @@ namespace PiWebTray
             }
 
             ApplyRegistryEnvironment(config, env);
-            ProxySettings.ApplyEnvironment(config, env);
             MarkPending(config);
             ProcessResult last = null;
             bool ok = true;
@@ -592,7 +591,6 @@ namespace PiWebTray
             ConsoleHost.WriteLine(L.T("install.willRun"));
             IDictionary<string, string> env = ProcessRunner.WithPathPrefix(Path.GetDirectoryName(probe.NodePath));
             ApplyRegistryEnvironment(config, env);
-            ProxySettings.ApplyEnvironment(config, env);
             if (!string.IsNullOrEmpty(config.NpmRegistry))
                 ConsoleHost.WriteLine("  npm_config_registry=" + Shell.RedactSecrets(config.NpmRegistry));
             string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);

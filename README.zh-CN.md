@@ -112,7 +112,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `InstallPiCli`     | `1`             | 同时安装 Pi 命令行。                                                                  |
 | `InstallTag`       | `latest`        | npm 分发标签或具体版本号。                                                            |
 | `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                  |
-| `Proxy`            | 空              | 可选的 HTTP 或 SOCKS5 代理，如 `http://127.0.0.1:7890` 或 `socks5://127.0.0.1:1080`。 |
+| `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；不会配置 Node、npm 或 Pi Web 子进程。 |
 | `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                       |
 | `ServerScript`     | 空              | 指定 `pi-web.js`；留空自动检测。                                                      |
 | `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                              |
@@ -120,17 +120,16 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 
 值支持 `%ENV%` 展开；含 `;` 或 `#` 的值可加引号；注释符号前需有空白。
 
-数据目录按用户隔离，因为 ini 可能包含源或代理凭据，日志可能包含项目数据；不要在共享目录中使用便携模式。避免把凭据写进 `NpmRegistry`，请在 npm 自己的 `.npmrc` 中配置认证，并把 ini 当作机密文件。托盘会在日志中隐藏 URL 用户信息和 token 查询参数；仅在日志宿主子进程无法启动时才启用的 `1>>` 兼容回退不经过脱敏。设置 `Proxy` 后，更新检查、下载以及 npm/Pi Web 子进程都会使用该代理；设置窗口中的 **测试** 按钮只测试代理连通性，不会保存。
+数据目录按用户隔离，因为 ini 可能包含源或代理凭据，日志可能包含项目数据；不要在共享目录中使用便携模式。避免把凭据写进 `NpmRegistry`，请在 npm 自己的 `.npmrc` 中配置认证，并把 ini 当作机密文件。托盘会在日志中隐藏 URL 用户信息和 token 查询参数；仅在日志宿主子进程无法启动时才启用的 `1>>` 兼容回退不经过脱敏。设置 `Proxy` 后，只有 Pi Web Tray 的更新检查和下载会使用该代理，不会传递给 Node、npm 或 Pi Web 子进程。设置窗口中的 **测试** 按钮只测试代理连通性，不会保存。
 
 ### 环境变量
 
-| 环境变量                     | 说明                                     |
-| ---------------------------- | ---------------------------------------- |
-| `PI_WEB_TRAY_PORT`           | 覆盖配置的端口。                         |
-| `PI_WEB_TRAY_LANG`           | 覆盖界面语言。                           |
-| `PI_WEB_TRAY_HOME`           | 覆盖数据目录。                           |
-| `PI_WEB_TRAY_PORTABLE`       | 设为 `1` 时 ini 和日志放在可执行文件旁。 |
-| `HTTP_PROXY` / `HTTPS_PROXY` | 供 npm 和 Pi Web 模型请求使用。          |
+| 环境变量               | 说明                                     |
+| ---------------------- | ---------------------------------------- |
+| `PI_WEB_TRAY_PORT`     | 覆盖配置的端口。                         |
+| `PI_WEB_TRAY_LANG`     | 覆盖界面语言。                           |
+| `PI_WEB_TRAY_HOME`     | 覆盖数据目录。                           |
+| `PI_WEB_TRAY_PORTABLE` | 设为 `1` 时 ini 和日志放在可执行文件旁。 |
 
 ## 命令行
 

@@ -661,7 +661,7 @@ Use --help to see the supported options.</value>
     <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; Optional HTTP or SOCKS5 proxy, e.g. http://127.0.0.1:7890 or socks5://127.0.0.1:1080</value>
+    <value>; Optional HTTP or SOCKS5 proxy for Pi Web Tray updates only</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; Leave empty for automatic detection; override only if required</value>
@@ -958,7 +958,7 @@ See {1} for details.</value>
     <value>npm registry (optional)</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Proxy (optional)</value>
+    <value>Proxy for updates (optional)</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>Test</value>

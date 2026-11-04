@@ -1,5 +1,7 @@
-// Pi Web Tray — optional HTTP / SOCKS5 proxy for external network access
+// Pi Web Tray — optional HTTP / SOCKS5 proxy for update traffic only
 //
+// The Proxy setting affects Pi Web Tray update checks/downloads only. It is not
+// exported to Node, npm or pi-web child processes.
 // .NET Framework's WebProxy cannot speak SOCKS5. For SOCKS we run a tiny local
 // HTTP CONNECT bridge and point HttpWebRequest at that loopback endpoint.
 
@@ -103,19 +105,6 @@ namespace PiWebTray
                 proxy.UseDefaultCredentials = false;
             }
             return proxy;
-        }
-
-        internal static void ApplyEnvironment(Config config, IDictionary<string, string> env)
-        {
-            if (config == null || env == null || string.IsNullOrEmpty(config.Proxy)) return;
-            string value = config.Proxy.Trim();
-            env["HTTP_PROXY"] = value;
-            env["HTTPS_PROXY"] = value;
-            env["ALL_PROXY"] = value;
-            env["npm_config_proxy"] = value;
-            env["npm_config_https_proxy"] = value;
-            if (string.IsNullOrEmpty(env["NO_PROXY"]))
-                env["NO_PROXY"] = "localhost,127.0.0.1,::1";
         }
 
         internal static bool Test(string text, out string error)
