@@ -61,7 +61,7 @@ namespace PiWebTray
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = false;
-            ShowInTaskbar = false;
+            ShowInTaskbar = true;
             Font = SystemFonts.MessageBoxFont;
             // Scaling runs on ResumeLayout, after the whole control tree exists.
             AutoScaleDimensions = new SizeF(96F, 96F);

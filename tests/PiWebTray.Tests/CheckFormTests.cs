@@ -83,6 +83,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("about.title"), form.Text);
                 Assert.IsTrue(form.Controls.Count > 0);
+                Assert.IsTrue(form.ShowInTaskbar, "About should have a taskbar window.");
                 AssertDpiScaling(form);
 
                 List<Button> buttons = FindControls<Button>(form);
@@ -129,6 +130,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("settings.title"), form.Text);
                 Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle);
+                Assert.IsTrue(form.ShowInTaskbar, "Settings should have a taskbar window.");
                 AssertDpiScaling(form);
                 Assert.IsTrue(form.MinimumSize.Width > 0);
 
