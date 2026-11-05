@@ -61,10 +61,7 @@ namespace PiWebTray
 
         private const string LatestReleaseUrl =
             "https://api.github.com/repos/" + RepositoryOwner + "/" + RepositoryName + "/releases/latest";
-        private const long MaxLogBytes = 4 * 1024 * 1024;
         internal const string ManifestName = "pi-web-tray.files.txt";
-
-        private static readonly object LogLock = new object();
 
         [DataContract]
         private sealed class GitHubRelease

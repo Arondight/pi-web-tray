@@ -72,12 +72,11 @@ namespace PiWebTray
 
                     try
                     {
-                        // Redact credentials before they reach server.log. npm can echo its
-                        // registry URL (including userinfo or tokens) in error output.
-                        // Use the Windows line ending: the tray's TextBox and Notepad only
-                        // treat CRLF as a line break.
+                        // Format service output through the same timestamp/redaction
+                        // rules as the tray and helper logs. Use the Windows line ending:
+                        // the tray's TextBox and Notepad only treat CRLF as a line break.
                         byte[] bytes = Encoding.UTF8.GetBytes(
-                            Shell.RedactSecrets(line) + Environment.NewLine);
+                            LogWriter.FormatLine(line) + Environment.NewLine);
                         if (output.Length > 0 && output.Length + bytes.Length > maxBytes)
                         {
                             output.Dispose();
@@ -130,7 +129,7 @@ namespace PiWebTray
             {
                 string directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                return new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+                return new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
             }
             catch (Exception)
             {

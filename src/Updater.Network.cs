@@ -107,45 +107,7 @@ namespace PiWebTray
 
         internal static void AppendLog(string path, string line)
         {
-            if (string.IsNullOrEmpty(path)) return;
-
-            lock (LogLock)
-            {
-                try
-                {
-                    string directory = Path.GetDirectoryName(path);
-                    if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
-                    FileInfo info = new FileInfo(path);
-                    if (info.Exists && info.Length > MaxLogBytes)
-                    {
-                        string backup = path + ".1";
-                        try
-                        {
-                            if (File.Exists(backup)) File.Delete(backup);
-                            File.Move(path, backup);
-                        }
-                        catch (Exception)
-                        {
-                            // The other process may still have the log open. Keep
-                            // appending instead of dropping this line.
-                        }
-                    }
-
-                    // File.AppendAllText opens with FileShare.Read, which conflicts with
-                    // the tray and the helper writing at the same time. FileShare.ReadWrite
-                    // keeps the launch and apply lines from both processes.
-                    using (FileStream stream = new FileStream(
-                        path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
-                    using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
-                    {
-                        writer.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + Shell.RedactSecrets(line));
-                    }
-                }
-                catch (Exception)
-                {
-                }
-            }
+            LogWriter.Append(path, line);
         }
     }
 }

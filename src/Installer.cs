@@ -406,7 +406,7 @@ namespace PiWebTray
                 string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
                     probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
 
-                AppendLog(config, "==== " + started.ToString("yyyy-MM-dd HH:mm:ss") + " install start (step "
+                AppendLog(config, "==== install start (step "
                     + stepNo + "/" + steps.Count + ") ====");
                 AppendLog(config, "node    : " + probe.NodePath + " " + probe.NodeVersion);
                 AppendLog(config, "npm     : " + probe.NpmCliPath + " " + probe.NpmVersion);
@@ -539,29 +539,9 @@ namespace PiWebTray
 
         // stdout and stderr are read by two different threads; without the lock two appends
         // can collide and silently lose log lines (File.AppendAllText uses a share-denying open).
-        private static readonly object LogLock = new object();
-
         internal static void AppendLog(Config config, string line)
         {
-            lock (LogLock)
-            {
-                try
-                {
-                    line = Shell.RedactSecrets(line);
-                    Directory.CreateDirectory(Path.GetDirectoryName(config.InstallLogFile));
-                    FileInfo info = new FileInfo(config.InstallLogFile);
-                    if (info.Exists && info.Length > 4 * 1024 * 1024)
-                    {
-                        string backup = config.InstallLogFile + ".1";
-                        if (File.Exists(backup)) File.Delete(backup);
-                        File.Move(config.InstallLogFile, backup);
-                    }
-                    File.AppendAllText(config.InstallLogFile, line + Environment.NewLine, new UTF8Encoding(false));
-                }
-                catch (Exception)
-                {
-                }
-            }
+            LogWriter.Append(config.InstallLogFile, line);
         }
 
         // For --install: run synchronously in this console and print the progress

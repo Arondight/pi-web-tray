@@ -153,6 +153,21 @@ namespace PiWebTray
             AppendLog(logPath, "staging: " + staging);
             AppendLog(logPath, "target : " + target);
 
+            // StartHelper always launches the installed helper, so its own directory
+            // is the only installation it may replace. This blocks using a forged
+            // target to turn the elevated helper into a generic file writer.
+            string helperDirectory = SafeFullPath(Path.GetDirectoryName(Application.ExecutablePath))
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string targetDirectory = target
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!string.Equals(helperDirectory, targetDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                AppendLog(logPath, "target is not the helper directory");
+                MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+
             try
             {
                 if (!WaitForParent(parentPid, 60000))
@@ -201,33 +216,26 @@ namespace PiWebTray
                 // The tray fingerprints the staged files before starting the helper.
                 // Re-check after the UAC prompt and the parent exit so a local process
                 // cannot replace the staged payload while the helper is waiting.
-                if (!string.IsNullOrEmpty(stagingHash))
+                string actualStagingHash;
+                try
                 {
-                    string actualStagingHash;
-                    try
-                    {
-                        actualStagingHash = ComputeStagingHash(staging);
-                    }
-                    catch (Exception ex)
-                    {
-                        AppendLog(logPath, "staging hash failed: " + ex);
-                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return 1;
-                    }
-
-                    if (!string.Equals(actualStagingHash, stagingHash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        AppendLog(logPath, "staging hash mismatch: expected " + stagingHash
-                            + ", got " + actualStagingHash);
-                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return 1;
-                    }
+                    actualStagingHash = ComputeStagingHash(staging);
                 }
-                else
+                catch (Exception ex)
                 {
-                    AppendLog(logPath, "staging hash absent (legacy tray)");
+                    AppendLog(logPath, "staging hash failed: " + ex);
+                    MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return 1;
+                }
+
+                if (!string.Equals(actualStagingHash, stagingHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    AppendLog(logPath, "staging hash mismatch: expected " + stagingHash
+                        + ", got " + actualStagingHash);
+                    MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return 1;
                 }
 
                 // If ExitApp could not stop the old listener (slow taskkill, elevated
@@ -292,7 +300,8 @@ namespace PiWebTray
                 Array.Sort(backups, StringComparer.OrdinalIgnoreCase);
                 foreach (string backup in backups)
                 {
-                    if (!File.Exists(Path.Combine(backup, "pi-web-tray.exe"))) continue;
+                    string reason;
+                    if (!IsPiWebTrayInstallation(backup, out reason)) continue;
                     AppendLog(logPath, "target incomplete; recovering from " + backup);
                     if (Rollback(backup, target, new List<string>(), logPath)) return true;
                 }
@@ -400,11 +409,10 @@ namespace PiWebTray
                 }
             }
 
-            // The hash is optional for a helper from a newer release; the port was
-            // added later and is likewise optional for old trays.
+            // The staging hash is mandatory. The port was added after the hash,
+            // so a 10-argument helper call (hash, no port) remains valid.
             bool hasPort = args.Length == index + 11;
-            bool hasHash = args.Length == index + 10 || hasPort;
-            if (index < 0 || (args.Length != index + 9 && !hasHash)) return false;
+            if (index < 0 || (args.Length != index + 10 && !hasPort)) return false;
 
             staging = args[index + 1];
             target = args[index + 2];
@@ -424,7 +432,8 @@ namespace PiWebTray
             logPath = args[index + 6];
             language = args[index + 7];
             dataDir = args[index + 8];
-            if (hasHash) stagingHash = args[index + 9];
+            stagingHash = args[index + 9];
+            if (stagingHash.Length != 64 || !IsHexHash(stagingHash)) return false;
             if (hasPort
                 && (!int.TryParse(args[index + 10], NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out port)
@@ -449,6 +458,17 @@ namespace PiWebTray
                 return false;
             if (!IsPathUnder(staging, dataDir) && !IsPathUnder(staging, target))
                 return false;
+            return true;
+        }
+
+        private static bool IsHexHash(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Length != 64) return false;
+            foreach (char c in value)
+            {
+                bool ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+                if (!ok) return false;
+            }
             return true;
         }
 

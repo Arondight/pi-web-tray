@@ -902,8 +902,7 @@ namespace PiWebTray
                 },
                 out staging, out target, out parentPid, out mode,
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash);
-            Check("legacy helper args parse", legacyParsed);
-            CheckEqual("legacy helper has no hash", "", stagingHash);
+            Check("legacy helper without hash is rejected", !legacyParsed);
 
             bool silentParsed = Updater.TryParseApplyArgs(
                 new string[]
@@ -1215,17 +1214,19 @@ namespace PiWebTray
                     LogHost.Append(input, path, 100);
                 }
 
-                CheckEqual("log host writes the first chunk",
-                    200L + Environment.NewLine.Length, new FileInfo(path).Length);
+                string first = File.ReadAllText(path);
+                Check("log host writes the first chunk", first.Contains(new string('x', 200)));
+                Check("log host timestamps service lines",
+                    first.StartsWith(DateTime.Now.ToString("yyyy-MM-dd"), StringComparison.Ordinal));
 
                 using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes("next")))
                 {
                     LogHost.Append(input, path, 100);
                 }
-                CheckEqual("log host rotates before crossing the limit",
-                    200L + Environment.NewLine.Length, new FileInfo(path + ".1").Length);
+                Check("log host rotates before crossing the limit",
+                    File.Exists(path + ".1") && File.ReadAllText(path + ".1").Contains(new string('x', 200)));
                 CheckEqual("log host appends after rotation",
-                    "next" + Environment.NewLine, File.ReadAllText(path));
+                    LogWriter.FormatLine("next") + Environment.NewLine, File.ReadAllText(path));
 
                 File.Delete(path);
                 File.Delete(path + ".1");
@@ -1235,7 +1236,8 @@ namespace PiWebTray
                     LogHost.Append(input, path, 1024 * 1024);
                 }
                 CheckEqual("log host redacts registry credentials",
-                    "https://***@example.test/?token=***" + Environment.NewLine, File.ReadAllText(path));
+                    LogWriter.FormatLine("https://***@example.test/?token=***") + Environment.NewLine,
+                    File.ReadAllText(path));
             }
             finally
             {
