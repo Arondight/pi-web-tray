@@ -670,7 +670,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>; 可選的 HTTP 或 SOCKS5 代理，僅用於 Pi Web Tray 更新</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
-    <value>; 以下兩項留空時將自動偵測，通常無需修改</value>
+    <value>; 以下項留空時將自動偵測，通常無需修改</value>
   </data>
   <data name="ini.autostartC" xml:space="preserve">
     <value>; 開機自動啟動是否使用系統管理員權限（由系統匣功能表維護）</value>
