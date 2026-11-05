@@ -109,6 +109,8 @@ namespace PiWebTray
         private bool _checkPending;
         private bool _checkPendingThenStart;
         private bool _checkPendingOpenBrowser;
+        private bool _checkSuppressAutoInstall;
+        private bool _checkPendingSuppressAutoInstall;
         private bool _installAfterCheck;
         private bool _installAfterCheckForce;
         private bool _installAfterCheckStart;

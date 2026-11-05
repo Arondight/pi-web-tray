@@ -13,17 +13,17 @@ Pi Web Tray 是基于 Pi 和 Pi Web 的 Windows 7 至 11 通用 Harness 解决�
 
 ## 运行要求
 
-| 组件           | 要求                        |
-| -------------- | --------------------------- |
-| 64 位 Windows  | 7 SP1、8、8.1、10 或 11     |
-| .NET Framework | 4.8 — 见下方 Windows 7 说明 |
-| Node.js        | 22.19 或更新版本，含 npm    |
+| 组件           | 要求                                                       |
+| -------------- | ---------------------------------------------------------- |
+| 64 位 Windows  | 7 SP1、8、8.1、10 或 11                                    |
+| .NET Framework | 4.8 — Windows 7 SP1/8/8.1 必须使用 4.8；这些系统没有 4.8.1 |
+| Node.js        | 22.19 或更新版本，含 npm                                   |
 
 Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Pi Web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上托盘可以运行，但服务或终端可能不可用。
 
 ### Windows 7 运行库
 
-Windows 7 SP1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48)。托盘自更新还需要 TLS 1.2；如果无法访问 GitHub，请安装 [Windows 7 的 TLS 1.2 更新](https://support.microsoft.com/help/3140245)（KB3140245）。
+Windows 7 SP1、Windows 8 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) 而非 4.8.1。如果 Windows 7 下检查更新无法访问 GitHub，请安装 [TLS 1.2 更新补丁](https://support.microsoft.com/help/3140245)
 
 ## 推荐安装的软件
 

@@ -760,6 +760,11 @@ namespace PiWebTray
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
 
+                // Installing Node.js after the tray started updates the registry PATH, not
+                // this process's environment. Make the detected Node/npm directories
+                // visible to the service and its child processes.
+                psi.EnvironmentVariables["PATH"] = ServicePath(node);
+
                 // The Proxy setting is deliberately not exported here: it applies only to
                 // Pi Web Tray update traffic. Do not change the Node/pi-web environment.
                 // An elevated tray passes its token to the child, which is exactly what "run as admin" means here
@@ -782,6 +787,21 @@ namespace PiWebTray
                 UpdateUi();
                 NotifyError(L.T("notify.cannotStart"), ex.Message);
             }
+        }
+
+        private string ServicePath(string node)
+        {
+            string path = Environment.GetEnvironmentVariable("PATH") ?? "";
+            string nodeDir = "";
+            try { nodeDir = Path.GetDirectoryName(node); } catch (Exception) { }
+            if (!string.IsNullOrEmpty(nodeDir) && Directory.Exists(nodeDir))
+                path = nodeDir.TrimEnd('\\') + ";" + path;
+
+            // npm's global prefix also contains npm-installed command shims.
+            if (_probe != null && !string.IsNullOrEmpty(_probe.NpmPrefix)
+                && Directory.Exists(_probe.NpmPrefix))
+                path = _probe.NpmPrefix.TrimEnd('\\') + ";" + path;
+            return path;
         }
 
         private void StopServer()

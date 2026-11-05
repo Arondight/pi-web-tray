@@ -85,7 +85,7 @@
     <value>安装/更新服务</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>安装 Pi Web 依赖</value>
+    <value>更新服务</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>下载 Node.js</value>
@@ -95,7 +95,6 @@
   </data>
   <data name="node.communityBody" xml:space="preserve">
     <value>Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。下载页面将打开一个未签名的社区构建，本项目无法验证其安全性。
-
 是否打开下载页面？</value>
   </data>
   <data name="node.download" xml:space="preserve">
@@ -115,11 +114,8 @@
   </data>
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}。
-
 需要 Node.js {1} 或更新版本。
-
 {2}
-
 检测到 Node.js 安装后继续。</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
@@ -291,10 +287,10 @@
     <value>npm 报告成功，但未找到 Pi Web。请检查权限或全局 npm 目录。日志：{0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
-    <value>npm 报告成功，但未找到 Pi 命令行。请检查全局 npm 目录。日志：{0}</value>
+    <value>npm 报告成功，但未找到 Pi。请检查全局 npm 目录。日志：{0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>无法更新 Pi 命令行。如果 Pi 正在运行，请先退出，然后再次使用“更新 Pi Web 和 Pi”。详见 {0}。</value>
+    <value>无法更新 Pi。如果 Pi 正在运行，请先退出，然后重试“更新服务”。详见 {0}。</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>安装失败（npm 退出码 {0}）。日志：{1}</value>
@@ -363,7 +359,7 @@
     <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>请使用菜单更新依赖。</value>
+    <value>请使用菜单更新服务。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>无法启动 Pi Web</value>
@@ -410,7 +406,7 @@
     <value>已检测到 Node.js</value>
   </data>
   <data name="notify.nodeDetectedBody" xml:space="preserve">
-    <value>检测到 Node.js 安装，正在检查环境。</value>
+    <value>已检测到 Node.js。请使用托盘菜单中的“{0}”。</value>
   </data>
   <data name="notify.nodeMissingTitle" xml:space="preserve">
     <value>Node.js 已不可用</value>
@@ -431,13 +427,13 @@
     <value>Pi 尚未安装</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>请使用菜单更新依赖。</value>
+    <value>请使用菜单更新服务。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安装</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>请使用菜单更新依赖。</value>
+    <value>请使用菜单更新服务。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>无法安装：缺少 Node.js</value>
@@ -554,10 +550,10 @@
     <value>不存在</value>
   </data>
   <data name="diag.menuAutostart" xml:space="preserve">
-    <value>菜单文字 1</value>
+    <value>开机自启动菜单文字</value>
   </data>
   <data name="diag.menuAdmin" xml:space="preserve">
-    <value>菜单文字 2</value>
+    <value>管理员自启动菜单文字</value>
   </data>
   <data name="diag.stateFile" xml:space="preserve">
     <value>状态文件</value>
@@ -767,7 +763,7 @@
 当前版本：{0}
 最新版本：{1}
 
-更新将停止 Pi Web、替换文件并重启。是否继续？</value>
+如果服务正在运行，更新会先停止它，然后替换文件并重启托盘。是否继续？</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>安装目录需要管理员权限。替换文件前 Windows 会请求权限（UAC）。</value>
@@ -1191,7 +1187,7 @@
     <value>安装/更新服务</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>现在安装或更新 Pi Web 和 Pi 吗？Pi Web 会暂时停止，这可能需要几分钟。</value>
+    <value>现在安装或更新服务吗？如果服务正在运行，会先停止它；这可能需要几分钟。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>服务运行日志</value>
@@ -1281,12 +1277,12 @@
     <value>没有匹配“{0}”的行。</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>更新 Pi Web</value>
+    <value>更新服务</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>更新 Pi Web 依赖</value>
+    <value>更新服务</value>
   </data>
   <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>现在重新安装或更新 Pi Web 吗？Pi Web 会暂时停止，这可能需要几分钟。</value>
+    <value>现在重新安装或更新服务吗？如果服务正在运行，会先停止它；这可能需要几分钟。</value>
   </data>
 </root>

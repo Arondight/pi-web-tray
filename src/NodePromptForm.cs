@@ -6,6 +6,7 @@
 // instead of a native MessageBox.
 
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -16,7 +17,7 @@ namespace PiWebTray
         private Icon _formIcon;
         private readonly TableLayoutPanel _root;
         private readonly FlowLayoutPanel _content;
-        private readonly FlowLayoutPanel _buttons;
+        private readonly TableLayoutPanel _buttons;
         private Control _initialFocus;
 
         internal NodePromptForm(string title, string body, bool canDownload)
@@ -77,18 +78,16 @@ namespace PiWebTray
             content.Controls.Add(heading);
             content.Controls.Add(message);
 
-            FlowLayoutPanel buttons = new FlowLayoutPanel();
+            TableLayoutPanel buttons = new TableLayoutPanel();
             buttons.Dock = DockStyle.Fill;
-            // Keep the button group right-aligned like the other dialogs. With
-            // RightToLeft flow the controls are added from right to left:
-            // Exit, Continue, Open download page; visually they read the reverse.
-            buttons.FlowDirection = FlowDirection.RightToLeft;
             buttons.AutoSize = true;
-            buttons.WrapContents = false;
+            buttons.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            buttons.RowCount = 1;
+            buttons.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _buttons = buttons;
 
             Button exit = CreateButton(closeText);
             exit.DialogResult = DialogResult.No;
-            _buttons = buttons;
 
             Button keep = null;
             if (canContinue)
@@ -110,9 +109,26 @@ namespace PiWebTray
                 AcceptButton = exit;
                 _initialFocus = exit;
             }
-            buttons.Controls.Add(exit);
-            if (keep != null) buttons.Controls.Add(keep);
-            if (download != null) buttons.Controls.Add(download);
+
+            // A RightToLeft FlowLayoutPanel clipped the leftmost button when
+            // Windows 7 used 200% DPI. A fixed-column table keeps every button
+            // visible and avoids the oversized AutoSize widths at high DPI.
+            List<Button> order = new List<Button>();
+            if (download != null) order.Add(download);
+            if (keep != null) order.Add(keep);
+            order.Add(exit);
+
+            buttons.ColumnCount = order.Count;
+            for (int i = 0; i < order.Count; i++)
+            {
+                float percent;
+                if (order.Count == 3) percent = i == 0 ? 32f : (i == 1 ? 45f : 23f);
+                else if (order.Count == 2) percent = i == 0 ? 60f : 40f;
+                else percent = 100f;
+                buttons.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, percent));
+            }
+            for (int i = 0; i < order.Count; i++)
+                buttons.Controls.Add(order[i], i, 0);
             CancelButton = exit;
 
             root.Controls.Add(content, 0, 0);
@@ -181,7 +197,10 @@ namespace PiWebTray
         {
             Button button = new Button();
             button.Text = text;
-            button.AutoSize = true;
+            // Fixed columns and Dock=Fill do the sizing. AutoSize made button
+            // widths grow inconsistently at 200% DPI on Windows 7.
+            button.AutoSize = false;
+            button.Dock = DockStyle.Fill;
             button.MinimumSize = new Size(88, 0);
             return button;
         }

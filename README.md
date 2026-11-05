@@ -13,17 +13,17 @@ Pi Web Tray is a universal Windows 7 to 11 harness for Pi and Pi Web. It provide
 
 ## Requirements
 
-| Component      | Requirement                        |
-| -------------- | ---------------------------------- |
-| 64-bit Windows | 7 SP1, 8, 8.1, 10 or 11            |
-| .NET Framework | 4.8 — see the Windows 7 note below |
-| Node.js        | 22.19 or later, with npm           |
+| Component      | Requirement                                                              |
+| -------------- | ------------------------------------------------------------------------ |
+| 64-bit Windows | 7 SP1, 8, 8.1, 10 or 11                                                  |
+| .NET Framework | 4.8 — required on Windows 7 SP1/8/8.1; those systems have no 4.8.1 build |
+| Node.js        | 22.19 or later, with npm                                                 |
 
 Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so the tray may run on legacy systems while the service or terminal is unavailable.
 
 ### Windows 7 runtime
 
-Windows 7 SP1 needs [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48). Tray self-update also needs TLS 1.2; if GitHub cannot be reached, install the [Windows 7 TLS 1.2 update](https://support.microsoft.com/help/3140245).
+Windows 7 SP1, Windows 8 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
 ## Recommended software
 

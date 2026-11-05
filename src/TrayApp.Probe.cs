@@ -17,12 +17,18 @@ namespace PiWebTray
     {
         private void BeginEnvironmentCheck(bool thenStart, bool openBrowser)
         {
-            BeginEnvironmentCheck(thenStart, openBrowser, 0);
+            BeginEnvironmentCheck(thenStart, openBrowser, 0, false);
         }
 
         // delayMs gives a login-time probe a moment: antivirus may still be scanning
         // node.exe and the profile/registry may not be fully ready right after logon.
         private void BeginEnvironmentCheck(bool thenStart, bool openBrowser, int delayMs)
+        {
+            BeginEnvironmentCheck(thenStart, openBrowser, delayMs, false);
+        }
+
+        private void BeginEnvironmentCheck(bool thenStart, bool openBrowser, int delayMs,
+            bool suppressAutoInstall)
         {
             lock (_checkLock)
             {
@@ -33,6 +39,8 @@ namespace PiWebTray
                     _checkPending = true;
                     _checkPendingThenStart = _checkPendingThenStart || thenStart;
                     _checkPendingOpenBrowser = _checkPendingOpenBrowser || openBrowser;
+                    _checkPendingSuppressAutoInstall =
+                        _checkPendingSuppressAutoInstall || suppressAutoInstall;
                     return;
                 }
                 _checkRunning = true;
@@ -40,6 +48,7 @@ namespace PiWebTray
                 _checkResult = null;
                 _checkThenStart = thenStart;
                 _checkOpenBrowser = openBrowser;
+                _checkSuppressAutoInstall = suppressAutoInstall;
             }
 
             if (_phase != Phase.Installing) _phase = Phase.Checking;
@@ -100,9 +109,13 @@ namespace PiWebTray
                 if (!_nodePresenceNotified)
                 {
                     _nodePresenceNotified = true;
-                    Notify(L.T("notify.nodeDetectedTitle"), L.T("notify.nodeDetectedBody"));
+                    Notify(L.T("notify.nodeDetectedTitle"),
+                        L.T("notify.nodeDetectedBody", _installItem.Text));
                 }
-                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+                // Do not install dependencies behind the user's back after they
+                // installed Node.js themselves. Refresh the state and wait for an
+                // explicit install/update menu action.
+                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser, 0, true);
             }
         }
 
@@ -199,6 +212,7 @@ namespace PiWebTray
             ProbeResult result;
             bool thenStart;
             bool openBrowser;
+            bool suppressAutoInstall;
             int logHostState;
             lock (_checkLock)
             {
@@ -207,12 +221,14 @@ namespace PiWebTray
                 result = _checkResult;
                 thenStart = _checkThenStart;
                 openBrowser = _checkOpenBrowser;
+                suppressAutoInstall = _checkSuppressAutoInstall;
+                _checkSuppressAutoInstall = false;
                 logHostState = _checkLogHostState;
             }
 
             if (logHostState >= 0) _logHostState = logHostState;
 
-            ApplyCheckResult(result, thenStart, openBrowser);
+            ApplyCheckResult(result, thenStart, openBrowser, suppressAutoInstall);
             if (_exiting) return;
 
             // A menu click asked to install before the first probe had finished. The probe has
@@ -241,20 +257,25 @@ namespace PiWebTray
             bool pending;
             bool pendingThenStart;
             bool pendingOpenBrowser;
+            bool pendingSuppressAutoInstall;
             lock (_checkLock)
             {
                 pending = _checkPending;
                 pendingThenStart = _checkPendingThenStart;
                 pendingOpenBrowser = _checkPendingOpenBrowser;
+                pendingSuppressAutoInstall = _checkPendingSuppressAutoInstall;
                 _checkPending = false;
                 _checkPendingThenStart = false;
                 _checkPendingOpenBrowser = false;
+                _checkPendingSuppressAutoInstall = false;
             }
             if (pending && _phase != Phase.Installing)
-                BeginEnvironmentCheck(pendingThenStart, pendingOpenBrowser);
+                BeginEnvironmentCheck(pendingThenStart, pendingOpenBrowser, 0,
+                    pendingSuppressAutoInstall);
         }
 
-        private void ApplyCheckResult(ProbeResult result, bool thenStart, bool openBrowser)
+        private void ApplyCheckResult(ProbeResult result, bool thenStart, bool openBrowser,
+            bool suppressAutoInstall)
         {
             if (result == null)
             {
@@ -294,7 +315,7 @@ namespace PiWebTray
                     _phase = Phase.Checking;
                     UpdateUi();
                     BeginEnvironmentCheck(thenStart, openBrowser,
-                        _firstCheckRetries == 1 ? 2000 : 4000);
+                        _firstCheckRetries == 1 ? 2000 : 4000, suppressAutoInstall);
                     return;
                 }
 
@@ -323,7 +344,7 @@ namespace PiWebTray
 
             if (result.NeedsPiWeb || result.NeedsPiCli)
             {
-                if (_config.AutoInstall)
+                if (_config.AutoInstall && !suppressAutoInstall)
                 {
                     BeginInstall(false, thenStart, openBrowser);
                     return;
@@ -371,7 +392,7 @@ namespace PiWebTray
                 ? result.NodeIssue()
                 : L.T("probe.issue.noNode");
             string body = L.T("node.missingBody", issue, ProbeResult.NodeMinimum, url);
-            if (community) body += "\r\n\r\n" + L.T("node.communityNote");
+            if (community) body += "\r\n" + L.T("node.communityNote");
 
             DialogResult answer;
             using (NodePromptForm prompt = new NodePromptForm(

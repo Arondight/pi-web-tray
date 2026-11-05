@@ -85,7 +85,7 @@
     <value>Install/update service</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
-    <value>Install Pi Web dependencies</value>
+    <value>Update service</value>
   </data>
   <data name="menu.node" xml:space="preserve">
     <value>Download Node.js</value>
@@ -95,7 +95,6 @@
   </data>
   <data name="node.communityBody" xml:space="preserve">
     <value>Windows 7 and Windows 8 have no official Node.js 22 build. The download page opens an unsigned community build that this project cannot verify.
-
 Open the download page?</value>
   </data>
   <data name="node.download" xml:space="preserve">
@@ -115,11 +114,8 @@ Open the download page?</value>
   </data>
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}.
-
 Node.js {1} or newer is required.
-
 {2}
-
 Continue after Node.js is installed.</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
@@ -291,10 +287,10 @@ Continue after Node.js is installed.</value>
     <value>npm reported success, but Pi Web was not found. Check permissions and the global npm directory. Log: {0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
-    <value>npm reported success, but the Pi command line was not found. Check the global npm directory. Log: {0}</value>
+    <value>npm reported success, but Pi was not found. Check the global npm directory. Log: {0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>The Pi CLI could not be updated. If Pi is running, close it and use "Update Pi Web and Pi" again. See {0}.</value>
+    <value>Pi could not be updated. If it is running, close it and retry "Update service". See {0}.</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>npm exited with code {0}. Log: {1}</value>
@@ -363,7 +359,7 @@ Continue after Node.js is installed.</value>
     <value>Pi Web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the menu to update dependencies.</value>
+    <value>Use the menu to update the service.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start Pi Web</value>
@@ -410,7 +406,7 @@ Exit anyway?</value>
     <value>Node.js detected</value>
   </data>
   <data name="notify.nodeDetectedBody" xml:space="preserve">
-    <value>Node.js detected; checking the environment.</value>
+    <value>Node.js detected. Use "{0}" in the tray menu.</value>
   </data>
   <data name="notify.nodeMissingTitle" xml:space="preserve">
     <value>Node.js no longer available</value>
@@ -431,13 +427,13 @@ Exit anyway?</value>
     <value>Pi is not installed</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>Use the menu to update dependencies.</value>
+    <value>Use the menu to update the service.</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>Use the menu to update dependencies.</value>
+    <value>Use the menu to update the service.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -554,10 +550,10 @@ Exit anyway?</value>
     <value>Absent</value>
   </data>
   <data name="diag.menuAutostart" xml:space="preserve">
-    <value>Menu text 1</value>
+    <value>Autostart menu text</value>
   </data>
   <data name="diag.menuAdmin" xml:space="preserve">
-    <value>Menu text 2</value>
+    <value>Admin autostart menu text</value>
   </data>
   <data name="diag.stateFile" xml:space="preserve">
     <value>State file</value>
@@ -767,7 +763,7 @@ Use --help to see the supported options.</value>
 Current version: {0}
 Latest version: {1}
 
-The update will stop Pi Web, replace the files and restart. Continue?</value>
+The update will stop the service if it is running, replace the files, and restart the tray. Continue?</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>The installation directory requires administrator rights. Windows will ask for permission (UAC) before the files are replaced.</value>
@@ -1191,7 +1187,7 @@ See {1} for details.</value>
     <value>Install/update service</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>Install or update Pi Web and Pi now? Pi Web will be stopped temporarily. This can take several minutes.</value>
+    <value>Install or update the service now? The service will be stopped if it is running. This can take several minutes.</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>Service runtime log</value>
@@ -1281,12 +1277,12 @@ See {1} for details.</value>
     <value>No lines match "{0}".</value>
   </data>
   <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>Update Pi Web</value>
+    <value>Update service</value>
   </data>
   <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>Update Pi Web dependencies</value>
+    <value>Update service</value>
   </data>
   <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>Reinstall or update Pi Web now? Pi Web will be stopped temporarily. This can take several minutes.</value>
+    <value>Reinstall or update the service now? The service will be stopped if it is running. This can take several minutes.</value>
   </data>
 </root>
