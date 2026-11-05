@@ -138,6 +138,13 @@ namespace PiWebTray
             RefreshLog(true);
         }
 
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // The 96-DPI default is larger than a 200% 1080p work area.
+            FormLayout.FitToWorkingArea(this);
+        }
+
         private void TogglePause()
         {
             _paused = !_paused;

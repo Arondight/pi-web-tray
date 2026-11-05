@@ -58,8 +58,10 @@ namespace PiWebTray
             _progress = new ProgressBar();
             _progress.Dock = DockStyle.Fill;
             _progress.Height = 18;
-            _progress.Style = ProgressBarStyle.Marquee;
-            _progress.MarqueeAnimationSpeed = 30;
+            // A marquee bar restarts forever, which looks like an update that never
+            // completes. Keep one continuous bar: checking starts at 0, download
+            // advances it, and applying leaves it at 100.
+            _progress.Style = ProgressBarStyle.Continuous;
             _progress.Margin = new Padding(0, 0, 0, 10);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -94,6 +96,7 @@ namespace PiWebTray
             // Fit before the first paint; OnShown would show the default height
             // for one frame and then visibly shrink the window.
             FitHeight();
+            FormLayout.FitToWorkingArea(this);
         }
 
         // Status messages can grow after the dialog is shown. Re-fit the fixed
@@ -120,17 +123,14 @@ namespace PiWebTray
             if (IsDisposed) return;
             _status.Text = status;
 
+            // Unknown progress keeps the last known value. This also keeps the
+            // completed download at 100% while the update is being applied.
             if (percent >= 0)
             {
                 _progress.Style = ProgressBarStyle.Continuous;
                 int value = Math.Max(0, Math.Min(100, percent));
                 if (value < _progress.Minimum) value = _progress.Minimum;
                 _progress.Value = value;
-            }
-            else
-            {
-                _progress.Style = ProgressBarStyle.Marquee;
-                _progress.MarqueeAnimationSpeed = 30;
             }
 
             bool canCancel = cancellable && !Cancelled;

@@ -245,6 +245,7 @@ namespace PiWebTray
         // CreateGraphics works on Windows 7-11; DeviceDpi may still report 96.
         private void ApplyInitialLayout()
         {
+            FormLayout.FitToWorkingArea(this);
             double scale = 1.0;
             try
             {

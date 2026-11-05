@@ -234,6 +234,7 @@ namespace PiWebTray
             base.OnLoad(e);
             // Fit before the first paint; OnShown would show the default height
             // for one frame and then visibly shrink the window.
+            FormLayout.FitToWorkingArea(this);
             FitForDisplay();
         }
 

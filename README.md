@@ -73,7 +73,7 @@ The menu follows the service state:
 ```text
 ● Running · 127.0.0.1:30141 · administrator mode
 ---------------------------------------
-Open Pi Web in Browser
+Open browser
 Start service
 Stop service
 Restart service

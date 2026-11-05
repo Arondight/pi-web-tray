@@ -111,6 +111,13 @@ namespace PiWebTray
             RefreshProgress();
         }
 
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            // Keep the fixed install dialog inside a high-DPI work area.
+            FormLayout.FitToWorkingArea(this);
+        }
+
         internal void CloseFromOwner()
         {
             _allowClose = true;

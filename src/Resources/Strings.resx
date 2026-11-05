@@ -61,7 +61,7 @@
     <value>○ </value>
   </data>
   <data name="menu.open" xml:space="preserve">
-    <value>Open Pi Web in Browser</value>
+    <value>Open browser</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
     <value>Start service and open browser</value>

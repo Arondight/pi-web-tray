@@ -88,34 +88,32 @@ namespace PiWebTray
                 List<Button> buttons = FindControls<Button>(form);
                 Assert.AreEqual(1, buttons.Count, "About window should only contain the close button.");
 
-                List<LinkLabel> links = FindControls<LinkLabel>(form);
-                Assert.AreEqual(2, links.Count, "About window should contain the description and the project link.");
-
-                LinkLabel description = null;
-                LinkLabel project = null;
-                foreach (LinkLabel link in links)
+                List<Label> labels = FindControls<Label>(form);
+                List<Label> links = new List<Label>();
+                foreach (Label label in labels)
                 {
-                    if (link.Links.Count == 2) description = link;
-                    else if (link.Links.Count == 1) project = link;
+                    Assert.IsFalse(label.UseCompatibleTextRendering,
+                        "About must use the same GDI rendering as the other dialogs.");
+                    if (label.Tag is string && !string.IsNullOrEmpty((string)label.Tag))
+                        links.Add(label);
                 }
-                Assert.IsNotNull(description, "The description should link Pi and Pi Web.");
-                Assert.IsNotNull(project, "The project URL should be a separate link.");
-                Assert.AreEqual(SystemColors.HotTrack, description.LinkColor,
-                    "The description must use a high-contrast-aware link colour.");
+                Assert.AreEqual(3, links.Count, "About should contain Pi, Pi Web and the project link.");
+
                 List<string> urls = new List<string>();
-                foreach (LinkLabel.Link link in description.Links)
-                    urls.Add(link.LinkData as string);
+                foreach (Label link in links)
+                {
+                    Assert.AreEqual(SystemColors.HotTrack, link.ForeColor,
+                        "All About links must use the same colour.");
+                    Assert.IsTrue(link.Font.Underline,
+                        "About links must look like links.");
+                    urls.Add((string)link.Tag);
+                }
                 Assert.IsTrue(urls.Contains("https://github.com/agegr/pi-web"),
                     "The description should link Pi Web.");
                 Assert.IsTrue(urls.Contains("https://github.com/earendil-works/pi"),
                     "The description should link Pi.");
-
-                LinkArea area = project.LinkArea;
-                string text = project.Text;
-                Assert.AreEqual(L.T("about.link", "").Length, area.Start,
-                    "The project label must not be part of the link.");
-                Assert.AreEqual(Program.ProjectUrl, text.Substring(area.Start, area.Length),
-                    "Only the project URL should be a link.");
+                Assert.IsTrue(urls.Contains(Program.ProjectUrl),
+                    "The project URL should be linked.");
             }
         }
 
@@ -228,6 +226,16 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("update.progressTitle"), form.Text);
                 AssertDpiScaling(form);
+
+                List<ProgressBar> bars = FindControls<ProgressBar>(form);
+                Assert.AreEqual(1, bars.Count);
+                Assert.AreEqual(ProgressBarStyle.Continuous, bars[0].Style,
+                    "The update bar must not loop forever like a marquee.");
+                form.SetState("download", 50, true);
+                Assert.AreEqual(50, bars[0].Value);
+                form.SetState("apply", -1, true);
+                Assert.AreEqual(50, bars[0].Value,
+                    "Unknown progress must preserve the last known download value.");
             }
         }
 

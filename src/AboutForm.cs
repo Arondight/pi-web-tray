@@ -3,6 +3,7 @@
 // A small static dialog with the application name, version, author and project link.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
@@ -14,10 +15,25 @@ namespace PiWebTray
         private const string PiWebUrl = "https://github.com/agegr/pi-web";
         private const string PiUrl = "https://github.com/earendil-works/pi";
 
+        private sealed class LinkSpan
+        {
+            internal readonly int Start;
+            internal readonly int Length;
+            internal readonly string Url;
+
+            internal LinkSpan(int start, int length, string url)
+            {
+                Start = start;
+                Length = length;
+                Url = url;
+            }
+        }
+
         private Icon _formIcon;
         private readonly TableLayoutPanel _root;
         private readonly FlowLayoutPanel _content;
         private readonly FlowLayoutPanel _buttons;
+        private readonly List<Font> _linkFonts = new List<Font>();
 
         internal AboutForm()
         {
@@ -61,55 +77,33 @@ namespace PiWebTray
             content.AutoScroll = true;
             _content = content;
 
-            Label title = new Label();
-            title.Text = Program.AppName;
+            Label title = CreateTextLabel(Program.AppName);
             title.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
-            title.AutoSize = true;
             title.Margin = new Padding(0, 0, 0, 4);
 
-            Label version = new Label();
-            version.Text = L.T("about.version", Program.Version);
-            version.AutoSize = true;
+            Label version = CreateTextLabel(L.T("about.version", Program.Version));
             version.Margin = new Padding(0, 0, 0, 14);
 
-            LinkLabel description = new LinkLabel();
-            description.Text = L.T("about.description");
-            description.AutoSize = true;
-            description.MaximumSize = new Size(440, 0);
-            description.Margin = new Padding(0, 0, 0, 14);
-            // SystemColors.HotTrack stays readable in high-contrast themes;
-            // Color.Blue would override the user's system colours.
-            description.LinkColor = SystemColors.HotTrack;
-            AddProductLinks(description, description.Text);
-            description.LinkClicked += delegate (object sender, LinkLabelLinkClickedEventArgs e)
-            {
-                string url = e.Link == null ? null : e.Link.LinkData as string;
-                if (!string.IsNullOrEmpty(url)) OpenUrl(url);
-            };
+            FlowLayoutPanel description = CreateLine(14);
+            AddDescriptionLinks(description, L.T("about.description"));
 
-            Label author = new Label();
-            author.Text = L.T("about.author", L.T("about.authorName"));
-            author.AutoSize = true;
+            Label author = CreateTextLabel(L.T("about.author", L.T("about.authorName")));
             author.Margin = new Padding(0, 0, 0, 4);
 
-            LinkLabel link = CreateLink(L.T("about.link", Program.ProjectUrl),
-                Program.ProjectUrl, 4);
+            FlowLayoutPanel project = CreateLine(4);
+            AddProjectLink(project, L.T("about.link", Program.ProjectUrl));
 
-            Label license = new Label();
-            license.Text = L.T("about.license");
-            license.AutoSize = true;
+            Label license = CreateTextLabel(L.T("about.license"));
             license.Margin = new Padding(0, 0, 0, 4);
 
-            Label copyright = new Label();
-            copyright.Text = L.T("about.copyright");
-            copyright.AutoSize = true;
+            Label copyright = CreateTextLabel(L.T("about.copyright"));
             copyright.Margin = new Padding(0, 0, 0, 0);
 
             content.Controls.Add(title);
             content.Controls.Add(version);
             content.Controls.Add(description);
             content.Controls.Add(author);
-            content.Controls.Add(link);
+            content.Controls.Add(project);
             content.Controls.Add(license);
             content.Controls.Add(copyright);
 
@@ -162,6 +156,7 @@ namespace PiWebTray
                     ClientSize = new Size(ClientSize.Width, height);
                     PerformLayout();
                 }
+                FormLayout.FitToWorkingArea(this);
             }
             catch (Exception)
             {
@@ -176,13 +171,86 @@ namespace PiWebTray
                 _formIcon = null;
             }
             base.Dispose(disposing);
+            if (disposing)
+            {
+                foreach (Font font in _linkFonts)
+                {
+                    try { font.Dispose(); } catch (Exception) { }
+                }
+                _linkFonts.Clear();
+            }
         }
 
-        private static void AddProductLinks(LinkLabel label, string text)
+        // Labels use the same GDI renderer as Settings and the other dialogs.
+        // LinkLabel always switches to GDI+, so the About links are ordinary
+        // clickable labels with an underlined font instead.
+        private static Label CreateTextLabel(string text)
         {
+            Label label = new Label();
+            label.Text = text;
+            label.AutoSize = true;
+            label.Margin = Padding.Empty;
+            label.UseCompatibleTextRendering = false;
+            return label;
+        }
+
+        private static FlowLayoutPanel CreateLine(int bottomMargin)
+        {
+            FlowLayoutPanel line = new FlowLayoutPanel();
+            line.AutoSize = true;
+            line.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            line.FlowDirection = FlowDirection.LeftToRight;
+            line.WrapContents = true;
+            line.MaximumSize = new Size(440, 0);
+            line.Margin = new Padding(0, 0, 0, bottomMargin);
+            return line;
+        }
+
+        private void AddText(FlowLayoutPanel line, string text, string url)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            Label label = CreateTextLabel(text);
+            if (!string.IsNullOrEmpty(url))
+            {
+                Font linkFont = new Font(Font, FontStyle.Underline);
+                _linkFonts.Add(linkFont);
+                label.Font = linkFont;
+                label.ForeColor = SystemColors.HotTrack;
+                label.Cursor = Cursors.Hand;
+                label.Tag = url;
+                label.TabStop = true;
+                label.Click += delegate { OpenUrl(url); };
+                label.KeyDown += delegate (object sender, KeyEventArgs e)
+                {
+                    if (e.KeyCode != Keys.Enter && e.KeyCode != Keys.Space) return;
+                    e.Handled = true;
+                    OpenUrl(url);
+                };
+            }
+            line.Controls.Add(label);
+        }
+
+        private void AddDescriptionLinks(FlowLayoutPanel line, string text)
+        {
+            List<LinkSpan> spans = FindProductSpans(text);
+            int position = 0;
+            foreach (LinkSpan span in spans)
+            {
+                if (span.Start > position)
+                    AddText(line, text.Substring(position, span.Start - position), null);
+                AddText(line, text.Substring(span.Start, span.Length), span.Url);
+                position = span.Start + span.Length;
+            }
+            if (position < text.Length)
+                AddText(line, text.Substring(position), null);
+        }
+
+        private static List<LinkSpan> FindProductSpans(string text)
+        {
+            List<LinkSpan> spans = new List<LinkSpan>();
             int webStart = text.IndexOf("Pi Web", StringComparison.Ordinal);
             if (webStart >= 0)
-                label.Links.Add(webStart, "Pi Web".Length, PiWebUrl);
+                spans.Add(new LinkSpan(webStart, "Pi Web".Length, PiWebUrl));
 
             int start = 0;
             while ((start = text.IndexOf("Pi", start, StringComparison.Ordinal)) >= 0)
@@ -190,24 +258,25 @@ namespace PiWebTray
                 bool insideWeb = webStart >= 0
                     && start < webStart + "Pi Web".Length
                     && start + "Pi".Length > webStart;
-                if (!insideWeb) label.Links.Add(start, "Pi".Length, PiUrl);
+                if (!insideWeb) spans.Add(new LinkSpan(start, "Pi".Length, PiUrl));
                 start += "Pi".Length;
             }
+            spans.Sort(delegate (LinkSpan a, LinkSpan b) { return a.Start.CompareTo(b.Start); });
+            return spans;
         }
 
-        private static LinkLabel CreateLink(string text, string url, int bottomMargin)
+        private void AddProjectLink(FlowLayoutPanel line, string text)
         {
-            LinkLabel link = new LinkLabel();
-            link.Text = text;
-            link.AutoSize = true;
-            link.Margin = new Padding(0, 0, 0, bottomMargin);
-            // Only the URL is the link; the product/project prefix stays normal text.
-            int start = text.IndexOf(url, StringComparison.Ordinal);
-            link.LinkArea = start >= 0
-                ? new LinkArea(start, url.Length)
-                : new LinkArea(0, text.Length);
-            link.LinkClicked += delegate { OpenUrl(url); };
-            return link;
+            int start = text.IndexOf(Program.ProjectUrl, StringComparison.Ordinal);
+            if (start < 0)
+            {
+                AddText(line, text, Program.ProjectUrl);
+                return;
+            }
+            if (start > 0) AddText(line, text.Substring(0, start), null);
+            AddText(line, text.Substring(start, Program.ProjectUrl.Length), Program.ProjectUrl);
+            int end = start + Program.ProjectUrl.Length;
+            if (end < text.Length) AddText(line, text.Substring(end), null);
         }
 
         private static void OpenUrl(string url)

@@ -135,7 +135,8 @@ namespace PiWebTray
 
             if (_updateForm != null && updateBusy)
             {
-                int formPercent = _updateStage == UpdateStage.Downloading ? _updatePercent : -1;
+                int formPercent = _updateStage == UpdateStage.Checking ? 0
+                    : _updateStage == UpdateStage.Downloading ? _updatePercent : 100;
                 bool canCancel = _updateStage == UpdateStage.Checking || _updateStage == UpdateStage.Downloading;
                 _updateForm.SetState(label, formPercent, canCancel);
             }

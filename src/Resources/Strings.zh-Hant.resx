@@ -61,7 +61,7 @@
     <value>○ </value>
   </data>
   <data name="menu.open" xml:space="preserve">
-    <value>在瀏覽器中開啟 Pi Web</value>
+    <value>開啟瀏覽器</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
     <value>啟動服務並開啟瀏覽器</value>
