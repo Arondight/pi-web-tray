@@ -79,7 +79,7 @@
     <value>重新啟動服務</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>更新 Pi Web 和 Pi</value>
+    <value>更新服務</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>安裝 Pi Web 相依套件</value>
@@ -697,13 +697,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>{0}（接聽中={1}）</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>更新 Pi Web Tray</value>
+    <value>檢查更新</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>正在更新 Pi Web Tray...</value>
+    <value>正在更新...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
-    <value>關於 Pi Web Tray</value>
+    <value>關於</value>
   </data>
   <data name="update.checkingTitle" xml:space="preserve">
     <value>正在檢查更新</value>
@@ -862,7 +862,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>未知錯誤。</value>
   </data>
   <data name="about.title" xml:space="preserve">
-    <value>關於 Pi Web Tray</value>
+    <value>關於</value>
   </data>
   <data name="about.version" xml:space="preserve">
     <value>版本 {0}</value>

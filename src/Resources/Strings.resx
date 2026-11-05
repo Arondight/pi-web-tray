@@ -79,7 +79,7 @@
     <value>Restart service</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>Update Pi Web and Pi</value>
+    <value>Update service</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>Install Pi Web dependencies</value>
@@ -697,13 +697,13 @@ Use --help to see the supported options.</value>
     <value>{0} (listening={1})</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
-    <value>Update Pi Web Tray</value>
+    <value>Check for updates</value>
   </data>
   <data name="menu.checkUpdatesBusy" xml:space="preserve">
-    <value>Updating Pi Web Tray...</value>
+    <value>Updating...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
-    <value>About Pi Web Tray</value>
+    <value>About</value>
   </data>
   <data name="update.checkingTitle" xml:space="preserve">
     <value>Checking for updates</value>
@@ -862,7 +862,7 @@ See {1} for details.</value>
     <value>Unknown error.</value>
   </data>
   <data name="about.title" xml:space="preserve">
-    <value>About Pi Web Tray</value>
+    <value>About</value>
   </data>
   <data name="about.version" xml:space="preserve">
     <value>Version {0}</value>

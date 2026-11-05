@@ -75,8 +75,7 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Update Pi Web and Pi
-Update Pi Web Tray
+Update service
 Download Node.js
 ---------------------------------------
 Environment check
@@ -95,11 +94,12 @@ Start at login: Enabled (standard user)
 Start at login as administrator: no
 ---------------------------------------
 Restart as administrator
-About Pi Web Tray
+Check for updates
+About
 Exit and stop service
 ```
 
-- **Update Pi Web and Pi** stops Pi Web first, updates both packages and restarts the service only if it was running. The progress window supports cancellation.
+- **Update service** stops Pi Web first, updates both packages and restarts the service only if it was running. The progress window supports cancellation.
 - A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 

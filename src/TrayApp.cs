@@ -321,7 +321,6 @@ namespace PiWebTray
             _menu.Items.Add(_restartItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_installItem);
-            _menu.Items.Add(_updateItem);
             _menu.Items.Add(_nodeItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_checkItem);
@@ -337,6 +336,7 @@ namespace PiWebTray
             _menu.Items.Add(_adminAutostartItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_restartAdminItem);
+            _menu.Items.Add(_updateItem);
             _menu.Items.Add(_aboutItem);
             _menu.Items.Add(exitItem);
 
