@@ -11,6 +11,9 @@ namespace PiWebTray
 {
     internal sealed class AboutForm : Form
     {
+        private const string PiWebUrl = "https://github.com/agegr/pi-web";
+        private const string PiUrl = "https://github.com/earendil-works/pi";
+
         private Icon _formIcon;
         private readonly TableLayoutPanel _root;
         private readonly FlowLayoutPanel _content;
@@ -69,28 +72,26 @@ namespace PiWebTray
             version.AutoSize = true;
             version.Margin = new Padding(0, 0, 0, 14);
 
-            Label description = new Label();
+            LinkLabel description = new LinkLabel();
             description.Text = L.T("about.description");
             description.AutoSize = true;
             description.MaximumSize = new Size(440, 0);
             description.Margin = new Padding(0, 0, 0, 14);
+            description.LinkColor = Color.Blue;
+            AddProductLinks(description, description.Text);
+            description.LinkClicked += delegate (object sender, LinkLabelLinkClickedEventArgs e)
+            {
+                string url = e.Link == null ? null : e.Link.LinkData as string;
+                if (!string.IsNullOrEmpty(url)) OpenUrl(url);
+            };
 
             Label author = new Label();
             author.Text = L.T("about.author", L.T("about.authorName"));
             author.AutoSize = true;
             author.Margin = new Padding(0, 0, 0, 4);
 
-            LinkLabel link = new LinkLabel();
-            string linkText = L.T("about.link", Program.ProjectUrl);
-            link.Text = linkText;
-            link.AutoSize = true;
-            link.Margin = new Padding(0, 0, 0, 4);
-            // Only the URL is the link; the "Project:" prefix keeps the normal text colour.
-            int urlStart = linkText.IndexOf(Program.ProjectUrl, StringComparison.Ordinal);
-            link.LinkArea = urlStart >= 0
-                ? new LinkArea(urlStart, Program.ProjectUrl.Length)
-                : new LinkArea(0, linkText.Length);
-            link.LinkClicked += delegate { OpenProjectPage(); };
+            LinkLabel link = CreateLink(L.T("about.link", Program.ProjectUrl),
+                Program.ProjectUrl, 4);
 
             Label license = new Label();
             license.Text = L.T("about.license");
@@ -173,11 +174,43 @@ namespace PiWebTray
             base.Dispose(disposing);
         }
 
-        private static void OpenProjectPage()
+        private static void AddProductLinks(LinkLabel label, string text)
+        {
+            int webStart = text.IndexOf("Pi Web", StringComparison.Ordinal);
+            if (webStart >= 0)
+                label.Links.Add(webStart, "Pi Web".Length, PiWebUrl);
+
+            int start = 0;
+            while ((start = text.IndexOf("Pi", start, StringComparison.Ordinal)) >= 0)
+            {
+                bool insideWeb = webStart >= 0
+                    && start < webStart + "Pi Web".Length
+                    && start + "Pi".Length > webStart;
+                if (!insideWeb) label.Links.Add(start, "Pi".Length, PiUrl);
+                start += "Pi".Length;
+            }
+        }
+
+        private static LinkLabel CreateLink(string text, string url, int bottomMargin)
+        {
+            LinkLabel link = new LinkLabel();
+            link.Text = text;
+            link.AutoSize = true;
+            link.Margin = new Padding(0, 0, 0, bottomMargin);
+            // Only the URL is the link; the product/project prefix stays normal text.
+            int start = text.IndexOf(url, StringComparison.Ordinal);
+            link.LinkArea = start >= 0
+                ? new LinkArea(start, url.Length)
+                : new LinkArea(0, text.Length);
+            link.LinkClicked += delegate { OpenUrl(url); };
+            return link;
+        }
+
+        private static void OpenUrl(string url)
         {
             try
             {
-                using (Process browser = Process.Start(Program.ProjectUrl))
+                using (Process browser = Process.Start(url))
                 {
                 }
             }
