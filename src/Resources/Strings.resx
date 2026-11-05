@@ -205,7 +205,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Pi Web</value>
   </data>
   <data name="probe.picli" xml:space="preserve">
-    <value>Pi command line</value>
+    <value>Pi</value>
   </data>
   <data name="probe.requirement" xml:space="preserve">
     <value>Requires {0} or newer: {1}</value>
@@ -458,14 +458,14 @@ Exit anyway?</value>
   <data name="check.notReady" xml:space="preserve">
     <value>Prerequisites are incomplete</value>
   </data>
-  <data name="check.copy" xml:space="preserve">
-    <value>Copy</value>
+  <data name="check.copyRow" xml:space="preserve">
+    <value>Copy row</value>
+  </data>
+  <data name="check.copyAll" xml:space="preserve">
+    <value>Copy all</value>
   </data>
   <data name="check.close" xml:space="preserve">
     <value>Close</value>
-  </data>
-  <data name="check.copied" xml:space="preserve">
-    <value>Copied to clipboard.</value>
   </data>
   <data name="sc.config" xml:space="preserve">
     <value>Config file</value>

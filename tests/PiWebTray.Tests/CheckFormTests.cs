@@ -42,6 +42,17 @@ namespace PiWebTray
                 Assert.IsTrue(runtimeTable, "Runtime components table has an unexpected shape.");
                 Assert.IsTrue(softwareTable, "Application information table has an unexpected shape.");
 
+                foreach (DataGridView table in tables)
+                {
+                    Assert.IsNotNull(table.ContextMenuStrip, "Each report table needs a context menu.");
+                    Assert.AreEqual(2, table.ContextMenuStrip.Items.Count);
+                    Assert.AreEqual(L.T("check.copyRow"), table.ContextMenuStrip.Items[0].Text);
+                    Assert.AreEqual(L.T("check.copyAll"), table.ContextMenuStrip.Items[1].Text);
+                }
+
+                List<Button> buttons = FindControls<Button>(form);
+                Assert.AreEqual(2, buttons.Count, "The old copy button must be gone.");
+
                 bool scrolls = false;
                 foreach (TableLayoutPanel panel in FindControls<TableLayoutPanel>(form))
                 {

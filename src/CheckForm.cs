@@ -92,12 +92,6 @@ namespace PiWebTray
             close.MinimumSize = new Size(88, 0);
             close.Click += delegate { Close(); };
 
-            Button copy = new Button();
-            copy.Text = L.T("check.copy");
-            copy.AutoSize = true;
-            copy.MinimumSize = new Size(88, 0);
-            copy.Click += delegate { CopyReport(); };
-
             _refresh = new Button();
             _refresh.Text = L.T("check.refresh");
             _refresh.AutoSize = true;
@@ -105,7 +99,6 @@ namespace PiWebTray
             _refresh.Click += delegate { RefreshReport(); };
 
             buttons.Controls.Add(close);
-            buttons.Controls.Add(copy);
             buttons.Controls.Add(_refresh);
 
             root.Controls.Add(_summary, 0, 0);
@@ -145,7 +138,7 @@ namespace PiWebTray
             return group;
         }
 
-        private static DataGridView CreateGrid()
+        private DataGridView CreateGrid()
         {
             DataGridView grid = new DataGridView();
             grid.Dock = DockStyle.Fill;
@@ -164,6 +157,23 @@ namespace PiWebTray
             grid.GridColor = SystemColors.ControlLight;
             grid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
             grid.RowTemplate.Height = Math.Max(24, grid.Font.Height + 8);
+
+            ContextMenuStrip menu = new ContextMenuStrip();
+            ToolStripMenuItem copyRow = new ToolStripMenuItem(L.T("check.copyRow"));
+            copyRow.Click += delegate { CopyRow(grid); };
+            ToolStripMenuItem copyAll = new ToolStripMenuItem(L.T("check.copyAll"));
+            copyAll.Click += delegate { CopyTable(grid); };
+            menu.Items.Add(copyRow);
+            menu.Items.Add(copyAll);
+            menu.Opening += delegate { copyRow.Enabled = grid.CurrentRow != null; };
+            grid.ContextMenuStrip = menu;
+            grid.CellMouseDown += delegate (object sender, DataGridViewCellMouseEventArgs e)
+            {
+                if (e.Button != MouseButtons.Right || e.RowIndex < 0) return;
+                grid.ClearSelection();
+                grid.CurrentCell = grid.Rows[e.RowIndex].Cells[0];
+                grid.Rows[e.RowIndex].Selected = true;
+            };
             return grid;
         }
 
@@ -475,44 +485,50 @@ namespace PiWebTray
             return summary;
         }
 
-        private void CopyReport()
+        private static void CopyRow(DataGridView grid)
         {
             try
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine(BuildSummary());
-                sb.AppendLine();
-                AppendTable(sb, L.T("check.runtime"), _runtimeGrid);
-                sb.AppendLine();
-                AppendTable(sb, L.T("check.software"), _softwareGrid);
-
-                Clipboard.SetText(sb.ToString());
-                MessageBox.Show(this, L.T("check.copied"), Text,
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                DataGridViewRow row = grid.CurrentRow;
+                if (row == null) return;
+                StringBuilder text = new StringBuilder();
+                for (int i = 0; i < row.Cells.Count; i++)
+                {
+                    if (i > 0) text.Append('	');
+                    text.Append(row.Cells[i].Value == null ? "" : row.Cells[i].Value.ToString());
+                }
+                Clipboard.SetText(text.ToString());
             }
             catch (Exception)
             {
             }
         }
 
-        private static void AppendTable(StringBuilder sb, string title, DataGridView grid)
+        private static void CopyTable(DataGridView grid)
         {
-            sb.AppendLine(title);
-            for (int i = 0; i < grid.Columns.Count; i++)
+            try
             {
-                if (i > 0) sb.Append("\t");
-                sb.Append(grid.Columns[i].HeaderText);
-            }
-            sb.AppendLine();
-
-            foreach (DataGridViewRow row in grid.Rows)
-            {
-                for (int i = 0; i < row.Cells.Count; i++)
+                StringBuilder text = new StringBuilder();
+                for (int i = 0; i < grid.Columns.Count; i++)
                 {
-                    if (i > 0) sb.Append("\t");
-                    sb.Append(row.Cells[i].Value == null ? "" : row.Cells[i].Value.ToString());
+                    if (i > 0) text.Append('	');
+                    text.Append(grid.Columns[i].HeaderText);
                 }
-                sb.AppendLine();
+                text.AppendLine();
+
+                foreach (DataGridViewRow row in grid.Rows)
+                {
+                    for (int i = 0; i < row.Cells.Count; i++)
+                    {
+                        if (i > 0) text.Append('	');
+                        text.Append(row.Cells[i].Value == null ? "" : row.Cells[i].Value.ToString());
+                    }
+                    text.AppendLine();
+                }
+                Clipboard.SetText(text.ToString());
+            }
+            catch (Exception)
+            {
             }
         }
     }

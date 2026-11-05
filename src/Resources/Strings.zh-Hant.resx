@@ -205,7 +205,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>Pi Web</value>
   </data>
   <data name="probe.picli" xml:space="preserve">
-    <value>Pi 命令列</value>
+    <value>Pi</value>
   </data>
   <data name="probe.requirement" xml:space="preserve">
     <value>要求 {0} 或更高：{1}</value>
@@ -458,14 +458,14 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="check.notReady" xml:space="preserve">
     <value>執行環境不完整</value>
   </data>
-  <data name="check.copy" xml:space="preserve">
-    <value>複製</value>
+  <data name="check.copyRow" xml:space="preserve">
+    <value>複製本列</value>
+  </data>
+  <data name="check.copyAll" xml:space="preserve">
+    <value>複製全部</value>
   </data>
   <data name="check.close" xml:space="preserve">
     <value>關閉</value>
-  </data>
-  <data name="check.copied" xml:space="preserve">
-    <value>已複製到剪貼簿。</value>
   </data>
   <data name="sc.config" xml:space="preserve">
     <value>設定檔</value>
