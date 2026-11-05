@@ -17,6 +17,7 @@ namespace PiWebTray
     {
         private readonly Config _config;
         private readonly bool _elevated;
+        private readonly TableLayoutPanel _root;
         private readonly DataGridView _runtimeGrid;
         private readonly DataGridView _softwareGrid;
         private readonly Label _summary;
@@ -49,13 +50,15 @@ namespace PiWebTray
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
-            root.RowCount = 4;
+            root.RowCount = 5;
             root.Padding = new Padding(12);
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 40f));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 60f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _root = root;
 
             _summary = new Label();
             _summary.AutoSize = true;
@@ -67,7 +70,12 @@ namespace PiWebTray
             _softwareGrid = BuildSoftwareGrid();
 
             GroupBox runtimeGroup = BuildGroup(L.T("check.runtime"), _runtimeGrid);
+            _runtimeGrid.Dock = DockStyle.Top;
+            runtimeGroup.AutoSize = true;
+            runtimeGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             GroupBox softwareGroup = BuildGroup(L.T("check.software"), _softwareGrid);
+            softwareGroup.AutoSize = true;
+            softwareGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Fill;
@@ -100,7 +108,7 @@ namespace PiWebTray
             root.Controls.Add(_summary, 0, 0);
             root.Controls.Add(runtimeGroup, 0, 1);
             root.Controls.Add(softwareGroup, 0, 2);
-            root.Controls.Add(buttons, 0, 3);
+            root.Controls.Add(buttons, 0, 4);
             Controls.Add(root);
 
             ResumeLayout(false);
@@ -186,6 +194,11 @@ namespace PiWebTray
             grid.Columns.Add(status);
 
             PopulateRuntimeGrid(grid);
+            // The runtime table has a fixed small number of rows. Let its group
+            // shrink to the table instead of taking 40% of the dialog and leaving
+            // a large empty grid area; the software table takes the remaining space.
+            grid.Dock = DockStyle.Top;
+            grid.Height = Math.Max(60, grid.Rows.Count * grid.RowTemplate.Height + 32);
             return grid;
         }
 
@@ -216,7 +229,53 @@ namespace PiWebTray
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
+            FitGridHeight(_runtimeGrid);
+            FitGridHeight(_softwareGrid);
+            FitInitialHeight();
             RefreshPortOwner();
+        }
+
+        private static void FitGridHeight(DataGridView grid)
+        {
+            try
+            {
+                int rowHeight = grid.Rows.GetRowsHeight(DataGridViewElementStates.Visible);
+                if (rowHeight <= 0) rowHeight = grid.Rows.Count * grid.RowTemplate.Height;
+                int headerHeight = grid.ColumnHeadersHeight;
+                if (headerHeight <= 0) headerHeight = grid.RowTemplate.Height;
+                grid.Dock = DockStyle.Top;
+                grid.Height = Math.Max(60, headerHeight + rowHeight + 4);
+                GroupBox group = grid.Parent as GroupBox;
+                if (group != null)
+                {
+                    group.AutoSize = true;
+                    group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                    group.PerformLayout();
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private void FitInitialHeight()
+        {
+            try
+            {
+                int chrome = Height - ClientSize.Height;
+                int desired = _root.PreferredSize.Height + _root.Padding.Vertical;
+                int maxClient = Math.Max(300, Screen.FromControl(this).WorkingArea.Height - chrome - 20);
+                int minClient = Math.Max(300, MinimumSize.Height - chrome);
+                int height = Math.Max(minClient, Math.Min(desired, maxClient));
+                if (height != ClientSize.Height)
+                {
+                    ClientSize = new Size(ClientSize.Width, height);
+                    PerformLayout();
+                }
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void RefreshPortOwner()
