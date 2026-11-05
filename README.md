@@ -99,7 +99,7 @@ About Pi Web Tray
 Exit and stop service
 ```
 
-- **Update Pi Web and Pi** stops Pi Web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
+- **Update Pi Web and Pi** stops Pi Web first, updates both packages and restarts the service only if it was running. The progress window supports cancellation.
 - A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 
@@ -116,7 +116,6 @@ Exit and stop service
 | `AutoInstall`      | `1`             | Install Pi Web automatically when missing.                                                                               |
 | `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                 |
 | `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                   |
-| `InstallPiCli`     | `1`             | Install the Pi CLI together with Pi Web.                                                                                 |
 | `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                                                   |
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                  |
 | `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads only; Node, npm and Pi Web child processes are not configured. |

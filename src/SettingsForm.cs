@@ -35,7 +35,6 @@ namespace PiWebTray
         private readonly TextBox _workingDir;
         private readonly ComboBox _language;
         private readonly CheckBox _autoInstall;
-        private readonly CheckBox _installPiCli;
         private readonly CheckBox _autoRestart;
         private readonly CheckBox _autoCheckUpdates;
         private readonly TextBox _installTag;
@@ -90,7 +89,7 @@ namespace PiWebTray
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 12;
+            root.RowCount = 11;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -127,31 +126,25 @@ namespace PiWebTray
             _autoInstall.AutoSize = true;
             AddRow(root, 3, "", _autoInstall);
 
-            _installPiCli = new CheckBox();
-            _installPiCli.Text = L.T("settings.installPiCli");
-            _installPiCli.Checked = config.InstallPiCli;
-            _installPiCli.AutoSize = true;
-            AddRow(root, 4, "", _installPiCli);
-
             _autoRestart = new CheckBox();
             _autoRestart.Text = L.T("settings.autoRestart");
             _autoRestart.Checked = config.AutoRestart;
             _autoRestart.AutoSize = true;
-            AddRow(root, 5, "", _autoRestart);
+            AddRow(root, 4, "", _autoRestart);
 
             _autoCheckUpdates = new CheckBox();
             _autoCheckUpdates.Text = L.T("settings.autoCheckUpdates");
             _autoCheckUpdates.Checked = config.AutoCheckUpdates;
             _autoCheckUpdates.AutoSize = true;
-            AddRow(root, 6, "", _autoCheckUpdates);
+            AddRow(root, 5, "", _autoCheckUpdates);
 
             _installTag = new TextBox();
             _installTag.Text = config.InstallTag ?? "latest";
-            AddRow(root, 7, L.T("settings.installTag"), _installTag);
+            AddRow(root, 6, L.T("settings.installTag"), _installTag);
 
             _npmRegistry = new TextBox();
             _npmRegistry.Text = config.NpmRegistry ?? "";
-            AddRow(root, 8, L.T("settings.npmRegistry"), _npmRegistry);
+            AddRow(root, 7, L.T("settings.npmRegistry"), _npmRegistry);
 
             _proxy = new TextBox();
             _proxy.Text = config.Proxy ?? "";
@@ -175,11 +168,11 @@ namespace PiWebTray
             _testProxy.Margin = new Padding(0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
-            AddRow(root, 9, L.T("settings.proxy"), proxyLine);
+            AddRow(root, 8, L.T("settings.proxy"), proxyLine);
 
             _nodePath = new TextBox();
             _nodePath.Text = config.NodePath ?? "";
-            AddBrowseRow(root, 10, L.T("settings.nodePath"), _nodePath,
+            AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.selectNode"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
             Label note = new Label();
@@ -187,7 +180,7 @@ namespace PiWebTray
             note.AutoSize = true;
             note.MaximumSize = new Size(520, 0);
             note.Margin = new Padding(0, 12, 0, 12);
-            root.Controls.Add(note, 0, 11);
+            root.Controls.Add(note, 0, 10);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -552,7 +545,6 @@ namespace PiWebTray
             values.Add(new KeyValuePair<string, string>("WorkingDir", workingDir));
             values.Add(new KeyValuePair<string, string>("Language", languageValue));
             values.Add(new KeyValuePair<string, string>("AutoInstall", _autoInstall.Checked ? "1" : "0"));
-            values.Add(new KeyValuePair<string, string>("InstallPiCli", _installPiCli.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoRestart", _autoRestart.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoCheckUpdates", _autoCheckUpdates.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallTag", tag));
@@ -570,7 +562,6 @@ namespace PiWebTray
             _config.WorkingDir = workingDir;
             _config.Language = languageValue;
             _config.AutoInstall = _autoInstall.Checked;
-            _config.InstallPiCli = _installPiCli.Checked;
             _config.AutoRestart = _autoRestart.Checked;
             _config.AutoCheckUpdates = _autoCheckUpdates.Checked;
             _config.InstallTag = tag;

@@ -22,7 +22,6 @@ namespace PiWebTray
         internal bool AutoRestart;
         internal bool AutoCheckUpdates;
         internal string Language = L.Auto;
-        internal bool InstallPiCli = true;
         internal string InstallTag = "latest";
         internal string NpmRegistry = "";
         internal string Proxy = "";
@@ -131,9 +130,6 @@ namespace PiWebTray
                             break;
                         case "autocheckupdates":
                             config.AutoCheckUpdates = IsTruthy(value, false);
-                            break;
-                        case "installpicli":
-                            config.InstallPiCli = IsTruthy(value, true);
                             break;
                         case "installtag":
                             if (value.Length > 0) config.InstallTag = value;
@@ -272,9 +268,6 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.autoCheckC"));
                 sb.AppendLine("AutoCheckUpdates=0");
-                sb.AppendLine();
-                sb.AppendLine(L.T("ini.piCliC"));
-                sb.AppendLine("InstallPiCli=1");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.tagC"));
                 sb.AppendLine("InstallTag=latest");

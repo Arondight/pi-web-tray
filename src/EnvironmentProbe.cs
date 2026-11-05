@@ -61,9 +61,14 @@ namespace PiWebTray
             get { return !PiWebFound; }
         }
 
+        internal bool NeedsPiCli
+        {
+            get { return !PiCliFound; }
+        }
+
         internal bool Ready
         {
-            get { return !NeedsNode && !NeedsPiWeb; }
+            get { return !NeedsNode && !NeedsPiWeb && !NeedsPiCli; }
         }
 
         internal string NodeIssue()
@@ -85,7 +90,10 @@ namespace PiWebTray
             sb.AppendLine(Row(L.T("probe.npmGlobal"), NpmPrefix.Length > 0 ? NpmPrefix : L.T("probe.unknown")));
             sb.AppendLine(Row(L.T("probe.piweb"), PiWebFound ? PiWebVersion + "  " + PiWebScript : L.T("probe.notInstalled")));
             sb.AppendLine(Row(L.T("probe.picli"), PiCliFound ? PiCliVersion + "  " + PiCliPath : L.T("probe.notInstalled")));
-            string verdict = Ready ? L.T("probe.ready") : NeedsNode ? NodeIssue() : L.T("probe.needPiweb");
+            string verdict = Ready ? L.T("probe.ready")
+                : NeedsNode ? NodeIssue()
+                : NeedsPiWeb ? L.T("probe.needPiweb")
+                : L.T("probe.needPiCli");
             sb.AppendLine(Row(L.T("probe.verdict"), verdict));
             // Only list the test-hook note when the verdict does not already include it
             if (!string.IsNullOrEmpty(ForcedReason) && ForcedReason != verdict)

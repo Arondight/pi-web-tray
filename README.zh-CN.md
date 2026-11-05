@@ -99,7 +99,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 退出并停止服务
 ```
 
-- **更新 Pi Web 和 Pi** 会先停止 Pi Web，配置 `InstallPiCli=1` 时同时更新两个包；只有更新前服务在运行才自动重启。进度窗口支持取消。
+- **更新 Pi Web 和 Pi** 会先停止 Pi Web，更新两个包，并且只在更新前服务运行时自动重启。进度窗口支持取消。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为本托盘的服务；其他会话或安装会报告 **端口冲突**，托盘不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
 - Pi Web 意外退出会通知；`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
 
@@ -116,7 +116,6 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `AutoInstall`      | `1`             | 缺少 Pi Web 时自动安装。                                                              |
 | `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                                           |
 | `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                                                  |
-| `InstallPiCli`     | `1`             | 同时安装 Pi 命令行。                                                                  |
 | `InstallTag`       | `latest`        | npm 分发标签或具体版本号。                                                            |
 | `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                  |
 | `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；不会配置 Node、npm 或 Pi Web 子进程。 |

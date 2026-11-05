@@ -352,10 +352,8 @@ namespace PiWebTray
         {
             if (_probe != null && _probe.Ready)
             {
-                string title = _config.InstallPiCli
-                    ? L.T("install.confirmTitle") : L.T("install.confirmTitlePiOnly");
-                string body = _config.InstallPiCli
-                    ? L.T("install.confirmBody") : L.T("install.confirmBodyPiOnly");
+                string title = L.T("install.confirmTitle");
+                string body = L.T("install.confirmBody");
                 DialogResult answer = MessageBox.Show(
                     body,
                     title,

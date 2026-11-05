@@ -124,7 +124,7 @@ namespace PiWebTray
             _restartItem.Enabled = !busy && running;
             _installItem.Enabled = !busy;
             _installItem.Text = ready
-                ? (_config.InstallPiCli ? L.T("menu.installDeps") : L.T("menu.installDepsPiOnly"))
+                ? L.T("menu.installDeps")
                 : L.T("menu.installAuto");
             _updateItem.Enabled = !busy;
             _updateItem.Text = updateBusy

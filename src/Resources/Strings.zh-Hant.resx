@@ -395,6 +395,15 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="notify.needsNodeBody" xml:space="preserve">
     <value>{0}。安裝完成後選擇系統匣圖示以繼續。</value>
   </data>
+  <data name="probe.needPiCli" xml:space="preserve">
+    <value>Pi 尚未安裝</value>
+  </data>
+  <data name="notify.needsPiCliTitle" xml:space="preserve">
+    <value>Pi 尚未安裝</value>
+  </data>
+  <data name="notify.needsPiCliBody" xml:space="preserve">
+    <value>請使用托盤選單更新依賴。</value>
+  </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安裝</value>
   </data>
@@ -442,9 +451,6 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="check.tooOld" xml:space="preserve">
     <value>版本過低</value>
-  </data>
-  <data name="check.optional" xml:space="preserve">
-    <value>選用</value>
   </data>
   <data name="check.ready" xml:space="preserve">
     <value>執行環境完整</value>
@@ -653,9 +659,6 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; 缺少 Pi Web 時自動安裝（首次約需 10~20 分鐘）</value>
-  </data>
-  <data name="ini.piCliC" xml:space="preserve">
-    <value>; 同時安裝 Pi 命令列（終端機中的 Pi，與 Pi Web 共用設定）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安裝的 npm 版本標籤，可改成具體版本號</value>
@@ -944,9 +947,6 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
     <value>自動安裝缺少的相依套件</value>
-  </data>
-  <data name="settings.installPiCli" xml:space="preserve">
-    <value>隨 Pi Web 安裝 Pi 命令列</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Pi Web 停止後自動重新啟動</value>

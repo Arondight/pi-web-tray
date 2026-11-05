@@ -206,7 +206,7 @@ namespace PiWebTray
             _firstCheck = false;
             _firstCheckRetries = 0;
 
-            if (result.NeedsPiWeb)
+            if (result.NeedsPiWeb || result.NeedsPiCli)
             {
                 if (_config.AutoInstall)
                 {
@@ -215,9 +215,18 @@ namespace PiWebTray
                 }
                 _phase = Phase.NeedsDeps;
                 UpdateUi();
-                NotifyWarningOnce("needs-piweb",
-                    L.T("notify.needsPiwebTitle"),
-                    L.T("notify.needsPiwebBody"));
+                if (result.NeedsPiWeb)
+                {
+                    NotifyWarningOnce("needs-piweb",
+                        L.T("notify.needsPiwebTitle"),
+                        L.T("notify.needsPiwebBody"));
+                }
+                else
+                {
+                    NotifyWarningOnce("needs-picli",
+                        L.T("notify.needsPiCliTitle"),
+                        L.T("notify.needsPiCliBody"));
+                }
                 return;
             }
 

@@ -798,7 +798,6 @@ namespace PiWebTray
                 Installer.MergeAllowScripts("evil --registry x,\"bad\",@agegr/pi-web,node-pty", Installer.PiWebScriptPackages));
 
             ProbeResult missing = new ProbeResult();
-            config.InstallPiCli = true;
             List<InstallStep> steps = Installer.StepsToInstall(missing, config, false);
             CheckEqual("missing deps need two npm runs", 2, steps.Count);
             Check("pi-web runs first", steps[0].Packages.Contains("@agegr/pi-web@latest"));
@@ -819,11 +818,9 @@ namespace PiWebTray
             ProbeResult installed = new ProbeResult();
             installed.PiWebFound = true;
             installed.PiCliFound = true;
-            config.InstallPiCli = true;
             CheckEqual("no packages when everything is installed", 0, Installer.PackagesToInstall(installed, config, false).Count);
             CheckEqual("force installs pi-web and pi", 2, Installer.PackagesToInstall(installed, config, true).Count);
-            config.InstallPiCli = false;
-            CheckEqual("force respects InstallPiCli=0", 1, Installer.PackagesToInstall(installed, config, true).Count);
+            CheckEqual("force always installs both packages", 2, Installer.PackagesToInstall(installed, config, true).Count);
         }
 
         private static void SafeTagTests()
@@ -1518,7 +1515,6 @@ namespace PiWebTray
                 Check("field default auto install", fresh.AutoInstall);
                 Check("field default auto restart is off", !fresh.AutoRestart);
                 Check("field default auto update check is off", !fresh.AutoCheckUpdates);
-                Check("field default pi CLI install", fresh.InstallPiCli);
                 CheckEqual("field default install tag", "latest", fresh.InstallTag);
                 CheckEqual("field default registry is empty", "", fresh.NpmRegistry);
                 CheckEqual("field default proxy is empty", "", fresh.Proxy);
@@ -1532,7 +1528,6 @@ namespace PiWebTray
                 Check("default auto install is on", config.AutoInstall);
                 Check("default auto restart is off", !config.AutoRestart);
                 Check("default auto update check is off", !config.AutoCheckUpdates);
-                Check("default pi CLI install is on", config.InstallPiCli);
                 CheckEqual("default install tag", "latest", config.InstallTag);
                 CheckEqual("default registry is empty", "", config.NpmRegistry);
                 CheckEqual("default proxy is empty", "", config.Proxy);
@@ -1548,7 +1543,6 @@ namespace PiWebTray
                 Check("ini documents auto install", content.Contains("AutoInstall=1"));
                 Check("ini documents auto restart", content.Contains("AutoRestart=0"));
                 Check("ini documents update checks", content.Contains("AutoCheckUpdates=0"));
-                Check("ini documents the pi CLI", content.Contains("InstallPiCli=1"));
                 Check("ini documents the install tag", content.Contains("InstallTag=latest"));
                 Check("ini documents npm registry", content.Contains("NpmRegistry="));
                 Check("ini documents proxy", content.Contains("Proxy="));
@@ -1556,7 +1550,7 @@ namespace PiWebTray
                 Check("ini documents the server script", content.Contains("ServerScript="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 13 documented keys", 13, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
             }
             finally
             {

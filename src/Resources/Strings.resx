@@ -395,6 +395,15 @@ Exit anyway?</value>
   <data name="notify.needsNodeBody" xml:space="preserve">
     <value>{0}. Select the tray icon after installing Node.js.</value>
   </data>
+  <data name="probe.needPiCli" xml:space="preserve">
+    <value>Pi is not installed</value>
+  </data>
+  <data name="notify.needsPiCliTitle" xml:space="preserve">
+    <value>Pi is not installed</value>
+  </data>
+  <data name="notify.needsPiCliBody" xml:space="preserve">
+    <value>Use the tray menu to update dependencies.</value>
+  </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web is not installed</value>
   </data>
@@ -442,9 +451,6 @@ Exit anyway?</value>
   </data>
   <data name="check.tooOld" xml:space="preserve">
     <value>Version too old</value>
-  </data>
-  <data name="check.optional" xml:space="preserve">
-    <value>Optional</value>
   </data>
   <data name="check.ready" xml:space="preserve">
     <value>Prerequisites are complete</value>
@@ -653,9 +659,6 @@ Use --help to see the supported options.</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; Install Pi Web automatically when missing (first installation usually takes 10-20 minutes)</value>
-  </data>
-  <data name="ini.piCliC" xml:space="preserve">
-    <value>; Also install the Pi command line (shared configuration with Pi Web)</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; npm dist-tag or exact version</value>
@@ -944,9 +947,6 @@ See {1} for details.</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
     <value>Install missing dependencies automatically</value>
-  </data>
-  <data name="settings.installPiCli" xml:space="preserve">
-    <value>Install the Pi command line with Pi Web</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Restart Pi Web automatically if it stops</value>
