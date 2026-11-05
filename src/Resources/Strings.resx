@@ -991,10 +991,13 @@ See {1} for details.</value>
     <value>Select node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>Port changes require Pi Web to be stopped first. Language, working directory and tool paths take effect after Pi Web Tray is restarted. Dependency settings apply to the next install.</value>
+    <value>Port changes require the service to be stopped first. Language, working directory and tool paths take effect after Pi Web Tray is restarted.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>Save</value>
+  </data>
+  <data name="settings.saveRestart" xml:space="preserve">
+    <value>Save and restart</value>
   </data>
   <data name="settings.cancel" xml:space="preserve">
     <value>Cancel</value>
@@ -1076,6 +1079,9 @@ See {1} for details.</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
     <value>Restart Pi Web Tray with administrator rights? Pi Web will restart.</value>
+  </data>
+  <data name="notify.restartFailed" xml:space="preserve">
+    <value>Could not restart Pi Web Tray</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>Could not restart as administrator</value>

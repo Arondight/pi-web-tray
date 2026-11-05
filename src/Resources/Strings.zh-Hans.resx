@@ -991,10 +991,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>选择 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>端口修改需要先停止 Pi Web。语言、工作目录和工具路径在重启 Pi Web Tray 后生效。依赖设置在下一次安装时生效。</value>
+    <value>端口修改需要先停止服务。语言、工作目录和工具路径在重启 Pi Web Tray 后生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>保存</value>
+  </data>
+  <data name="settings.saveRestart" xml:space="preserve">
+    <value>保存并重启</value>
   </data>
   <data name="settings.cancel" xml:space="preserve">
     <value>取消</value>
@@ -1076,6 +1079,9 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
     <value>是否以管理员权限重启 Pi Web Tray？Pi Web 将重新启动。</value>
+  </data>
+  <data name="notify.restartFailed" xml:space="preserve">
+    <value>无法重启 Pi Web Tray</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>无法以管理员身份重启</value>

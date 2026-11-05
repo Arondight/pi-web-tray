@@ -270,6 +270,7 @@ namespace PiWebTray
         private void ShowSettings()
         {
             int previousPort = _port;
+            bool restartRequested = false;
             // A running/starting/stopping service owns the old port. Changing the
             // configured port without restarting the whole tray would make CLI
             // commands and the service state disagree, so require a stopped service.
@@ -280,6 +281,7 @@ namespace PiWebTray
             {
                 if (form.ShowDialog() == DialogResult.OK)
                 {
+                    restartRequested = form.RestartRequested;
                     bool portRejected = false;
                     if (_config.Port != previousPort)
                     {
@@ -322,10 +324,46 @@ namespace PiWebTray
                         _autoRestartAt = DateTime.MinValue;
                         _autoRestartAttempts = 0;
                     }
+                    if (restartRequested)
+                    {
+                        RestartTray();
+                        return;
+                    }
                     if (!portRejected)
                         Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
                 }
             }
+        }
+
+        // The save-and-restart button closes this tray after starting a new
+        // process. The new process waits for the single-instance mutex, so the
+        // old service is fully stopped before the replacement starts.
+        private void RestartTray()
+        {
+            string arguments = "--restart";
+            if (!_autoStartService && _phase != Phase.Running)
+                arguments += " --tray-only";
+            else if (!_autoStartService || !_initialOpenBrowser)
+                arguments += " --start-no-open";
+
+            try
+            {
+                using (Process child = Sys.StartHidden(Application.ExecutablePath,
+                    arguments, Application.StartupPath))
+                {
+                    if (child == null)
+                    {
+                        NotifyError(L.T("notify.restartFailed"), Application.ExecutablePath);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                NotifyError(L.T("notify.restartFailed"), ex.Message);
+                return;
+            }
+            ExitApp();
         }
 
         private void OpenFolder(string path)

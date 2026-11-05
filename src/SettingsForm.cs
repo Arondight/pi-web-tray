@@ -2,7 +2,7 @@
 //
 // Edits the supported keys of pi-web-tray.ini without requiring the user to find and
 // edit the file. Port, language, working directory and explicit tool paths take effect
-// after the tray is restarted; dependency settings apply to the next install.
+// after the tray is restarted.
 
 using System;
 using System.Collections.Generic;
@@ -48,6 +48,8 @@ namespace PiWebTray
             : this(config, true)
         {
         }
+
+        internal bool RestartRequested { get; private set; }
 
         internal SettingsForm(Config config, bool allowPortChange)
         {
@@ -199,7 +201,7 @@ namespace PiWebTray
             save.Text = L.T("settings.save");
             save.AutoSize = true;
             save.MinimumSize = new Size(88, 0);
-            save.Click += delegate { SaveSettings(); };
+            save.Click += delegate { SaveSettings(false); };
 
             Button cancel = new Button();
             cancel.Text = L.T("settings.cancel");
@@ -207,8 +209,15 @@ namespace PiWebTray
             cancel.MinimumSize = new Size(88, 0);
             cancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
 
+            Button restart = new Button();
+            restart.Text = L.T("settings.saveRestart");
+            restart.AutoSize = true;
+            restart.MinimumSize = new Size(112, 0);
+            restart.Click += delegate { SaveSettings(true); };
+
             buttons.Controls.Add(save);
             buttons.Controls.Add(cancel);
+            buttons.Controls.Add(restart);
             _buttons = buttons;
 
             outer.Controls.Add(scroll, 0, 0);
@@ -217,17 +226,25 @@ namespace PiWebTray
 
             ResumeLayout(false);
             PerformLayout();
+            // Establish the label column and fitted height before the window is
+            // shown; OnLoad repeats this after per-monitor DPI scaling.
+            ApplyInitialLayout();
 
             AcceptButton = save;
             CancelButton = cancel;
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void OnLoad(EventArgs e)
         {
-            base.OnShown(e);
-            // NumericUpDown and ComboBox fixed widths can be collapsed by the
-            // DPI-scaled TableLayoutPanel; apply them after the final layout pass.
-            // CreateGraphics works on Windows 7-11; DeviceDpi may still report 96.
+            base.OnLoad(e);
+            ApplyInitialLayout();
+        }
+
+        // NumericUpDown and ComboBox fixed widths can be collapsed by the
+        // DPI-scaled TableLayoutPanel; apply them after the final layout pass.
+        // CreateGraphics works on Windows 7-11; DeviceDpi may still report 96.
+        private void ApplyInitialLayout()
+        {
             double scale = 1.0;
             try
             {
@@ -455,14 +472,14 @@ namespace PiWebTray
             worker.Start();
         }
 
-        private void SaveSettings()
+        private bool SaveSettings(bool restart)
         {
             string workingDir = (_workingDir.Text ?? "").Trim();
             if (workingDir.Length == 0 || !Directory.Exists(workingDir))
             {
                 ShowError(L.T("settings.invalidWorkingDir"));
                 _workingDir.Focus();
-                return;
+                return false;
             }
 
             string nodePath = (_nodePath.Text ?? "").Trim();
@@ -470,7 +487,7 @@ namespace PiWebTray
             {
                 ShowError(L.T("settings.invalidNodePath"));
                 _nodePath.Focus();
-                return;
+                return false;
             }
 
             string registry = (_npmRegistry.Text ?? "").Trim();
@@ -482,7 +499,7 @@ namespace PiWebTray
                 {
                     ShowError(L.T("settings.invalidRegistry"));
                     _npmRegistry.Focus();
-                    return;
+                    return false;
                 }
             }
 
@@ -494,7 +511,7 @@ namespace PiWebTray
                 {
                     ShowError(proxyError);
                     _proxy.Focus();
-                    return;
+                    return false;
                 }
             }
 
@@ -504,7 +521,7 @@ namespace PiWebTray
             {
                 ShowError(L.T("settings.invalidTag"));
                 _installTag.Focus();
-                return;
+                return false;
             }
 
             int port = (int)_port.Value;
@@ -521,7 +538,7 @@ namespace PiWebTray
                         MessageBoxButtons.YesNo,
                         MessageBoxIcon.Warning,
                         MessageBoxDefaultButton.Button2);
-                    if (answer != DialogResult.Yes) return;
+                    if (answer != DialogResult.Yes) return false;
                 }
             }
 
@@ -545,7 +562,7 @@ namespace PiWebTray
             if (!_config.SetValues(values))
             {
                 ShowError(L.T("settings.saveFailed"));
-                return;
+                return false;
             }
 
             _config.Port = port;
@@ -562,8 +579,10 @@ namespace PiWebTray
                 ProxyTransport.Reset();
             _config.NodePath = nodePath;
 
+            RestartRequested = restart;
             DialogResult = DialogResult.OK;
             Close();
+            return true;
         }
 
         private void ShowError(string message)

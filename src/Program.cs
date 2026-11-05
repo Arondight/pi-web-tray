@@ -137,6 +137,22 @@ namespace PiWebTray
             bool isAutostart = Has(args, "--autostart");
             bool isTrayOnly = Has(args, "--tray-only");
             bool isStartNoOpen = Has(args, "--start-no-open");
+            bool isRestart = Has(args, "--restart");
+
+            // Save-and-restart starts this process before the old tray exits.
+            // Wait for the single-instance mutex so the old service is fully
+            // stopped before the new tray starts its own listener.
+            if (isRestart)
+            {
+                Mutex restartMutex;
+                bool restartDenied;
+                if (TryAcquireMutex(30000, out restartMutex, out restartDenied))
+                {
+                    RunTray(config, elevated, !isTrayOnly, restartMutex,
+                        !isTrayOnly && !isStartNoOpen);
+                }
+                return 0;
+            }
 
             // Start at login: start the tray and pi-web without opening a browser.
             // --tray-only remains available for a tray without the service.
@@ -310,6 +326,7 @@ namespace PiWebTray
             {
                 "--autostart", "--tray-only", "--start-no-open", "--stop", "--quit",
                 "--check", "--install", "--dry-run", "--diag", "--make-ico",
+                "--restart",
                 "--lang-check", "--version", "--apply-update", "--help", "-h", "/?"
             };
 

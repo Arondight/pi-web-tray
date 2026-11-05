@@ -77,7 +77,9 @@ namespace PiWebTray
             description.AutoSize = true;
             description.MaximumSize = new Size(440, 0);
             description.Margin = new Padding(0, 0, 0, 14);
-            description.LinkColor = Color.Blue;
+            // SystemColors.HotTrack stays readable in high-contrast themes;
+            // Color.Blue would override the user's system colours.
+            description.LinkColor = SystemColors.HotTrack;
             AddProductLinks(description, description.Text);
             description.LinkClicked += delegate (object sender, LinkLabelLinkClickedEventArgs e)
             {
@@ -137,11 +139,13 @@ namespace PiWebTray
             CancelButton = close;
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void OnLoad(EventArgs e)
         {
-            base.OnShown(e);
+            base.OnLoad(e);
             try
             {
+                // Fit before the first paint; OnShown would show the default height
+                // for one frame and then visibly shrink the window.
                 // Measure actual children: a Dock.Fill FlowLayoutPanel reports its
                 // filled height as PreferredSize, which would keep the old blank.
                 int contentHeight = _content.Padding.Vertical;

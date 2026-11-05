@@ -88,11 +88,21 @@ namespace PiWebTray
             SetState(L.T("update.status.checking"), -1, true);
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void OnLoad(EventArgs e)
         {
-            base.OnShown(e);
+            base.OnLoad(e);
+            // Fit before the first paint; OnShown would show the default height
+            // for one frame and then visibly shrink the window.
+            FitHeight();
+        }
+
+        // Status messages can grow after the dialog is shown. Re-fit the fixed
+        // dialog so the button row is not clipped by a wrapped message.
+        private void FitHeight()
+        {
             try
             {
+                PerformLayout();
                 // The progress bar must keep its compact height even though the
                 // bottom button row stays anchored at the bottom of the dialog.
                 int desired = _root.PreferredSize.Height;
@@ -126,6 +136,7 @@ namespace PiWebTray
             bool canCancel = cancellable && !Cancelled;
             _cancel.Enabled = canCancel;
             _cancel.Text = Cancelled ? L.T("update.cancelling") : L.T("update.cancel");
+            if (IsHandleCreated && Visible) FitHeight();
         }
 
         internal void CloseFromOwner()

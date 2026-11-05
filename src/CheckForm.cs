@@ -52,6 +52,9 @@ namespace PiWebTray
             root.ColumnCount = 1;
             root.RowCount = 5;
             root.Padding = new Padding(12);
+            // On high-DPI or small displays the two tables and the button row can
+            // exceed the work area. Scroll the content instead of clipping it.
+            root.AutoScroll = true;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -226,12 +229,19 @@ namespace PiWebTray
             return grid;
         }
 
-        protected override void OnShown(EventArgs e)
+        protected override void OnLoad(EventArgs e)
         {
-            base.OnShown(e);
+            base.OnLoad(e);
+            // Fit before the first paint; OnShown would show the default height
+            // for one frame and then visibly shrink the window.
             FitGridHeight(_runtimeGrid);
             FitGridHeight(_softwareGrid);
             FitInitialHeight();
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
             RefreshPortOwner();
         }
 
