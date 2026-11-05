@@ -11,6 +11,7 @@ namespace PiWebTray
 {
     internal sealed class UpdateForm : Form
     {
+        private readonly TableLayoutPanel _root;
         private readonly Label _status;
         private readonly ProgressBar _progress;
         private readonly Button _cancel;
@@ -42,11 +43,13 @@ namespace PiWebTray
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(14);
             root.ColumnCount = 1;
-            root.RowCount = 3;
+            root.RowCount = 4;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _root = root;
 
             _status = new Label();
             _status.AutoSize = true;
@@ -75,7 +78,7 @@ namespace PiWebTray
 
             root.Controls.Add(_status, 0, 0);
             root.Controls.Add(_progress, 0, 1);
-            root.Controls.Add(buttons, 0, 2);
+            root.Controls.Add(buttons, 0, 3);
             Controls.Add(root);
 
             ResumeLayout(false);
@@ -83,6 +86,23 @@ namespace PiWebTray
 
             CancelButton = _cancel;
             SetState(L.T("update.status.checking"), -1, true);
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            try
+            {
+                // The progress bar must keep its compact height even though the
+                // bottom button row stays anchored at the bottom of the dialog.
+                int desired = _root.PreferredSize.Height;
+                int chrome = Height - ClientSize.Height;
+                int height = Math.Max(1, desired + chrome);
+                if (height != Height) Height = height;
+            }
+            catch (Exception)
+            {
+            }
         }
 
         internal void SetState(string status, int percent, bool cancellable)

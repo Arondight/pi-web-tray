@@ -12,6 +12,9 @@ namespace PiWebTray
     internal sealed class AboutForm : Form
     {
         private Icon _formIcon;
+        private readonly TableLayoutPanel _root;
+        private readonly FlowLayoutPanel _content;
+        private readonly FlowLayoutPanel _buttons;
 
         internal AboutForm()
         {
@@ -46,12 +49,14 @@ namespace PiWebTray
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _root = root;
 
             FlowLayoutPanel content = new FlowLayoutPanel();
             content.Dock = DockStyle.Fill;
             content.FlowDirection = FlowDirection.TopDown;
             content.WrapContents = false;
             content.AutoScroll = true;
+            _content = content;
 
             Label title = new Label();
             title.Text = Program.AppName;
@@ -118,6 +123,7 @@ namespace PiWebTray
             close.Click += delegate { Close(); };
 
             buttons.Controls.Add(close);
+            _buttons = buttons;
 
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);
@@ -128,6 +134,33 @@ namespace PiWebTray
 
             AcceptButton = close;
             CancelButton = close;
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            try
+            {
+                // Measure actual children: a Dock.Fill FlowLayoutPanel reports its
+                // filled height as PreferredSize, which would keep the old blank.
+                int contentHeight = _content.Padding.Vertical;
+                foreach (Control child in _content.Controls)
+                    contentHeight = Math.Max(contentHeight, child.Bottom + child.Margin.Bottom);
+                int desired = contentHeight + _content.Margin.Vertical
+                    + _root.Padding.Vertical + _buttons.PreferredSize.Height
+                    + _buttons.Margin.Vertical;
+                int chrome = Height - ClientSize.Height;
+                int maxClient = Math.Max(200, Screen.FromControl(this).WorkingArea.Height - chrome - 20);
+                int height = Math.Max(1, Math.Min(desired, maxClient));
+                if (height != ClientSize.Height)
+                {
+                    ClientSize = new Size(ClientSize.Width, height);
+                    PerformLayout();
+                }
+            }
+            catch (Exception)
+            {
+            }
         }
 
         protected override void Dispose(bool disposing)

@@ -98,8 +98,15 @@ Start at login: Enabled (standard user)
 Start at login as administrator: no
 ---------------------------------------
 Restart as administrator
-About
-Exit and stop Pi Web
+About Pi Web Tray
+Exit and stop service
+```
+
+When the service is stopped, the first two actions become:
+
+```text
+Start service and open browser
+Start service
 ```
 
 - **Update Pi Web and Pi** stops Pi Web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.

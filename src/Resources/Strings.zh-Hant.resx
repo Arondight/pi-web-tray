@@ -64,7 +64,7 @@
     <value>在瀏覽器中開啟 Pi Web</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
-    <value>啟動並開啟 Pi Web</value>
+    <value>啟動服務並開啟瀏覽器</value>
   </data>
   <data name="menu.setupFirst" xml:space="preserve">
     <value>請先安裝執行環境</value>
@@ -136,7 +136,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>自動啟動時使用系統管理員權限：{0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>退出並停止 Pi Web</value>
+    <value>退出並停止服務</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>是</value>
@@ -555,7 +555,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>先前的系統匣執行個體未結束。
-請先從系統匣功能表選擇「退出並停止 Pi Web」，然後重試。</value>
+請先從系統匣功能表選擇「退出並停止服務」，然後重試。</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray 發生錯誤，詳細資訊已寫入 crash.log：
@@ -700,7 +700,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>正在更新 Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
-    <value>關於</value>
+    <value>關於 Pi Web Tray</value>
   </data>
   <data name="update.checkingTitle" xml:space="preserve">
     <value>正在檢查更新</value>

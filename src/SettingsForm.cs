@@ -28,6 +28,9 @@ namespace PiWebTray
         }
 
         private readonly Config _config;
+        private readonly TableLayoutPanel _root;
+        private readonly TableLayoutPanel _outer;
+        private readonly FlowLayoutPanel _buttons;
         private readonly NumericUpDown _port;
         private readonly TextBox _workingDir;
         private readonly ComboBox _language;
@@ -73,10 +76,12 @@ namespace PiWebTray
             outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             outer.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            _outer = outer;
 
             Panel scroll = new Panel();
             scroll.Dock = DockStyle.Fill;
             scroll.AutoScroll = true;
+            scroll.Margin = Padding.Empty;
 
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Top;
@@ -88,6 +93,7 @@ namespace PiWebTray
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             scroll.Controls.Add(root);
+            _root = root;
 
             _port = new NumericUpDown();
             _port.Minimum = 1;
@@ -203,6 +209,7 @@ namespace PiWebTray
 
             buttons.Controls.Add(save);
             buttons.Controls.Add(cancel);
+            _buttons = buttons;
 
             outer.Controls.Add(scroll, 0, 0);
             outer.Controls.Add(buttons, 0, 1);
@@ -230,8 +237,66 @@ namespace PiWebTray
             catch (Exception)
             {
             }
+            AlignLabels(scale);
             _port.Width = (int)Math.Round(120 * scale);
             _language.Width = (int)Math.Round(220 * scale);
+            FitInitialHeight();
+        }
+
+        private void FitInitialHeight()
+        {
+            try
+            {
+                // The settings content is usually shorter than the default client
+                // height. Do not leave a large dead area between the last row and
+                // the bottom buttons; grow for taller DPI/language layouts, and
+                // let the scroll panel take over only when the screen is too small.
+                int desired = _root.PreferredSize.Height + _outer.Padding.Vertical
+                    + _buttons.PreferredSize.Height + _buttons.Margin.Vertical;
+                int chrome = Height - ClientSize.Height;
+                Rectangle working = Screen.FromControl(this).WorkingArea;
+                int maxClient = Math.Max(360, working.Height - chrome - 20);
+                int height = Math.Max(MinimumSize.Height - chrome, Math.Min(desired, maxClient));
+                if (height > 0 && height != ClientSize.Height)
+                {
+                    ClientSize = new Size(ClientSize.Width, height);
+                    PerformLayout();
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // Keep the input column independent of the label font, language and DPI.
+        // Label preferred sizes are measured after Windows has scaled the form, then
+        // labels fill their cells and are centred vertically. This avoids the small
+        // per-control margin drift that a fixed margin produces at some DPI scales.
+        private void AlignLabels(double scale)
+        {
+            int maxLabelWidth = 0;
+            foreach (Control control in _root.Controls)
+            {
+                Label label = control as Label;
+                if (label == null || _root.GetColumnSpan(label) != 1
+                    || string.IsNullOrEmpty(label.Text))
+                    continue;
+                maxLabelWidth = Math.Max(maxLabelWidth, label.PreferredSize.Width);
+            }
+            if (maxLabelWidth <= 0) return;
+
+            int gap = Math.Max(6, (int)Math.Round(12 * scale));
+            _root.ColumnStyles[0] = new ColumnStyle(SizeType.Absolute, maxLabelWidth + gap);
+            foreach (Control control in _root.Controls)
+            {
+                Label label = control as Label;
+                if (label == null || _root.GetColumnSpan(label) != 1) continue;
+                label.AutoSize = false;
+                label.Dock = DockStyle.Fill;
+                label.TextAlign = ContentAlignment.MiddleRight;
+                label.Margin = new Padding(0, 0, gap, 0);
+            }
+            _root.PerformLayout();
         }
 
         private void AddLanguageItems(string current)

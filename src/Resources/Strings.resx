@@ -64,7 +64,7 @@
     <value>Open Pi Web in Browser</value>
   </data>
   <data name="menu.startAndOpen" xml:space="preserve">
-    <value>Start and open Pi Web</value>
+    <value>Start service and open browser</value>
   </data>
   <data name="menu.setupFirst" xml:space="preserve">
     <value>Install prerequisites first</value>
@@ -136,7 +136,7 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Start at login as administrator: {0}</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
-    <value>Exit and stop Pi Web</value>
+    <value>Exit and stop service</value>
   </data>
   <data name="bool.yes" xml:space="preserve">
     <value>yes</value>
@@ -555,7 +555,7 @@ To start the service, use the tray icon menu, or right-click the desktop shortcu
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>The previous tray instance did not exit.
-Choose “Exit and stop Pi Web” from the tray menu first, then retry.</value>
+Choose “Exit and stop service” from the tray menu first, then retry.</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
     <value>Pi Web Tray encountered an error. Details were written to crash.log:
@@ -700,7 +700,7 @@ Use --help to see the supported options.</value>
     <value>Updating Pi Web Tray...</value>
   </data>
   <data name="menu.about" xml:space="preserve">
-    <value>About</value>
+    <value>About Pi Web Tray</value>
   </data>
   <data name="update.checkingTitle" xml:space="preserve">
     <value>Checking for updates</value>
