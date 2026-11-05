@@ -120,7 +120,6 @@ Exit and stop service
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                  |
 | `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads only; Node, npm and Pi Web child processes are not configured. |
 | `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                       |
-| `ServerScript`     | empty           | Explicit `pi-web.js`; empty enables auto-detection.                                                                      |
 | `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                            |
 | `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).                                                                          |
 

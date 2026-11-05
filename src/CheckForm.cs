@@ -6,7 +6,6 @@
 
 using System;
 using System.Drawing;
-using System.IO;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -458,11 +457,9 @@ namespace PiWebTray
 
         private string ExpectedScript()
         {
-            if (!string.IsNullOrEmpty(_config.ServerScript) && File.Exists(_config.ServerScript))
-                return _config.ServerScript;
             if (_probe != null && _probe.PiWebFound && !string.IsNullOrEmpty(_probe.PiWebScript))
                 return _probe.PiWebScript;
-            return _config.ServerScript ?? "";
+            return "";
         }
 
         private string NodeStatus()

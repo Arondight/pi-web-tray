@@ -27,7 +27,6 @@ namespace PiWebTray
         internal string Proxy = "";
         internal string WorkingDir;
         internal string NodePath;
-        internal string ServerScript;
 
         // ---- runtime paths ----
         internal string BaseDir;
@@ -118,9 +117,6 @@ namespace PiWebTray
                             break;
                         case "nodepath":
                             if (value.Length > 0) config.NodePath = value;
-                            break;
-                        case "serverscript":
-                            if (value.Length > 0) config.ServerScript = value;
                             break;
                         case "autoinstall":
                             config.AutoInstall = IsTruthy(value, true);
@@ -280,7 +276,6 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.lookupC"));
                 sb.AppendLine("NodePath=");
-                sb.AppendLine("ServerScript=");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.autostartC"));
                 sb.AppendLine("AutostartAdmin=0");

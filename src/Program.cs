@@ -441,9 +441,6 @@ namespace PiWebTray
         // script before treating a listener as ours. An unknown path must never match.
         private static string ExpectedPiWebScript(Config config)
         {
-            if (!string.IsNullOrEmpty(config.ServerScript) && File.Exists(config.ServerScript))
-                return config.ServerScript;
-
             ProbeResult probe = null;
             try { probe = EnvironmentProbe.Detect(config); }
             catch (Exception) { }
@@ -452,11 +449,9 @@ namespace PiWebTray
 
         private static string ExpectedPiWebScript(Config config, ProbeResult probe)
         {
-            string script = config.ServerScript;
-            if (!string.IsNullOrEmpty(script) && File.Exists(script)) return script;
             if (probe != null && probe.PiWebFound && !string.IsNullOrEmpty(probe.PiWebScript))
                 return probe.PiWebScript;
-            return script;
+            return "";
         }
 
         // No tray is running, so stop the service through the CLI. A listener that

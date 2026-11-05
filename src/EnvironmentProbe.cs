@@ -130,7 +130,7 @@ namespace PiWebTray
             DetectNode(config, result);
             DetectNpm(config, result);
             DetectNpmPrefix(result);
-            DetectPiWeb(config, result);
+            DetectPiWeb(result);
             DetectPiCli(result, config);
 
             if (IsTruthy(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_NODE")))
@@ -293,10 +293,9 @@ namespace PiWebTray
 
         // ---------------- pi-web ----------------
 
-        private static void DetectPiWeb(Config config, ProbeResult result)
+        private static void DetectPiWeb(ProbeResult result)
         {
             List<string> candidates = new List<string>();
-            if (!string.IsNullOrEmpty(config.ServerScript)) candidates.Add(config.ServerScript);
 
             foreach (string prefix in GlobalRoots(result))
                 candidates.Add(Path.Combine(prefix, @"node_modules\@agegr\pi-web\bin\pi-web.js"));

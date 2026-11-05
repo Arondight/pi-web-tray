@@ -1535,7 +1535,6 @@ namespace PiWebTray
                 Check("default admin autostart is off", !config.AutostartAdmin);
                 Check("default working dir is the profile", Directory.Exists(config.WorkingDir));
                 CheckEqual("default node path is empty", "", config.NodePath ?? "");
-                CheckEqual("default server script is empty", "", config.ServerScript ?? "");
 
                 string content = File.ReadAllText(ini);
                 Check("ini documents the port", content.Contains("Port=30141"));
@@ -1547,10 +1546,9 @@ namespace PiWebTray
                 Check("ini documents npm registry", content.Contains("NpmRegistry="));
                 Check("ini documents proxy", content.Contains("Proxy="));
                 Check("ini documents node path", content.Contains("NodePath="));
-                Check("ini documents the server script", content.Contains("ServerScript="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 11 documented keys", 11, CountIniKeys(content));
             }
             finally
             {

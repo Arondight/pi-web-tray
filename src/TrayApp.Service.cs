@@ -211,11 +211,9 @@ namespace PiWebTray
         // otherwise the probe result is what the service will actually launch.
         private string ExpectedPiWebScript()
         {
-            string script = _config.ServerScript;
-            if (!string.IsNullOrEmpty(script) && File.Exists(script)) return script;
             if (_probe != null && _probe.PiWebFound && !string.IsNullOrEmpty(_probe.PiWebScript))
                 return _probe.PiWebScript;
-            return script;
+            return "";
         }
 
         // Drop requests that belong to an older user action. Stop-for-install preserves
@@ -535,7 +533,6 @@ namespace PiWebTray
 
             _probe = result;
             _config.NodePath = result.NodePath;
-            if (result.PiWebFound) _config.ServerScript = result.PiWebScript;
 
             if (result.NeedsNode) _phase = Phase.NeedsNode;
             else if (result.NeedsPiWeb) _phase = Phase.NeedsDeps;

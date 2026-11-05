@@ -120,7 +120,6 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                  |
 | `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；不会配置 Node、npm 或 Pi Web 子进程。 |
 | `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                       |
-| `ServerScript`     | 空              | 指定 `pi-web.js`；留空自动检测。                                                      |
 | `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                              |
 | `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                                                  |
 

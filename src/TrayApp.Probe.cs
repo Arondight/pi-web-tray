@@ -156,7 +156,6 @@ namespace PiWebTray
 
             _probe = result;
             _config.NodePath = result.NodePath;
-            if (result.PiWebFound) _config.ServerScript = result.PiWebScript;
 
             if (result.NeedsNode)
             {
