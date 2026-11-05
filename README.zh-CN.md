@@ -13,13 +13,11 @@ Pi Web Tray 是基于 Pi 和 Pi Web 的 Windows 7 至 11 通用 Harness 解决�
 
 ## 运行要求
 
-| 组件           | 要求                                |
-| -------------- | ----------------------------------- |
-| Windows        | 7 SP1、8、8.1、10 或 11（仅 64 位） |
-| .NET Framework | 4.8 — 见下方 Windows 7 说明         |
-| Node.js        | 22.19 或更新版本，含 npm            |
-
-**必须使用 64 位 Windows。** 不支持 32 位 Windows。
+| 组件           | 要求                        |
+| -------------- | --------------------------- |
+| 64 位 Windows  | 7 SP1、8、8.1、10 或 11     |
+| .NET Framework | 4.8 — 见下方 Windows 7 说明 |
+| Node.js        | 22.19 或更新版本，含 npm    |
 
 Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Pi Web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上托盘可以运行，但服务或终端可能不可用。
 
@@ -37,11 +35,10 @@ Windows 10 / 11：使用[官方下载页](https://www.python.org/downloads/)，�
 
 旧版 Windows 已不再获得当前 Python 版本的安装包，以下是最新仍提供安装包的版本：
 
-| 系统        | 最新仍提供安装包的版本                                                   |
-| ----------- | ------------------------------------------------------------------------ |
-| Windows 7   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8.1 | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
+| 系统           | 最新仍提供安装包的版本                                                   |
+| -------------- | ------------------------------------------------------------------------ |
+| Windows 7 和 8 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8.1    | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 
 ### PowerShell
 
@@ -100,13 +97,6 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 以管理员身份重启
 关于 Pi Web Tray
 退出并停止服务
-```
-
-服务停止时，前两项会变为：
-
-```text
-启动服务并打开浏览器
-启动服务
 ```
 
 - **更新 Pi Web 和 Pi** 会先停止 Pi Web，配置 `InstallPiCli=1` 时同时更新两个包；只有更新前服务在运行才自动重启。进度窗口支持取消。

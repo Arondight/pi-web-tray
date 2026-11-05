@@ -13,13 +13,11 @@ Pi Web Tray is a universal Windows 7 to 11 harness for Pi and Pi Web. It provide
 
 ## Requirements
 
-| Component      | Requirement                           |
-| -------------- | ------------------------------------- |
-| Windows        | 7 SP1, 8, 8.1, 10 or 11 (64-bit only) |
-| .NET Framework | 4.8 — see the Windows 7 note below    |
-| Node.js        | 22.19 or later, with npm              |
-
-**64-bit Windows is required.** 32-bit Windows is not supported.
+| Component      | Requirement                        |
+| -------------- | ---------------------------------- |
+| 64-bit Windows | 7 SP1, 8, 8.1, 10 or 11            |
+| .NET Framework | 4.8 — see the Windows 7 note below |
+| Node.js        | 22.19 or later, with npm           |
 
 Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so the tray may run on legacy systems while the service or terminal is unavailable.
 
@@ -37,11 +35,10 @@ Windows 10 and 11: use the [official download page](https://www.python.org/downl
 
 Older Windows releases no longer receive current Python installers. The newest releases that still ship one:
 
-| System      | Newest release with an installer                                         |
-| ----------- | ------------------------------------------------------------------------ |
-| Windows 7   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8   | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8.1 | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
+| System          | Newest release with an installer                                         |
+| --------------- | ------------------------------------------------------------------------ |
+| Windows 7 and 8 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8.1     | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 
 ### PowerShell
 
@@ -100,13 +97,6 @@ Start at login as administrator: no
 Restart as administrator
 About Pi Web Tray
 Exit and stop service
-```
-
-When the service is stopped, the first two actions become:
-
-```text
-Start service and open browser
-Start service
 ```
 
 - **Update Pi Web and Pi** stops Pi Web first, updates both packages when `InstallPiCli=1`, and restarts the service only if it was running. The progress window supports cancellation.
