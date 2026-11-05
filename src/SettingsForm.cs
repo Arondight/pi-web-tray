@@ -168,11 +168,11 @@ namespace PiWebTray
             _testProxy.Margin = new Padding(0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
-            AddRow(root, 8, L.T("settings.proxy"), proxyLine);
+            AddRow(root, 9, L.T("settings.proxy"), proxyLine);
 
             _nodePath = new TextBox();
             _nodePath.Text = config.NodePath ?? "";
-            AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
+            AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.selectNode"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
             Label note = new Label();

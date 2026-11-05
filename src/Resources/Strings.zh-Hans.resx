@@ -937,10 +937,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>Pi Web Tray 设置</value>
   </data>
   <data name="settings.port" xml:space="preserve">
-    <value>端口</value>
+    <value>服务端口</value>
   </data>
   <data name="settings.workingDir" xml:space="preserve">
-    <value>工作目录</value>
+    <value>服务工作目录</value>
   </data>
   <data name="settings.language" xml:space="preserve">
     <value>界面语言</value>
@@ -961,7 +961,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>npm 源（可选）</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>更新代理（可选）</value>
+    <value>检查更新代理（可选）</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>测试</value>

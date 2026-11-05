@@ -937,10 +937,10 @@ See {1} for details.</value>
     <value>Pi Web Tray settings</value>
   </data>
   <data name="settings.port" xml:space="preserve">
-    <value>Port</value>
+    <value>Service port</value>
   </data>
   <data name="settings.workingDir" xml:space="preserve">
-    <value>Working directory</value>
+    <value>Service working directory</value>
   </data>
   <data name="settings.language" xml:space="preserve">
     <value>Language</value>
@@ -961,7 +961,7 @@ See {1} for details.</value>
     <value>npm registry (optional)</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Proxy for updates (optional)</value>
+    <value>Update check proxy (optional)</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>Test</value>
