@@ -115,7 +115,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>Windows 7/8 使用未签名的社区构建，本项目无法验证其安全性。</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
-    <value>环境自检</value>
+    <value>环境检查</value>
   </data>
   <data name="menu.serverLog" xml:space="preserve">
     <value>查看服务日志</value>
@@ -426,7 +426,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>环境自检错误：{0}</value>
   </data>
   <data name="sc.title" xml:space="preserve">
-    <value>Pi Web Tray 环境检查</value>
+    <value>环境检查</value>
   </data>
   <data name="check.component" xml:space="preserve">
     <value>组件</value>
@@ -886,7 +886,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>版权所有 (c) 2026 秦凡东</value>
   </data>
   <data name="about.close" xml:space="preserve">
-    <value>确定</value>
+    <value>关闭</value>
   </data>
   <data name="sc.updateLog" xml:space="preserve">
     <value>更新日志</value>
@@ -934,7 +934,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>端口 {0} 被其他程序占用，未执行停止操作。</value>
   </data>
   <data name="settings.title" xml:space="preserve">
-    <value>Pi Web Tray 设置</value>
+    <value>设置</value>
   </data>
   <data name="settings.port" xml:space="preserve">
     <value>服务端口</value>
@@ -987,11 +987,14 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js 路径（可选）</value>
   </data>
+<data name="settings.browse" xml:space="preserve">
+    <value>浏览</value>
+  </data>
 <data name="settings.selectNode" xml:space="preserve">
     <value>选择 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>端口修改需要先停止服务。语言、工作目录和工具路径在重启 Pi Web Tray 后生效。</value>
+    <value>服务端口修改需要先停止服务。语言、服务工作目录和 Node.js 路径修改在重启 Pi Web Tray 后生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>保存</value>
@@ -1111,7 +1114,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>刷新</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>正在安装 Pi Web 依赖</value>
+    <value>安装</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>步骤 {0}/{1}：{2}</value>
@@ -1155,6 +1158,15 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
   <data name="install.confirmBody" xml:space="preserve">
     <value>现在重新安装或更新 Pi Web 和 Pi 吗？Pi Web 会暂时停止，这可能需要几分钟。</value>
   </data>
+  <data name="log.serverTitle" xml:space="preserve">
+    <value>服务日志</value>
+  </data>
+  <data name="log.installTitle" xml:space="preserve">
+    <value>安装日志</value>
+  </data>
+  <data name="log.updateTitle" xml:space="preserve">
+    <value>更新日志</value>
+  </data>
   <data name="log.close" xml:space="preserve">
     <value>关闭</value>
   </data>
@@ -1189,7 +1201,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否打开下载页面？
     <value>启动托盘和 Pi Web，但不打开浏览器（更新后使用）。</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
-    <value>正在更新 Pi Web Tray</value>
+    <value>更新</value>
   </data>
   <data name="update.cancel" xml:space="preserve">
     <value>取消</value>

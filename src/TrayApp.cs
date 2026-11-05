@@ -267,13 +267,13 @@ namespace PiWebTray
             _settingsItem.Click += delegate { ShowSettings(); };
 
             ToolStripMenuItem logItem = new ToolStripMenuItem(L.T("menu.serverLog"));
-            logItem.Click += delegate { ShowLog(_config.LogFile, L.T("menu.serverLog")); };
+            logItem.Click += delegate { ShowLog(_config.LogFile, L.T("log.serverTitle")); };
 
             _installLogItem = new ToolStripMenuItem(L.T("menu.installLog"));
-            _installLogItem.Click += delegate { ShowLog(_config.InstallLogFile, L.T("menu.installLog")); };
+            _installLogItem.Click += delegate { ShowLog(_config.InstallLogFile, L.T("log.installTitle")); };
 
             _updateLogItem = new ToolStripMenuItem(L.T("menu.updateLog"));
-            _updateLogItem.Click += delegate { ShowLog(_config.UpdateLogFile, L.T("menu.updateLog")); };
+            _updateLogItem.Click += delegate { ShowLog(_config.UpdateLogFile, L.T("log.updateTitle")); };
 
             ToolStripMenuItem logsItem = new ToolStripMenuItem(L.T("menu.logs"));
             logsItem.DropDownItems.Add(logItem);

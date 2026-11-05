@@ -426,7 +426,7 @@ Exit anyway?</value>
     <value>Environment check error: {0}</value>
   </data>
   <data name="sc.title" xml:space="preserve">
-    <value>Pi Web Tray environment check</value>
+    <value>Environment check</value>
   </data>
   <data name="check.component" xml:space="preserve">
     <value>Component</value>
@@ -886,7 +886,7 @@ See {1} for details.</value>
     <value>Copyright (c) 2026 秦凡东</value>
   </data>
   <data name="about.close" xml:space="preserve">
-    <value>OK</value>
+    <value>Close</value>
   </data>
   <data name="sc.updateLog" xml:space="preserve">
     <value>Update log</value>
@@ -934,7 +934,7 @@ See {1} for details.</value>
     <value>Port {0} is used by another program; it was not stopped.</value>
   </data>
   <data name="settings.title" xml:space="preserve">
-    <value>Pi Web Tray settings</value>
+    <value>Settings</value>
   </data>
   <data name="settings.port" xml:space="preserve">
     <value>Service port</value>
@@ -987,11 +987,14 @@ See {1} for details.</value>
   <data name="settings.nodePath" xml:space="preserve">
     <value>Node.js path (optional)</value>
   </data>
+<data name="settings.browse" xml:space="preserve">
+    <value>Browse</value>
+  </data>
 <data name="settings.selectNode" xml:space="preserve">
     <value>Select node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>Port changes require the service to be stopped first. Language, working directory and tool paths take effect after Pi Web Tray is restarted.</value>
+    <value>Service port changes need the service stopped. Restart to apply language, working directory and Node.js path changes.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>Save</value>
@@ -1111,7 +1114,7 @@ See {1} for details.</value>
     <value>Refresh</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>Installing Pi Web dependencies</value>
+    <value>Install</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>Step {0} of {1}: {2}</value>
@@ -1155,6 +1158,15 @@ See {1} for details.</value>
   <data name="install.confirmBody" xml:space="preserve">
     <value>Reinstall or update Pi Web and Pi now? Pi Web will be stopped temporarily. This can take several minutes.</value>
   </data>
+  <data name="log.serverTitle" xml:space="preserve">
+    <value>Service log</value>
+  </data>
+  <data name="log.installTitle" xml:space="preserve">
+    <value>Install log</value>
+  </data>
+  <data name="log.updateTitle" xml:space="preserve">
+    <value>Update log</value>
+  </data>
   <data name="log.close" xml:space="preserve">
     <value>Close</value>
   </data>
@@ -1189,7 +1201,7 @@ See {1} for details.</value>
     <value>Start the tray and Pi Web without opening the browser (used after updates).</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
-    <value>Updating Pi Web Tray</value>
+    <value>Update</value>
   </data>
   <data name="update.cancel" xml:space="preserve">
     <value>Cancel</value>

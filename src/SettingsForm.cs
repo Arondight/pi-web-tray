@@ -109,7 +109,7 @@ namespace PiWebTray
             _workingDir = new TextBox();
             _workingDir.Text = config.WorkingDir ?? "";
             AddBrowseRow(root, 1, L.T("settings.workingDir"), _workingDir,
-                L.T("settings.workingDir"), delegate { BrowseFolder(_workingDir); });
+                L.T("settings.browse"), delegate { BrowseFolder(_workingDir); });
 
             _language = new ComboBox();
             _language.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -165,7 +165,9 @@ namespace PiWebTray
             _proxy.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             _proxy.Margin = new Padding(0, 0, 6, 0);
             _testProxy.Anchor = AnchorStyles.Left;
-            _testProxy.Margin = new Padding(0);
+            // Match the Browse buttons' gap so the three input fields have
+            // exactly the same usable width.
+            _testProxy.Margin = new Padding(6, 0, 0, 0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
             AddRow(root, 9, L.T("settings.proxy"), proxyLine);
@@ -173,12 +175,12 @@ namespace PiWebTray
             _nodePath = new TextBox();
             _nodePath.Text = config.NodePath ?? "";
             AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
-                L.T("settings.selectNode"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
+                L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
             note.AutoSize = true;
-            note.MaximumSize = new Size(520, 0);
+            note.MaximumSize = new Size(680, 0);
             note.Margin = new Padding(0, 12, 0, 12);
             root.Controls.Add(note, 0, 10);
             root.SetColumnSpan(note, 2);
@@ -208,9 +210,11 @@ namespace PiWebTray
             restart.MinimumSize = new Size(112, 0);
             restart.Click += delegate { SaveSettings(true); };
 
+            // FlowDirection is RightToLeft: the first control is rightmost.
+            // Put Save and restart immediately to the right of Save.
+            buttons.Controls.Add(restart);
             buttons.Controls.Add(save);
             buttons.Controls.Add(cancel);
-            buttons.Controls.Add(restart);
             _buttons = buttons;
 
             outer.Controls.Add(scroll, 0, 0);
@@ -386,6 +390,7 @@ namespace PiWebTray
             Button button = new Button();
             button.Text = buttonText;
             button.AutoSize = true;
+            button.MinimumSize = new Size(88, 0);
             button.Anchor = AnchorStyles.Left;
             button.Margin = new Padding(6, 0, 0, 0);
             button.Click += browse;

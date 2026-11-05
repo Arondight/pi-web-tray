@@ -247,7 +247,7 @@ namespace PiWebTray
                 _phase = Phase.Failed;
                 UpdateUi();
                 NotifyError(L.T("install.failedTitle"), result.Message,
-                    delegate { ShowLog(_config.InstallLogFile, L.T("menu.installLog")); });
+                    delegate { ShowLog(_config.InstallLogFile, L.T("log.installTitle")); });
                 if (restartService) RestoreServiceAfterInstall();
             }
         }

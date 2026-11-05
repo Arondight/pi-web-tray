@@ -317,7 +317,7 @@ namespace PiWebTray
             }
             UpdateUi();
             NotifyError(L.T("notify.startFailedTitle"), L.T("notify.startFailedBody", reason),
-                delegate { ShowLog(_config.LogFile, L.T("menu.serverLog")); });
+                delegate { ShowLog(_config.LogFile, L.T("log.serverTitle")); });
             ScheduleAutoRestart();
         }
 
