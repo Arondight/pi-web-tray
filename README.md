@@ -75,15 +75,15 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Update service
+Install/update service
 Download Node.js
 ---------------------------------------
 Environment check
 Settings...
 Logs >
-  View service log
-  View install log
-  View update log
+  View service runtime log
+  View service install/update log
+  View software update log
 Open data folder
 Open program folder
 Open configuration file
@@ -99,7 +99,7 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops Pi Web first, updates both packages and restarts the service only if it was running. The progress window supports cancellation.
+- **Install/update service** stops Pi Web first, installs or updates both packages and restarts the service only if it was running. The progress window supports cancellation.
 - A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 

@@ -79,7 +79,7 @@
     <value>重新啟動服務</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>更新服務</value>
+    <value>安裝/更新服務</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>安裝 Pi Web 相依套件</value>
@@ -118,10 +118,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>環境檢查</value>
   </data>
   <data name="menu.serverLog" xml:space="preserve">
-    <value>檢視服務記錄檔</value>
+    <value>檢視服務執行記錄</value>
   </data>
   <data name="menu.installLog" xml:space="preserve">
-    <value>檢視安裝記錄檔</value>
+    <value>檢視服務安裝/更新記錄</value>
   </data>
   <data name="menu.shortcut" xml:space="preserve">
     <value>建立桌面捷徑</value>
@@ -483,10 +483,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>系統管理員權限</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
-    <value>服務記錄檔</value>
+    <value>服務執行記錄</value>
   </data>
   <data name="sc.installLog" xml:space="preserve">
-    <value>安裝記錄檔</value>
+    <value>服務安裝/更新記錄</value>
   </data>
   <data name="sc.language" xml:space="preserve">
     <value>介面語言</value>
@@ -889,7 +889,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>關閉</value>
   </data>
   <data name="sc.updateLog" xml:space="preserve">
-    <value>更新記錄</value>
+    <value>軟體更新記錄</value>
   </data>
   <data name="status.portConflict" xml:space="preserve">
     <value>連接埠 {0} 被其他程式占用</value>
@@ -1045,7 +1045,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>記錄</value>
   </data>
   <data name="menu.updateLog" xml:space="preserve">
-    <value>檢視更新記錄</value>
+    <value>檢視軟體更新記錄</value>
   </data>
   <data name="menu.dataFolder" xml:space="preserve">
     <value>開啟資料目錄</value>
@@ -1114,7 +1114,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>重新整理</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>安裝</value>
+    <value>安裝/更新服務</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>步驟 {0}/{1}：{2}</value>
@@ -1153,19 +1153,19 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
     <value>Pi Web Tray {0} 已可使用。請選擇系統匣功能表進行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>更新 Pi Web 和 Pi</value>
+    <value>安裝/更新服務</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>現在重新安裝或更新 Pi Web 和 Pi 嗎？Pi Web 會暫時停止，這可能需要幾分鐘。</value>
+    <value>現在安裝或更新 Pi Web 和 Pi 嗎？Pi Web 會暫時停止，這可能需要幾分鐘。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
-    <value>服務記錄</value>
+    <value>服務執行記錄</value>
   </data>
   <data name="log.installTitle" xml:space="preserve">
-    <value>安裝記錄</value>
+    <value>服務安裝/更新記錄</value>
   </data>
   <data name="log.updateTitle" xml:space="preserve">
-    <value>更新記錄</value>
+    <value>軟體更新記錄</value>
   </data>
   <data name="log.close" xml:space="preserve">
     <value>關閉</value>

@@ -79,7 +79,7 @@
     <value>Restart service</value>
   </data>
   <data name="menu.installDeps" xml:space="preserve">
-    <value>Update service</value>
+    <value>Install/update service</value>
   </data>
   <data name="menu.installAuto" xml:space="preserve">
     <value>Install Pi Web dependencies</value>
@@ -118,10 +118,10 @@ Pi Web Tray needs Node.js {1} or newer. Open the download page?
     <value>Environment check</value>
   </data>
   <data name="menu.serverLog" xml:space="preserve">
-    <value>View service log</value>
+    <value>View service runtime log</value>
   </data>
   <data name="menu.installLog" xml:space="preserve">
-    <value>View install log</value>
+    <value>View service install/update log</value>
   </data>
   <data name="menu.shortcut" xml:space="preserve">
     <value>Create desktop shortcut</value>
@@ -483,10 +483,10 @@ Exit anyway?</value>
     <value>Administrator</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
-    <value>Service log</value>
+    <value>Service runtime log</value>
   </data>
   <data name="sc.installLog" xml:space="preserve">
-    <value>Install log</value>
+    <value>Service install/update log</value>
   </data>
   <data name="sc.language" xml:space="preserve">
     <value>Language</value>
@@ -889,7 +889,7 @@ See {1} for details.</value>
     <value>Close</value>
   </data>
   <data name="sc.updateLog" xml:space="preserve">
-    <value>Update log</value>
+    <value>Software update log</value>
   </data>
   <data name="status.portConflict" xml:space="preserve">
     <value>Port {0} is used by another program</value>
@@ -1045,7 +1045,7 @@ See {1} for details.</value>
     <value>Logs</value>
   </data>
   <data name="menu.updateLog" xml:space="preserve">
-    <value>View update log</value>
+    <value>View software update log</value>
   </data>
   <data name="menu.dataFolder" xml:space="preserve">
     <value>Open data folder</value>
@@ -1114,7 +1114,7 @@ See {1} for details.</value>
     <value>Refresh</value>
   </data>
   <data name="install.progressTitle" xml:space="preserve">
-    <value>Install</value>
+    <value>Install/update service</value>
   </data>
   <data name="install.progressStep" xml:space="preserve">
     <value>Step {0} of {1}: {2}</value>
@@ -1153,19 +1153,19 @@ See {1} for details.</value>
     <value>Pi Web Tray {0} is available. Select the tray menu to update.</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
-    <value>Update Pi Web and Pi</value>
+    <value>Install/update service</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>Reinstall or update Pi Web and Pi now? Pi Web will be stopped temporarily. This can take several minutes.</value>
+    <value>Install or update Pi Web and Pi now? Pi Web will be stopped temporarily. This can take several minutes.</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
-    <value>Service log</value>
+    <value>Service runtime log</value>
   </data>
   <data name="log.installTitle" xml:space="preserve">
-    <value>Install log</value>
+    <value>Service install/update log</value>
   </data>
   <data name="log.updateTitle" xml:space="preserve">
-    <value>Update log</value>
+    <value>Software update log</value>
   </data>
   <data name="log.close" xml:space="preserve">
     <value>Close</value>
