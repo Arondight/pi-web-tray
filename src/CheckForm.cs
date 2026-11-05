@@ -234,6 +234,12 @@ namespace PiWebTray
             base.OnLoad(e);
             // Fit before the first paint; OnShown would show the default height
             // for one frame and then visibly shrink the window.
+            FitForDisplay();
+        }
+
+        // Separated from OnLoad so layout tests do not need an interactive desktop.
+        internal void FitForDisplay()
+        {
             FitGridHeight(_runtimeGrid);
             FitGridHeight(_softwareGrid);
             FitInitialHeight();

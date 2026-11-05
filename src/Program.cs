@@ -150,8 +150,14 @@ namespace PiWebTray
                 {
                     RunTray(config, elevated, !isTrayOnly, restartMutex,
                         !isTrayOnly && !isStartNoOpen);
+                    return 0;
                 }
-                return 0;
+                MessageBox.Show(
+                    L.T("notify.restartFailedBody"),
+                    L.T("notify.restartFailed"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return 1;
             }
 
             // Start at login: start the tray and pi-web without opening a browser.

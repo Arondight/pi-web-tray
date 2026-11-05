@@ -17,7 +17,12 @@ namespace PiWebTray
     {
         private void ExitApp()
         {
-            if (_exiting) return;
+            ExitApp(false);
+        }
+
+        private bool ExitApp(bool restart)
+        {
+            if (_exiting) return false;
 
             // The updater calls ExitApp only after its helper has been started. Any other
             // update stage can still be abandoned, but the user should confirm it.
@@ -29,7 +34,12 @@ namespace PiWebTray
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2);
-                if (updateAnswer != DialogResult.Yes) return;
+                if (updateAnswer != DialogResult.Yes)
+                {
+                    if (restart)
+                        Notify(L.T("notify.restartCanceled"), L.T("notify.restartCanceledBody"));
+                    return false;
+                }
             }
 
             // Aborting midway leaves a half-installed global package: ask first, and kill npm if confirmed
@@ -41,10 +51,19 @@ namespace PiWebTray
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Warning,
                     MessageBoxDefaultButton.Button2);
-                if (answer != DialogResult.Yes) return;
+                if (answer != DialogResult.Yes)
+                {
+                    if (restart)
+                        Notify(L.T("notify.restartCanceled"), L.T("notify.restartCanceledBody"));
+                    return false;
+                }
                 Installer.Abort();
                 CloseInstallForm();
             }
+
+            // Start the replacement only after update/install confirmation, so a
+            // cancelled prompt never leaves an invisible child waiting for a lock.
+            if (restart && !StartRestartProcess()) return false;
 
             _exiting = true;
             _timer.Stop();
@@ -119,6 +138,7 @@ namespace PiWebTray
             TrayState.Delete();
             Cleanup();
             ExitThread();
+            return true;
         }
 
         // First start without Node.js: leave any other pi-web instance alone and just

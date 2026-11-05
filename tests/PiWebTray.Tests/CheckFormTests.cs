@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -166,15 +167,17 @@ namespace PiWebTray
 
                 using (SettingsForm form = new SettingsForm(config, false))
                 {
-                    form.Show();
-                    Application.DoEvents();
                     Button restart = null;
                     foreach (Button button in FindControls<Button>(form))
                     {
                         if (button.Text == L.T("settings.saveRestart")) restart = button;
                     }
                     Assert.IsNotNull(restart, "Settings must expose the save-and-restart action.");
-                    restart.PerformClick();
+                    MethodInfo save = typeof(SettingsForm).GetMethod("SaveSettings",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Assert.IsNotNull(save, "Settings must expose the save implementation.");
+                    Assert.AreEqual(true, save.Invoke(form, new object[] { true }),
+                        "The save-and-restart path must save successfully.");
                     Assert.IsTrue(form.RestartRequested,
                         "Save and restart must ask the tray to restart.");
                     Assert.AreEqual(DialogResult.OK, form.DialogResult);
@@ -200,27 +203,20 @@ namespace PiWebTray
 
             using (CheckForm form = new CheckForm(config, probe, false))
             {
-                form.Show();
-                Application.DoEvents();
-                try
+                form.CreateControl();
+                form.FitForDisplay();
+                foreach (DataGridView table in FindControls<DataGridView>(form))
                 {
-                    foreach (DataGridView table in FindControls<DataGridView>(form))
-                    {
-                        Assert.IsTrue(table.Height > 0, "A report table must have a visible height.");
-                        Assert.IsTrue(table.Parent != null, "A report table must live inside a group.");
-                        Assert.IsTrue(table.Parent.Bottom <= form.ClientSize.Height + 1,
-                            "A report table must remain inside the client area.");
-                    }
-                    foreach (Button button in FindControls<Button>(form))
-                    {
-                        Assert.IsTrue(button.Parent != null, "A button must have a parent.");
-                        Assert.IsTrue(button.Parent.Bottom <= form.ClientSize.Height + 1,
-                            "The button row must remain inside the client area.");
-                    }
+                    Assert.IsTrue(table.Height > 0, "A report table must have a visible height.");
+                    Assert.IsTrue(table.Parent != null, "A report table must live inside a group.");
+                    Assert.IsTrue(table.Parent.Bottom <= form.ClientSize.Height + 1,
+                        "A report table must remain inside the client area.");
                 }
-                finally
+                foreach (Button button in FindControls<Button>(form))
                 {
-                    form.Close();
+                    Assert.IsTrue(button.Parent != null, "A button must have a parent.");
+                    Assert.IsTrue(button.Parent.Bottom <= form.ClientSize.Height + 1,
+                        "The button row must remain inside the client area.");
                 }
             }
         }

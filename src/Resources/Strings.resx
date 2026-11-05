@@ -1083,6 +1083,18 @@ See {1} for details.</value>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>Could not restart Pi Web Tray</value>
   </data>
+  <data name="notify.restartFailedBody" xml:space="preserve">
+    <value>The existing Pi Web Tray did not exit in time. It is still running.</value>
+  </data>
+  <data name="notify.restartCanceled" xml:space="preserve">
+    <value>Restart canceled</value>
+  </data>
+  <data name="notify.restartCanceledBody" xml:space="preserve">
+    <value>Pi Web Tray is still running.</value>
+  </data>
+  <data name="notify.restartBusyBody" xml:space="preserve">
+    <value>An update is being applied. Try again after it finishes.</value>
+  </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>Could not restart as administrator</value>
   </data>

@@ -335,10 +335,21 @@ namespace PiWebTray
             }
         }
 
-        // The save-and-restart button closes this tray after starting a new
-        // process. The new process waits for the single-instance mutex, so the
-        // old service is fully stopped before the replacement starts.
+        // Save and restart asks ExitApp to start the replacement after any
+        // update/install confirmation has succeeded.
         private void RestartTray()
+        {
+            // The update helper is already replacing this executable. Starting a
+            // second tray now would launch the old binary while files are changing.
+            if (_updateStage == UpdateStage.Applying)
+            {
+                Notify(L.T("notify.restartCanceled"), L.T("notify.restartBusyBody"));
+                return;
+            }
+            ExitApp(true);
+        }
+
+        private bool StartRestartProcess()
         {
             string arguments = "--restart";
             if (!_autoStartService && _phase != Phase.Running)
@@ -354,16 +365,16 @@ namespace PiWebTray
                     if (child == null)
                     {
                         NotifyError(L.T("notify.restartFailed"), Application.ExecutablePath);
-                        return;
+                        return false;
                     }
                 }
+                return true;
             }
             catch (Exception ex)
             {
                 NotifyError(L.T("notify.restartFailed"), ex.Message);
-                return;
+                return false;
             }
-            ExitApp();
         }
 
         private void OpenFolder(string path)

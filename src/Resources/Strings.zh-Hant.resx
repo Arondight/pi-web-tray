@@ -1083,6 +1083,18 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="notify.restartFailed" xml:space="preserve">
     <value>無法重新啟動 Pi Web Tray</value>
   </data>
+  <data name="notify.restartFailedBody" xml:space="preserve">
+    <value>現有 Pi Web Tray 未能及時結束，目前仍在執行。</value>
+  </data>
+  <data name="notify.restartCanceled" xml:space="preserve">
+    <value>已取消重新啟動</value>
+  </data>
+  <data name="notify.restartCanceledBody" xml:space="preserve">
+    <value>Pi Web Tray 仍在執行。</value>
+  </data>
+  <data name="notify.restartBusyBody" xml:space="preserve">
+    <value>正在套用更新，請完成後再重新啟動。</value>
+  </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
     <value>無法以系統管理員身分重新啟動</value>
   </data>
