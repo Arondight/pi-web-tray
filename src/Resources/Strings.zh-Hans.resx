@@ -683,7 +683,7 @@
     <value>; 服务工作目录（Pi 的默认项目目录）</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; 缺少 Pi Web 时自动安装（首次约需 10~20 分钟）</value>
+    <value>; 启动时缺少依赖则自动安装（首次约需 10~20 分钟）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安装的 npm 版本标签，可改成具体版本号</value>
@@ -977,7 +977,7 @@
     <value>界面语言</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
-    <value>自动安装缺失依赖</value>
+    <value>启动时自动安装缺失依赖</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Pi Web 停止后自动重启</value>
@@ -1112,7 +1112,7 @@
     <value>以管理员身份重启</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以管理员权限重启？Pi Web 将重新启动。</value>
+    <value>是否以管理员权限重启？服务会保持当前的运行状态。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>重启失败</value>
@@ -1187,7 +1187,7 @@
     <value>安装/更新服务</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>现在安装或更新服务吗？如果服务正在运行，会先停止它；这可能需要几分钟。</value>
+    <value>现在安装或更新服务吗？即使已安装，也会重新安装两个包。如果服务正在运行，会先停止它；这可能需要几分钟。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>服务运行日志</value>

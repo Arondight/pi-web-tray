@@ -68,6 +68,7 @@ namespace PiWebTray
         private readonly EventWaitHandle _startSignal;
         private readonly EventWaitHandle _stopSignal;
         private readonly EventWaitHandle _quitSignal;
+        private readonly EventWaitHandle _quitKeepServiceSignal;
 
         private readonly ToolStripMenuItem _statusItem;
         private readonly ToolStripMenuItem _openItem;
@@ -244,6 +245,8 @@ namespace PiWebTray
             _startSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StartSignalName, out created);
             _stopSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StopSignalName, out created);
             _quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitSignalName, out created);
+            _quitKeepServiceSignal = new EventWaitHandle(false, EventResetMode.AutoReset,
+                Instance.QuitKeepServiceSignalName, out created);
 
             _statusItem = new ToolStripMenuItem(L.T("status.checkingShort"));
             _statusItem.Enabled = false;
@@ -405,11 +408,19 @@ namespace PiWebTray
             bool startSignal = false;
             bool stopSignal = false;
             bool quitSignal = false;
+            bool quitKeepServiceSignal = false;
             try { openSignal = _openSignal.WaitOne(0); } catch (Exception) { }
             try { startSignal = _startSignal.WaitOne(0); } catch (Exception) { }
             try { stopSignal = _stopSignal.WaitOne(0); } catch (Exception) { }
             try { quitSignal = _quitSignal.WaitOne(0); } catch (Exception) { }
+            try { quitKeepServiceSignal = _quitKeepServiceSignal.WaitOne(0); } catch (Exception) { }
 
+            // Elevated takeover with --tray-only must leave a running service alone.
+            if (quitKeepServiceSignal)
+            {
+                ExitWithoutStoppingService();
+                return;
+            }
             if (quitSignal)
             {
                 ExitApp();

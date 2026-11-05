@@ -129,7 +129,10 @@ namespace PiWebTray
             }
             for (int i = 0; i < order.Count; i++)
                 buttons.Controls.Add(order[i], i, 0);
-            CancelButton = exit;
+            // Esc should dismiss the prompt without exiting the tray. When a
+            // "continue" action exists, make it the cancel button; the explicit
+            // Exit button remains the only way to shut the tray down.
+            CancelButton = keep != null ? keep : exit;
 
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);

@@ -126,9 +126,12 @@ namespace PiWebTray
             _stopItem.Enabled = running && !updateBusy;
             _restartItem.Enabled = !busy && running;
             _installItem.Enabled = !busy;
+            // When the service is installed the action updates/reinstalls it; when
+            // it is missing the same action also has to install it. Keep the two
+            // labels accurate instead of showing "update" for a clean install.
             _installItem.Text = ready
-                ? L.T("menu.installDeps")
-                : L.T("menu.installAuto");
+                ? L.T("menu.installAuto")
+                : L.T("menu.installDeps");
             _updateItem.Enabled = !busy;
             _updateItem.Text = updateBusy
                 ? L.T("menu.checkUpdatesBusy")
@@ -343,13 +346,29 @@ namespace PiWebTray
             ExitApp(true);
         }
 
+        // A settings restart must preserve the current service state. In particular,
+        // an intentionally stopped service must not start again just because
+        // AutoStart is enabled. Running: start the replacement service silently.
+        // Stopped: keep the replacement tray-only.
+        internal static string RestartArguments(bool serviceRunning, bool includeRestart)
+        {
+            string arguments = includeRestart ? "--restart" : "";
+            arguments += serviceRunning ? " --start-no-open" : " --tray-only";
+            return arguments.Trim();
+        }
+
+        // The phase can temporarily be Checking/NeedsDeps/NeedsNode while a service
+        // started by this tray is still alive. Preserve that service on restart too.
+        private bool ServiceRunningForRestart()
+        {
+            if (_phase == Phase.Running) return true;
+            try { return _server != null && !_server.HasExited; }
+            catch (Exception) { return false; }
+        }
+
         private bool StartRestartProcess()
         {
-            string arguments = "--restart";
-            if (!_autoStartService && _phase != Phase.Running)
-                arguments += " --tray-only";
-            else if (!_autoStartService || !_initialOpenBrowser)
-                arguments += " --start-no-open";
+            string arguments = RestartArguments(ServiceRunningForRestart(), true);
 
             try
             {
@@ -430,9 +449,7 @@ namespace PiWebTray
                 MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.Yes) return;
 
-            string arguments = !_autoStartService && _phase != Phase.Running
-                ? "--tray-only"
-                : (!_initialOpenBrowser ? "--start-no-open" : "");
+            string arguments = RestartArguments(ServiceRunningForRestart(), false);
             if (!Sys.RunElevated(Application.ExecutablePath, arguments))
                 NotifyError(L.T("notify.adminRestartFailed"), L.T("notify.adminRestartFailedBody"));
         }

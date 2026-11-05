@@ -683,7 +683,7 @@ Use --help to see the supported options.</value>
     <value>; Service working directory (Pi's default project directory)</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; Install Pi Web automatically when missing (first installation usually takes 10-20 minutes)</value>
+    <value>; Install missing dependencies at startup when Pi Web is not installed (first installation usually takes 10-20 minutes)</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; npm dist-tag or exact version</value>
@@ -977,7 +977,7 @@ See {1} for details.</value>
     <value>Language</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
-    <value>Install missing dependencies automatically</value>
+    <value>Install missing dependencies at startup</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Restart Pi Web automatically if it stops</value>
@@ -1112,7 +1112,7 @@ See {1} for details.</value>
     <value>Restart as administrator</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>Restart with administrator rights? Pi Web will restart.</value>
+    <value>Restart with administrator rights? The service keeps its current running state.</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>Restart failed</value>
@@ -1187,7 +1187,7 @@ See {1} for details.</value>
     <value>Install/update service</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>Install or update the service now? The service will be stopped if it is running. This can take several minutes.</value>
+    <value>Install or update the service now? Both packages are reinstalled even if they are already installed. The service will be stopped if it is running. This can take several minutes.</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>Service runtime log</value>

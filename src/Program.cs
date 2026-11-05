@@ -214,6 +214,17 @@ namespace PiWebTray
             // Cannot open the other instance's mutex: it runs at a higher integrity level (admin)
             if (accessDenied)
             {
+                // The flags still have to win over the generic "open the running tray"
+                // path. Otherwise --tray-only opens a browser and --start-no-open starts
+                // nothing when the service is stopped.
+                if (isTrayOnly) return 0;
+                if (isStartNoOpen)
+                {
+                    if (SendSignal(Instance.StartSignalName)) return 0;
+                    Inform(L.T("prog.adminAlreadyTitle"), L.T("prog.adminAlreadyBody"));
+                    return 1;
+                }
+
                 if (portOpen)
                 {
                     PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config));
@@ -264,13 +275,20 @@ namespace PiWebTray
 
             // Elevated takeover: this must also run for --tray-only and --start-no-open
             // when the running tray is not elevated. Otherwise those flags return early
-            // and the old tray keeps the instance alive.
-            SendSignal(Instance.QuitSignalName);
+            // and the old tray keeps the instance alive. A tray-only handoff must not
+            // stop the service, so use the signal that quits without service cleanup.
+            if (isTrayOnly)
+                SendSignal(Instance.QuitKeepServiceSignalName);
+            else
+                SendSignal(Instance.QuitSignalName);
             Mutex taken;
             bool denied;
             if (TryAcquireMutex(15000, out taken, out denied))
             {
-                if (Net.IsPortOpen(config.Port, 300))
+                // --tray-only explicitly says "do not start or manage the service".
+                // Killing the listener here would contradict that flag, especially
+                // after the old tray was asked to keep its service running.
+                if (!isTrayOnly && Net.IsPortOpen(config.Port, 300))
                 {
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config));

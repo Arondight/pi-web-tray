@@ -231,9 +231,11 @@ namespace PiWebTray
             if (result.Success)
             {
                 Notify(L.T("install.doneTitle"), result.Message);
-                // Re-probe before starting so paths and versions are current. In autostart
-                // mode this must not turn into "start the service": login shows the tray only.
-                BeginEnvironmentCheck(startAfter, openAfter);
+                // Re-probe before starting so paths and versions are current. Never
+                // auto-install again from this follow-up: npm reported success; if a
+                // package is still missing the user needs the explicit menu action, not
+                // an endless install loop.
+                BeginEnvironmentCheck(startAfter, openAfter, 0, true);
             }
             else if (cancelled)
             {
@@ -288,17 +290,33 @@ namespace PiWebTray
             }
         }
 
+        // A service can run from the installed pi-web script even when the separate
+        // Pi CLI package is missing. Readiness for starting the service must not be
+        // tied to ProbeResult.Ready, which also includes Pi CLI.
+        internal static bool CanStartServiceFromProbe(ProbeResult probe, Func<string, bool> fileExists)
+        {
+            if (probe == null || probe.NeedsNode || !probe.PiWebFound
+                || string.IsNullOrEmpty(probe.PiWebScript) || fileExists == null)
+            {
+                return false;
+            }
+            try { return fileExists(probe.PiWebScript); }
+            catch (Exception) { return false; }
+        }
+
         private void RestoreServiceAfterInstall()
         {
-            if (_probe != null && _probe.Ready)
+            if (CanStartServiceFromProbe(_probe, File.Exists))
             {
                 _phase = Phase.Stopped;
                 StartServer(false);
+                return;
             }
-            else
-            {
-                BeginEnvironmentCheck(true, false);
-            }
+
+            // Do not use AutoInstall here. A cancelled or failed install must not be
+            // restarted behind the user's back, and a stale probe must be refreshed
+            // without another automatic npm run.
+            BeginEnvironmentCheck(true, false, 0, true);
         }
 
         private void ShowInstallForm()

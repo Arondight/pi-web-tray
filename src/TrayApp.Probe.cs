@@ -41,6 +41,11 @@ namespace PiWebTray
                     _checkPendingOpenBrowser = _checkPendingOpenBrowser || openBrowser;
                     _checkPendingSuppressAutoInstall =
                         _checkPendingSuppressAutoInstall || suppressAutoInstall;
+                    // The already-running check owns the result that will be consumed
+                    // first. If Node.js was detected while it was in flight, that
+                    // check must also respect the manual-install decision.
+                    _checkSuppressAutoInstall =
+                        _checkSuppressAutoInstall || suppressAutoInstall;
                     return;
                 }
                 _checkRunning = true;
@@ -344,9 +349,23 @@ namespace PiWebTray
 
             if (result.NeedsPiWeb || result.NeedsPiCli)
             {
-                if (_config.AutoInstall && !suppressAutoInstall)
+                // Auto-install is a startup behavior. A --tray-only instance must
+                // not run npm or install packages just because it refreshed the
+                // environment; the user can still choose Install/update service.
+                if (_config.AutoInstall && !suppressAutoInstall && _autoStartService)
                 {
                     BeginInstall(false, thenStart, openBrowser);
+                    return;
+                }
+                // pi-web can run without the separately-installed Pi CLI. If the
+                // caller explicitly asked to start (or is restoring a service after
+                // a cancelled install), do not strand a runnable service in
+                // NeedsDeps just because Pi CLI is absent.
+                if (thenStart && !result.NeedsPiWeb
+                    && CanStartServiceFromProbe(result, File.Exists))
+                {
+                    _phase = Phase.Stopped;
+                    StartServer(openBrowser);
                     return;
                 }
                 _phase = Phase.NeedsDeps;
@@ -400,7 +419,10 @@ namespace PiWebTray
             {
                 answer = prompt.ShowDialog();
             }
-            if (answer == DialogResult.Ignore || answer == DialogResult.Yes)
+            // Esc and the title-bar close button are not a request to exit the tray.
+            // Only the explicit Exit button (No) stops the tray.
+            if (answer == DialogResult.Ignore || answer == DialogResult.Yes
+                || answer == DialogResult.Cancel)
             {
                 // Downloading must not shut the tray down: the user may install Node.js
                 // while it is running, and the background watcher will continue.

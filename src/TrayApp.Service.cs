@@ -543,7 +543,9 @@ namespace PiWebTray
             else
             {
                 _nodePresenceNotified = false;
-                if (result.NeedsPiWeb) _phase = Phase.NeedsDeps;
+                // Keep this in sync with ApplyCheckResult: a missing Pi CLI is an
+                // environment problem too, not only a missing Pi Web package.
+                if (result.NeedsPiWeb || result.NeedsPiCli) _phase = Phase.NeedsDeps;
                 else RequestResolveServicePhase();
             }
 

@@ -75,7 +75,7 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Install/update service
+Update service
 Download Node.js
 ---------------------------------------
 Environment check
@@ -99,7 +99,7 @@ About
 Exit and stop service
 ```
 
-- **Install/update service** stops Pi Web first, installs or updates both packages and restarts the service only if it was running. The progress window supports cancellation.
+- **Update service** stops Pi Web first, reinstalls or updates both packages and restarts the service only if it was running. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation.
 - A listener is treated as ours only when it belongs to the same Windows session and runs the installed `pi-web.js`; another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, the tray reports it and restarts it when `AutoRestart=1`; `AutoCheckUpdates=1` checks for a new release after startup.
 
@@ -113,7 +113,7 @@ Exit and stop service
 | ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | `Port`             | `30141`         | Pi Web listening port.                                                                                                   |
 | `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                                                 |
-| `AutoInstall`      | `1`             | Install Pi Web automatically when missing.                                                                               |
+| `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                 |
 | `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                 |
 | `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                   |
 | `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                                                   |

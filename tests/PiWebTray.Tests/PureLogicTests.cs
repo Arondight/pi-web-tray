@@ -61,6 +61,8 @@ namespace PiWebTray
             SafeTagTests();
             UpdateTests();
             InstallServiceStopTests();
+            RestartArgumentsTests();
+            ServiceRestoreTests();
             UpdateCancellationTests();
             UpdateCopyTests();
             UpdateRollbackTests();
@@ -1092,6 +1094,42 @@ namespace PiWebTray
                 !TrayApp.ShouldStopServiceForInstall(Phase.Stopped, false, true, true));
             Check("install ignores an unrelated listener",
                 !TrayApp.ShouldStopServiceForInstall(Phase.PortConflict, true, false, false));
+        }
+
+        private static void RestartArgumentsTests()
+        {
+            CheckEqual("restart while running keeps the service silent",
+                "--restart --start-no-open", TrayApp.RestartArguments(true, true));
+            CheckEqual("restart while stopped keeps the service stopped",
+                "--restart --tray-only", TrayApp.RestartArguments(false, true));
+            CheckEqual("admin restart while running keeps the service silent",
+                "--start-no-open", TrayApp.RestartArguments(true, false));
+            CheckEqual("admin restart while stopped keeps the service stopped",
+                "--tray-only", TrayApp.RestartArguments(false, false));
+        }
+
+        private static void ServiceRestoreTests()
+        {
+            ProbeResult probe = new ProbeResult();
+            probe.NodeFound = true;
+            probe.NodeRunnable = true;
+            probe.NpmFound = true;
+            probe.NodeVersion = ProbeResult.NodeMinimum;
+            probe.PiWebFound = true;
+            probe.PiWebScript = @"C:\pi-web\pi-web.js";
+            // Pi CLI is intentionally missing: pi-web itself can still run.
+            probe.PiCliFound = false;
+
+            Check("restore can start pi-web without Pi CLI",
+                TrayApp.CanStartServiceFromProbe(probe, delegate (string path) { return true; }));
+            Check("restore rejects a missing script",
+                !TrayApp.CanStartServiceFromProbe(probe, delegate (string path) { return false; }));
+            Check("restore rejects a missing probe",
+                !TrayApp.CanStartServiceFromProbe(null, delegate (string path) { return true; }));
+
+            probe.NodeFound = false;
+            Check("restore rejects missing Node.js",
+                !TrayApp.CanStartServiceFromProbe(probe, delegate (string path) { return true; }));
         }
 
         private static void UpdateCancellationTests()

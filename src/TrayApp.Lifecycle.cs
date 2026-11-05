@@ -176,6 +176,7 @@ namespace PiWebTray
             try { _startSignal.Close(); } catch (Exception) { }
             try { _stopSignal.Close(); } catch (Exception) { }
             try { _quitSignal.Close(); } catch (Exception) { }
+            try { _quitKeepServiceSignal.Close(); } catch (Exception) { }
             try { Icons.DisposeCache(); } catch (Exception) { }
             try { if (_server != null) _server.Dispose(); } catch (Exception) { }
             if (_mutex != null)

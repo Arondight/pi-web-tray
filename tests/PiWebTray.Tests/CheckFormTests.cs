@@ -145,11 +145,17 @@ namespace PiWebTray
             {
                 Assert.AreEqual("Node.js required", form.Text);
                 Assert.AreEqual(3, FindControls<Button>(form).Count);
+                Assert.IsNotNull(form.CancelButton);
+                Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
+                    "Esc should continue without exiting the tray.");
             }
             using (NodePromptForm form = new NodePromptForm("Unsupported", "Body", false))
             {
                 Assert.AreEqual("Unsupported", form.Text);
                 Assert.AreEqual(2, FindControls<Button>(form).Count);
+                Assert.IsNotNull(form.CancelButton);
+                Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
+                    "Esc should continue without exiting the tray.");
             }
         }
 

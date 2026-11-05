@@ -39,6 +39,10 @@ namespace PiWebTray
         internal static string StartSignalName { get { return @"Local\" + BaseName + ".Start" + Suffix; } }
         internal static string StopSignalName { get { return @"Local\" + BaseName + ".Stop" + Suffix; } }
         internal static string QuitSignalName { get { return @"Local\" + BaseName + ".Quit" + Suffix; } }
+        internal static string QuitKeepServiceSignalName
+        {
+            get { return @"Local\" + BaseName + ".QuitKeepService" + Suffix; }
+        }
 
         internal static string DataFolder
         {

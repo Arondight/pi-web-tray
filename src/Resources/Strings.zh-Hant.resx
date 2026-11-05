@@ -683,7 +683,7 @@
     <value>; 服務工作目錄（Pi 的預設專案目錄）</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; 缺少 Pi Web 時自動安裝（首次約需 10~20 分鐘）</value>
+    <value>; 啟動時缺少相依套件則自動安裝（首次約需 10~20 分鐘）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安裝的 npm 版本標籤，可改成具體版本號</value>
@@ -977,7 +977,7 @@
     <value>介面語言</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
-    <value>自動安裝缺少的相依套件</value>
+    <value>啟動時自動安裝缺少的相依套件</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Pi Web 停止後自動重新啟動</value>
@@ -1112,7 +1112,7 @@
     <value>以系統管理員身分重新啟動</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以系統管理員權限重新啟動？Pi Web 將重新啟動。</value>
+    <value>是否以系統管理員權限重新啟動？服務會保持目前的執行狀態。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>重新啟動失敗</value>
@@ -1187,7 +1187,7 @@
     <value>安裝/更新服務</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>現在安裝或更新服務嗎？如果服務正在執行，會先停止它；這可能需要幾分鐘。</value>
+    <value>現在安裝或更新服務嗎？即使已安裝，也會重新安裝兩個套件。如果服務正在執行，會先停止它；這可能需要幾分鐘。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>服務執行記錄</value>
