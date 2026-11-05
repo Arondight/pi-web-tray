@@ -64,6 +64,9 @@ namespace PiWebTray
                     break;
             }
 
+            if (_phase == Phase.Running && _nodePresenceKnown && !_nodePresent)
+                label += L.T("status.nodeMissing");
+
             bool updateBusy = UpdateBusy();
             if (updateBusy)
             {
@@ -152,6 +155,8 @@ namespace PiWebTray
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
             if (portConflict) _openItem.Text = L.T("menu.portConflict");
+
+            RefreshNodeHealth();
         }
 
         private void OpenOrStart()
@@ -171,7 +176,8 @@ namespace PiWebTray
             if (_phase == Phase.Installing || _phase == Phase.Checking) return;
             if (_phase == Phase.NeedsNode)
             {
-                // Missing Node can only be fixed by the user; probe again (one click once it is installed)
+                // The background watcher normally continues after Node.js is installed;
+                // clicking the tray is also an explicit retry if that was missed.
                 BeginEnvironmentCheck(true, true);
                 return;
             }

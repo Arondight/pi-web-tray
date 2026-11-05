@@ -52,13 +52,16 @@
     <value>(checking)</value>
   </data>
   <data name="status.tooltip" xml:space="preserve">
-    <value>Pi Web Tray — {0}</value>
+    <value>{0}</value>
   </data>
   <data name="status.bulletOn" xml:space="preserve">
     <value>● </value>
   </data>
   <data name="status.bulletOff" xml:space="preserve">
     <value>○ </value>
+  </data>
+  <data name="status.nodeMissing" xml:space="preserve">
+    <value> · Node.js missing</value>
   </data>
   <data name="menu.open" xml:space="preserve">
     <value>Open browser</value>
@@ -113,9 +116,11 @@ Open the download page?</value>
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}.
 
-Pi Web Tray needs Node.js {1} or newer.
+Node.js {1} or newer is required.
 
-{2}</value>
+{2}
+
+Continue after Node.js is installed.</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 and 8 builds are unsigned community builds; this project cannot verify them.</value>
@@ -169,13 +174,13 @@ Pi Web Tray needs Node.js {1} or newer.
     <value>Enabled. Starts at login with administrator rights.</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>Enabled. The tray icon appears after login (standard user).</value>
+    <value>Enabled. An icon appears in the notification area after login (standard user).</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>The scheduled task could not be created (the UAC prompt may have been cancelled).</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
-    <value>Disabled. The application will not start at login.</value>
+    <value>Disabled. No automatic start at login.</value>
   </data>
   <data name="auto.taskDeleteFailed" xml:space="preserve">
     <value>The scheduled task could not be removed (the UAC prompt may have been cancelled); autostart may still be active.</value>
@@ -322,7 +327,7 @@ Pi Web Tray needs Node.js {1} or newer.
     <value>Stopping Pi Web first (npm cannot update it while it runs).</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web was stopped for this install and was not restarted (no tray is running).</value>
+    <value>Pi Web was stopped for this install and was not restarted (nothing was running).</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>Pi Web did not open port {0} after the install. Check the service log.</value>
@@ -340,7 +345,7 @@ Pi Web Tray needs Node.js {1} or newer.
     <value>Port {0} did not respond in time.</value>
   </data>
   <data name="notify.startFailedBody" xml:space="preserve">
-    <value>{0}. Check the service log from the tray menu.</value>
+    <value>{0}. Check the service log from the menu.</value>
   </data>
   <data name="notify.stopFailedTitle" xml:space="preserve">
     <value>Service stop failed</value>
@@ -358,7 +363,7 @@ Pi Web Tray needs Node.js {1} or newer.
     <value>Pi Web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the tray menu to update dependencies.</value>
+    <value>Use the menu to update dependencies.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start Pi Web</value>
@@ -399,7 +404,25 @@ Exit anyway?</value>
     <value>Node.js {0} or newer is required</value>
   </data>
   <data name="notify.needsNodeBody" xml:space="preserve">
-    <value>{0}. Select the tray icon after installing Node.js.</value>
+    <value>{0}. Continue after Node.js is installed.</value>
+  </data>
+  <data name="notify.nodeDetectedTitle" xml:space="preserve">
+    <value>Node.js detected</value>
+  </data>
+  <data name="notify.nodeDetectedBody" xml:space="preserve">
+    <value>Node.js detected; checking the environment.</value>
+  </data>
+  <data name="notify.nodeMissingTitle" xml:space="preserve">
+    <value>Node.js no longer available</value>
+  </data>
+  <data name="notify.nodeMissingBody" xml:space="preserve">
+    <value>Pi Web is still running, but restarting it will fail until Node.js is installed again.</value>
+  </data>
+  <data name="notify.nodeRestoredTitle" xml:space="preserve">
+    <value>Node.js is available again</value>
+  </data>
+  <data name="notify.nodeRestoredBody" xml:space="preserve">
+    <value>The running service was not restarted.</value>
   </data>
   <data name="probe.needPiCli" xml:space="preserve">
     <value>Pi is not installed</value>
@@ -408,13 +431,13 @@ Exit anyway?</value>
     <value>Pi is not installed</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>Use the tray menu to update dependencies.</value>
+    <value>Use the menu to update dependencies.</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>Use the tray menu to update dependencies.</value>
+    <value>Use the menu to update dependencies.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -498,7 +521,7 @@ Exit anyway?</value>
     <value>Language</value>
   </data>
   <data name="diag.title" xml:space="preserve">
-    <value>Pi Web Tray diagnostics</value>
+    <value>Diagnostics</value>
   </data>
   <data name="diag.time" xml:space="preserve">
     <value>Time</value>
@@ -543,34 +566,34 @@ Exit anyway?</value>
     <value>Mutex</value>
   </data>
   <data name="diag.mutexFree" xml:space="preserve">
-    <value>Free (no tray running)</value>
+    <value>Free (not running)</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
     <value>Held by an elevated instance</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
-    <value>Held by another tray instance</value>
+    <value>Held by another process</value>
   </data>
   <data name="diag.probeFailed" xml:space="preserve">
     <value>Environment probe failed: {0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>Pi Web is running with administrator rights</value>
+    <value>Already running with administrator rights</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>The tray is running elevated.
+    <value>Already running elevated.
 
-To start the service, use the tray icon menu, or right-click the desktop shortcut and choose “Run as administrator”.</value>
+To start the service, use the notification icon menu, or right-click the desktop shortcut and choose “Run as administrator”.</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
     <value>Elevation takeover failed</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
-    <value>The previous tray instance did not exit.
-Choose “Exit and stop service” from the tray menu first, then retry.</value>
+    <value>The previous process did not exit.
+Choose “Exit and stop service” from the menu first, then retry.</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
-    <value>Pi Web Tray encountered an error. Details were written to crash.log:
+    <value>An error occurred. Details were written to crash.log:
 
 {0}</value>
   </data>
@@ -592,19 +615,19 @@ Use --help to see the supported options.</value>
     <value>Start Pi Web, install missing dependencies, and open the browser.</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>Used by start-at-login; starts the tray and Pi Web without opening a browser.</value>
+    <value>Used by start-at-login; starts Pi Web in the background without opening a browser.</value>
   </data>
   <data name="help.stop" xml:space="preserve">
-    <value>Request the running tray to stop the service; the tray remains.</value>
+    <value>Stop the service without exiting.</value>
   </data>
   <data name="help.quit" xml:space="preserve">
-    <value>Stop the service and exit the tray.</value>
+    <value>Stop the service and exit.</value>
   </data>
   <data name="help.check" xml:space="preserve">
     <value>Check the environment (exit code 0 = ready, 1 = missing component).</value>
   </data>
   <data name="help.install" xml:space="preserve">
-    <value>Install dependencies without starting the tray.</value>
+    <value>Install dependencies and exit.</value>
   </data>
   <data name="help.dryrun" xml:space="preserve">
     <value>With --install, print the npm command without executing it.</value>
@@ -613,7 +636,7 @@ Use --help to see the supported options.</value>
     <value>Write a diagnostic snapshot to diag.txt.</value>
   </data>
   <data name="help.makeico" xml:space="preserve">
-    <value>Generate the Pi Web Tray icon (build tool).</value>
+    <value>Generate the icon (build tool).</value>
   </data>
   <data name="help.version" xml:space="preserve">
     <value>Print the version.</value>
@@ -652,10 +675,10 @@ Use --help to see the supported options.</value>
     <value>{0} min {1} s</value>
   </data>
   <data name="ini.title" xml:space="preserve">
-    <value>; Pi Web Tray configuration</value>
+    <value>; Configuration</value>
   </data>
   <data name="ini.subtitle" xml:space="preserve">
-    <value>; Restart the tray after editing</value>
+    <value>; Changes take effect after a restart</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
     <value>; Pi Web port (default 30141)</value>
@@ -673,13 +696,13 @@ Use --help to see the supported options.</value>
     <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; Optional HTTP or SOCKS5 proxy for Pi Web Tray updates only</value>
+    <value>; Optional HTTP or SOCKS5 proxy for update checks only</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; Leave empty for automatic detection; override only if required</value>
   </data>
   <data name="ini.autostartC" xml:space="preserve">
-    <value>; Start at login with administrator rights (maintained by the tray menu)</value>
+    <value>; Start at login with administrator rights (maintained by the menu)</value>
   </data>
   <data name="ini.langC" xml:space="preserve">
     <value>; UI language: auto (follow Windows), en, zh, zh-Hant</value>
@@ -736,7 +759,7 @@ Use --help to see the supported options.</value>
     <value>You are running the latest version ({0}).</value>
   </data>
   <data name="update.confirmTitle" xml:space="preserve">
-    <value>Update Pi Web Tray</value>
+    <value>Update</value>
   </data>
   <data name="update.confirmBody" xml:space="preserve">
     <value>A new version is available.
@@ -744,7 +767,7 @@ Use --help to see the supported options.</value>
 Current version: {0}
 Latest version: {1}
 
-The tray will stop Pi Web, update the application files and restart. Continue?</value>
+The update will stop Pi Web, replace the files and restart. Continue?</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>The installation directory requires administrator rights. Windows will ask for permission (UAC) before the files are replaced.</value>
@@ -753,13 +776,13 @@ The tray will stop Pi Web, update the application files and restart. Continue?</
     <value>Downloading update</value>
   </data>
   <data name="update.downloadingBody" xml:space="preserve">
-    <value>Downloading Pi Web Tray {0}...</value>
+    <value>Downloading version {0}...</value>
   </data>
   <data name="update.applyingTitle" xml:space="preserve">
-    <value>Updating Pi Web Tray</value>
+    <value>Updating</value>
   </data>
   <data name="update.applyingBody" xml:space="preserve">
-    <value>Applying version {0}; the tray will restart.</value>
+    <value>Applying version {0}; restarting.</value>
   </data>
   <data name="update.checkFailedTitle" xml:space="preserve">
     <value>Update check failed</value>
@@ -844,7 +867,7 @@ See {1} for details.</value>
     <value>The update helper was started with invalid arguments.</value>
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
-    <value>The tray did not exit in time; the update was not applied.</value>
+    <value>The update was not applied because the current process did not exit in time.</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>The downloaded update files changed before they could be applied. The update was cancelled.</value>
@@ -853,10 +876,10 @@ See {1} for details.</value>
     <value>The installation directory does not exist.</value>
   </data>
   <data name="update.error.notInstallation" xml:space="preserve">
-    <value>The target directory is not a Pi Web Tray installation.</value>
+    <value>The target directory is not a valid installation.</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>The update was applied, but the new tray could not be started.</value>
+    <value>The update was applied, but the new version could not start.</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
     <value>Pi Web is still using port {0}. The update was not applied; stop the service and try again.</value>
@@ -919,7 +942,7 @@ See {1} for details.</value>
     <value>Pi Web stopped</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>Pi Web stopped unexpectedly. Click the tray icon to restart it.</value>
+    <value>Pi Web stopped unexpectedly. Click the notification or icon to restart it.</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0} (listening={1}, owner={2})</value>
@@ -964,7 +987,7 @@ See {1} for details.</value>
     <value>Restart Pi Web automatically if it stops</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
-    <value>Check for Pi Web Tray updates at startup</value>
+    <value>Check for updates at startup</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
     <value>npm tag / version</value>
@@ -1093,19 +1116,19 @@ See {1} for details.</value>
     <value>Restart as administrator</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>Restart Pi Web Tray with administrator rights? Pi Web will restart.</value>
+    <value>Restart with administrator rights? Pi Web will restart.</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
-    <value>Could not restart Pi Web Tray</value>
+    <value>Restart failed</value>
   </data>
   <data name="notify.restartFailedBody" xml:space="preserve">
-    <value>The existing Pi Web Tray did not exit in time. It is still running.</value>
+    <value>The existing process did not exit in time. It is still running.</value>
   </data>
   <data name="notify.restartCanceled" xml:space="preserve">
     <value>Restart canceled</value>
   </data>
   <data name="notify.restartCanceledBody" xml:space="preserve">
-    <value>Pi Web Tray is still running.</value>
+    <value>Still running; nothing changed.</value>
   </data>
   <data name="notify.restartBusyBody" xml:space="preserve">
     <value>An update is being applied. Try again after it finishes.</value>
@@ -1120,7 +1143,7 @@ See {1} for details.</value>
     <value>Settings saved</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>Restart Pi Web Tray to apply language, working directory and path changes.</value>
+    <value>Changes take effect after a restart.</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>Refresh</value>
@@ -1144,7 +1167,7 @@ See {1} for details.</value>
     <value>Installation cancelled</value>
   </data>
   <data name="install.cancelledBody" xml:space="preserve">
-    <value>The dependency installation was cancelled. Click the tray icon to retry.</value>
+    <value>The dependency installation was cancelled. Try again from the menu.</value>
   </data>
   <data name="status.installingStep" xml:space="preserve">
     <value>Installing {0}/{1} · {2}</value>
@@ -1162,7 +1185,7 @@ See {1} for details.</value>
     <value>Update available</value>
   </data>
   <data name="update.availableBody" xml:space="preserve">
-    <value>Pi Web Tray {0} is available. Select the tray menu to update.</value>
+    <value>Version {0} is available. Click this notification to update.</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
     <value>Install/update service</value>
@@ -1204,13 +1227,13 @@ See {1} for details.</value>
     <value>; Restart Pi Web automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
-    <value>; Check for Pi Web Tray updates at startup (1 = enabled, 0 = disabled)</value>
+    <value>; Check for updates at startup (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>Start the tray only; do not start Pi Web.</value>
+    <value>Start without Pi Web.</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>Start the tray and Pi Web without opening the browser (used after updates).</value>
+    <value>Start Pi Web without opening the browser (used after updates).</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>Update</value>
@@ -1231,7 +1254,7 @@ See {1} for details.</value>
     <value>Check for updates</value>
   </data>
   <data name="update.startAfterFailureBody" xml:space="preserve">
-    <value>The update could not be completed. Try to start the tray now?</value>
+    <value>The update could not be completed. Try to start the program now?</value>
   </data>
   <data name="check.refreshing" xml:space="preserve">
     <value>Refreshing environment information...</value>

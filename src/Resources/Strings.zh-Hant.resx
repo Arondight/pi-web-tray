@@ -52,13 +52,16 @@
     <value>（檢查中）</value>
   </data>
   <data name="status.tooltip" xml:space="preserve">
-    <value>Pi Web Tray — {0}</value>
+    <value>{0}</value>
   </data>
   <data name="status.bulletOn" xml:space="preserve">
     <value>● </value>
   </data>
   <data name="status.bulletOff" xml:space="preserve">
     <value>○ </value>
+  </data>
+  <data name="status.nodeMissing" xml:space="preserve">
+    <value> · 缺少 Node.js</value>
   </data>
   <data name="menu.open" xml:space="preserve">
     <value>開啟瀏覽器</value>
@@ -113,9 +116,11 @@
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}。
 
-Pi Web Tray 需要 Node.js {1} 或更新版本。
+需要 Node.js {1} 或更新版本。
 
-{2}</value>
+{2}
+
+偵測到 Node.js 安裝後繼續。</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7/8 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
@@ -169,13 +174,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>已啟用。登入後將自動以系統管理員權限執行。</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>已啟用。登入後將自動顯示系統匣圖示（標準使用者權限）。</value>
+    <value>已啟用。登入後通知區域將顯示圖示（標準使用者權限）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>無法建立排程工作（可能取消了 UAC 授權）。</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
-    <value>已停用。下次登入時不會自動啟動。</value>
+    <value>已停用。登入時不會自動啟動。</value>
   </data>
   <data name="auto.taskDeleteFailed" xml:space="preserve">
     <value>無法刪除排程工作（可能取消了 UAC 授權），自動啟動可能仍然有效。</value>
@@ -322,7 +327,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>正在先停止 Pi Web（npm 無法在它執行時更新）。</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web 已為本次安裝停止，且未重新啟動（沒有執行中的系統匣）。</value>
+    <value>Pi Web 已為本次安裝停止，且未重新啟動（當時沒有執行中的程序）。</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>安裝後 Pi Web 沒有開啟連接埠 {0}。請查看服務記錄。</value>
@@ -340,7 +345,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>連接埠 {0} 在逾時時間內無回應。</value>
   </data>
   <data name="notify.startFailedBody" xml:space="preserve">
-    <value>{0}。請從系統匣功能表檢視服務記錄檔。</value>
+    <value>{0}。請從功能表檢視服務記錄檔。</value>
   </data>
   <data name="notify.stopFailedTitle" xml:space="preserve">
     <value>停止服務失敗</value>
@@ -358,7 +363,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表更新相依套件。</value>
+    <value>請使用功能表更新相依套件。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>無法啟動 Pi Web</value>
@@ -399,7 +404,25 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>需要 Node.js {0} 或更高</value>
   </data>
   <data name="notify.needsNodeBody" xml:space="preserve">
-    <value>{0}。安裝完成後選擇系統匣圖示以繼續。</value>
+    <value>{0}。偵測到 Node.js 安裝後繼續。</value>
+  </data>
+  <data name="notify.nodeDetectedTitle" xml:space="preserve">
+    <value>已偵測到 Node.js</value>
+  </data>
+  <data name="notify.nodeDetectedBody" xml:space="preserve">
+    <value>偵測到 Node.js 安裝，正在檢查環境。</value>
+  </data>
+  <data name="notify.nodeMissingTitle" xml:space="preserve">
+    <value>Node.js 已無法使用</value>
+  </data>
+  <data name="notify.nodeMissingBody" xml:space="preserve">
+    <value>Pi Web 仍在執行，但在重新安裝 Node.js 前無法重新啟動服務。</value>
+  </data>
+  <data name="notify.nodeRestoredTitle" xml:space="preserve">
+    <value>Node.js 已恢復</value>
+  </data>
+  <data name="notify.nodeRestoredBody" xml:space="preserve">
+    <value>正在執行的服務未重新啟動。</value>
   </data>
   <data name="probe.needPiCli" xml:space="preserve">
     <value>Pi 尚未安裝</value>
@@ -408,13 +431,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi 尚未安裝</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>請使用托盤選單更新依賴。</value>
+    <value>請使用功能表更新相依套件。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安裝</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>請使用系統匣功能表更新相依套件。</value>
+    <value>請使用功能表更新相依套件。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>無法安裝：缺少 Node.js</value>
@@ -498,7 +521,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>介面語言</value>
   </data>
   <data name="diag.title" xml:space="preserve">
-    <value>Pi Web Tray 診斷</value>
+    <value>診斷</value>
   </data>
   <data name="diag.time" xml:space="preserve">
     <value>時間</value>
@@ -543,34 +566,34 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>互斥鎖</value>
   </data>
   <data name="diag.mutexFree" xml:space="preserve">
-    <value>閒置（無系統匣執行中）</value>
+    <value>閒置（未執行）</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
     <value>由具備系統管理員權限的執行個體佔用</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
-    <value>由其他系統匣執行個體佔用</value>
+    <value>由其他程式占用</value>
   </data>
   <data name="diag.probeFailed" xml:space="preserve">
     <value>環境偵測失敗：{0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>Pi Web 正在以系統管理員權限執行</value>
+    <value>已在系統管理員權限下執行</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>系統匣程式目前以系統管理員權限執行。
+    <value>已在系統管理員權限下執行。
 
-要啟動服務，請使用通知區域圖示功能表，或以滑鼠右鍵按一下桌面捷徑並選擇「以系統管理員身分執行」。</value>
+要啟動服務，請使用通知圖示功能表，或以滑鼠右鍵按一下桌面捷徑並選擇「以系統管理員身分執行」。</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
     <value>提權接管失敗</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
-    <value>先前的系統匣執行個體未結束。
-請先從系統匣功能表選擇「退出並停止服務」，然後重試。</value>
+    <value>先前的程序未結束。
+請先從功能表選擇「退出並停止服務」，然後重試。</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
-    <value>Pi Web Tray 發生錯誤，詳細資訊已寫入 crash.log：
+    <value>發生錯誤，詳細資訊已寫入 crash.log：
 
 {0}</value>
   </data>
@@ -592,19 +615,19 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>啟動 Pi Web，安裝缺少的相依性，並開啟瀏覽器。</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>由開機自動啟動使用；啟動系統匣和 Pi Web，但不開啟瀏覽器。</value>
+    <value>由開機自動啟動使用；在背景啟動 Pi Web，但不開啟瀏覽器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
-    <value>請求目前系統匣停止服務；系統匣繼續執行。</value>
+    <value>停止服務但不結束。</value>
   </data>
   <data name="help.quit" xml:space="preserve">
-    <value>停止服務並結束系統匣。</value>
+    <value>停止服務並結束。</value>
   </data>
   <data name="help.check" xml:space="preserve">
     <value>檢查執行環境（結束代碼 0 = 就緒，1 = 缺少元件）。</value>
   </data>
   <data name="help.install" xml:space="preserve">
-    <value>僅安裝相依性，不啟動系統匣。</value>
+    <value>安裝相依性後結束。</value>
   </data>
   <data name="help.dryrun" xml:space="preserve">
     <value>與 --install 配合使用：僅列印 npm 指令。</value>
@@ -613,7 +636,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>將診斷快照寫入 diag.txt。</value>
   </data>
   <data name="help.makeico" xml:space="preserve">
-    <value>產生 Pi Web Tray 圖示（建置工具）。</value>
+    <value>產生圖示（建置工具）。</value>
   </data>
   <data name="help.version" xml:space="preserve">
     <value>顯示版本。</value>
@@ -652,10 +675,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>{0} 分 {1} 秒</value>
   </data>
   <data name="ini.title" xml:space="preserve">
-    <value>; Pi Web 系統匣啟動器設定</value>
+    <value>; 設定</value>
   </data>
   <data name="ini.subtitle" xml:space="preserve">
-    <value>; 修改後需重新啟動系統匣程式</value>
+    <value>; 修改後重新啟動生效</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
     <value>; Pi Web 連接埠，預設 30141</value>
@@ -673,13 +696,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>; 自訂 npm 來源，留空使用 npm 預設值（例如 https://registry.npmmirror.com）</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; 可選的 HTTP 或 SOCKS5 代理，僅用於 Pi Web Tray 更新</value>
+    <value>; 可選的 HTTP 或 SOCKS5 代理，僅用於檢查更新</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下項留空時將自動偵測，通常無需修改</value>
   </data>
   <data name="ini.autostartC" xml:space="preserve">
-    <value>; 開機自動啟動是否使用系統管理員權限（由系統匣功能表維護）</value>
+    <value>; 開機自動啟動是否使用系統管理員權限（由功能表維護）</value>
   </data>
   <data name="ini.langC" xml:space="preserve">
     <value>; 介面語言：auto（跟隨 Windows）/ en / zh / zh-Hant</value>
@@ -736,7 +759,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>目前已是最新版本（{0}）。</value>
   </data>
   <data name="update.confirmTitle" xml:space="preserve">
-    <value>更新 Pi Web Tray</value>
+    <value>更新</value>
   </data>
   <data name="update.confirmBody" xml:space="preserve">
     <value>發現新版本。
@@ -744,7 +767,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
 目前版本：{0}
 最新版本：{1}
 
-系統匣將停止 Pi Web、更新程式檔案並重新啟動。是否繼續？</value>
+更新將停止 Pi Web、取代檔案並重新啟動。是否繼續？</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>安裝目錄需要系統管理員權限。取代檔案前 Windows 會要求權限（UAC）。</value>
@@ -753,13 +776,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>正在下載更新</value>
   </data>
   <data name="update.downloadingBody" xml:space="preserve">
-    <value>正在下載 Pi Web Tray {0}...</value>
+    <value>正在下載版本 {0}...</value>
   </data>
   <data name="update.applyingTitle" xml:space="preserve">
-    <value>正在更新 Pi Web Tray</value>
+    <value>正在更新</value>
   </data>
   <data name="update.applyingBody" xml:space="preserve">
-    <value>正在套用版本 {0}，系統匣將重新啟動。</value>
+    <value>正在套用版本 {0}，即將重新啟動。</value>
   </data>
   <data name="update.checkFailedTitle" xml:space="preserve">
     <value>檢查更新失敗</value>
@@ -844,7 +867,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>更新程式啟動參數無效。</value>
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
-    <value>系統匣未及時結束，更新未套用。</value>
+    <value>目前程序未及時結束，更新未套用。</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>下載的更新檔案在套用前發生變化，更新已取消。</value>
@@ -853,10 +876,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>安裝目錄不存在。</value>
   </data>
   <data name="update.error.notInstallation" xml:space="preserve">
-    <value>目標目錄不是 Pi Web Tray 安裝目錄。</value>
+    <value>目標目錄不是有效的安裝目錄。</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>更新已套用，但無法啟動新的系統匣。</value>
+    <value>更新已套用，但新版本無法啟動。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
     <value>Pi Web 仍占用連接埠 {0}，更新未套用；請停止服務後重試。</value>
@@ -919,7 +942,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi Web 已停止</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>Pi Web 意外結束。點擊系統匣圖示可重新啟動。</value>
+    <value>Pi Web 意外結束。點擊通知或圖示重新啟動。</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0}（接聽中={1}，擁有者={2}）</value>
@@ -964,7 +987,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi Web 停止後自動重新啟動</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
-    <value>啟動時檢查 Pi Web Tray 更新</value>
+    <value>啟動時檢查更新</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
     <value>npm 標籤 / 版本</value>
@@ -1006,7 +1029,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>選擇 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>服務連接埠修改需要先停止服務。語言、服務工作目錄和 Node.js 路徑修改在重新啟動 Pi Web Tray 後生效。</value>
+    <value>服務連接埠修改需要先停止服務。語言、服務工作目錄和 Node.js 路徑修改在重新啟動後生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>儲存</value>
@@ -1093,19 +1116,19 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>以系統管理員身分重新啟動</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以系統管理員權限重新啟動 Pi Web Tray？Pi Web 將重新啟動。</value>
+    <value>是否以系統管理員權限重新啟動？Pi Web 將重新啟動。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
-    <value>無法重新啟動 Pi Web Tray</value>
+    <value>重新啟動失敗</value>
   </data>
   <data name="notify.restartFailedBody" xml:space="preserve">
-    <value>現有 Pi Web Tray 未能及時結束，目前仍在執行。</value>
+    <value>現有程序未能及時結束，目前仍在執行。</value>
   </data>
   <data name="notify.restartCanceled" xml:space="preserve">
     <value>已取消重新啟動</value>
   </data>
   <data name="notify.restartCanceledBody" xml:space="preserve">
-    <value>Pi Web Tray 仍在執行。</value>
+    <value>仍在執行，未做變更。</value>
   </data>
   <data name="notify.restartBusyBody" xml:space="preserve">
     <value>正在套用更新，請完成後再重新啟動。</value>
@@ -1120,7 +1143,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>設定已儲存</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>請重新啟動 Pi Web Tray 以套用語言、工作目錄和路徑變更。</value>
+    <value>變更將在重新啟動後生效。</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>重新整理</value>
@@ -1144,7 +1167,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>安裝已取消</value>
   </data>
   <data name="install.cancelledBody" xml:space="preserve">
-    <value>相依套件安裝已取消。點擊系統匣圖示可重試。</value>
+    <value>相依套件安裝已取消。請從功能表重試。</value>
   </data>
   <data name="status.installingStep" xml:space="preserve">
     <value>正在安裝 {0}/{1} · {2}</value>
@@ -1162,7 +1185,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>有可用更新</value>
   </data>
   <data name="update.availableBody" xml:space="preserve">
-    <value>Pi Web Tray {0} 已可使用。請選擇系統匣功能表進行更新。</value>
+    <value>版本 {0} 已可用。點擊此通知進行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
     <value>安裝/更新服務</value>
@@ -1204,13 +1227,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>; Pi Web 意外停止時自動重新啟動（1 = 啟用，0 = 停用）</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
-    <value>; 啟動時檢查 Pi Web Tray 更新（1 = 啟用，0 = 停用）</value>
+    <value>; 啟動時檢查更新（1 = 啟用，0 = 停用）</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>僅啟動系統匣，不啟動 Pi Web。</value>
+    <value>不啟動 Pi Web。</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>啟動系統匣和 Pi Web，但不開啟瀏覽器（更新後使用）。</value>
+    <value>啟動 Pi Web，但不開啟瀏覽器（更新後使用）。</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>更新</value>
@@ -1231,7 +1254,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>檢查更新</value>
   </data>
   <data name="update.startAfterFailureBody" xml:space="preserve">
-    <value>更新未能完成。現在嘗試啟動系統匣嗎？</value>
+    <value>更新未能完成。現在啟動程式嗎？</value>
   </data>
   <data name="check.refreshing" xml:space="preserve">
     <value>正在重新整理環境資訊…</value>

@@ -52,13 +52,16 @@
     <value>（检查中）</value>
   </data>
   <data name="status.tooltip" xml:space="preserve">
-    <value>Pi Web Tray — {0}</value>
+    <value>{0}</value>
   </data>
   <data name="status.bulletOn" xml:space="preserve">
     <value>● </value>
   </data>
   <data name="status.bulletOff" xml:space="preserve">
     <value>○ </value>
+  </data>
+  <data name="status.nodeMissing" xml:space="preserve">
+    <value> · 缺少 Node.js</value>
   </data>
   <data name="menu.open" xml:space="preserve">
     <value>打开浏览器</value>
@@ -113,9 +116,11 @@
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}。
 
-Pi Web Tray 需要 Node.js {1} 或更新版本。
+需要 Node.js {1} 或更新版本。
 
-{2}</value>
+{2}
+
+检测到 Node.js 安装后继续。</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7/8 使用未签名的社区构建，本项目无法验证其安全性。</value>
@@ -169,13 +174,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>已启用。登录后将自动以管理员权限运行。</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>已启用。登录后将自动显示托盘图标（标准用户权限）。</value>
+    <value>已启用。登录后通知区域将显示图标（标准用户权限）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>无法创建计划任务（可能取消了 UAC 授权）。</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
-    <value>已禁用。下次登录时不会自动启动。</value>
+    <value>已禁用。登录时不会自动启动。</value>
   </data>
   <data name="auto.taskDeleteFailed" xml:space="preserve">
     <value>无法删除计划任务（可能取消了 UAC 授权），自启动可能仍然有效。</value>
@@ -322,7 +327,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>正在先停止 Pi Web（npm 无法在它运行时更新）。</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web 已为本次安装停止，且未重新启动（没有正在运行的托盘）。</value>
+    <value>Pi Web 已为本次安装停止，且未重新启动（当时没有运行中的进程）。</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>安装后 Pi Web 没有打开端口 {0}。请查看服务日志。</value>
@@ -340,7 +345,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>端口 {0} 在超时时间内无响应。</value>
   </data>
   <data name="notify.startFailedBody" xml:space="preserve">
-    <value>{0}。请从托盘菜单查看服务日志。</value>
+    <value>{0}。请从菜单查看服务日志。</value>
   </data>
   <data name="notify.stopFailedTitle" xml:space="preserve">
     <value>停止服务失败</value>
@@ -358,7 +363,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>请使用托盘菜单更新依赖。</value>
+    <value>请使用菜单更新依赖。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>无法启动 Pi Web</value>
@@ -399,7 +404,25 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>需要 Node.js {0} 或更高</value>
   </data>
   <data name="notify.needsNodeBody" xml:space="preserve">
-    <value>{0}。安装完成后选择托盘图标以继续。</value>
+    <value>{0}。检测到 Node.js 安装后继续。</value>
+  </data>
+  <data name="notify.nodeDetectedTitle" xml:space="preserve">
+    <value>已检测到 Node.js</value>
+  </data>
+  <data name="notify.nodeDetectedBody" xml:space="preserve">
+    <value>检测到 Node.js 安装，正在检查环境。</value>
+  </data>
+  <data name="notify.nodeMissingTitle" xml:space="preserve">
+    <value>Node.js 已不可用</value>
+  </data>
+  <data name="notify.nodeMissingBody" xml:space="preserve">
+    <value>Pi Web 仍在运行，但在重新安装 Node.js 前无法重启服务。</value>
+  </data>
+  <data name="notify.nodeRestoredTitle" xml:space="preserve">
+    <value>Node.js 已恢复</value>
+  </data>
+  <data name="notify.nodeRestoredBody" xml:space="preserve">
+    <value>正在运行的服务未重新启动。</value>
   </data>
   <data name="probe.needPiCli" xml:space="preserve">
     <value>Pi 尚未安装</value>
@@ -408,13 +431,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi 尚未安装</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>请使用托盘菜单更新依赖。</value>
+    <value>请使用菜单更新依赖。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安装</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>请使用托盘菜单更新依赖。</value>
+    <value>请使用菜单更新依赖。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>无法安装：缺少 Node.js</value>
@@ -498,7 +521,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>界面语言</value>
   </data>
   <data name="diag.title" xml:space="preserve">
-    <value>Pi Web Tray 诊断</value>
+    <value>诊断</value>
   </data>
   <data name="diag.time" xml:space="preserve">
     <value>时间</value>
@@ -543,34 +566,34 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>互斥体</value>
   </data>
   <data name="diag.mutexFree" xml:space="preserve">
-    <value>空闲（无托盘实例运行）</value>
+    <value>空闲（未运行）</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
     <value>由具有管理员权限的实例占用</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
-    <value>由其他托盘实例占用</value>
+    <value>由其他进程占用</value>
   </data>
   <data name="diag.probeFailed" xml:space="preserve">
     <value>环境探测失败：{0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>Pi Web 正在以管理员权限运行</value>
+    <value>已在管理员权限下运行</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>托盘程序当前以管理员权限运行。
+    <value>已在管理员权限下运行。
 
-要启动服务，请使用通知区域图标菜单，或右键单击桌面快捷方式并选择“以管理员身份运行”。</value>
+要启动服务，请使用通知图标菜单，或右键单击桌面快捷方式并选择“以管理员身份运行”。</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
     <value>提权接管失败</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
-    <value>先前的托盘实例未退出。
-请先从托盘菜单选择“退出并停止服务”，然后重试。</value>
+    <value>先前的进程未退出。
+请先从菜单选择“退出并停止服务”，然后重试。</value>
   </data>
   <data name="prog.crashBody" xml:space="preserve">
-    <value>Pi Web Tray 发生错误，详细信息已写入 crash.log：
+    <value>发生错误，详细信息已写入 crash.log：
 
 {0}</value>
   </data>
@@ -592,19 +615,19 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>启动 Pi Web，安装缺失的依赖，并打开浏览器。</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>由开机自启动使用；启动托盘和 Pi Web，但不打开浏览器。</value>
+    <value>由开机自启动使用；在后台启动 Pi Web，但不打开浏览器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
-    <value>请求当前托盘停止服务；托盘继续运行。</value>
+    <value>停止服务但不退出。</value>
   </data>
   <data name="help.quit" xml:space="preserve">
-    <value>停止服务并退出托盘。</value>
+    <value>停止服务并退出。</value>
   </data>
   <data name="help.check" xml:space="preserve">
     <value>检查运行环境（退出码 0 = 就绪，1 = 缺少组件）。</value>
   </data>
   <data name="help.install" xml:space="preserve">
-    <value>仅安装依赖，不启动托盘。</value>
+    <value>安装依赖后退出。</value>
   </data>
   <data name="help.dryrun" xml:space="preserve">
     <value>与 --install 配合使用：仅打印 npm 命令。</value>
@@ -613,7 +636,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>将诊断快照写入 diag.txt。</value>
   </data>
   <data name="help.makeico" xml:space="preserve">
-    <value>生成 Pi Web Tray 图标（构建工具）。</value>
+    <value>生成图标（构建工具）。</value>
   </data>
   <data name="help.version" xml:space="preserve">
     <value>显示版本。</value>
@@ -652,10 +675,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>{0} 分 {1} 秒</value>
   </data>
   <data name="ini.title" xml:space="preserve">
-    <value>; Pi Web 托盘启动器配置</value>
+    <value>; 配置</value>
   </data>
   <data name="ini.subtitle" xml:space="preserve">
-    <value>; 修改后需重新启动托盘程序</value>
+    <value>; 修改后重启生效</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
     <value>; Pi Web 端口，默认 30141</value>
@@ -673,13 +696,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>; 自定义 npm 来源，留空使用 npm 默认值（例如 https://registry.npmmirror.com）</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; 可选的 HTTP 或 SOCKS5 代理，仅用于 Pi Web Tray 更新</value>
+    <value>; 可选的 HTTP 或 SOCKS5 代理，仅用于检查更新</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下项留空时将自动检测，通常无需修改</value>
   </data>
   <data name="ini.autostartC" xml:space="preserve">
-    <value>; 开机自启动是否使用管理员权限（由托盘菜单维护）</value>
+    <value>; 开机自启动是否使用管理员权限（由菜单维护）</value>
   </data>
   <data name="ini.langC" xml:space="preserve">
     <value>; 界面语言：auto（跟随 Windows）/ en / zh / zh-Hant</value>
@@ -736,7 +759,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>当前已是最新版本（{0}）。</value>
   </data>
   <data name="update.confirmTitle" xml:space="preserve">
-    <value>更新 Pi Web Tray</value>
+    <value>更新</value>
   </data>
   <data name="update.confirmBody" xml:space="preserve">
     <value>发现新版本。
@@ -744,7 +767,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
 当前版本：{0}
 最新版本：{1}
 
-托盘将停止 Pi Web、更新程序文件并重启。是否继续？</value>
+更新将停止 Pi Web、替换文件并重启。是否继续？</value>
   </data>
   <data name="update.adminNote" xml:space="preserve">
     <value>安装目录需要管理员权限。替换文件前 Windows 会请求权限（UAC）。</value>
@@ -753,13 +776,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>正在下载更新</value>
   </data>
   <data name="update.downloadingBody" xml:space="preserve">
-    <value>正在下载 Pi Web Tray {0}...</value>
+    <value>正在下载版本 {0}...</value>
   </data>
   <data name="update.applyingTitle" xml:space="preserve">
-    <value>正在更新 Pi Web Tray</value>
+    <value>正在更新</value>
   </data>
   <data name="update.applyingBody" xml:space="preserve">
-    <value>正在应用版本 {0}，托盘将重新启动。</value>
+    <value>正在应用版本 {0}，即将重启。</value>
   </data>
   <data name="update.checkFailedTitle" xml:space="preserve">
     <value>检查更新失败</value>
@@ -844,7 +867,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>更新程序启动参数无效。</value>
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
-    <value>托盘未及时退出，更新未应用。</value>
+    <value>当前进程未及时退出，更新未应用。</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>下载的更新文件在应用前发生变化，更新已取消。</value>
@@ -853,10 +876,10 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>安装目录不存在。</value>
   </data>
   <data name="update.error.notInstallation" xml:space="preserve">
-    <value>目标目录不是 Pi Web Tray 安装目录。</value>
+    <value>目标目录不是有效的安装目录。</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>更新已应用，但无法启动新的托盘。</value>
+    <value>更新已应用，但新版本无法启动。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
     <value>Pi Web 仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
@@ -919,7 +942,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi Web 已停止</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>Pi Web 意外退出。点击托盘图标可重新启动。</value>
+    <value>Pi Web 意外退出。点击通知或图标重新启动。</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0}（监听中={1}，所有者={2}）</value>
@@ -964,7 +987,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>Pi Web 停止后自动重启</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
-    <value>启动时检查 Pi Web Tray 更新</value>
+    <value>启动时检查更新</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
     <value>npm 标签 / 版本</value>
@@ -1006,7 +1029,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>选择 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>服务端口修改需要先停止服务。语言、服务工作目录和 Node.js 路径修改在重启 Pi Web Tray 后生效。</value>
+    <value>服务端口修改需要先停止服务。语言、服务工作目录和 Node.js 路径修改在重启后生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>保存</value>
@@ -1093,19 +1116,19 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>以管理员身份重启</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以管理员权限重启 Pi Web Tray？Pi Web 将重新启动。</value>
+    <value>是否以管理员权限重启？Pi Web 将重新启动。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
-    <value>无法重启 Pi Web Tray</value>
+    <value>重启失败</value>
   </data>
   <data name="notify.restartFailedBody" xml:space="preserve">
-    <value>现有 Pi Web Tray 未能及时退出，当前仍在运行。</value>
+    <value>现有进程未能及时退出，当前仍在运行。</value>
   </data>
   <data name="notify.restartCanceled" xml:space="preserve">
     <value>已取消重启</value>
   </data>
   <data name="notify.restartCanceledBody" xml:space="preserve">
-    <value>Pi Web Tray 仍在运行。</value>
+    <value>仍在运行，未做更改。</value>
   </data>
   <data name="notify.restartBusyBody" xml:space="preserve">
     <value>正在应用更新，请完成后再重启。</value>
@@ -1120,7 +1143,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>设置已保存</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>请重启 Pi Web Tray 以应用语言、工作目录和路径更改。</value>
+    <value>更改将在重启后生效。</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>刷新</value>
@@ -1144,7 +1167,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>安装已取消</value>
   </data>
   <data name="install.cancelledBody" xml:space="preserve">
-    <value>依赖安装已取消。点击托盘图标可重试。</value>
+    <value>依赖安装已取消。请从菜单重试。</value>
   </data>
   <data name="status.installingStep" xml:space="preserve">
     <value>正在安装 {0}/{1} · {2}</value>
@@ -1162,7 +1185,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>有可用更新</value>
   </data>
   <data name="update.availableBody" xml:space="preserve">
-    <value>Pi Web Tray {0} 已可用。请选择托盘菜单进行更新。</value>
+    <value>版本 {0} 已可用。点击此通知进行更新。</value>
   </data>
   <data name="install.confirmTitle" xml:space="preserve">
     <value>安装/更新服务</value>
@@ -1204,13 +1227,13 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>; Pi Web 意外停止时自动重启（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
-    <value>; 启动时检查 Pi Web Tray 更新（1 = 启用，0 = 禁用）</value>
+    <value>; 启动时检查更新（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>仅启动托盘，不启动 Pi Web。</value>
+    <value>不启动 Pi Web。</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>启动托盘和 Pi Web，但不打开浏览器（更新后使用）。</value>
+    <value>启动 Pi Web，但不打开浏览器（更新后使用）。</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>更新</value>
@@ -1231,7 +1254,7 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。
     <value>检查更新</value>
   </data>
   <data name="update.startAfterFailureBody" xml:space="preserve">
-    <value>更新未能完成。现在尝试启动托盘吗？</value>
+    <value>更新未能完成。现在启动程序吗？</value>
   </data>
   <data name="check.refreshing" xml:space="preserve">
     <value>正在刷新环境信息…</value>

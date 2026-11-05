@@ -164,6 +164,9 @@ namespace PiWebTray
             if (_cleaned) return;
             _cleaned = true;
 
+            // The watcher is a background thread and is never joined here: joining could
+            // block the UI while it is finishing a registry or filesystem read.
+            StopNodePresenceMonitor();
             try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
             CloseInstallForm();
             CloseUpdateForm();

@@ -1,6 +1,7 @@
 // Pi Web Tray — Node.js setup prompt
 //
-// A modal warning shown before the tray exits when Node.js is unavailable.
+// A modal warning shown when Node.js is unavailable. The tray may keep running
+// and detect a later installation instead of exiting.
 // It uses the same custom-window styling as the other Pi Web Tray dialogs
 // instead of a native MessageBox.
 

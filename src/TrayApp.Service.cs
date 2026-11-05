@@ -533,10 +533,19 @@ namespace PiWebTray
 
             _probe = result;
             _config.NodePath = result.NodePath;
+            _nodePresenceKnown = true;
+            _nodePresent = result.NodeFound;
 
-            if (result.NeedsNode) _phase = Phase.NeedsNode;
-            else if (result.NeedsPiWeb) _phase = Phase.NeedsDeps;
-            else RequestResolveServicePhase();
+            if (result.NeedsNode)
+            {
+                _phase = Phase.NeedsNode;
+            }
+            else
+            {
+                _nodePresenceNotified = false;
+                if (result.NeedsPiWeb) _phase = Phase.NeedsDeps;
+                else RequestResolveServicePhase();
+            }
 
             UpdateUi();
             if (_phase == Phase.PortConflict) NotifyPortConflict();
@@ -629,6 +638,15 @@ namespace PiWebTray
             ClearPendingOwnerActions(false);
             InvalidateOwnerCheck();
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+
+            // The fingerprint watcher can see node.exe disappear while a running service
+            // is still using the already-loaded image. Re-probe before creating the next
+            // process instead of attempting a start that can only fail.
+            if (_nodePresenceKnown && !_nodePresent)
+            {
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
 
             if (Net.IsPortOpen(_port, 300))
             {

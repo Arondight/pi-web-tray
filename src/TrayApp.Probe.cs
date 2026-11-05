@@ -82,6 +82,118 @@ namespace PiWebTray
             worker.Start();
         }
 
+        // The UI thread only consumes a flag set by WatchNodePresence. All FileInfo,
+        // DirectoryInfo and registry PATH reads happen on the worker thread.
+        private void PollNodePresence()
+        {
+            if (!_nodeWatching) return;
+            // Leave the flag set while an update owns the process; restarting or installing
+            // during an update could race with the helper that replaces the executable.
+            if (UpdateBusy()) return;
+            if (Interlocked.Exchange(ref _nodePresenceChanged, 0) == 0) return;
+            if (_exiting) return;
+
+            RefreshNodeHealth();
+            UpdateUi();
+            if (_nodePresent && _phase == Phase.NeedsNode)
+            {
+                if (!_nodePresenceNotified)
+                {
+                    _nodePresenceNotified = true;
+                    Notify(L.T("notify.nodeDetectedTitle"), L.T("notify.nodeDetectedBody"));
+                }
+                BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
+            }
+        }
+
+        // Keep a transient Node.js removal from looking like an uninstall while a running
+        // service is still perfectly usable. The fingerprint watcher confirms absence over
+        // several samples before raising the state.
+        private void RefreshNodeHealth()
+        {
+            if (!_nodePresenceKnown || _exiting) return;
+
+            if (_nodePresent)
+            {
+                if (_nodeMissingNotified)
+                {
+                    _nodeMissingNotified = false;
+                    if (_phase != Phase.NeedsNode)
+                        Notify(L.T("notify.nodeRestoredTitle"), L.T("notify.nodeRestoredBody"));
+                }
+                return;
+            }
+
+            if (_phase == Phase.Running) NotifyNodeMissingWhileRunning();
+        }
+
+        private void NotifyNodeMissingWhileRunning()
+        {
+            if (_nodeMissingNotified || _exiting) return;
+            _nodeMissingNotified = true;
+            NotifyWarning(L.T("notify.nodeMissingTitle"), L.T("notify.nodeMissingBody"));
+        }
+
+        private void StartNodePresenceMonitor()
+        {
+            StopNodePresenceMonitor();
+            _nodeWatching = true;
+            int generation = Interlocked.Increment(ref _nodeWatchGeneration);
+
+            Thread worker = new Thread(delegate () { WatchNodePresence(generation); });
+            worker.IsBackground = true;
+            worker.Name = "pi-web-tray node watcher";
+            worker.Start();
+        }
+
+        private void StopNodePresenceMonitor()
+        {
+            _nodeWatching = false;
+            Interlocked.Increment(ref _nodeWatchGeneration);
+            Interlocked.Exchange(ref _nodePresenceChanged, 0);
+        }
+
+        private bool NodeWatchActive(int generation)
+        {
+            return generation == Volatile.Read(ref _nodeWatchGeneration);
+        }
+
+        private void WatchNodePresence(int generation)
+        {
+            string lastSignature = null;
+            while (NodeWatchActive(generation))
+            {
+                string signature = "";
+                try
+                {
+                    signature = EnvironmentProbe.NodePresenceSignature(_config);
+                }
+                catch (Exception)
+                {
+                }
+
+                bool presenceChanged = _nodePresenceState.Update(signature);
+                _nodePresent = _nodePresenceState.Present;
+                _nodePresenceKnown = _nodePresenceState.Known;
+
+                // A present fingerprint can change without disappearing (Node.js upgrade or
+                // a different installation). Re-check it while waiting for Node.js, but a
+                // first missing sample is only a debounce step, not a warning.
+                bool presentNow = signature.Length > 0;
+                bool signatureChanged = lastSignature != null
+                    && !string.Equals(signature, lastSignature, StringComparison.Ordinal);
+                if (presenceChanged || (signatureChanged && presentNow))
+                    Interlocked.Exchange(ref _nodePresenceChanged, 1);
+                lastSignature = signature;
+
+                for (int i = 0; i < 10; i++)
+                {
+                    if (!NodeWatchActive(generation)) return;
+                    try { Thread.Sleep(200); } catch (Exception) { return; }
+                }
+            }
+        }
+
         private void PollEnvironmentCheck()
         {
             ProbeResult result;
@@ -146,6 +258,7 @@ namespace PiWebTray
         {
             if (result == null)
             {
+                _nodePresenceNotified = false;
                 _phase = Phase.Failed;
                 UpdateUi();
                 NotifyError(L.T("notify.envCheckFailed"), L.T("notify.envCheckFailedBody"));
@@ -156,6 +269,9 @@ namespace PiWebTray
 
             _probe = result;
             _config.NodePath = result.NodePath;
+            _nodePresenceKnown = true;
+            _nodePresent = result.NodeFound;
+            if (!result.NeedsNode) _nodePresenceNotified = false;
 
             if (result.NeedsNode)
             {
@@ -173,7 +289,7 @@ namespace PiWebTray
                 {
                     // A login-time probe can lose a race with antivirus or profile setup
                     // and report a perfectly installed Node.js as missing. Re-probe twice
-                    // before telling the user to install it and exiting.
+                    // before telling the user to install it.
                     _firstCheckRetries++;
                     _phase = Phase.Checking;
                     UpdateUi();
@@ -192,7 +308,7 @@ namespace PiWebTray
                     // A tray-only instance intentionally does not start Pi Web; keep it
                     // available for Settings and a later retry when Node.js is installed.
                     // A normal/start-no-open/autostart instance cannot do useful work
-                    // without Node.js, so ask once, offer the download page and exit.
+                    // without Node.js, so ask once and offer the download page.
                     ShowMissingNodePrompt(result);
                     return;
                 }
@@ -263,8 +379,13 @@ namespace PiWebTray
             {
                 answer = prompt.ShowDialog();
             }
-            if (answer == DialogResult.Ignore) return;
-            if (answer == DialogResult.Yes) OpenUrl(url);
+            if (answer == DialogResult.Ignore || answer == DialogResult.Yes)
+            {
+                // Downloading must not shut the tray down: the user may install Node.js
+                // while it is running, and the background watcher will continue.
+                if (answer == DialogResult.Yes) OpenUrl(url);
+                return;
+            }
 
             ExitWithoutStoppingService();
         }

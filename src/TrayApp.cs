@@ -175,6 +175,18 @@ namespace PiWebTray
         private int _updateTicks;
         private int _portPollTicks;
 
+        // Node.js presence watcher (background thread -> UI thread). The worker only reads
+        // local files and the registry PATH; the UI thread consumes a single flag and never
+        // performs the fingerprint itself.
+        private int _nodeWatchGeneration;
+        private bool _nodeWatching;
+        private bool _nodePresenceNotified;
+        private bool _nodeMissingNotified;
+        private int _nodePresenceChanged;
+        private readonly NodePresenceState _nodePresenceState = new NodePresenceState();
+        private volatile bool _nodePresent;
+        private volatile bool _nodePresenceKnown;
+
         private readonly object _taskCacheLock = new object();
         private bool _taskCache;
         private DateTime _taskCacheAt = DateTime.MinValue;
@@ -372,6 +384,11 @@ namespace PiWebTray
             _timer.Tick += OnTick;
             _timer.Start();
 
+            // Keep the lightweight fingerprint watcher for the whole process lifetime.
+            // It is used both to resume after Node.js is installed and to warn if the
+            // executable disappears while Pi Web is still running.
+            StartNodePresenceMonitor();
+
             BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
             if (_config.AutoCheckUpdates) _autoUpdateCheckAt = DateTime.Now.AddSeconds(10);
         }
@@ -406,6 +423,7 @@ namespace PiWebTray
             PollSelfCheck();
             PollTaskRefresh();
             PollUpdate();
+            PollNodePresence();
             if (_exiting) return;
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt

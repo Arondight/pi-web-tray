@@ -167,7 +167,7 @@ namespace PiWebTray
 
         // ---------------- Node ----------------
 
-        private static void DetectNode(Config config, ProbeResult result)
+        internal static List<string> NodeCandidates(Config config)
         {
             List<string> candidates = new List<string>();
 
@@ -185,7 +185,56 @@ namespace PiWebTray
             string nvmHome = Environment.GetEnvironmentVariable("NVM_HOME");
             if (!string.IsNullOrEmpty(nvmHome)) candidates.Add(Path.Combine(nvmHome, "node.exe"));
 
+            return candidates;
+        }
+
+        // A cheap fingerprint used by the background Node.js watcher. It reads local files
+        // and the registry PATH, but never starts node/npm. Keep it empty when no candidate
+        // exists so the caller can distinguish "nothing installed" from "installed".
+        internal static string NodePresenceSignature(Config config)
+        {
+            StringBuilder signature = new StringBuilder();
+            List<string> candidates = NodeCandidates(config);
+            string fromPath = FindOnPath("node.exe");
+            if (fromPath != null) candidates.Add(fromPath);
+
             foreach (string candidate in candidates)
+            {
+                AppendNodeSignature(signature, candidate);
+            }
+            return signature.ToString();
+        }
+
+        private static void AppendNodeSignature(StringBuilder signature, string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            try
+            {
+                FileInfo file = new FileInfo(path);
+                if (!file.Exists) return;
+
+                signature.Append(path).Append('|')
+                    .Append(file.Length).Append('|')
+                    .Append(file.LastWriteTimeUtc.Ticks).Append('\n');
+
+                // Node installers write node.exe before npm and its files. Include the
+                // directory timestamp so the watcher retries after that second write.
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory))
+                {
+                    DirectoryInfo info = new DirectoryInfo(directory);
+                    signature.Append("d|").Append(path).Append('|')
+                        .Append(info.Exists ? info.LastWriteTimeUtc.Ticks : 0).Append('\n');
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static void DetectNode(Config config, ProbeResult result)
+        {
+            foreach (string candidate in NodeCandidates(config))
             {
                 if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
                 {

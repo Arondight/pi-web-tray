@@ -50,6 +50,8 @@ namespace PiWebTray
             SocksBridgeTests();
             ProxyResetTests();
             NodeDownloadTests();
+            NodePresenceTests();
+            NodePresenceStateTests();
             QuoteTests();
             IniReadTests();
             InstanceSuffixTests();
@@ -584,6 +586,70 @@ namespace PiWebTray
             Check("missing Node prompt carries the download url",
                 missingBody.Contains(NodeDownloads.DefaultUrl));
             Check("missing Node prompt keeps the reason", missingBody.Contains("was not found"));
+        }
+
+        private static void NodePresenceTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-node-presence-" + Guid.NewGuid().ToString("N"));
+            string node = Path.Combine(root, "node.exe");
+            Config config = new Config();
+            config.NodePath = node;
+            try
+            {
+                Check("configured Node candidate is listed",
+                    EnvironmentProbe.NodeCandidates(config).Contains(node));
+
+                string missing = EnvironmentProbe.NodePresenceSignature(config);
+                Check("missing configured Node is not in the signature",
+                    missing.IndexOf(node, StringComparison.OrdinalIgnoreCase) < 0);
+
+                Directory.CreateDirectory(root);
+                File.WriteAllBytes(node, new byte[] { 0x4D, 0x5A });
+                string installed = EnvironmentProbe.NodePresenceSignature(config);
+                Check("installed Node is in the signature",
+                    installed.IndexOf(node, StringComparison.OrdinalIgnoreCase) >= 0);
+                Check("Node signature changes when node.exe appears",
+                    !string.Equals(missing, installed, StringComparison.Ordinal));
+
+                File.Delete(node);
+                string removed = EnvironmentProbe.NodePresenceSignature(config);
+                Check("removed Node is no longer in the signature",
+                    removed.IndexOf(node, StringComparison.OrdinalIgnoreCase) < 0);
+                Check("Node signature changes when node.exe disappears",
+                    !string.Equals(installed, removed, StringComparison.Ordinal));
+            }
+            finally
+            {
+                try { Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void NodePresenceStateTests()
+        {
+            NodePresenceState state = new NodePresenceState();
+            Check("node presence starts unknown", !state.Known && !state.Present);
+            Check("first empty fingerprint is a silent baseline",
+                !state.Update("") && state.Known && !state.Present);
+            Check("still empty is not a second event", !state.Update(""));
+            Check("appearing Node.js is an event",
+                state.Update("node") && state.Present);
+            Check("same Node.js fingerprint is quiet", !state.Update("node"));
+
+            Check("first missing sample keeps the old state",
+                !state.Update("") && state.Present);
+            Check("confirmed missing Node.js is an event",
+                state.Update("") && !state.Present);
+            Check("missing Node.js stays quiet", !state.Update(""));
+            Check("restored Node.js is an event",
+                state.Update("node") && state.Present);
+
+            NodePresenceState transient = new NodePresenceState();
+            transient.Update("node");
+            Check("one missing sample is ignored during an upgrade",
+                !transient.Update("") && transient.Present);
+            Check("Node.js returning before confirmation is quiet",
+                !transient.Update("node") && transient.Present);
         }
 
         private static void QuoteTests()

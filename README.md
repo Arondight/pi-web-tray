@@ -49,7 +49,7 @@ Windows 8.1, 10 and 11 can install the latest PowerShell from the [official rele
 1. Download and extract the release archive.
 2. Run `.\pi-web-tray.exe`.
 
-On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version, offers the download page and exits; install Node.js and run it again. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
+On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version and offers the download page; it stays running and continues automatically after Node.js is installed. If Node.js disappears while Pi Web is running, the app warns without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
 
 Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
