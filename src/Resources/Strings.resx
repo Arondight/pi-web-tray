@@ -93,21 +93,27 @@
   <data name="node.communityBody" xml:space="preserve">
     <value>Windows 7 and Windows 8 have no official Node.js 22 build. The download page opens an unsigned community build that this project cannot verify.
 
-Continue?</value>
+Open the download page?</value>
   </data>
-  <data name="node.unsupportedTitle" xml:space="preserve">
-    <value>Node.js is not available for this system</value>
+  <data name="node.download" xml:space="preserve">
+    <value>Open download page</value>
   </data>
-  <data name="node.unsupportedBody" xml:space="preserve">
-    <value>This 32-bit Windows version has no Node.js 22 build, and Pi Web requires Node.js 22.19 or newer. Use a 64-bit system, or install Node.js 22 manually from another source.</value>
+<data name="node.cancel" xml:space="preserve">
+    <value>Cancel</value>
   </data>
-  <data name="node.missingTitle" xml:space="preserve">
+<data name="node.continue" xml:space="preserve">
+    <value>Continue without downloading</value>
+  </data>
+<data name="node.exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+<data name="node.missingTitle" xml:space="preserve">
     <value>Node.js is required</value>
   </data>
   <data name="node.missingBody" xml:space="preserve">
     <value>{0}.
 
-Pi Web Tray needs Node.js {1} or newer. Open the download page?
+Pi Web Tray needs Node.js {1} or newer.
 
 {2}</value>
   </data>

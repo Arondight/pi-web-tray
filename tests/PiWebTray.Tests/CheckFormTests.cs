@@ -139,6 +139,21 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void NodePromptFormCanBeConstructed()
+        {
+            using (NodePromptForm form = new NodePromptForm("Node.js required", "Body", true))
+            {
+                Assert.AreEqual("Node.js required", form.Text);
+                Assert.AreEqual(3, FindControls<Button>(form).Count);
+            }
+            using (NodePromptForm form = new NodePromptForm("Unsupported", "Body", false))
+            {
+                Assert.AreEqual("Unsupported", form.Text);
+                Assert.AreEqual(2, FindControls<Button>(form).Count);
+            }
+        }
+
+        [TestMethod]
         public void SettingsFormCanBeConstructed()
         {
             Config config = new Config();

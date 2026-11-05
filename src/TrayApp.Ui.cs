@@ -212,26 +212,13 @@ namespace PiWebTray
                 return;
             }
 
-            // The community build exists only for 64-bit Windows; a 32-bit system has
-            // no Node.js 22 at all, so do not send the user to a page without a download.
-            if (!Environment.Is64BitOperatingSystem)
+            using (NodePromptForm prompt = new NodePromptForm(
+                L.T("node.communityTitle"), L.T("node.communityBody"),
+                true, false, L.T("node.cancel")))
             {
-                MessageBox.Show(
-                    L.T("node.unsupportedBody"),
-                    L.T("node.unsupportedTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                return;
+                if (prompt.ShowDialog() == DialogResult.Yes)
+                    OpenUrl(NodeDownloads.UrlFor(version));
             }
-
-            DialogResult answer = MessageBox.Show(
-                L.T("node.communityBody"),
-                L.T("node.communityTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button2);
-            if (answer != DialogResult.Yes) return;
-            OpenUrl(NodeDownloads.UrlFor(version));
         }
 
         private void OpenUrl(string url)

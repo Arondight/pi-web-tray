@@ -193,7 +193,7 @@ namespace PiWebTray
                     // available for Settings and a later retry when Node.js is installed.
                     // A normal/start-no-open/autostart instance cannot do useful work
                     // without Node.js, so ask once, offer the download page and exit.
-                    ShowMissingNodeAndExit(result);
+                    ShowMissingNodePrompt(result);
                     return;
                 }
                 NotifyWarningOnce("needs-node",
@@ -242,34 +242,28 @@ namespace PiWebTray
             if (_phase == Phase.PortConflict) NotifyPortConflict();
         }
 
-        private void ShowMissingNodeAndExit(ProbeResult result)
+        private void ShowMissingNodePrompt(ProbeResult result)
         {
             Version version = WindowsVersion.Current;
             bool community = NodeDownloads.UsesCommunityBuild(version);
 
-            // The community build is 64-bit only, so a 32-bit legacy system has nothing
-            // to install; explain that and exit instead of opening a page without binaries.
-            if (community && !Environment.Is64BitOperatingSystem)
-            {
-                MessageBox.Show(
-                    L.T("node.unsupportedBody"),
-                    L.T("node.unsupportedTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-                ExitWithoutStoppingService();
-                return;
-            }
-
             string url = NodeDownloads.UrlFor(version);
-            string body = L.T("node.missingBody", result.NodeIssue(), ProbeResult.NodeMinimum, url);
+            // ForcedReason is only for the PI_WEB_TRAY_NO_NODE test hook. Do not
+            // expose test-hook wording in the release prompt; show the normal
+            // missing-Node explanation instead.
+            string issue = string.IsNullOrEmpty(result.ForcedReason)
+                ? result.NodeIssue()
+                : L.T("probe.issue.noNode");
+            string body = L.T("node.missingBody", issue, ProbeResult.NodeMinimum, url);
             if (community) body += "\r\n\r\n" + L.T("node.communityNote");
 
-            DialogResult answer = MessageBox.Show(
-                body,
-                L.T("node.missingTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Warning,
-                MessageBoxDefaultButton.Button1);
+            DialogResult answer;
+            using (NodePromptForm prompt = new NodePromptForm(
+                L.T("node.missingTitle"), body, true))
+            {
+                answer = prompt.ShowDialog();
+            }
+            if (answer == DialogResult.Ignore) return;
             if (answer == DialogResult.Yes) OpenUrl(url);
 
             ExitWithoutStoppingService();

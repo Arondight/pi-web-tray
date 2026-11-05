@@ -1,4 +1,4 @@
-# Verify that the build still targets .NET Framework 4.8 and produces an AnyCPU,
+# Verify that the build still targets .NET Framework 4.8 and produces an x64
 # IL-only executable for Windows 7 SP1 through Windows 11.
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1
 param(
@@ -37,8 +37,8 @@ $prefer32Bit = Get-ProjectProperty "Prefer32Bit"
 
 Assert-Compatibility ($targetFramework -eq "net48") `
     "PiWebTray.csproj must target net48 (found '$targetFramework')"
-Assert-Compatibility ($platformTarget -eq "AnyCPU") `
-    "PiWebTray.csproj must use PlatformTarget AnyCPU (found '$platformTarget')"
+Assert-Compatibility ($platformTarget -eq "x64") `
+    "PiWebTray.csproj must use PlatformTarget x64 (found '$platformTarget')"
 Assert-Compatibility ($prefer32Bit -eq "false") `
     "PiWebTray.csproj must set Prefer32Bit=false (found '$prefer32Bit')"
 
@@ -74,8 +74,8 @@ foreach ($culture in @("zh-Hans", "zh-Hant")) {
     Assert-Compatibility (Test-Path $resource) "Missing satellite resource: $resource"
 }
 
-# Inspect the CLR header. An AnyCPU, IL-only image has ILONLY set and neither
-# 32BITREQ nor 32BITPREF. The PE machine stays I386 for AnyCPU images.
+# Inspect the CLR header. An x64 IL-only image has ILONLY set and neither
+# 32BITREQ nor 32BITPREF. The PE machine is AMD64 for x64 images.
 if ($PSVersionTable.PSEdition -eq "Core") {
     Add-Type -AssemblyName System.Reflection.Metadata
     $stream = [IO.File]::OpenRead((Resolve-Path $exe).Path)
@@ -84,8 +84,8 @@ if ($PSVersionTable.PSEdition -eq "Core") {
         try {
             $headers = $reader.PEHeaders
             Assert-Compatibility ($headers.CoffHeader.Machine -eq `
-                [System.Reflection.PortableExecutable.Machine]::I386) `
-                "pi-web-tray.exe is not a PE32/x86 image"
+                [System.Reflection.PortableExecutable.Machine]::Amd64) `
+                "pi-web-tray.exe is not a PE32+/x64 image"
 
             $corHeader = $headers.CorHeader
             Assert-Compatibility ($null -ne $corHeader) `
@@ -112,7 +112,7 @@ else {
 }
 
 Write-Host "[ok] target framework net48"
-Write-Host "[ok] AnyCPU IL-only executable"
+Write-Host "[ok] x64 IL-only executable"
 Write-Host "[ok] Windows 7 through Windows 11 manifest"
 Write-Host "[ok] .NET Framework 4.8 runtime configuration"
 Write-Host "[ok] zh-Hans and zh-Hant satellite resources"
