@@ -864,26 +864,32 @@ See {1} for details.</value>
   <data name="about.title" xml:space="preserve">
     <value>About</value>
   </data>
-  <data name="about.version" xml:space="preserve">
-    <value>Version {0}</value>
-  </data>
   <data name="about.description" xml:space="preserve">
     <value>A Windows 7 to 11 harness for Pi and Pi Web.</value>
   </data>
-  <data name="about.author" xml:space="preserve">
-    <value>Author: {0}</value>
+  <data name="about.itemVersion" xml:space="preserve">
+    <value>Version</value>
   </data>
-  <data name="about.link" xml:space="preserve">
-    <value>Project: {0}</value>
+  <data name="about.itemAuthor" xml:space="preserve">
+    <value>Author</value>
   </data>
-  <data name="about.license" xml:space="preserve">
-    <value>License: MIT</value>
+  <data name="about.itemProject" xml:space="preserve">
+    <value>Project</value>
+  </data>
+  <data name="about.itemLicense" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="about.itemCopyright" xml:space="preserve">
+    <value>Copyright</value>
+  </data>
+  <data name="about.licenseValue" xml:space="preserve">
+    <value>MIT</value>
+  </data>
+  <data name="about.copyrightValue" xml:space="preserve">
+    <value>© 2026 {0}</value>
   </data>
   <data name="about.authorName" xml:space="preserve">
     <value>秦凡东</value>
-  </data>
-  <data name="about.copyright" xml:space="preserve">
-    <value>Copyright (c) 2026 秦凡东</value>
   </data>
   <data name="about.close" xml:space="preserve">
     <value>Close</value>

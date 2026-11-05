@@ -864,26 +864,32 @@ Pi Web Tray 需要 Node.js {1} 或更新版本。是否開啟下載頁面？
   <data name="about.title" xml:space="preserve">
     <value>關於</value>
   </data>
-  <data name="about.version" xml:space="preserve">
-    <value>版本 {0}</value>
-  </data>
   <data name="about.description" xml:space="preserve">
     <value>基於 Pi 和 Pi Web 的 Windows 7 至 11 通用 Harness 解決方案。</value>
   </data>
-  <data name="about.author" xml:space="preserve">
-    <value>作者：{0}</value>
+  <data name="about.itemVersion" xml:space="preserve">
+    <value>版本</value>
   </data>
-  <data name="about.link" xml:space="preserve">
-    <value>專案：{0}</value>
+  <data name="about.itemAuthor" xml:space="preserve">
+    <value>作者</value>
   </data>
-  <data name="about.license" xml:space="preserve">
-    <value>授權：MIT</value>
+  <data name="about.itemProject" xml:space="preserve">
+    <value>專案</value>
+  </data>
+  <data name="about.itemLicense" xml:space="preserve">
+    <value>授權</value>
+  </data>
+  <data name="about.itemCopyright" xml:space="preserve">
+    <value>版權</value>
+  </data>
+  <data name="about.licenseValue" xml:space="preserve">
+    <value>MIT</value>
+  </data>
+  <data name="about.copyrightValue" xml:space="preserve">
+    <value>© 2026 {0}</value>
   </data>
   <data name="about.authorName" xml:space="preserve">
     <value>秦凡東</value>
-  </data>
-  <data name="about.copyright" xml:space="preserve">
-    <value>版權所有 (c) 2026 秦凡東</value>
   </data>
   <data name="about.close" xml:space="preserve">
     <value>關閉</value>

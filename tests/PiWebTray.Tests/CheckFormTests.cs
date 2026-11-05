@@ -109,7 +109,7 @@ namespace PiWebTray
                     if (label.Tag is string && !string.IsNullOrEmpty((string)label.Tag))
                         links.Add(label);
                 }
-                Assert.AreEqual(3, links.Count, "About should contain Pi, Pi Web and the project link.");
+                Assert.AreEqual(2, links.Count, "About should link Pi and Pi Web in the description.");
 
                 List<string> urls = new List<string>();
                 foreach (Label link in links)
@@ -124,8 +124,17 @@ namespace PiWebTray
                     "The description should link Pi Web.");
                 Assert.IsTrue(urls.Contains("https://github.com/earendil-works/pi"),
                     "The description should link Pi.");
-                Assert.IsTrue(urls.Contains(Program.ProjectUrl),
-                    "The project URL should be linked.");
+                List<DataGridView> tables = FindControls<DataGridView>(form);
+                Assert.AreEqual(1, tables.Count, "About should contain the information table.");
+                Assert.AreEqual(5, tables[0].Rows.Count, "About table should have five rows.");
+                Assert.AreEqual(2, tables[0].Columns.Count);
+                bool projectUrl = false;
+                foreach (DataGridViewRow row in tables[0].Rows)
+                {
+                    if (row.Cells.Count > 1 && Program.ProjectUrl.Equals(row.Cells[1].Value))
+                        projectUrl = true;
+                }
+                Assert.IsTrue(projectUrl, "The project URL should be in the table.");
             }
         }
 

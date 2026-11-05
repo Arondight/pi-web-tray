@@ -34,6 +34,8 @@ namespace PiWebTray
         private readonly FlowLayoutPanel _content;
         private readonly FlowLayoutPanel _buttons;
         private readonly List<Font> _linkFonts = new List<Font>();
+        private readonly DataGridView _info;
+        private int _projectRow = -1;
 
         internal AboutForm()
         {
@@ -79,33 +81,17 @@ namespace PiWebTray
 
             Label title = CreateTextLabel(Program.AppName);
             title.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
-            title.Margin = new Padding(0, 0, 0, 4);
-
-            Label version = CreateTextLabel(L.T("about.version", Program.Version));
-            version.Margin = new Padding(0, 0, 0, 14);
+            title.Margin = new Padding(0, 0, 0, 16);
 
             FlowLayoutPanel description = CreateLine(14);
             AddDescriptionLinks(description, L.T("about.description"));
 
-            Label author = CreateTextLabel(L.T("about.author", L.T("about.authorName")));
-            author.Margin = new Padding(0, 0, 0, 4);
-
-            FlowLayoutPanel project = CreateLine(4);
-            AddProjectLink(project, L.T("about.link", Program.ProjectUrl));
-
-            Label license = CreateTextLabel(L.T("about.license"));
-            license.Margin = new Padding(0, 0, 0, 4);
-
-            Label copyright = CreateTextLabel(L.T("about.copyright"));
-            copyright.Margin = new Padding(0, 0, 0, 0);
+            _info = CreateInfoTable();
+            _info.Margin = new Padding(0, 0, 0, 12);
 
             content.Controls.Add(title);
-            content.Controls.Add(version);
             content.Controls.Add(description);
-            content.Controls.Add(author);
-            content.Controls.Add(project);
-            content.Controls.Add(license);
-            content.Controls.Add(copyright);
+            content.Controls.Add(_info);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Fill;
@@ -142,6 +128,7 @@ namespace PiWebTray
                 // for one frame and then visibly shrink the window.
                 // Measure actual children: a Dock.Fill FlowLayoutPanel reports its
                 // filled height as PreferredSize, which would keep the old blank.
+                FitInfoHeight();
                 int contentHeight = _content.Padding.Vertical;
                 foreach (Control child in _content.Controls)
                     contentHeight = Math.Max(contentHeight, child.Bottom + child.Margin.Bottom);
@@ -161,6 +148,15 @@ namespace PiWebTray
             catch (Exception)
             {
             }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            // DataGridView selects its first row when the window becomes visible;
+            // the About table is informational and should not look editable.
+            _info.ClearSelection();
+            _info.CurrentCell = null;
         }
 
         protected override void Dispose(bool disposing)
@@ -192,6 +188,97 @@ namespace PiWebTray
             label.Margin = Padding.Empty;
             label.UseCompatibleTextRendering = false;
             return label;
+        }
+
+        private DataGridView CreateInfoTable()
+        {
+            DataGridView info = new DataGridView();
+            info.Width = 440;
+            info.ReadOnly = true;
+            info.AllowUserToAddRows = false;
+            info.AllowUserToDeleteRows = false;
+            info.AllowUserToResizeRows = false;
+            info.RowHeadersVisible = false;
+            info.MultiSelect = false;
+            info.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            info.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            info.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            info.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
+            info.RowTemplate.Height = Math.Max(24, info.Font.Height + 8);
+            info.BackgroundColor = SystemColors.Window;
+            info.BorderStyle = BorderStyle.FixedSingle;
+            info.GridColor = SystemColors.ControlLight;
+            info.ScrollBars = ScrollBars.None;
+            info.TabStop = false;
+
+            DataGridViewTextBoxColumn item = new DataGridViewTextBoxColumn();
+            item.HeaderText = L.T("check.item");
+            item.FillWeight = 28f;
+            item.SortMode = DataGridViewColumnSortMode.NotSortable;
+            info.Columns.Add(item);
+
+            DataGridViewTextBoxColumn value = new DataGridViewTextBoxColumn();
+            value.HeaderText = L.T("check.value");
+            value.FillWeight = 72f;
+            value.SortMode = DataGridViewColumnSortMode.NotSortable;
+            info.Columns.Add(value);
+
+            AddInfoRow(info, L.T("about.itemVersion"), Program.Version, false);
+            AddInfoRow(info, L.T("about.itemAuthor"), L.T("about.authorName"), false);
+            AddInfoRow(info, L.T("about.itemProject"), Program.ProjectUrl, true);
+            AddInfoRow(info, L.T("about.itemLicense"), L.T("about.licenseValue"), false);
+            AddInfoRow(info, L.T("about.itemCopyright"),
+                L.T("about.copyrightValue", L.T("about.authorName")), false);
+            info.ClearSelection();
+            info.CurrentCell = null;
+
+            info.CellContentClick += delegate (object sender, DataGridViewCellEventArgs e)
+            {
+                if (e.RowIndex == _projectRow && e.ColumnIndex == 1)
+                    OpenUrl(Program.ProjectUrl);
+            };
+            info.CellMouseMove += delegate (object sender, DataGridViewCellMouseEventArgs e)
+            {
+                info.Cursor = e.RowIndex == _projectRow && e.ColumnIndex == 1
+                    ? Cursors.Hand : Cursors.Default;
+            };
+            info.CellMouseLeave += delegate { info.Cursor = Cursors.Default; };
+            return info;
+        }
+
+        private void AddInfoRow(DataGridView info, string item, string value, bool link)
+        {
+            int index = info.Rows.Add(item, value);
+            DataGridViewCell cell = info.Rows[index].Cells[1];
+            cell.ToolTipText = value;
+            if (link)
+            {
+                _projectRow = index;
+                StyleInfoProjectCell(info, cell);
+            }
+        }
+
+        private void StyleInfoProjectCell(DataGridView info, DataGridViewCell cell)
+        {
+            Font linkFont = new Font(info.Font, FontStyle.Underline);
+            _linkFonts.Add(linkFont);
+            cell.Style.Font = linkFont;
+            cell.Style.ForeColor = SystemColors.HotTrack;
+        }
+
+        private void FitInfoHeight()
+        {
+            try
+            {
+                int rowHeight = _info.Rows.GetRowsHeight(DataGridViewElementStates.Visible);
+                if (rowHeight <= 0) rowHeight = _info.Rows.Count * _info.RowTemplate.Height;
+                int headerHeight = _info.ColumnHeadersHeight;
+                if (headerHeight <= 0) headerHeight = _info.RowTemplate.Height;
+                _info.Height = Math.Max(60, headerHeight + rowHeight + 4);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private static FlowLayoutPanel CreateLine(int bottomMargin)
@@ -263,20 +350,6 @@ namespace PiWebTray
             }
             spans.Sort(delegate (LinkSpan a, LinkSpan b) { return a.Start.CompareTo(b.Start); });
             return spans;
-        }
-
-        private void AddProjectLink(FlowLayoutPanel line, string text)
-        {
-            int start = text.IndexOf(Program.ProjectUrl, StringComparison.Ordinal);
-            if (start < 0)
-            {
-                AddText(line, text, Program.ProjectUrl);
-                return;
-            }
-            if (start > 0) AddText(line, text.Substring(0, start), null);
-            AddText(line, text.Substring(start, Program.ProjectUrl.Length), Program.ProjectUrl);
-            int end = start + Program.ProjectUrl.Length;
-            if (end < text.Length) AddText(line, text.Substring(end), null);
         }
 
         private static void OpenUrl(string url)
