@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Net;
@@ -1002,6 +1003,14 @@ namespace PiWebTray
                 Check("update log keeps first line", logText.Contains("first line"));
                 Check("update log keeps second line", logText.Contains("second line"));
                 Check("update log ends with a newline", logText.EndsWith(Environment.NewLine, StringComparison.Ordinal));
+
+                string firstLine = logText.Split(new string[] { Environment.NewLine }, 2,
+                    StringSplitOptions.None)[0];
+                DateTime stamp;
+                Check("update log starts with a timestamp",
+                    firstLine.Length > 19
+                    && DateTime.TryParseExact(firstLine.Substring(0, 19), "yyyy-MM-dd HH:mm:ss",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out stamp));
             }
             finally
             {

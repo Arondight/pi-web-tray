@@ -708,6 +708,10 @@ namespace PiWebTray
             string node = string.IsNullOrEmpty(_config.NodePath) ? "node.exe" : _config.NodePath;
 
             RotateLog();
+            // The service output itself is raw Node/Pi Web output, so mark the start
+            // of each run with a timestamp and the operation being performed.
+            Updater.AppendLog(_config.LogFile,
+                "==== service start (port " + _port + ") ====");
             try
             {
                 // Pipe the output through a separate log-host process. cmd cannot rotate a
