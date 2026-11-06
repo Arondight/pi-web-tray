@@ -18,6 +18,8 @@ namespace PiWebTray
         private int _adminAutostartRefusals;
         private DateTime _lastAdminAutostartRefusal = DateTime.MinValue;
         private bool _existingAdminTaskAuditDone;
+        private bool _legacyTaskCache;
+        private DateTime _legacyTaskCacheAt = DateTime.MinValue;
 
         private bool IsRunKeyEnabled()
         {
@@ -38,9 +40,11 @@ namespace PiWebTray
         private void UpdateAutostartItems()
         {
             bool task = TaskExists(true);
+            bool legacyTask = LegacyTaskExists(true);
             bool run = IsRunKeyEnabled();
             bool busy = AutostartBusy() || UpdateBusy();
 
+            task = task || legacyTask;
             _autostartItem.Text = busy
                 ? L.T("menu.autostartBusy")
                 : L.T("menu.autostart", Autostart.Describe(task, run));
@@ -87,7 +91,20 @@ namespace PiWebTray
         // back to a modal dialog in case notifications are suppressed.
         private bool RefuseAdminAutostart()
         {
-            if (!Autostart.IsUserWritableInstall(Application.ExecutablePath)) return false;
+            if (!Autostart.IsUserWritableInstall(Application.ExecutablePath))
+            {
+                if (Autostart.IsAdministratorAccount()) return false;
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "administrator start-at-login refused: current account is not an administrator");
+                }
+                catch (Exception)
+                {
+                }
+                NotifyWarning(L.T("auto.adminAccountTitle"), L.T("auto.adminAccountRequired"));
+                return true;
+            }
 
             string directory = Path.GetDirectoryName(Application.ExecutablePath)
                 ?? Application.ExecutablePath;
@@ -141,7 +158,7 @@ namespace PiWebTray
         private void AuditExistingAdminTask()
         {
             if (_existingAdminTaskAuditDone || AutostartBusy()) return;
-            if (!TaskExists(false)) return;
+            if (!TaskExists(false) && !LegacyTaskExists(false)) return;
             if (!Autostart.IsUserWritableInstall(Application.ExecutablePath)) return;
 
             _existingAdminTaskAuditDone = true;
@@ -165,8 +182,11 @@ namespace PiWebTray
         {
             string directory = Path.GetDirectoryName(Application.ExecutablePath)
                 ?? Application.ExecutablePath;
+            string taskName = LegacyTaskExists(false)
+                ? Autostart.LegacyTaskName
+                : Autostart.TaskName;
             MessageBox.Show(
-                L.T("auto.adminWritableExistingDetails", Autostart.TaskName, directory),
+                L.T("auto.adminWritableExistingDetails", taskName, directory),
                 L.T("auto.adminWritableExistingTitle"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
@@ -253,6 +273,21 @@ namespace PiWebTray
             return value;
         }
 
+        private bool LegacyTaskExists(bool kickRefresh)
+        {
+            bool value;
+            DateTime at;
+            lock (_taskCacheLock)
+            {
+                value = _legacyTaskCache;
+                at = _legacyTaskCacheAt;
+            }
+
+            bool stale = at == DateTime.MinValue || DateTime.Now - at > TimeSpan.FromSeconds(10);
+            if (kickRefresh && stale) BeginTaskRefresh();
+            return value;
+        }
+
         private void BeginTaskRefresh()
         {
             lock (_taskCacheLock)
@@ -264,11 +299,15 @@ namespace PiWebTray
             Thread worker = new Thread(delegate ()
             {
                 bool task = false;
+                bool legacy = false;
                 try { task = IsTaskEnabled(); } catch (Exception) { }
+                try { legacy = Autostart.QueryLegacyTask(); } catch (Exception) { }
                 lock (_taskCacheLock)
                 {
                     _taskCache = task;
+                    _legacyTaskCache = legacy;
                     _taskCacheAt = DateTime.Now;
+                    _legacyTaskCacheAt = DateTime.Now;
                     _taskRefreshRunning = false;
                     _taskRefreshDone = true;
                 }
@@ -291,8 +330,11 @@ namespace PiWebTray
                 // (for example left by an older release) would start a second tray at
                 // login. Remove it once the task state is known instead of letting
                 // RepairRunValue preserve both modes indefinitely.
-                if (TaskExists(false) && IsRunKeyEnabled() && !AutostartBusy())
+                if ((TaskExists(false) || LegacyTaskExists(false))
+                    && IsRunKeyEnabled() && !AutostartBusy())
+                {
                     Autostart.ClearRunValue();
+                }
                 AuditExistingAdminTask();
                 UpdateAutostartItems();
             }
@@ -300,8 +342,15 @@ namespace PiWebTray
             // Keep the cached value from going stale while the tray sits idle
             bool stale;
             DateTime at;
-            lock (_taskCacheLock) at = _taskCacheAt;
-            stale = at == DateTime.MinValue || DateTime.Now - at > TimeSpan.FromSeconds(60);
+            DateTime legacyAt;
+            lock (_taskCacheLock)
+            {
+                at = _taskCacheAt;
+                legacyAt = _legacyTaskCacheAt;
+            }
+            stale = at == DateTime.MinValue || DateTime.Now - at > TimeSpan.FromSeconds(60)
+                || legacyAt == DateTime.MinValue
+                || DateTime.Now - legacyAt > TimeSpan.FromSeconds(60);
             if (stale) BeginTaskRefresh();
         }
 

@@ -50,6 +50,10 @@ namespace PiWebTray
                 psi.StandardOutputEncoding = Encoding.UTF8;
                 psi.StandardErrorEncoding = Encoding.UTF8;
 
+                // Elevated node/npm children must not inherit user-controlled
+                // loader/injection variables such as NODE_OPTIONS or npm_config_*.
+                HardenEnvironment(psi, Elevation.IsElevated());
+
                 if (environment != null)
                 {
                     foreach (KeyValuePair<string, string> pair in environment)
@@ -120,6 +124,52 @@ namespace PiWebTray
 
             lock (output) result.Output = output.ToString();
             return result;
+        }
+
+        // Remove environment variables that can turn node/npm/.NET child processes
+        // into code execution when the parent runs elevated. Callers can still add
+        // safe values (PATH, npm_config_registry) after this method.
+        internal static void HardenEnvironment(ProcessStartInfo psi, bool elevated)
+        {
+            if (!elevated || psi == null) return;
+
+            List<string> remove = new List<string>();
+            foreach (string key in psi.EnvironmentVariables.Keys)
+            {
+                if (IsUnsafeEnvironmentVariable(key)) remove.Add(key);
+            }
+            foreach (string key in remove)
+            {
+                try { psi.EnvironmentVariables.Remove(key); } catch (Exception) { }
+            }
+
+            // Do not let a user-controlled ComSpec or extension list be used by npm
+            // when it spawns a shell for lifecycle scripts.
+            try
+            {
+                string cmd = Sys.SystemExecutable("cmd.exe");
+                if (!string.IsNullOrEmpty(cmd)) psi.EnvironmentVariables["ComSpec"] = cmd;
+                psi.EnvironmentVariables["PATHEXT"] = ".COM;.EXE;.BAT;.CMD";
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static bool IsUnsafeEnvironmentVariable(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return false;
+            if (key.StartsWith("NODE_", StringComparison.OrdinalIgnoreCase)) return true;
+            if (key.StartsWith("npm_config_", StringComparison.OrdinalIgnoreCase)) return true;
+            if (key.StartsWith("COR_", StringComparison.OrdinalIgnoreCase)) return true;
+            if (key.StartsWith("CORECLR_", StringComparison.OrdinalIgnoreCase)) return true;
+            if (key.StartsWith("COMPlus_", StringComparison.OrdinalIgnoreCase)) return true;
+            if (key.StartsWith("DOTNET_", StringComparison.OrdinalIgnoreCase)) return true;
+
+            // These make a spawned shell/npm script load a file before the command.
+            if (string.Equals(key, "BASH_ENV", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(key, "ENV", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         // Prepend a directory to PATH so npm's child processes find node

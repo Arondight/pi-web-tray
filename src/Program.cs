@@ -87,6 +87,19 @@ namespace PiWebTray
             // lets the tray verify that this child can be created before relying on it.
             if (Has(args, "--log-host-check"))
             {
+                // The tray passes the configured log path so a path that the log
+                // host would reject (reparse point, wrong name) makes the probe fail
+                // and the service uses the safe fallback instead.
+                for (int i = 0; i < args.Length; i++)
+                {
+                    if (string.Equals(args[i], "--log-host-check",
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (i + 1 < args.Length && !LogHost.IsExpectedLogPath(args[i + 1]))
+                            return 2;
+                        break;
+                    }
+                }
                 return 0;
             }
             if (Has(args, "--log-host"))
@@ -223,7 +236,10 @@ namespace PiWebTray
                 // A closed port only proves that the service stopped, not that the
                 // tray itself exited. Wait for the single-instance mutex so a
                 // following command sees a genuinely free instance.
-                return WaitForTrayExit(30000) ? 0 : 1;
+                if (!WaitForTrayExit(30000)) return 1;
+                // The tray may have exited while a privileged or foreign listener
+                // survived the stop. Do not report success in that case.
+                return Net.WaitPortClosed(config.Port, 5000) ? 0 : 1;
             }
 
             bool portOpen = Net.IsPortOpen(config.Port, 300);
@@ -554,10 +570,7 @@ namespace PiWebTray
         {
             try
             {
-                using (Process browser = Process.Start("http://127.0.0.1:" + port))
-                {
-                    // The shell launches the browser; only our Process handle is released.
-                }
+                Sys.OpenExternal("http://127.0.0.1:" + port);
             }
             catch (Exception)
             {
@@ -728,7 +741,26 @@ namespace PiWebTray
                 ConsoleHost.WriteError(L.T("install.restartFailed", config.Port));
                 return false;
             }
-            return true;
+
+            // An open port alone can be another program. Confirm that the listener is
+            // the Pi Web script this installation manages and that it answers HTTP.
+            // Next.js may need a few seconds after opening the port.
+            string script = ExpectedPiWebScript(config);
+            DateTime deadline = DateTime.Now.AddSeconds(30);
+            while (DateTime.Now < deadline)
+            {
+                ServiceProbe.Invalidate();
+                PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, script);
+                if (owner.IsPiWeb && ServiceProbe.MatchesExpectedScript(owner, script)
+                    && Net.IsHttpOk("http://127.0.0.1:" + config.Port + "/", 1500))
+                {
+                    return true;
+                }
+                Thread.Sleep(500);
+            }
+
+            ConsoleHost.WriteError(L.T("install.restartFailed", config.Port));
+            return false;
         }
 
         private static bool WaitForTrayExit(int timeoutMs)
@@ -799,12 +831,14 @@ namespace PiWebTray
             }
 
             bool task = Autostart.QueryTask();
+            bool legacyTask = Autostart.QueryLegacyTask();
             bool run = Autostart.RunValueExists();
             sb.AppendLine();
             sb.AppendLine(L.T("diag.autostartSection"));
             sb.AppendLine(L.T("diag.task") + " : " + (task ? L.T("diag.exists") : L.T("diag.absent")));
+            sb.AppendLine(L.T("diag.legacyTask") + " : " + (legacyTask ? L.T("diag.exists") : L.T("diag.absent")));
             sb.AppendLine(L.T("diag.runKey") + " : " + (run ? L.T("diag.exists") : L.T("diag.absent")));
-            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(task, run)));
+            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(task || legacyTask, run)));
             sb.AppendLine(L.T("diag.menuAdmin") + " : " + L.T("menu.adminAutostart", config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no")));
 
             string state = L.T("diag.none");
@@ -922,7 +956,8 @@ namespace PiWebTray
                 File.AppendAllText(
                     path,
                     "==== " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ====" + Environment.NewLine
-                        + (exception == null ? "(unknown)" : exception.ToString()) + Environment.NewLine + Environment.NewLine,
+                        + Shell.RedactSecrets(exception == null ? "(unknown)" : exception.ToString())
+                        + Environment.NewLine + Environment.NewLine,
                     new UTF8Encoding(true));
             }
             catch (Exception)

@@ -135,7 +135,14 @@ namespace PiWebTray
                 Notify(L.T("update.availableTitle"), L.T("update.availableBody", release.Version),
                     delegate
                     {
-                        if (!UpdateBusy()) OfferUpdate(release);
+                        // A notification can outlive the state it was created in.
+                        // Never start a download while an install or service action is
+                        // in progress.
+                        if (!_exiting && !UpdateBusy() && !IsServiceActionInProgress()
+                            && _phase != Phase.Checking)
+                        {
+                            OfferUpdate(release);
+                        }
                     });
                 return;
             }
@@ -145,7 +152,7 @@ namespace PiWebTray
 
         private void OfferUpdate(ReleaseInfo release)
         {
-            if (release == null) return;
+            if (release == null || _exiting) return;
 
             // HandleUpdateCheck calls this while its check is still the active
             // operation. A notification action calls it with no active operation.
@@ -333,7 +340,18 @@ namespace PiWebTray
             // The helper is already waiting for this process to exit. Stop pi-web and
             // let it replace the files and start the new tray.
             Updater.AppendLog(_config.UpdateLogFile, "helper started; stopping the tray");
-            ExitApp();
+            if (!ExitApp(false))
+            {
+                // An install confirmation or another exit guard can leave the tray
+                // running while the helper is still waiting. Do not leave the update
+                // form in Applying with its Cancel button disabled indefinitely.
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "tray exit was blocked; clearing the update state");
+                EndUpdate();
+                MessageBox.Show(L.T("update.error.exitBlocked"),
+                    L.T("update.applyFailedTitle"), MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void EndUpdate()
@@ -362,7 +380,8 @@ namespace PiWebTray
                 _serviceStoppedByUser, _restartAfterUpdate);
             _restartAfterUpdate = false;
             _updateStartedWithServiceRunning = false;
-            if (restartAfterUpdate && _config.AutoRestart && _probe != null && _probe.Ready
+            if (restartAfterUpdate && _config.AutoRestart
+                && CanStartServiceFromProbe(_probe, File.Exists)
                 && (_phase == Phase.Stopped || _phase == Phase.Failed))
             {
                 ScheduleAutoRestart();

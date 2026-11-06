@@ -51,7 +51,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 
 首次启动会检查环境、安装缺失依赖、启动 Pi Web 并打开浏览器。若缺少 Node.js，会说明所需版本并提供下载页；托盘保持运行，检测到 Node.js 后重新检查；如果依赖包也缺失，会提示使用 **安装/更新服务**。若 Pi Web 运行期间 Node.js 被移除，会通知但不会停止正在运行的服务，并在下次启动前重新检查。若安装被中断，下次尝试会重新安装相关包，而不会直接信任不完整的目录。
 
-配置与日志默认在 `%LOCALAPPDATA%\pi-web-tray`；设置 `PI_WEB_TRAY_PORTABLE=1` 可将它们放在可执行文件旁；若可执行文件位于 Program Files 等受保护的系统目录，便携模式会被忽略。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
+配置与日志默认在 `%LOCALAPPDATA%\pi-web-tray`；设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁；若可执行文件位于 Program Files 等受保护的系统目录，便携模式会被忽略。即使在便携模式，`state.ini`、`crash.log` 和更新暂存仍位于数据目录。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
 
 ## 托盘菜单
 
@@ -162,7 +162,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 
 ## 从源码构建
 
-需要 Windows 11 和 Visual Studio 2026，安装 **.NET 桌面开发** 工作负载（其中包含 .NET Framework 4.8 targeting pack）。
+需要 Windows 10 或 11，并安装 Visual Studio 2022/2026 的 **.NET 桌面开发** 工作负载，或安装 .NET SDK 8.0+ 和 .NET Framework 4.8 targeting pack。
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
@@ -172,9 +172,9 @@ cd .\pi-web-tray
 
 ## 安全与限制
 
-- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权；无遥测、无网络监听。
-- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验；更新助手还会校验目标安装与暂存文件指纹。发布包未签名，首次运行可能触发 SmartScreen。
-- 管理员自启动要求当前账户是管理员，并为当前用户创建登录任务；任务名包含用户 SID，不会覆盖其他用户的任务。
+- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权；无遥测、无持久网络监听；SOCKS5 更新代理会打开一个仅当前托盘进程可用的临时 loopback 监听。
+- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验；更新助手会先将暂存文件复制到受保护快照并重新校验，然后替换文件。发布包未签名，首次运行可能触发 SmartScreen。助手仍接受调用方提供的暂存哈希，它不能替代代码签名。
+- 管理员自启动要求当前 Windows 账户属于 Administrators 组，并为当前用户创建登录任务；标准用户通过其他管理员凭据的 UAC 会被拒绝。任务名包含用户 SID 和命名实例后缀，不会覆盖其他用户的任务。旧版 `PiWebTray` 任务会被报告；下次修改自启动设置时会被移除。
 - `server.log`、`install.log` 和 `update.log` 在 4 MB 时轮转。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行；托盘菜单始终可用。
 
 ## 相关项目

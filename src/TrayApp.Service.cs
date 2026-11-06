@@ -422,7 +422,8 @@ namespace PiWebTray
                         L.T("notify.serviceStoppedTitle"),
                         L.T("notify.serviceStoppedBody"),
                         delegate { StartServer(false); });
-                    if (UpdateBusy() && _config.AutoRestart && _probe != null && _probe.Ready)
+                    if (UpdateBusy() && _config.AutoRestart
+                        && CanStartServiceFromProbe(_probe, File.Exists))
                     {
                         // The update owns the busy flag; remember the crash and schedule
                         // the restart after the update check/download has finished.
@@ -589,7 +590,7 @@ namespace PiWebTray
         private void ScheduleAutoRestart()
         {
             if (!_config.AutoRestart || _exiting || UpdateBusy()) return;
-            if (_probe == null || !_probe.Ready) return;
+            if (!CanStartServiceFromProbe(_probe, File.Exists)) return;
             if (_phase == Phase.Installing || _phase == Phase.Starting || _phase == Phase.Stopping) return;
 
             // A service that only stayed up briefly is the same failure, not a success:
@@ -620,7 +621,7 @@ namespace PiWebTray
             {
                 ProcessResult check = ProcessRunner.Run(
                     Application.ExecutablePath,
-                    "--log-host-check",
+                    "--log-host-check " + Shell.Quote(_config.LogFile),
                     Sys.SystemDirectory,
                     3000,
                     null,
@@ -649,6 +650,7 @@ namespace PiWebTray
 
         private void StartServer(bool openBrowser)
         {
+            if (_exiting) return;
             // A start request during an environment probe belongs to that probe.
             // Let the in-flight result decide (and start only once), instead of
             // racing it with a second node process.
@@ -687,6 +689,14 @@ namespace PiWebTray
                 return;
             }
 
+            // A start signal can arrive while the tray is sitting in NeedsNode. Do not
+            // launch node with a version that failed the minimum-version check.
+            if (_probe != null && _probe.NeedsNode)
+            {
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
+
             if (Net.IsPortOpen(_port, 300))
             {
                 ServiceProbe.Invalidate();
@@ -712,6 +722,11 @@ namespace PiWebTray
         {
             // The phase may have changed while the owner check ran
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+            if (_probe != null && _probe.NeedsNode)
+            {
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
 
             if (owner != null)
             {
@@ -799,6 +814,10 @@ namespace PiWebTray
                 psi.WorkingDirectory = _config.WorkingDir;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
+
+                // An elevated service must not inherit user-controlled Node/npm/.NET
+                // injection variables (for example NODE_OPTIONS).
+                ProcessRunner.HardenEnvironment(psi, _elevated);
 
                 // Installing Node.js after the tray started updates the registry PATH, not
                 // this process's environment. Make the detected Node/npm directories

@@ -37,7 +37,11 @@ namespace PiWebTray
                     return null;
                 }
 
-                string root = SafeFullPath(Path.Combine(config.DataDir, "update"));
+                // Keep parallel sessions of the same user from deleting each other's
+                // download/staging work. The helper still accepts this layout because
+                // it is under dataDir\update.
+                string root = SafeFullPath(Path.Combine(config.DataDir, "update",
+                    "session-" + Process.GetCurrentProcess().SessionId));
                 CleanupOld(root);
 
                 string work = Path.Combine(root,

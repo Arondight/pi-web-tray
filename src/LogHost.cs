@@ -27,14 +27,14 @@ namespace PiWebTray
 
             // This process can be started by an elevated tray. Never let a forged
             // --log-host argument append to an arbitrary protected file.
-            if (!IsAllowedPath(path)) return 2;
+            if (!IsExpectedLogPath(path)) return 2;
 
             long maxBytes = 4 * 1024 * 1024;
             if (index + 2 < args.Length)
             {
                 if (!long.TryParse(args[index + 2], NumberStyles.Integer,
                         CultureInfo.InvariantCulture, out maxBytes)
-                    || maxBytes <= 0)
+                    || maxBytes < 1024 * 1024 || maxBytes > 64L * 1024 * 1024)
                 {
                     return 2;
                 }
@@ -102,20 +102,32 @@ namespace PiWebTray
             }
         }
 
-        private static bool IsAllowedPath(string path)
+        // Only the two locations the tray actually configures are accepted, and only
+        // for the fixed server.log name. This prevents --log-host from creating or
+        // rotating arbitrary files even when the process is elevated.
+        internal static bool IsExpectedLogPath(string path)
         {
             try
             {
                 string full = Path.GetFullPath(path)
                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                string data = Path.GetFullPath(TrayState.Folder)
-                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                    + Path.DirectorySeparatorChar;
-                string baseDir = Path.GetFullPath(Path.GetDirectoryName(Application.ExecutablePath))
-                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                    + Path.DirectorySeparatorChar;
-                return full.StartsWith(data, StringComparison.OrdinalIgnoreCase)
-                    || full.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase);
+                if (!string.Equals(Path.GetFileName(full), "server.log",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+                if (PathSafety.ContainsReparsePoint(full)) return false;
+
+                string dataLog = Path.Combine(
+                    Path.GetFullPath(TrayState.Folder).TrimEnd(
+                        Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    "server.log");
+                string baseLog = Path.Combine(
+                    Path.GetFullPath(Path.GetDirectoryName(Application.ExecutablePath))
+                        .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    "server.log");
+                return string.Equals(full, dataLog, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(full, baseLog, StringComparison.OrdinalIgnoreCase);
             }
             catch (Exception)
             {

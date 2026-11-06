@@ -488,7 +488,9 @@ namespace PiWebTray
                 // caller explicitly asked to start (or is restoring a service after
                 // a cancelled install), do not strand a runnable service in
                 // NeedsDeps just because Pi CLI is absent.
-                if (thenStart && !result.NeedsPiWeb
+                bool installQueued;
+                lock (_checkLock) installQueued = _installAfterCheck;
+                if (thenStart && !result.NeedsPiWeb && !installQueued
                     && CanStartServiceFromProbe(result, File.Exists))
                 {
                     _phase = Phase.Stopped;

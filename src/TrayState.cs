@@ -6,6 +6,7 @@
 // PI_WEB_TRAY_HOME overrides the data directory entirely (default %LOCALAPPDATA%\pi-web-tray).
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows.Forms;
@@ -94,6 +95,7 @@ namespace PiWebTray
                 sb.AppendLine("Elevated=" + (elevated ? "1" : "0"));
                 sb.AppendLine("Port=" + port);
                 sb.AppendLine("Url=http://127.0.0.1:" + port);
+                sb.AppendLine("Session=" + Process.GetCurrentProcess().SessionId);
                 File.WriteAllText(StatePath(), sb.ToString(), new UTF8Encoding(true));
             }
             catch (Exception)
@@ -103,7 +105,21 @@ namespace PiWebTray
 
         internal static void Delete()
         {
-            try { File.Delete(StatePath()); } catch (Exception) { }
+            try
+            {
+                // The data directory is shared by all sessions of this user. Do not
+                // delete another session's state when this tray exits.
+                int pid;
+                if (int.TryParse(ReadValue("Pid="), out pid) && pid > 0
+                    && pid != Process.GetCurrentProcess().Id)
+                {
+                    return;
+                }
+                File.Delete(StatePath());
+            }
+            catch (Exception)
+            {
+            }
         }
 
         internal static bool InstanceIsElevated()
@@ -114,6 +130,18 @@ namespace PiWebTray
             int pid;
             if (!int.TryParse(ReadValue("Pid="), out pid) || pid <= 0) return false;
             if (!Sys.ProcessAlive(pid)) return false;
+
+            // The state file is per user, not per session. Another session's tray must
+            // not make this session believe it has an elevated single instance.
+            int currentSession = Process.GetCurrentProcess().SessionId;
+            int stateSession;
+            if (int.TryParse(ReadValue("Session="), out stateSession)
+                && stateSession != currentSession)
+            {
+                return false;
+            }
+            int ownerSession = NativeProcess.SessionId(pid);
+            if (ownerSession >= 0 && ownerSession != currentSession) return false;
 
             // A same-user process can edit state.ini; an unrelated PID must not be
             // reported as an elevated tray, and the image path is a cheap sanity check.

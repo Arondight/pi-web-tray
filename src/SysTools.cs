@@ -412,6 +412,7 @@ namespace PiWebTray
             if (workingDir != null) psi.WorkingDirectory = workingDir;
             psi.UseShellExecute = false;
             psi.CreateNoWindow = true;
+            ProcessRunner.HardenEnvironment(psi, Elevation.IsElevated());
             return Process.Start(psi);
         }
 
@@ -439,12 +440,51 @@ namespace PiWebTray
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
                 psi.WindowStyle = hidden ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal;
-                Process.Start(psi);
-                return true;
+                using (Process child = Process.Start(psi))
+                {
+                    return child != null;
+                }
             }
             catch (Exception)
             {
                 return false;
+            }
+        }
+
+        internal static string ExplorerExecutable()
+        {
+            try
+            {
+                string windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                if (!string.IsNullOrEmpty(windows)) return Path.Combine(windows, "explorer.exe");
+            }
+            catch (Exception)
+            {
+            }
+            return "explorer.exe";
+        }
+
+        // An elevated process must not resolve a user-controlled URL/file association
+        // with its own token. Hand the target to the already-running medium-integrity
+        // Explorer instead. Non-elevated launches keep the normal ShellExecute path.
+        internal static void OpenExternal(string target)
+        {
+            if (string.IsNullOrEmpty(target)) return;
+            ProcessStartInfo psi = new ProcessStartInfo();
+            if (Elevation.IsElevated())
+            {
+                psi.FileName = ExplorerExecutable();
+                psi.Arguments = Shell.QuoteArg(target);
+                psi.WorkingDirectory = SystemDirectory;
+                psi.UseShellExecute = true;
+            }
+            else
+            {
+                psi.FileName = target;
+                psi.UseShellExecute = true;
+            }
+            using (Process child = Process.Start(psi))
+            {
             }
         }
 

@@ -148,6 +148,8 @@ namespace PiWebTray
                 Assert.IsNotNull(form.CancelButton);
                 Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
                     "Esc should continue without exiting the tray.");
+                Assert.AreEqual(DialogResult.Ignore, form.AcceptButton.DialogResult,
+                    "Enter must not open an unsigned download by default.");
             }
             using (NodePromptForm form = new NodePromptForm("Unsupported", "Body", false))
             {
@@ -172,6 +174,7 @@ namespace PiWebTray
                 Assert.AreEqual(L.T("settings.title"), form.Text);
                 Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle);
                 Assert.IsTrue(form.ShowInTaskbar, "Settings should have a taskbar window.");
+                Assert.IsTrue(form.MinimizeBox, "Settings should minimize like the other dialogs.");
                 AssertDpiScaling(form);
                 Assert.IsTrue(form.MinimumSize.Width > 0);
 
@@ -315,6 +318,8 @@ namespace PiWebTray
                 {
                     Assert.AreEqual("log", form.Text);
                     Assert.AreEqual(2, FindControls<TextBox>(form).Count);
+                    Assert.AreEqual(L.T("log.refresh"), ((Button)form.AcceptButton).Text,
+                        "Enter in the filter box must refresh, not close the viewer.");
                     AssertDpiScaling(form);
                 }
             }

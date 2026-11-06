@@ -102,7 +102,7 @@ namespace PiWebTray
             string home = Path.Combine(root, "data");
             string instance = "Update" + Guid.NewGuid().ToString("N").Substring(0, 10);
             string dataDir = Path.Combine(home, "pi-web-tray." + instance);
-            string staging = Path.Combine(dataDir, "staging");
+            string staging = Path.Combine(dataDir, "update", "staging");
             string log = Path.Combine(dataDir, "update.log");
             int port = FreePort();
             Process helper = null;

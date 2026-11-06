@@ -371,30 +371,82 @@ namespace PiWebTray
                 // the user with a truncated configuration file.
                 string temp = IniPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 string backup = IniPath + "." + Guid.NewGuid().ToString("N") + ".bak";
+                bool keepBackup = false;
                 try
                 {
                     File.WriteAllLines(temp, lines.ToArray(), new UTF8Encoding(true));
-                    if (File.Exists(IniPath))
-                    {
-                        // Keep the old file untouched if the atomic replacement cannot
-                        // complete; a non-atomic copy could truncate the configuration.
-                        File.Replace(temp, IniPath, backup, true);
-                    }
-                    else
-                    {
-                        File.Move(temp, IniPath);
-                    }
+                    ReplaceIniFile(temp, IniPath, backup);
+                    return true;
+                }
+                catch (Exception)
+                {
+                    // If a fallback moved the original file aside but could not restore
+                    // it, keep the backup instead of deleting the only remaining copy.
+                    keepBackup = true;
+                    return false;
                 }
                 finally
                 {
                     try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
-                    try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
+                    try { if (!keepBackup && File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
                 }
-                return true;
             }
             catch (Exception)
             {
                 return false;
+            }
+        }
+
+        // File.Replace is the best choice on NTFS, but it is not supported on some
+        // file systems (notably FAT) and can fail on redirected/locked files. Fall back
+        // to a backup + move so portable installations on removable media still work.
+        private static void ReplaceIniFile(string temp, string ini, string backup)
+        {
+            if (!File.Exists(ini))
+            {
+                File.Move(temp, ini);
+                return;
+            }
+
+            try
+            {
+                File.Replace(temp, ini, backup, true);
+                return;
+            }
+            catch (Exception)
+            {
+                // Fall through to the portable replacement path.
+            }
+
+            bool movedOriginal = false;
+            try
+            {
+                if (File.Exists(backup)) File.Delete(backup);
+                File.Move(ini, backup);
+                movedOriginal = true;
+                File.Move(temp, ini);
+            }
+            catch (Exception)
+            {
+                // If ReplaceFile moved the old file aside but did not restore it, put
+                // it back. This also covers the case where the temporary file could
+                // not be moved into place.
+                if (movedOriginal || (!File.Exists(ini) && File.Exists(backup)))
+                {
+                    try
+                    {
+                        if (File.Exists(ini))
+                        {
+                            File.SetAttributes(ini, FileAttributes.Normal);
+                            File.Delete(ini);
+                        }
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    try { File.Move(backup, ini); } catch (Exception) { }
+                }
+                throw;
             }
         }
 
@@ -419,8 +471,14 @@ namespace PiWebTray
             foreach (string root in roots)
             {
                 if (string.IsNullOrEmpty(root)) continue;
-                string prefix = root.TrimEnd('\\') + "\\";
-                if (dir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
+                string trimmedRoot = root.TrimEnd('\\');
+                string prefix = trimmedRoot + "\\";
+                if (string.Equals(dir.TrimEnd('\\'), trimmedRoot,
+                        StringComparison.OrdinalIgnoreCase)
+                    || dir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
 
             // A drive root (C:\) is never a sensible place for a user-writable ini.

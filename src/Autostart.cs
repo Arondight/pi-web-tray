@@ -149,6 +149,11 @@ namespace PiWebTray
             return QueryTask(TaskName);
         }
 
+        internal static bool QueryLegacyTask()
+        {
+            return Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
+        }
+
         private static bool QueryTask(string name)
         {
             try
@@ -222,6 +227,31 @@ namespace PiWebTray
                 // If the ACL cannot be evaluated, fail closed for this security check.
                 return true;
             }
+        }
+
+        // The account (not merely the current filtered token) must be a member of the
+        // Administrators group. Otherwise over-the-shoulder UAC would create a task for
+        // the entered administrator account, not for the user who enabled autostart.
+        internal static bool IsAdministratorAccount()
+        {
+            try
+            {
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity.Groups == null) return false;
+                    SecurityIdentifier administrators = new SecurityIdentifier(
+                        WellKnownSidType.BuiltinAdministratorsSid, null);
+                    foreach (IdentityReference group in identity.Groups)
+                    {
+                        SecurityIdentifier sid = group as SecurityIdentifier;
+                        if (sid != null && sid.Equals(administrators)) return true;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return false;
         }
 
         private static bool HasWriteAccess(string path, bool directory)
@@ -377,6 +407,11 @@ namespace PiWebTray
                 if (IsUserWritableInstall(executablePath))
                 {
                     message = L.T("auto.adminWritableDir");
+                    return false;
+                }
+                if (!IsAdministratorAccount())
+                {
+                    message = L.T("auto.adminAccountRequired");
                     return false;
                 }
 

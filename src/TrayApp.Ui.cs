@@ -121,13 +121,17 @@ namespace PiWebTray
             bool running = _phase == Phase.Running;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
+            // Pi CLI and npm are install-time requirements; a runnable Pi Web can be
+            // started without them. Keep the menu consistent with CanStartServiceFromProbe
+            // and with the thenStart path in ApplyCheckResult.
+            bool canRun = CanStartServiceFromProbe(_probe, File.Exists);
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
 
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
             // Checking or downloading an update does not affect the running service.
             // Keep normal open/stop/restart actions available; only Applying is exclusive.
             _openItem.Enabled = !serviceBusy && !portConflict && !applying;
-            _startItem.Enabled = !serviceBusy && !running && ready && !portConflict && !applying;
+            _startItem.Enabled = !serviceBusy && !running && canRun && !portConflict && !applying;
             _stopItem.Enabled = running && !applying;
             _restartItem.Enabled = !serviceBusy && running && !applying;
             _installItem.Enabled = !busy;
@@ -169,6 +173,7 @@ namespace PiWebTray
 
         private void OpenOrStart()
         {
+            if (_exiting) return;
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;
@@ -230,9 +235,7 @@ namespace PiWebTray
         {
             try
             {
-                using (Process browser = Process.Start("http://127.0.0.1:" + _port))
-                {
-                }
+                Sys.OpenExternal("http://127.0.0.1:" + _port);
             }
             catch (Exception ex) { NotifyError(L.T("notify.noBrowser"), ex.Message); }
         }
@@ -259,9 +262,7 @@ namespace PiWebTray
         {
             try
             {
-                using (Process browser = Process.Start(url))
-                {
-                }
+                Sys.OpenExternal(url);
             }
             catch (Exception ex) { NotifyError(L.T("notify.noLink"), ex.Message + "\r\n" + url); }
         }
@@ -291,6 +292,7 @@ namespace PiWebTray
 
         private void ShowSettings()
         {
+            if (_exiting) return;
             int previousPort = _port;
             bool restartRequested = false;
             // A running/starting/stopping service owns the old port. Changing the
@@ -432,9 +434,7 @@ namespace PiWebTray
             try
             {
                 Directory.CreateDirectory(path);
-                using (Process explorer = Process.Start(path))
-                {
-                }
+                Sys.OpenExternal(path);
             }
             catch (Exception ex)
             {
@@ -493,6 +493,15 @@ namespace PiWebTray
 
         private void CreateDesktopShortcut()
         {
+            if (_elevated)
+            {
+                // WScript.Shell is resolved through COM; do not load a user-controlled
+                // COM registration with the tray's elevated token.
+                NotifyWarning(L.T("notify.shortcutAdminTitle"),
+                    L.T("notify.shortcutAdminBody"));
+                return;
+            }
+
             object shell = null;
             object shortcut = null;
             try

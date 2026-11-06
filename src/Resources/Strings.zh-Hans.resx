@@ -384,6 +384,12 @@
   <data name="notify.autostartFailed" xml:space="preserve">
     <value>开机自启动：设置失败</value>
   </data>
+  <data name="notify.shortcutAdminTitle" xml:space="preserve">
+    <value>无法创建桌面快捷方式</value>
+  </data>
+  <data name="notify.shortcutAdminBody" xml:space="preserve">
+    <value>请以标准用户身份重新启动 Pi Web Tray 后再创建桌面快捷方式。管理员托盘不会加载用户可控制的 COM 处理程序。</value>
+  </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已创建桌面快捷方式</value>
   </data>
@@ -539,6 +545,9 @@
   </data>
   <data name="diag.task" xml:space="preserve">
     <value>计划任务</value>
+  </data>
+  <data name="diag.legacyTask" xml:space="preserve">
+    <value>旧版计划任务</value>
   </data>
   <data name="diag.runKey" xml:space="preserve">
     <value>Run 注册表值</value>
@@ -855,6 +864,9 @@
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
     <value>当前进程未及时退出，更新未应用。</value>
+  </data>
+  <data name="update.error.exitBlocked" xml:space="preserve">
+    <value>更新程序正在等待，但托盘无法退出。请关闭当前对话框后重试。</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>下载的更新文件在应用前发生变化，更新已取消。</value>
@@ -1305,6 +1317,12 @@
   </data>
   <data name="auto.adminWritableTitle" xml:space="preserve">
     <value>管理员自启动被拒绝</value>
+  </data>
+  <data name="auto.adminAccountTitle" xml:space="preserve">
+    <value>需要管理员账户</value>
+  </data>
+  <data name="auto.adminAccountRequired" xml:space="preserve">
+    <value>管理员自启动要求当前 Windows 账户属于 Administrators 组。请改用标准用户自启动。</value>
   </data>
   <data name="auto.adminWritableBalloon" xml:space="preserve">
     <value>因安全问题，已拒绝在当前所在目录开启管理员自启动，点击查看详情</value>

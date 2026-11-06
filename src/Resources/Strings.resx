@@ -384,6 +384,12 @@ Exit anyway?</value>
   <data name="notify.autostartFailed" xml:space="preserve">
     <value>Start at login: update failed</value>
   </data>
+  <data name="notify.shortcutAdminTitle" xml:space="preserve">
+    <value>Desktop shortcut unavailable</value>
+  </data>
+  <data name="notify.shortcutAdminBody" xml:space="preserve">
+    <value>Restart Pi Web Tray as a standard user to create a desktop shortcut. The elevated tray does not load user-controlled COM handlers.</value>
+  </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>Desktop shortcut created</value>
   </data>
@@ -539,6 +545,9 @@ Exit anyway?</value>
   </data>
   <data name="diag.task" xml:space="preserve">
     <value>Scheduled task</value>
+  </data>
+  <data name="diag.legacyTask" xml:space="preserve">
+    <value>Legacy scheduled task</value>
   </data>
   <data name="diag.runKey" xml:space="preserve">
     <value>Run registry value</value>
@@ -855,6 +864,9 @@ See {1} for details.</value>
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
     <value>The update was not applied because the current process did not exit in time.</value>
+  </data>
+  <data name="update.error.exitBlocked" xml:space="preserve">
+    <value>The update helper is waiting, but the tray could not exit. Close the open dialog and try again.</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>The downloaded update files changed before they could be applied. The update was cancelled.</value>
@@ -1305,6 +1317,12 @@ See {1} for details.</value>
   </data>
   <data name="auto.adminWritableTitle" xml:space="preserve">
     <value>Administrator start-at-login refused</value>
+  </data>
+  <data name="auto.adminAccountTitle" xml:space="preserve">
+    <value>Administrator account required</value>
+  </data>
+  <data name="auto.adminAccountRequired" xml:space="preserve">
+    <value>Administrator start-at-login requires the current Windows account to be a member of the Administrators group. Use standard-user start-at-login instead.</value>
   </data>
   <data name="auto.adminWritableBalloon" xml:space="preserve">
     <value>For security reasons, administrator start-at-login was refused for the current folder. Click for details.</value>

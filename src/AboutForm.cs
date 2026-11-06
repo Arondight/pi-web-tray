@@ -356,9 +356,7 @@ namespace PiWebTray
         {
             try
             {
-                using (Process browser = Process.Start(url))
-                {
-                }
+                Sys.OpenExternal(url);
             }
             catch (Exception)
             {

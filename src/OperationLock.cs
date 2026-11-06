@@ -15,7 +15,11 @@ namespace PiWebTray
 {
     internal sealed class OperationLock : IDisposable
     {
-        internal const string InstallName = @"Local\PiWebTray.Install";
+        // Global\ is deliberate: two sessions (or two users updating the same
+        // machine-wide installation) must not run these operations concurrently.
+        // A different user may receive access denied, in which case TryAcquire
+        // fails closed instead of allowing a competing install/update.
+        internal const string InstallName = @"Global\PiWebTray.Install";
 
         private readonly Mutex _mutex;
         private bool _owned;
@@ -38,7 +42,7 @@ namespace PiWebTray
                 hash = sha.ComputeHash(Encoding.UTF8.GetBytes(normalized));
             }
 
-            StringBuilder sb = new StringBuilder(@"Local\PiWebTray.Update.");
+            StringBuilder sb = new StringBuilder(@"Global\PiWebTray.Update.");
             for (int i = 0; i < 16; i++) sb.Append(hash[i].ToString("x2"));
             return sb.ToString();
         }

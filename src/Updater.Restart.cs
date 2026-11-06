@@ -251,6 +251,11 @@ namespace PiWebTray
                         }
                         if (pid <= 0 || pid == oldPid || !IsExpectedTrayProcess(pid, expectedExe))
                             continue;
+                        // state.ini is shared by all sessions of this user. Never treat
+                        // a tray from another session as the replacement we just started.
+                        int session = NativeProcess.SessionId(pid);
+                        if (session < 0 || session != Process.GetCurrentProcess().SessionId)
+                            continue;
                         return pid;
                     }
                 }

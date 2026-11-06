@@ -20,10 +20,15 @@ namespace PiWebTray
 {
     internal static partial class Updater
     {
+        private static string IncompleteMarker(string backupRoot)
+        {
+            return backupRoot + ".incomplete";
+        }
+
         internal static UpdateCopyResult CopyFiles(string staging, string target, string logPath)
         {
             string backupRoot = Path.Combine(target, ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
-            List<string> copied = new List<string>();
+            List<string> attempted = new List<string>();
             List<string> backupSources = new List<string>();
             List<string> backupTargets = new List<string>();
 
@@ -39,6 +44,8 @@ namespace PiWebTray
                 // Never delete an older backup here: it may be the only copy left after a
                 // crash during a previous update. Successful updates remove it explicitly.
                 Directory.CreateDirectory(backupRoot);
+                File.WriteAllText(IncompleteMarker(backupRoot), "",
+                    new UTF8Encoding(false));
 
                 foreach (string source in files)
                 {
@@ -60,8 +67,11 @@ namespace PiWebTray
                         backupTargets.Add(destination);
                     }
 
+                    // Remember every destination before copying. A failed File.Copy can
+                    // leave a partial file; the rollback must delete it before restoring
+                    // the previous file or File.Move will refuse to overwrite it.
+                    attempted.Add(destination);
                     File.Copy(source, destination, true);
-                    copied.Add(destination);
                     AppendLog(logPath, "copy " + relative);
                 }
             }
@@ -71,9 +81,16 @@ namespace PiWebTray
                 // half-updated application that cannot start. If a restore fails, keep the
                 // backup directory for manual recovery instead of deleting the only copy.
                 bool restored = true;
-                for (int i = copied.Count - 1; i >= 0; i--)
+                for (int i = attempted.Count - 1; i >= 0; i--)
                 {
-                    try { File.Delete(copied[i]); }
+                    try
+                    {
+                        if (File.Exists(attempted[i]))
+                        {
+                            File.SetAttributes(attempted[i], FileAttributes.Normal);
+                            File.Delete(attempted[i]);
+                        }
+                    }
                     catch (Exception) { restored = false; }
                 }
                 for (int i = backupSources.Count - 1; i >= 0; i--)
@@ -91,7 +108,7 @@ namespace PiWebTray
                 }
                 if (restored)
                 {
-                    try { Directory.Delete(backupRoot, true); } catch (Exception) { }
+                    DeleteBackup(backupRoot);
                 }
                 else
                 {
@@ -187,6 +204,7 @@ namespace PiWebTray
         {
             if (string.IsNullOrEmpty(backupRoot)) return;
             try { if (Directory.Exists(backupRoot)) Directory.Delete(backupRoot, true); } catch (Exception) { }
+            try { if (File.Exists(IncompleteMarker(backupRoot))) File.Delete(IncompleteMarker(backupRoot)); } catch (Exception) { }
         }
 
         internal static void DeleteOldBackups(string target)
@@ -195,7 +213,11 @@ namespace PiWebTray
             {
                 foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
                 {
-                    try { Directory.Delete(old, true); } catch (Exception) { }
+                    // A backup with an incomplete marker may be the only copy of the
+                    // previous release after a failed/partial rollback. Never remove it
+                    // automatically; the user was told to keep it.
+                    if (File.Exists(IncompleteMarker(old))) continue;
+                    DeleteBackup(old);
                 }
             }
             catch (Exception)
@@ -212,6 +234,32 @@ namespace PiWebTray
             {
                 DateTime cutoff = DateTime.UtcNow - minimumAge;
                 foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
+                {
+                    try
+                    {
+                        if (File.Exists(IncompleteMarker(old))) continue;
+                        if (Directory.GetLastWriteTimeUtc(old) >= cutoff) continue;
+                        DeleteBackup(old);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // A helper that crashes while copying leaves a protected staging snapshot behind.
+        // It contains only release files, never the previous installation, so it is safe
+        // to remove after the update lock has been free for a while.
+        internal static void DeleteStaleStagingSnapshots(string target, TimeSpan minimumAge)
+        {
+            try
+            {
+                DateTime cutoff = DateTime.UtcNow - minimumAge;
+                foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-stage-*"))
                 {
                     try
                     {

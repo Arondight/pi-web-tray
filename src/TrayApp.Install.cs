@@ -20,6 +20,7 @@ namespace PiWebTray
         // or an icon click passes its own intent instead of reusing _autoStartService.
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
+            if (_exiting) return;
             // A newer explicit action owns the phase now; do not let a stale phase-resolve
             // or start continuation overwrite it later.
             ClearPendingOwnerActions(false);

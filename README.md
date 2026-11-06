@@ -51,7 +51,7 @@ Windows 8.1, 10 and 11 can install the latest PowerShell from the [official rele
 
 On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version and offers the download page; it stays running, rechecks when Node.js appears, and asks you to use **Install/update service** if packages are also missing. If Node.js disappears while Pi Web is running, the app warns without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
 
-Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. Portable mode is ignored when the executable is in a protected system directory such as Program Files. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
+Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs beside the executable. Portable mode is ignored when the executable is in a protected system directory such as Program Files. `state.ini`, `crash.log` and update staging remain in the data directory even in portable mode. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
 ## Tray menu
 
@@ -162,7 +162,7 @@ Unknown arguments return exit code 2.
 
 ## Build from source
 
-Requires Windows 11 and Visual Studio 2026 with the **.NET desktop development** workload (it includes the .NET Framework 4.8 targeting pack).
+Requires Windows 10 or 11 with either Visual Studio 2022/2026 and the **.NET desktop development** workload, or the .NET SDK 8.0+ with the .NET Framework 4.8 targeting pack.
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
@@ -172,9 +172,9 @@ cd .\pi-web-tray
 
 ## Security and limitations
 
-- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no network listener.
-- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper also validates the target installation and a staging fingerprint. Releases are unsigned, so SmartScreen may warn on first run.
-- Admin start-at-login requires an admin account and creates an on-logon task for the current user; the task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten.
+- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no persistent network listener; a SOCKS5 update proxy opens a temporary loopback listener that only the current tray process may use.
+- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper copies staged files into a protected snapshot and re-verifies them before replacing files. Releases are unsigned, so SmartScreen may warn on first run. The helper still accepts a caller-provided staging hash; it is not a substitute for code signing.
+- Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user; standard-user over-the-shoulder UAC is refused. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported; it is removed when autostart is next changed.
 - `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
 
 ## Related projects

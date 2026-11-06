@@ -127,7 +127,9 @@ namespace PiWebTray
             ResumeLayout(false);
             PerformLayout();
 
-            AcceptButton = close;
+            // Enter in the filter box should apply/refresh the view, not close the
+            // log window.
+            AcceptButton = refresh;
             CancelButton = close;
 
             _timer = new Timer();

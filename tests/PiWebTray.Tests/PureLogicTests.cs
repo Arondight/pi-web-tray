@@ -13,6 +13,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -44,6 +45,7 @@ namespace PiWebTray
             ClipTests();
             PathSplitTests();
             ConfigSafetyTests();
+            EnvironmentHardeningTests();
             PendingInstallTests();
             ProxySettingsTests();
             ProxyConnectionTests();
@@ -803,6 +805,28 @@ namespace PiWebTray
             }
         }
 
+        private static void EnvironmentHardeningTests()
+        {
+            System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo();
+            psi.EnvironmentVariables["NODE_OPTIONS"] = "--require evil.js";
+            psi.EnvironmentVariables["npm_config_script_shell"] = "evil.exe";
+            psi.EnvironmentVariables["COR_PROFILER"] = "evil";
+            psi.EnvironmentVariables["COMPlus_Test"] = "1";
+            ProcessRunner.HardenEnvironment(psi, true);
+            Check("elevated child drops NODE_OPTIONS", !psi.EnvironmentVariables.ContainsKey("NODE_OPTIONS"));
+            Check("elevated child drops npm_config_*", !psi.EnvironmentVariables.ContainsKey("npm_config_script_shell"));
+            Check("elevated child drops COR_PROFILER", !psi.EnvironmentVariables.ContainsKey("COR_PROFILER"));
+            Check("elevated child drops COMPlus_*", !psi.EnvironmentVariables.ContainsKey("COMPlus_Test"));
+            Check("elevated child has an absolute ComSpec",
+                Path.IsPathRooted(psi.EnvironmentVariables["ComSpec"] ?? ""));
+
+            System.Diagnostics.ProcessStartInfo normal = new System.Diagnostics.ProcessStartInfo();
+            normal.EnvironmentVariables["NODE_OPTIONS"] = "--require user.js";
+            ProcessRunner.HardenEnvironment(normal, false);
+            Check("non-elevated child keeps user environment",
+                normal.EnvironmentVariables.ContainsKey("NODE_OPTIONS"));
+        }
+
         private static void OperationLockTests()
         {
             string name = @"Local\PiWebTray.SelfTest." + Guid.NewGuid().ToString("N");
@@ -833,6 +857,9 @@ namespace PiWebTray
             Check("update lock names differ by installation",
                 !string.Equals(OperationLock.UpdateName(@"C:\Apps\One"),
                     OperationLock.UpdateName(@"C:\Apps\Two"), StringComparison.Ordinal));
+            Check("operation locks use the global namespace",
+                OperationLock.UpdateName(@"C:\Apps\One").StartsWith(@"Global\",
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         private static void AutostartPathTests()
@@ -970,16 +997,28 @@ namespace PiWebTray
                 "pi-web-tray-backups-" + Guid.NewGuid().ToString("N"));
             string oldBackup = Path.Combine(target, ".pi-web-tray-backup-old");
             string newBackup = Path.Combine(target, ".pi-web-tray-backup-new");
+            string incompleteBackup = Path.Combine(target, ".pi-web-tray-backup-incomplete");
+            string staleStage = Path.Combine(target, ".pi-web-tray-stage-old");
             try
             {
                 Directory.CreateDirectory(oldBackup);
                 Directory.CreateDirectory(newBackup);
+                Directory.CreateDirectory(incompleteBackup);
+                Directory.CreateDirectory(staleStage);
+                File.WriteAllText(incompleteBackup + ".incomplete", "");
                 Directory.SetLastWriteTimeUtc(oldBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(newBackup, DateTime.UtcNow);
+                Directory.SetLastWriteTimeUtc(incompleteBackup, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(staleStage, DateTime.UtcNow.AddHours(-2));
 
                 Updater.DeleteStaleBackups(target, TimeSpan.FromMinutes(30));
                 Check("stale update backup is removed", !Directory.Exists(oldBackup));
                 Check("recent update backup is kept", Directory.Exists(newBackup));
+                Check("incomplete backup is never removed automatically",
+                    Directory.Exists(incompleteBackup));
+
+                Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
+                Check("stale staging snapshot is removed", !Directory.Exists(staleStage));
             }
             finally
             {
@@ -1282,6 +1321,36 @@ namespace PiWebTray
                     out staging, out target, out parentPid, out mode,
                     out originalElevated, out logPath, out language, out dataDir, out stagingHash));
 
+            Check("helper args reject an arbitrary log file name",
+                !Updater.TryParseApplyArgs(
+                    new string[]
+                    {
+                        "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                        "tray-only", "0", "C:\\data\\evil.cmd", "en", "C:\\data", stagingHashArg
+                    },
+                    out staging, out target, out parentPid, out mode,
+                    out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
+            Check("helper args reject staging outside the update folder",
+                !Updater.TryParseApplyArgs(
+                    new string[]
+                    {
+                        "--apply-update", "C:\\data\\staging", "C:\\target", "1234",
+                        "tray-only", "0", "C:\\data\\update.log", "en", "C:\\data", stagingHashArg
+                    },
+                    out staging, out target, out parentPid, out mode,
+                    out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
+            Check("helper args reject a system data directory",
+                !Updater.TryParseApplyArgs(
+                    new string[]
+                    {
+                        "--apply-update", "C:\\Windows\\update\\stage", "C:\\target", "1234",
+                        "tray-only", "0", "C:\\Windows\\update.log", "en", "C:\\Windows", stagingHashArg
+                    },
+                    out staging, out target, out parentPid, out mode,
+                    out originalElevated, out logPath, out language, out dataDir, out stagingHash));
+
             string error;
             string json = @"{
   ""tag_name"": ""v0.2.0"",
@@ -1454,6 +1523,19 @@ namespace PiWebTray
                 File.WriteAllText(Path.Combine(staging, "extra.txt"), "extra");
                 Check("staging hash detects added files",
                     stagingHash1 != Updater.ComputeStagingHash(staging));
+
+                // The helper creates a protected snapshot and re-verifies it. Adding a
+                // file after the tray computed the expected hash must abort the apply.
+                MethodInfo snapshotMethod = typeof(Updater).GetMethod("SnapshotStaging",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                object[] snapshotArgs = new object[]
+                {
+                    staging, stagingHash1, target, logPath, null
+                };
+                object snapshotResult = snapshotMethod.Invoke(null, snapshotArgs);
+                Check("helper snapshot rejects files added after the hash", snapshotResult == null);
+                Check("helper snapshot leaves no staging snapshot",
+                    Directory.GetDirectories(target, ".pi-web-tray-stage-*").Length == 0);
                 File.Delete(Path.Combine(staging, "extra.txt"));
 
                 UpdateCopyResult copy = Updater.CopyFiles(staging, target, logPath);
@@ -1467,6 +1549,8 @@ namespace PiWebTray
                 CheckEqual("update copies the sample config", "sample",
                     File.ReadAllText(Path.Combine(target, "config", "pi-web-tray.ini")));
                 Check("update keeps a backup until restart", Directory.Exists(copy.Backup));
+                Check("update marks the backup as incomplete until restart",
+                    File.Exists(copy.Backup + ".incomplete"));
                 Check("update defers stale cleanup",
                     File.Exists(Path.Combine(target, "old.txt")));
 
@@ -1485,6 +1569,8 @@ namespace PiWebTray
                 Updater.DeleteBackup(copy.Backup);
                 Check("update leaves no backup directory",
                     Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
+                Check("update removes the incomplete marker",
+                    !File.Exists(copy.Backup + ".incomplete"));
             }
             finally
             {
@@ -1561,9 +1647,19 @@ namespace PiWebTray
         {
             string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-loghost-" + Guid.NewGuid().ToString("N"));
             string path = Path.Combine(root, "server.log");
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
             try
             {
                 Directory.CreateDirectory(root);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", root);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                Check("log host accepts the configured server.log",
+                    LogHost.IsExpectedLogPath(path));
+                Check("log host rejects an arbitrary file",
+                    !LogHost.IsExpectedLogPath(Path.Combine(root, "evil.cmd")));
+                CheckEqual("log host mode rejects an arbitrary file", 2,
+                    LogHost.Run(new string[] { "--log-host", Path.Combine(root, "evil.cmd") }));
                 using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 200))))
                 {
                     LogHost.Append(input, path, 100);
@@ -1600,6 +1696,8 @@ namespace PiWebTray
             }
             finally
             {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
                 try { Directory.Delete(root, true); } catch (Exception) { }
             }
         }
@@ -1711,9 +1809,16 @@ namespace PiWebTray
                 string content = File.ReadAllText(TrayState.StatePath());
                 Check("state has pid", content.Contains("Pid=0"));
                 Check("state has port", content.Contains("Port=30141"));
+                Check("state has session", content.Contains("Session="));
 
                 // pid 0 is never a real process, so the stale-state guard must answer false
                 Check("stale state is not trusted", !TrayState.InstanceIsElevated());
+
+                // A state file owned by another process must not be deleted by this one.
+                TrayState.Save(4, true, 30141);
+                TrayState.Delete();
+                Check("another process's state is kept", File.Exists(TrayState.StatePath()));
+                File.Delete(TrayState.StatePath());
 
                 // our own pid is alive -> trusted
                 TrayState.Save(System.Diagnostics.Process.GetCurrentProcess().Id, true, 30141);

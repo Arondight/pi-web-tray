@@ -67,6 +67,11 @@ namespace PiWebTray
 
             _exiting = true;
             _timer.Stop();
+            // ExitApp pumps the message loop while it waits for the service. Hide the
+            // tray and disable the menu first so a queued click cannot start a new
+            // service while the old one is being stopped.
+            try { _tray.Visible = false; } catch (Exception) { }
+            try { _menu.Enabled = false; } catch (Exception) { }
 
             UpdateCancellation updateCancellation;
             lock (_updateLock) updateCancellation = _updateCancellation;
@@ -212,6 +217,7 @@ namespace PiWebTray
                     {
                         if (updateLock == null) return;
                         Updater.DeleteStaleBackups(target, TimeSpan.FromSeconds(30));
+                        Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromSeconds(30));
                     }
                 }
                 catch (Exception) { }

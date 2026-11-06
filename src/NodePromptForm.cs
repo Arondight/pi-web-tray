@@ -101,8 +101,11 @@ namespace PiWebTray
             {
                 download = CreateButton(L.T("node.download"));
                 download.DialogResult = DialogResult.Yes;
-                AcceptButton = download;
-                _initialFocus = download;
+                // Do not make an unsigned community download the default action.
+                // Enter should keep the tray running (or exit when there is no
+                // "keep running" option), not open a binary download page.
+                AcceptButton = keep != null ? keep : exit;
+                _initialFocus = keep != null ? keep : exit;
             }
             else
             {

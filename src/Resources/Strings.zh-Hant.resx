@@ -384,6 +384,12 @@
   <data name="notify.autostartFailed" xml:space="preserve">
     <value>開機自動啟動：設定失敗</value>
   </data>
+  <data name="notify.shortcutAdminTitle" xml:space="preserve">
+    <value>無法建立桌面捷徑</value>
+  </data>
+  <data name="notify.shortcutAdminBody" xml:space="preserve">
+    <value>請以標準使用者身分重新啟動 Pi Web Tray 後再建立桌面捷徑。管理員托盤不會載入使用者可控制的 COM 處理常式。</value>
+  </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已建立桌面捷徑</value>
   </data>
@@ -539,6 +545,9 @@
   </data>
   <data name="diag.task" xml:space="preserve">
     <value>排程工作</value>
+  </data>
+  <data name="diag.legacyTask" xml:space="preserve">
+    <value>舊版排程工作</value>
   </data>
   <data name="diag.runKey" xml:space="preserve">
     <value>Run 登錄值</value>
@@ -855,6 +864,9 @@
   </data>
   <data name="update.error.parentTimeout" xml:space="preserve">
     <value>目前程序未及時結束，更新未套用。</value>
+  </data>
+  <data name="update.error.exitBlocked" xml:space="preserve">
+    <value>更新程式正在等待，但托盤無法結束。請關閉目前對話方塊後重試。</value>
   </data>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>下載的更新檔案在套用前發生變化，更新已取消。</value>
@@ -1305,6 +1317,12 @@
   </data>
   <data name="auto.adminWritableTitle" xml:space="preserve">
     <value>管理員自啟動被拒絕</value>
+  </data>
+  <data name="auto.adminAccountTitle" xml:space="preserve">
+    <value>需要管理員帳戶</value>
+  </data>
+  <data name="auto.adminAccountRequired" xml:space="preserve">
+    <value>管理員自啟動要求目前 Windows 帳戶屬於 Administrators 群組。請改用標準使用者自啟動。</value>
   </data>
   <data name="auto.adminWritableBalloon" xml:space="preserve">
     <value>因安全性問題，已拒絕在目前所在目錄開啟管理員自啟動，點擊查看詳情</value>

@@ -149,24 +149,33 @@ namespace PiWebTray
             L.Use(language);
             Application.EnableVisualStyles();
 
-            AppendLog(logPath, "apply start (pid " + Process.GetCurrentProcess().Id + ")");
-            AppendLog(logPath, "staging: " + staging);
-            AppendLog(logPath, "target : " + target);
-
             // StartHelper always launches the installed helper, so its own directory
-            // is the only installation it may replace. This blocks using a forged
-            // target to turn the elevated helper into a generic file writer.
+            // is the only installation it may replace. Check the target before any
+            // file I/O, especially before writing the caller-supplied log path.
             string helperDirectory = SafeFullPath(Path.GetDirectoryName(Application.ExecutablePath))
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string targetDirectory = target
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             if (!string.Equals(helperDirectory, targetDirectory, StringComparison.OrdinalIgnoreCase))
             {
-                AppendLog(logPath, "target is not the helper directory");
                 MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
+
+            if (!Directory.Exists(target))
+            {
+                MessageBox.Show(L.T("update.error.targetMissing"), L.T("update.applyFailedTitle"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+
+            // The log path is validated as a fixed update.log under dataDir or target
+            // by TryParseApplyArgs. It is safe to write it only after the target has
+            // been identified as the helper's own directory.
+            AppendLog(logPath, "apply start (pid " + Process.GetCurrentProcess().Id + ")");
+            AppendLog(logPath, "staging: " + staging);
+            AppendLog(logPath, "target : " + target);
 
             // Two helpers must never replace the same installation concurrently. The
             // lock is held through the backup/restart phase and is released when this
@@ -223,72 +232,81 @@ namespace PiWebTray
                         return 1;
                     }
 
+                    if (!Directory.Exists(staging))
+                    {
+                        AppendLog(logPath, "staging directory missing");
+                        MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        OfferStartAfterFailure(target, mode, logPath);
+                        return 1;
+                    }
+
                     if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
                     {
                         AppendLog(logPath, "staging executable missing");
                         MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        OfferStartAfterFailure(target, mode, logPath);
                         return 1;
                     }
 
                     // The tray fingerprints the staged files before starting the helper.
-                    // Re-check after the UAC prompt and the parent exit so a local process
-                    // cannot replace the staged payload while the helper is waiting.
-                    string actualStagingHash;
+                    // Copy the staged files into a protected snapshot first and verify
+                    // that snapshot. The copy happens after the parent exits, and every
+                    // source file is opened with FileShare.Read so a local process cannot
+                    // add or replace files between verification and CopyFiles.
+                    string snapshotError;
+                    string snapshot = SnapshotStaging(staging, stagingHash, target,
+                        logPath, out snapshotError);
+                    if (snapshot == null)
+                    {
+                        AppendLog(logPath, "staging snapshot failed: " + (snapshotError ?? ""));
+                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        OfferStartAfterFailure(target, mode, logPath);
+                        return 1;
+                    }
+
                     try
                     {
-                        actualStagingHash = ComputeStagingHash(staging);
+                        // If ExitApp could not stop the old listener (slow taskkill, elevated
+                        // process, or a failed CLI stop), starting a new tray now would only
+                        // hit a port conflict. Do not copy anything until the port is free.
+                        if (port > 0 && !Net.WaitPortClosed(port, 30000))
+                        {
+                            AppendLog(logPath, "service still owns port " + port + "; update aborted");
+                            MessageBox.Show(L.T("update.error.serviceStillRunning", port),
+                                L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            OfferStartAfterFailure(target, mode, logPath);
+                            return 1;
+                        }
+
+                        UpdateCopyResult copy = CopyFiles(snapshot, target, logPath);
+                        AppendLog(logPath, "copy complete");
+
+                        if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
+                        {
+                            bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
+                            string message = L.T("update.error.restart");
+                            if (!rolledBack)
+                                message += Environment.NewLine + Environment.NewLine
+                                    + L.T("update.rollbackBackup", copy.Backup);
+                            MessageBox.Show(message, L.T("update.applyFailedTitle"),
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            OfferStartAfterFailure(target, mode, logPath);
+                            return 1;
+                        }
+
+                        CleanupStaleFiles(target, copy.Managed, logPath);
+                        DeleteBackup(copy.Backup);
+                        DeleteOldBackups(target);
+                        AppendLog(logPath, "restart requested");
+                        return 0;
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        AppendLog(logPath, "staging hash failed: " + ex);
-                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return 1;
+                        DeleteStagingSnapshot(snapshot);
                     }
-
-                    if (!string.Equals(actualStagingHash, stagingHash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        AppendLog(logPath, "staging hash mismatch: expected " + stagingHash
-                            + ", got " + actualStagingHash);
-                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return 1;
-                    }
-
-                    // If ExitApp could not stop the old listener (slow taskkill, elevated
-                    // process, or a failed CLI stop), starting a new tray now would only
-                    // hit a port conflict. Do not copy anything until the port is free.
-                    if (port > 0 && !Net.WaitPortClosed(port, 30000))
-                    {
-                        AppendLog(logPath, "service still owns port " + port + "; update aborted");
-                        MessageBox.Show(L.T("update.error.serviceStillRunning", port),
-                            L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath);
-                        return 1;
-                    }
-
-                    UpdateCopyResult copy = CopyFiles(staging, target, logPath);
-                    AppendLog(logPath, "copy complete");
-
-                    if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
-                    {
-                        bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
-                        string message = L.T("update.error.restart");
-                        if (!rolledBack)
-                            message += Environment.NewLine + Environment.NewLine
-                                + L.T("update.rollbackBackup", copy.Backup);
-                        MessageBox.Show(message, L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath);
-                        return 1;
-                    }
-
-                    CleanupStaleFiles(target, copy.Managed, logPath);
-                    DeleteBackup(copy.Backup);
-                    DeleteOldBackups(target);
-                    AppendLog(logPath, "restart requested");
-                    return 0;
                 }
                 catch (Exception ex)
                 {
@@ -298,6 +316,74 @@ namespace PiWebTray
                     OfferStartAfterFailure(target, mode, logPath);
                     return 1;
                 }
+            }
+        }
+
+        // Copy the staging directory into a protected snapshot under the target while
+        // denying writes to the source files, then verify the snapshot against the
+        // hash the tray computed before the helper was started. This closes the
+        // add-a-file/modify-a-file window between ComputeStagingHash and CopyFiles.
+        private static string SnapshotStaging(string staging, string expectedHash, string target,
+            string logPath, out string error)
+        {
+            error = "";
+            string snapshot = Path.Combine(target, ".pi-web-tray-stage-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(snapshot);
+
+                foreach (string source in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
+                {
+                    string relative = RelativePath(staging, source);
+                    if (ShouldSkip(relative)) continue;
+                    if (PathSafety.ContainsReparsePoint(source))
+                        throw new InvalidDataException("staging contains a reparse point: " + relative);
+
+                    string destination = Path.Combine(snapshot, relative);
+                    string parent = Path.GetDirectoryName(destination);
+                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+
+                    using (FileStream input = new FileStream(source, FileMode.Open,
+                        FileAccess.Read, FileShare.Read))
+                    using (FileStream output = new FileStream(destination, FileMode.Create,
+                        FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[81920];
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            output.Write(buffer, 0, read);
+                    }
+                }
+
+                string actual = ComputeStagingHash(snapshot);
+                if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = L.T("update.error.stagingChanged");
+                    AppendLog(logPath, "staging snapshot hash mismatch: expected " + expectedHash
+                        + ", got " + actual);
+                    DeleteStagingSnapshot(snapshot);
+                    return null;
+                }
+                return snapshot;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                AppendLog(logPath, "staging snapshot failed: " + ex);
+                DeleteStagingSnapshot(snapshot);
+                return null;
+            }
+        }
+
+        private static void DeleteStagingSnapshot(string path)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                    Directory.Delete(path, true);
+            }
+            catch (Exception)
+            {
             }
         }
 
@@ -473,10 +559,30 @@ namespace PiWebTray
             {
                 return false;
             }
+
+            // The helper writes the log before it can trust most of the payload. Do not
+            // let a forged argument turn that into an arbitrary file writer: only the
+            // fixed update.log name is accepted, and never in a system directory.
+            if (!string.Equals(Path.GetFileName(logPath), "update.log",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            if (Config.IsSystemDirectory(dataDir)) return false;
             if (!IsPathUnder(logPath, dataDir) && !IsPathUnder(logPath, target))
                 return false;
-            if (!IsPathUnder(staging, dataDir) && !IsPathUnder(staging, target))
+
+            // Staging must live under the data directory's update folder, which is the
+            // layout Prepare always creates. Reject arbitrary staging roots and
+            // reparse-point paths that could redirect an elevated write.
+            string updateRoot = SafeFullPath(Path.Combine(dataDir, "update"));
+            if (!IsPathUnder(staging, updateRoot)) return false;
+            if (PathSafety.ContainsReparsePoint(dataDir)
+                || PathSafety.ContainsReparsePoint(logPath)
+                || PathSafety.ContainsReparsePoint(staging))
+            {
                 return false;
+            }
             return true;
         }
 
