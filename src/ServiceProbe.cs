@@ -331,22 +331,14 @@ namespace PiWebTray
 
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = Sys.SystemExecutable("netstat.exe");
-                // No protocol filter: an IPv6-only listener appears only in the TCPv6 table.
-                psi.Arguments = "-ano";
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-
-                using (Process netstat = Process.Start(psi))
-                {
-                    if (netstat == null) return 0;
-                    string output = netstat.StandardOutput.ReadToEnd();
-                    netstat.WaitForExit(3000);
-                    return ParseListenerPid(output, port);
-                }
+                // Never call ReadToEnd() before a timeout: a hung netstat would block
+                // the owner-check worker forever. ProcessRunner enforces the timeout,
+                // kills the child tree and lets us parse whatever output was captured.
+                ProcessResult run = ProcessRunner.Run(
+                    Sys.SystemExecutable("netstat.exe"), "-ano", Sys.SystemDirectory,
+                    3000, null, null, null, 4 * 1024 * 1024);
+                if (!run.Started || run.TimedOut) return 0;
+                return ParseListenerPid(run.Output, port);
             }
             catch (Exception)
             {

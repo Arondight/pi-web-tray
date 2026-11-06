@@ -15,6 +15,12 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        private bool IsServiceActionInProgress()
+        {
+            return _phase == Phase.Starting || _phase == Phase.Stopping
+                || _phase == Phase.Installing;
+        }
+
         private void BeginEnvironmentCheck(bool thenStart, bool openBrowser)
         {
             BeginEnvironmentCheck(thenStart, openBrowser, 0, false);
@@ -32,9 +38,10 @@ namespace PiWebTray
         {
             lock (_checkLock)
             {
-                if (_checkRunning)
+                if (_checkRunning || _checkDone)
                 {
-                    // A check is already in flight: remember the request instead of dropping it,
+                    // A check is already in flight or its result is waiting for the
+                    // poll loop: remember the request instead of dropping the result,
                     // otherwise "install finished -> check -> start" can silently lose the start.
                     _checkPending = true;
                     _checkPendingThenStart = _checkPendingThenStart || thenStart;
@@ -48,15 +55,29 @@ namespace PiWebTray
                         _checkSuppressAutoInstall || suppressAutoInstall;
                     return;
                 }
+
+                // Do not overwrite a service action. A check requested during
+                // Starting/Stopping/Installing is queued and consumed once the
+                // action has reached a stable phase.
+                if (IsServiceActionInProgress())
+                {
+                    _checkPending = true;
+                    _checkPendingThenStart = _checkPendingThenStart || thenStart;
+                    _checkPendingOpenBrowser = _checkPendingOpenBrowser || openBrowser;
+                    _checkPendingSuppressAutoInstall =
+                        _checkPendingSuppressAutoInstall || suppressAutoInstall;
+                    return;
+                }
+
                 _checkRunning = true;
                 _checkDone = false;
                 _checkResult = null;
                 _checkThenStart = thenStart;
                 _checkOpenBrowser = openBrowser;
                 _checkSuppressAutoInstall = suppressAutoInstall;
+                _phase = Phase.Checking;
             }
 
-            if (_phase != Phase.Installing) _phase = Phase.Checking;
             UpdateUi();
 
             Thread worker = new Thread(delegate ()
@@ -71,8 +92,18 @@ namespace PiWebTray
                 {
                     result = EnvironmentProbe.Detect(_config);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    // The notification tells the user to inspect update.log; make
+                    // sure the probe failure is actually recorded there.
+                    try
+                    {
+                        Updater.AppendLog(_config.UpdateLogFile,
+                            "environment probe failed: " + ex);
+                    }
+                    catch (Exception)
+                    {
+                    }
                 }
 
                 // Probe the log-host child once, here in the background: StartServer needs
@@ -93,7 +124,25 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "could not start environment check worker: " + ex);
+                }
+                catch (Exception) { }
+                lock (_checkLock)
+                {
+                    _checkRunning = false;
+                    _checkResult = null;
+                    _checkDone = true;
+                }
+            }
         }
 
         // The UI thread only consumes a flag set by WatchNodePresence. All FileInfo,
@@ -214,30 +263,47 @@ namespace PiWebTray
 
         private void PollEnvironmentCheck()
         {
-            ProbeResult result;
-            bool thenStart;
-            bool openBrowser;
-            bool suppressAutoInstall;
-            int logHostState;
+            bool done;
+            ProbeResult result = null;
+            bool thenStart = false;
+            bool openBrowser = false;
+            bool suppressAutoInstall = false;
+            int logHostState = -1;
             lock (_checkLock)
             {
-                if (!_checkDone) return;
-                _checkDone = false;
-                result = _checkResult;
-                thenStart = _checkThenStart;
-                openBrowser = _checkOpenBrowser;
-                suppressAutoInstall = _checkSuppressAutoInstall;
-                _checkSuppressAutoInstall = false;
-                logHostState = _checkLogHostState;
+                done = _checkDone;
+                if (done)
+                {
+                    _checkDone = false;
+                    result = _checkResult;
+                    thenStart = _checkThenStart;
+                    openBrowser = _checkOpenBrowser;
+                    suppressAutoInstall = _checkSuppressAutoInstall;
+                    _checkSuppressAutoInstall = false;
+                    logHostState = _checkLogHostState;
+                }
             }
 
-            if (logHostState >= 0) _logHostState = logHostState;
+            if (done)
+            {
+                if (logHostState >= 0) _logHostState = logHostState;
 
-            ApplyCheckResult(result, thenStart, openBrowser, suppressAutoInstall);
-            if (_exiting) return;
+                ApplyCheckResult(result, thenStart, openBrowser, suppressAutoInstall);
+                if (_exiting) return;
+                // The result was deferred (or started a service/install). Leave the
+                // queued install request in place for the next stable poll.
+                if (IsServiceActionInProgress()) return;
+            }
 
-            // A menu click asked to install before the first probe had finished. The probe has
-            // just supplied the paths/versions the installer needs, so run it now.
+            // A request can be queued while no worker is running (for example when the
+            // request arrived during Starting/Stopping). Process it once the state
+            // machine is stable. The old early return on !_checkDone stranded such a
+            // request forever.
+            if (IsServiceActionInProgress()) return;
+
+            // A menu click asked to install before the first probe had finished. The
+            // request may also have been queued while a service action was in progress,
+            // so evaluate it on every stable poll and keep it until a probe is available.
             bool installAfterCheck;
             bool installAfterCheckForce;
             bool installAfterCheckStart;
@@ -248,17 +314,41 @@ namespace PiWebTray
                 installAfterCheckForce = _installAfterCheckForce;
                 installAfterCheckStart = _installAfterCheckStart;
                 installAfterCheckOpen = _installAfterCheckOpen;
-                _installAfterCheck = false;
-                _installAfterCheckForce = false;
-                _installAfterCheckStart = false;
-                _installAfterCheckOpen = false;
             }
-            if (installAfterCheck && _phase != Phase.Installing && _phase != Phase.NeedsNode && _probe != null)
+            if (installAfterCheck)
             {
-                BeginInstall(installAfterCheckForce, installAfterCheckStart, installAfterCheckOpen);
+                if (_phase == Phase.NeedsNode)
+                {
+                    lock (_checkLock)
+                    {
+                        _installAfterCheck = false;
+                        _installAfterCheckForce = false;
+                        _installAfterCheckStart = false;
+                        _installAfterCheckOpen = false;
+                    }
+                }
+                else if (_probe == null)
+                {
+                    bool busy;
+                    lock (_checkLock) busy = _checkRunning || _checkDone;
+                    if (!busy)
+                        BeginEnvironmentCheck(installAfterCheckStart, installAfterCheckOpen);
+                    return;
+                }
+                else
+                {
+                    lock (_checkLock)
+                    {
+                        _installAfterCheck = false;
+                        _installAfterCheckForce = false;
+                        _installAfterCheckStart = false;
+                        _installAfterCheckOpen = false;
+                    }
+                    BeginInstall(installAfterCheckForce, installAfterCheckStart, installAfterCheckOpen);
+                    if (IsServiceActionInProgress()) return;
+                }
             }
 
-            // A request arrived while this check was running (install finished, icon clicked, ...)
             bool pending;
             bool pendingThenStart;
             bool pendingOpenBrowser;
@@ -274,7 +364,7 @@ namespace PiWebTray
                 _checkPendingOpenBrowser = false;
                 _checkPendingSuppressAutoInstall = false;
             }
-            if (pending && _phase != Phase.Installing)
+            if (pending)
                 BeginEnvironmentCheck(pendingThenStart, pendingOpenBrowser, 0,
                     pendingSuppressAutoInstall);
         }
@@ -282,6 +372,23 @@ namespace PiWebTray
         private void ApplyCheckResult(ProbeResult result, bool thenStart, bool openBrowser,
             bool suppressAutoInstall)
         {
+            // A service action started while the probe was in flight. Do not overwrite
+            // Starting/Stopping/Installing; re-probe after the action reaches a stable
+            // phase instead. This also prevents a second StartServer from launching a
+            // competing node process.
+            if (IsServiceActionInProgress())
+            {
+                lock (_checkLock)
+                {
+                    _checkPending = true;
+                    _checkPendingThenStart = _checkPendingThenStart || thenStart;
+                    _checkPendingOpenBrowser = _checkPendingOpenBrowser || openBrowser;
+                    _checkPendingSuppressAutoInstall =
+                        _checkPendingSuppressAutoInstall || suppressAutoInstall;
+                }
+                return;
+            }
+
             if (result == null)
             {
                 _nodePresenceNotified = false;
@@ -294,7 +401,9 @@ namespace PiWebTray
             bool firstCheck = _firstCheck;
 
             _probe = result;
-            _config.NodePath = result.NodePath;
+            // Keep NodePath as the user's configured value. The effective executable
+            // discovered by the probe is used for starting/stopping the service and
+            // must not be persisted by the settings dialog as an explicit override.
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
             if (!result.NeedsNode) _nodePresenceNotified = false;
@@ -354,7 +463,25 @@ namespace PiWebTray
                 // environment; the user can still choose Install/update service.
                 if (_config.AutoInstall && !suppressAutoInstall && _autoStartService)
                 {
-                    BeginInstall(false, thenStart, openBrowser);
+                    // A manual install may already be queued behind this probe. It is
+                    // satisfied by the auto-install start below, so consume its flags
+                    // and carry its force/start/open intent into this install instead of
+                    // running a second install after the follow-up check.
+                    bool queuedForce;
+                    bool queuedStart;
+                    bool queuedOpen;
+                    lock (_checkLock)
+                    {
+                        queuedForce = _installAfterCheckForce;
+                        queuedStart = _installAfterCheckStart;
+                        queuedOpen = _installAfterCheckOpen;
+                        _installAfterCheck = false;
+                        _installAfterCheckForce = false;
+                        _installAfterCheckStart = false;
+                        _installAfterCheckOpen = false;
+                    }
+                    BeginInstall(queuedForce, thenStart || queuedStart,
+                        openBrowser || queuedOpen);
                     return;
                 }
                 // pi-web can run without the separately-installed Pi CLI. If the
@@ -437,39 +564,25 @@ namespace PiWebTray
         {
             if (_selfCheckRunning) return;
             _selfCheckRunning = true;
-            Thread worker = new Thread(delegate ()
+            UpdateUi();
+            try
             {
-                try
-                {
-                    _selfCheckResult = EnvironmentProbe.Detect(_config);
-                }
-                catch (Exception ex)
-                {
-                    _selfCheckError = ex.Message;
-                }
-            });
-            worker.IsBackground = true;
-            worker.Start();
-        }
-
-        private void PollSelfCheck()
-        {
-            ProbeResult result = _selfCheckResult;
-            string error = _selfCheckError;
-            if (result == null && error == null) return;
-            _selfCheckRunning = false;
-            _selfCheckResult = null;
-            _selfCheckError = null;
-
-            if (result != null)
-            {
-                ProbeResult latest = CheckForm.ShowReport(_config, result, _elevated);
+                // Show the report immediately and let it probe on its own background
+                // thread. Previously the menu action stayed visually idle until the
+                // whole environment probe had finished.
+                ProbeResult initial = _probe ?? new ProbeResult();
+                ProbeResult latest = CheckForm.ShowReport(_config, initial, _elevated, true);
                 ApplyProbeResult(latest);
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show(L.T("notify.selfCheckError", error), L.T("sc.title"),
+                MessageBox.Show(L.T("notify.selfCheckError", ex.Message), L.T("sc.title"),
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                _selfCheckRunning = false;
+                UpdateUi();
             }
         }
     }

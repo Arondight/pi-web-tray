@@ -220,7 +220,10 @@ namespace PiWebTray
 
             if (result == null)
             {
-                _phase = cancelled ? Phase.NeedsDeps : Phase.Failed;
+                bool depsMissing = _probe == null || !_probe.Ready;
+                _phase = cancelled
+                    ? (depsMissing ? Phase.NeedsDeps : Phase.Stopped)
+                    : Phase.Failed;
                 UpdateUi();
                 if (cancelled)
                     NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
@@ -231,6 +234,10 @@ namespace PiWebTray
             if (result.Success)
             {
                 Notify(L.T("install.doneTitle"), result.Message);
+                // The install process leaves the service stopped. Move out of Installing
+                // before starting the follow-up probe; BeginEnvironmentCheck never
+                // overwrites a service action.
+                _phase = Phase.Stopped;
                 // Re-probe before starting so paths and versions are current. Never
                 // auto-install again from this follow-up: npm reported success; if a
                 // package is still missing the user needs the explicit menu action, not
@@ -239,7 +246,8 @@ namespace PiWebTray
             }
             else if (cancelled)
             {
-                _phase = Phase.NeedsDeps;
+                bool depsMissing = _probe == null || !_probe.Ready;
+                _phase = depsMissing ? Phase.NeedsDeps : Phase.Stopped;
                 UpdateUi();
                 NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
                 if (restartService) RestoreServiceAfterInstall();
@@ -368,7 +376,12 @@ namespace PiWebTray
 
         private void ConfirmInstall()
         {
-            if (_probe != null && _probe.Ready)
+            // A force install always reinstalls both packages. Show the warning whenever
+            // at least one package already exists, not only when the whole environment
+            // is ready (for example when only the Pi CLI is missing).
+            bool existingPackage = _probe != null
+                && (_probe.PiWebFound || _probe.PiCliFound);
+            if (_probe != null && !_probe.NeedsNode && (_probe.Ready || existingPackage))
             {
                 string title = L.T("install.confirmTitle");
                 string body = L.T("install.confirmBody");

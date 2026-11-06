@@ -133,6 +133,7 @@ namespace PiWebTray
         private bool _openWhenReady;
         private bool _pendingRestart;
         private bool _pendingOpenBrowser;
+        private bool _serviceStoppedByUser;
         private bool _exiting;
         private bool _cleaned;
         private DateTime _startDeadline;
@@ -145,9 +146,8 @@ namespace PiWebTray
         private DateTime _runningSince = DateTime.MinValue;
         private DateTime _lastOwnerCheck = DateTime.MinValue;
 
-        // self check result: computed on a thread, shown from the UI thread
-        private volatile ProbeResult _selfCheckResult;
-        private volatile string _selfCheckError;
+        // The report window performs its own background refresh; this flag only
+        // prevents opening a second report or re-entering the menu action.
         private bool _selfCheckRunning;
 
         // autostart operation (background -> UI thread)
@@ -169,6 +169,7 @@ namespace PiWebTray
         private int _updateGeneration;
         private UpdateForm _updateForm;
         private DateTime _autoUpdateCheckAt = DateTime.MinValue;
+        private DateTime _updateBackupCleanupAt = DateTime.MinValue;
         private string _updateStaging;
         private string _updateError;
         private UpdateCancellation _updateCancellation;
@@ -238,8 +239,6 @@ namespace PiWebTray
             _mutex = mutex;
             _port = config.Port;
 
-            TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port);
-
             bool created;
             _openSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.OpenSignalName, out created);
             _startSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StartSignalName, out created);
@@ -259,7 +258,7 @@ namespace PiWebTray
             _startItem.Click += delegate { StartServer(false); };
 
             _stopItem = new ToolStripMenuItem(L.T("menu.stop"));
-            _stopItem.Click += delegate { StopServer(); };
+            _stopItem.Click += delegate { StopServerFromUser(); };
 
             _restartItem = new ToolStripMenuItem(L.T("menu.restart"));
             _restartItem.Click += delegate { RestartServer(false); };
@@ -396,6 +395,13 @@ namespace PiWebTray
 
             BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser);
             if (_config.AutoCheckUpdates) _autoUpdateCheckAt = DateTime.Now.AddSeconds(10);
+
+            // Write the state file only after the tray, menu and timer are initialized.
+            // The update helper uses this file as its first sign that the new process
+            // reached a usable state. It is not a full health check, so the helper also
+            // waits for a short stability window before deleting its backup.
+            TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port);
+            _updateBackupCleanupAt = DateTime.Now.AddSeconds(90);
         }
 
         // ---------------- poll loop ----------------
@@ -426,18 +432,24 @@ namespace PiWebTray
                 ExitApp();
                 return;
             }
-            if (stopSignal) StopServer();
+            if (stopSignal) StopServerFromUser();
             if (startSignal) StartServer(false);
 
             PollAutostartOp();
             DispatchOwnerCheck();
             PollEnvironmentCheck();
             PollInstall();
-            PollSelfCheck();
             PollTaskRefresh();
             PollUpdate();
             PollNodePresence();
             if (_exiting) return;
+
+            if (_updateBackupCleanupAt != DateTime.MinValue && DateTime.Now >= _updateBackupCleanupAt
+                && !_exiting)
+            {
+                _updateBackupCleanupAt = DateTime.MinValue;
+                CleanupStaleUpdateBackups();
+            }
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
                 && !UpdateBusy() && !_exiting

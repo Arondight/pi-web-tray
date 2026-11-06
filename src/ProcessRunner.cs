@@ -29,11 +29,12 @@ namespace PiWebTray
 
         // onStarted receives the pid right after the child is created, so callers can kill it on exit
         internal static ProcessResult Run(string fileName, string arguments, string workingDir, int timeoutMs,
-            Action<string> onLine, IDictionary<string, string> environment, Action<int> onStarted)
+            Action<string> onLine, IDictionary<string, string> environment, Action<int> onStarted,
+            int outputLimit = 256 * 1024)
         {
             ProcessResult result = new ProcessResult();
             StringBuilder output = new StringBuilder();
-            int outputLimit = 256 * 1024;
+            if (outputLimit <= 0) outputLimit = 256 * 1024;
 
             try
             {

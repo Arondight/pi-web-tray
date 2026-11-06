@@ -119,7 +119,7 @@ namespace PiWebTray
                             owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                             if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                             {
-                                Sys.KillByPort(_port);
+                                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
                             }
                             else
                             {
@@ -148,6 +148,19 @@ namespace PiWebTray
             if (_exiting) return;
             _exiting = true;
             try { _timer.Stop(); } catch (Exception) { }
+
+            // Keep the service alive, but do not orphan an npm install or an update
+            // download when another process takes over the tray (for example an
+            // elevated --tray-only instance).
+            if (_phase == Phase.Installing || _installForm != null)
+            {
+                Installer.Abort();
+                CloseInstallForm();
+            }
+            UpdateCancellation cancellation;
+            lock (_updateLock) cancellation = _updateCancellation;
+            if (cancellation != null) cancellation.Cancel();
+
             TrayState.Delete();
             Cleanup();
             ExitThread();
@@ -184,6 +197,28 @@ namespace PiWebTray
                 try { _mutex.ReleaseMutex(); } catch (Exception) { }
                 try { _mutex.Close(); } catch (Exception) { }
             }
+        }
+
+        private void CleanupStaleUpdateBackups()
+        {
+            string target = _config.BaseDir;
+            Thread worker = new Thread(delegate ()
+            {
+                try
+                {
+                    // Never delete a backup while an update helper owns the installation.
+                    using (OperationLock updateLock = OperationLock.TryAcquire(
+                        OperationLock.UpdateName(target)))
+                    {
+                        if (updateLock == null) return;
+                        Updater.DeleteStaleBackups(target, TimeSpan.FromSeconds(30));
+                    }
+                }
+                catch (Exception) { }
+            });
+            worker.IsBackground = true;
+            worker.Name = "pi-web-tray backup cleanup";
+            try { worker.Start(); } catch (Exception) { }
         }
 
         private void RotateLog()

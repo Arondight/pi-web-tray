@@ -361,13 +361,21 @@ namespace PiWebTray
         // Resolve Windows tools from the system directory instead of relying on the caller's
         // current directory or PATH. This blocks a local taskkill.exe/netstat.exe
         // in a writable working directory from being executed by the tray.
+        internal static string SystemDirectory
+        {
+            get
+            {
+                try { return Environment.GetFolderPath(Environment.SpecialFolder.System); }
+                catch (Exception) { return ""; }
+            }
+        }
+
         internal static string SystemExecutable(string name)
         {
             try
             {
-                string directory = Environment.GetFolderPath(Environment.SpecialFolder.System);
-                string path = Path.Combine(directory, name);
-                if (File.Exists(path)) return path;
+                string directory = SystemDirectory;
+                if (!string.IsNullOrEmpty(directory)) return Path.Combine(directory, name);
             }
             catch (Exception)
             {
@@ -377,53 +385,18 @@ namespace PiWebTray
 
         internal static void KillTree(int pid)
         {
+            if (pid <= 4) return;
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = SystemExecutable("taskkill.exe");
                 psi.Arguments = "/PID " + pid + " /T /F";
+                psi.WorkingDirectory = SystemDirectory;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 using (Process taskkill = Process.Start(psi))
                 {
                     // taskkill is detached; the using only releases the Process handle.
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        internal static void KillByPort(int port)
-        {
-            try
-            {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = SystemExecutable("netstat.exe");
-                // No protocol filter: an IPv6-only listener appears only in the TCPv6 table.
-                psi.Arguments = "-ano";
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-
-                using (Process netstat = Process.Start(psi))
-                {
-                    if (netstat == null) return;
-                    string output = netstat.StandardOutput.ReadToEnd();
-                    netstat.WaitForExit(3000);
-
-                    string needle = ":" + port;
-                    foreach (string line in output.Split('\n'))
-                    {
-                        // netstat is localized; match the local endpoint instead of the English state text.
-                        string[] parts = line.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                        if (parts.Length < 5) continue;
-                        if (!parts[1].EndsWith(needle, StringComparison.Ordinal)) continue;
-                        if (!parts[2].EndsWith(":0", StringComparison.Ordinal)) continue;
-                        int pid;
-                        if (!int.TryParse(parts[4], out pid) || pid <= 4) continue;
-                        KillTree(pid);
-                    }
                 }
             }
             catch (Exception)
@@ -451,11 +424,18 @@ namespace PiWebTray
         // The update helper needs a visible error dialog, so it must not be started hidden
         internal static bool RunElevated(string fileName, string arguments, bool hidden)
         {
+            return RunElevated(fileName, arguments, hidden, null);
+        }
+
+        internal static bool RunElevated(string fileName, string arguments, bool hidden,
+            string workingDirectory)
+        {
             try
             {
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = fileName;
                 psi.Arguments = arguments;
+                if (!string.IsNullOrEmpty(workingDirectory)) psi.WorkingDirectory = workingDirectory;
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
                 psi.WindowStyle = hidden ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal;

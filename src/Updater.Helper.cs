@@ -72,7 +72,7 @@ namespace PiWebTray
                 if (!elevated && RequiresElevation(config.BaseDir))
                 {
                     AppendLog(logPath, "install directory needs administrator rights");
-                    if (!Sys.RunElevated(helper, arguments, false))
+                    if (!Sys.RunElevated(helper, arguments, false, Sys.SystemDirectory))
                     {
                         error = L.T("update.error.elevationCancelled");
                         AppendLog(logPath, "elevation cancelled");
@@ -81,7 +81,7 @@ namespace PiWebTray
                     return true;
                 }
 
-                using (Process helperProcess = Sys.StartHidden(helper, arguments, staging))
+                using (Process helperProcess = Sys.StartHidden(helper, arguments, Sys.SystemDirectory))
                 {
                     if (helperProcess == null)
                     {
@@ -168,117 +168,136 @@ namespace PiWebTray
                 return 1;
             }
 
-            try
+            // Two helpers must never replace the same installation concurrently. The
+            // lock is held through the backup/restart phase and is released when this
+            // process exits or the apply attempt finishes.
+            using (OperationLock updateLock = OperationLock.TryAcquire(
+                OperationLock.UpdateName(targetDirectory)))
             {
-                if (!WaitForParent(parentPid, 60000))
+                if (updateLock == null)
                 {
-                    AppendLog(logPath, "parent did not exit");
-                    MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),
+                    AppendLog(logPath, "another update is already applying to this installation");
+                    MessageBox.Show(L.T("update.error.busy"), L.T("update.applyFailedTitle"),
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    // The tray that launched this helper has already exited. Do not
+                    // leave the user without a tray just because another helper won
+                    // the race; offer to start the existing installation.
+                    OfferStartAfterFailure(target, mode, logPath);
                     return 1;
                 }
 
-                if (!Directory.Exists(target))
-                {
-                    AppendLog(logPath, "target directory missing");
-                    MessageBox.Show(L.T("update.error.targetMissing"), L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return 1;
-                }
-
-                // Do not turn the elevated helper into a generic file copier: the target
-                // must already contain a real Pi Web Tray installation. This does not
-                // replace code signing, but it stops writes to unrelated protected
-                // directories when the helper is invoked with forged arguments.
-                string targetReason;
-                bool validInstallation = IsPiWebTrayInstallation(target, out targetReason);
-                if (!validInstallation && TryRecoverFromBackup(target, logPath))
-                {
-                    AppendLog(logPath, "target recovered from a leftover backup");
-                    validInstallation = IsPiWebTrayInstallation(target, out targetReason);
-                }
-                if (!validInstallation)
-                {
-                    AppendLog(logPath, "target is not a Pi Web Tray installation: " + targetReason);
-                    MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return 1;
-                }
-
-                if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
-                {
-                    AppendLog(logPath, "staging executable missing");
-                    MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return 1;
-                }
-
-                // The tray fingerprints the staged files before starting the helper.
-                // Re-check after the UAC prompt and the parent exit so a local process
-                // cannot replace the staged payload while the helper is waiting.
-                string actualStagingHash;
                 try
                 {
-                    actualStagingHash = ComputeStagingHash(staging);
+                    if (!WaitForParent(parentPid, 60000, Path.Combine(target, "pi-web-tray.exe")))
+                    {
+                        AppendLog(logPath, "parent did not exit");
+                        MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    if (!Directory.Exists(target))
+                    {
+                        AppendLog(logPath, "target directory missing");
+                        MessageBox.Show(L.T("update.error.targetMissing"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    // Do not turn the elevated helper into a generic file copier: the target
+                    // must already contain a real Pi Web Tray installation. This does not
+                    // replace code signing, but it stops writes to unrelated protected
+                    // directories when the helper is invoked with forged arguments.
+                    string targetReason;
+                    bool validInstallation = IsPiWebTrayInstallation(target, out targetReason);
+                    if (!validInstallation && TryRecoverFromBackup(target, logPath))
+                    {
+                        AppendLog(logPath, "target recovered from a leftover backup");
+                        validInstallation = IsPiWebTrayInstallation(target, out targetReason);
+                    }
+                    if (!validInstallation)
+                    {
+                        AppendLog(logPath, "target is not a Pi Web Tray installation: " + targetReason);
+                        MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
+                    {
+                        AppendLog(logPath, "staging executable missing");
+                        MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    // The tray fingerprints the staged files before starting the helper.
+                    // Re-check after the UAC prompt and the parent exit so a local process
+                    // cannot replace the staged payload while the helper is waiting.
+                    string actualStagingHash;
+                    try
+                    {
+                        actualStagingHash = ComputeStagingHash(staging);
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendLog(logPath, "staging hash failed: " + ex);
+                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    if (!string.Equals(actualStagingHash, stagingHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        AppendLog(logPath, "staging hash mismatch: expected " + stagingHash
+                            + ", got " + actualStagingHash);
+                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    // If ExitApp could not stop the old listener (slow taskkill, elevated
+                    // process, or a failed CLI stop), starting a new tray now would only
+                    // hit a port conflict. Do not copy anything until the port is free.
+                    if (port > 0 && !Net.WaitPortClosed(port, 30000))
+                    {
+                        AppendLog(logPath, "service still owns port " + port + "; update aborted");
+                        MessageBox.Show(L.T("update.error.serviceStillRunning", port),
+                            L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        OfferStartAfterFailure(target, mode, logPath);
+                        return 1;
+                    }
+
+                    UpdateCopyResult copy = CopyFiles(staging, target, logPath);
+                    AppendLog(logPath, "copy complete");
+
+                    if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
+                    {
+                        bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
+                        string message = L.T("update.error.restart");
+                        if (!rolledBack)
+                            message += Environment.NewLine + Environment.NewLine
+                                + L.T("update.rollbackBackup", copy.Backup);
+                        MessageBox.Show(message, L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        OfferStartAfterFailure(target, mode, logPath);
+                        return 1;
+                    }
+
+                    CleanupStaleFiles(target, copy.Managed, logPath);
+                    DeleteBackup(copy.Backup);
+                    DeleteOldBackups(target);
+                    AppendLog(logPath, "restart requested");
+                    return 0;
                 }
                 catch (Exception ex)
                 {
-                    AppendLog(logPath, "staging hash failed: " + ex);
-                    MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return 1;
-                }
-
-                if (!string.Equals(actualStagingHash, stagingHash, StringComparison.OrdinalIgnoreCase))
-                {
-                    AppendLog(logPath, "staging hash mismatch: expected " + stagingHash
-                        + ", got " + actualStagingHash);
-                    MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return 1;
-                }
-
-                // If ExitApp could not stop the old listener (slow taskkill, elevated
-                // process, or a failed CLI stop), starting a new tray now would only
-                // hit a port conflict. Do not copy anything until the port is free.
-                if (port > 0 && !Net.WaitPortClosed(port, 30000))
-                {
-                    AppendLog(logPath, "service still owns port " + port + "; update aborted");
-                    MessageBox.Show(L.T("update.error.serviceStillRunning", port),
+                    AppendLog(logPath, "apply failed: " + ex);
+                    MessageBox.Show(L.T("update.applyFailedBody", ex.Message, logPath),
                         L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
                     OfferStartAfterFailure(target, mode, logPath);
                     return 1;
                 }
-
-                UpdateCopyResult copy = CopyFiles(staging, target, logPath);
-                AppendLog(logPath, "copy complete");
-
-                if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
-                {
-                    bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
-                    string message = L.T("update.error.restart");
-                    if (!rolledBack)
-                        message += Environment.NewLine + Environment.NewLine
-                            + L.T("update.rollbackBackup", copy.Backup);
-                    MessageBox.Show(message, L.T("update.applyFailedTitle"),
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    OfferStartAfterFailure(target, mode, logPath);
-                    return 1;
-                }
-
-                CleanupStaleFiles(target, copy.Managed, logPath);
-                DeleteBackup(copy.Backup);
-                DeleteOldBackups(target);
-                AppendLog(logPath, "restart requested");
-                return 0;
-            }
-            catch (Exception ex)
-            {
-                AppendLog(logPath, "apply failed: " + ex);
-                MessageBox.Show(L.T("update.applyFailedBody", ex.Message, logPath),
-                    L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                OfferStartAfterFailure(target, mode, logPath);
-                return 1;
             }
         }
 
@@ -489,30 +508,35 @@ namespace PiWebTray
             }
         }
 
-        private static bool WaitForParent(int pid, int timeoutMs)
+        private static bool WaitForParent(int pid, int timeoutMs, string expectedExe)
         {
             if (pid <= 0) return true;
 
-            DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
-            while (DateTime.Now < deadline)
+            try
             {
-                try
+                // Open one handle to the original process. Polling by PID is wrong:
+                // if the tray exits and Windows reuses its PID, a later lookup can
+                // wait for an unrelated process and abort a valid update.
+                using (Process parent = Process.GetProcessById(pid))
                 {
-                    using (Process parent = Process.GetProcessById(pid))
+                    string image = NativeProcess.ImagePath(pid);
+                    if (!string.IsNullOrEmpty(expectedExe) && !string.IsNullOrEmpty(image)
+                        && !string.Equals(Path.GetFullPath(image),
+                            Path.GetFullPath(expectedExe), StringComparison.OrdinalIgnoreCase))
                     {
-                        if (parent.HasExited) return true;
+                        return true;
                     }
+                    return parent.WaitForExit(timeoutMs);
                 }
-                catch (ArgumentException)
-                {
-                    return true;
-                }
-                catch (Exception)
-                {
-                }
-                Thread.Sleep(200);
             }
-            return false;
+            catch (ArgumentException)
+            {
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
     }
 }

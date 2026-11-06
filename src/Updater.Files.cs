@@ -203,6 +203,31 @@ namespace PiWebTray
             }
         }
 
+        // A helper cannot delete the backup that contains its own running executable.
+        // Remove such leftovers on a later tray start, but only after they are old enough
+        // not to belong to an update that is still running.
+        internal static void DeleteStaleBackups(string target, TimeSpan minimumAge)
+        {
+            try
+            {
+                DateTime cutoff = DateTime.UtcNow - minimumAge;
+                foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
+                {
+                    try
+                    {
+                        if (Directory.GetLastWriteTimeUtc(old) >= cutoff) continue;
+                        Directory.Delete(old, true);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         // If the new executable does not come up, put the previous release back. Stale-file
         // cleanup is deferred until after a successful restart, so the old installation is
         // still complete when this runs.

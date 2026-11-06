@@ -33,6 +33,8 @@ namespace PiWebTray
         private readonly FlowLayoutPanel _buttons;
         private readonly NumericUpDown _port;
         private readonly TextBox _workingDir;
+        private readonly string _initialWorkingDir;
+        private readonly bool _workingDirWasUnset;
         private readonly ComboBox _language;
         private readonly CheckBox _autoInstall;
         private readonly CheckBox _autoRestart;
@@ -99,7 +101,7 @@ namespace PiWebTray
             _port = new NumericUpDown();
             _port.Minimum = 1;
             _port.Maximum = 65535;
-            _port.Value = Math.Max(1, Math.Min(65535, config.Port));
+            _port.Value = Math.Max(1, Math.Min(65535, config.ConfiguredPort));
             _port.Width = 120;
             _port.Enabled = allowPortChange;
             _port.AutoSize = false;
@@ -107,7 +109,11 @@ namespace PiWebTray
             AddRow(root, 0, L.T("settings.port"), _port);
 
             _workingDir = new TextBox();
-            _workingDir.Text = config.WorkingDir ?? "";
+            _workingDirWasUnset = string.IsNullOrEmpty(config.ConfiguredWorkingDir);
+            _workingDir.Text = !_workingDirWasUnset
+                ? config.ConfiguredWorkingDir
+                : (config.WorkingDir ?? "");
+            _initialWorkingDir = _workingDir.Text;
             AddBrowseRow(root, 1, L.T("settings.workingDir"), _workingDir,
                 L.T("settings.browse"), delegate { BrowseFolder(_workingDir); });
 
@@ -179,6 +185,8 @@ namespace PiWebTray
 
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
+            if (config.PortFromEnvironment)
+                note.Text += "\r\n" + L.T("settings.portEnvOverrideNote");
             note.AutoSize = true;
             note.MaximumSize = new Size(680, 0);
             note.Margin = new Padding(0, 12, 0, 12);
@@ -405,7 +413,8 @@ namespace PiWebTray
             {
                 dialog.Description = L.T("settings.workingDir");
                 dialog.ShowNewFolderButton = true;
-                if (Directory.Exists(target.Text)) dialog.SelectedPath = target.Text;
+                string current = Environment.ExpandEnvironmentVariables((target.Text ?? "").Trim());
+                if (Directory.Exists(current)) dialog.SelectedPath = current;
                 if (dialog.ShowDialog(this) == DialogResult.OK) target.Text = dialog.SelectedPath;
             }
         }
@@ -417,12 +426,13 @@ namespace PiWebTray
                 dialog.Title = title;
                 dialog.Filter = filter;
                 dialog.CheckFileExists = true;
-                if (File.Exists(target.Text))
+                string current = Environment.ExpandEnvironmentVariables((target.Text ?? "").Trim());
+                if (File.Exists(current))
                 {
-                    string directory = Path.GetDirectoryName(target.Text);
+                    string directory = Path.GetDirectoryName(current);
                     if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
                         dialog.InitialDirectory = directory;
-                    dialog.FileName = Path.GetFileName(target.Text);
+                    dialog.FileName = Path.GetFileName(current);
                 }
                 if (dialog.ShowDialog(this) == DialogResult.OK) target.Text = dialog.FileName;
             }
@@ -473,12 +483,27 @@ namespace PiWebTray
 
         private bool SaveSettings(bool restart)
         {
-            string workingDir = (_workingDir.Text ?? "").Trim();
+            string workingDirRaw = (_workingDir.Text ?? "").Trim();
+            string workingDir = workingDirRaw.Length == 0
+                ? (_config.WorkingDir ?? "")
+                : Environment.ExpandEnvironmentVariables(workingDirRaw);
             if (workingDir.Length == 0 || !Directory.Exists(workingDir))
             {
                 ShowError(L.T("settings.invalidWorkingDir"));
                 _workingDir.Focus();
                 return false;
+            }
+
+            // Preserve the documented %USERPROFILE% template when the user did not
+            // change the auto-detected default. Only the fallback case needs this;
+            // an explicit path is always written exactly as entered.
+            string workingDirValue = workingDirRaw;
+            string home = Shell.Home();
+            if (_workingDirWasUnset && !string.IsNullOrEmpty(home)
+                && string.Equals(workingDir, home, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(workingDirRaw, _initialWorkingDir, StringComparison.Ordinal))
+            {
+                workingDirValue = "%USERPROFILE%";
             }
 
             string nodePath = (_nodePath.Text ?? "").Trim();
@@ -524,7 +549,7 @@ namespace PiWebTray
             }
 
             int port = (int)_port.Value;
-            if (port != _config.Port)
+            if (port != _config.ConfiguredPort)
             {
                 // A cheap occupancy warning; the full owner probe is asynchronous in
                 // the tray and must not freeze this dialog.
@@ -547,7 +572,7 @@ namespace PiWebTray
             string oldProxy = _config.Proxy ?? "";
             List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
             values.Add(new KeyValuePair<string, string>("Port", port.ToString(CultureInfo.InvariantCulture)));
-            values.Add(new KeyValuePair<string, string>("WorkingDir", workingDir));
+            values.Add(new KeyValuePair<string, string>("WorkingDir", workingDirValue));
             values.Add(new KeyValuePair<string, string>("Language", languageValue));
             values.Add(new KeyValuePair<string, string>("AutoInstall", _autoInstall.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoRestart", _autoRestart.Checked ? "1" : "0"));
@@ -563,8 +588,12 @@ namespace PiWebTray
                 return false;
             }
 
-            _config.Port = port;
+            _config.ConfiguredPort = port;
+            // The environment override keeps priority for this process. Saving the ini
+            // must not turn a temporary PI_WEB_TRAY_PORT value into a permanent one.
+            if (!_config.PortFromEnvironment) _config.Port = port;
             _config.WorkingDir = workingDir;
+            _config.ConfiguredWorkingDir = workingDirValue;
             _config.Language = languageValue;
             _config.AutoInstall = _autoInstall.Checked;
             _config.AutoRestart = _autoRestart.Checked;

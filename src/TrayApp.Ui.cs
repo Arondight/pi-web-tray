@@ -114,17 +114,22 @@ namespace PiWebTray
 
             _statusItem.Text = (_phase == Phase.Running ? L.T("status.bulletOn") : L.T("status.bulletOff")) + label + (_elevated ? L.T("status.adminLong") : "");
 
-            bool busy = _phase == Phase.Installing || _phase == Phase.Checking || _phase == Phase.Starting || _phase == Phase.Stopping || updateBusy;
+            bool applying = _updateStage == UpdateStage.Applying;
+            bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
+                || _phase == Phase.Starting || _phase == Phase.Stopping;
+            bool busy = serviceBusy || updateBusy;
             bool running = _phase == Phase.Running;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
 
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
-            _openItem.Enabled = !busy && !portConflict;
-            _startItem.Enabled = !busy && !running && ready && !portConflict;
-            _stopItem.Enabled = running && !updateBusy;
-            _restartItem.Enabled = !busy && running;
+            // Checking or downloading an update does not affect the running service.
+            // Keep normal open/stop/restart actions available; only Applying is exclusive.
+            _openItem.Enabled = !serviceBusy && !portConflict && !applying;
+            _startItem.Enabled = !serviceBusy && !running && ready && !portConflict && !applying;
+            _stopItem.Enabled = running && !applying;
+            _restartItem.Enabled = !serviceBusy && running && !applying;
             _installItem.Enabled = !busy;
             // When the service is installed the action updates/reinstalls it; when
             // it is missing the same action also has to install it. Keep the two
@@ -149,7 +154,7 @@ namespace PiWebTray
             // The Node.js item is only a link to the official download page; unlike
             // service/update actions it is safe to use at any time.
             _nodeItem.Enabled = true;
-            _checkItem.Enabled = !busy;
+            _checkItem.Enabled = !busy && !_selfCheckRunning;
             _settingsItem.Enabled = !busy;
             _installLogItem.Enabled = File.Exists(_config.InstallLogFile);
             _updateLogItem.Enabled = File.Exists(_config.UpdateLogFile);
@@ -164,7 +169,14 @@ namespace PiWebTray
 
         private void OpenOrStart()
         {
-            if (UpdateBusy()) return;
+            // Applying replaces the executable and restarts the tray; no service action
+            // should begin during that short window. Checking/downloading is not exclusive.
+            if (_updateStage == UpdateStage.Applying) return;
+            if (UpdateBusy() && (_phase == Phase.NeedsDeps || _phase == Phase.PortConflict))
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
+                return;
+            }
             if (_phase == Phase.PortConflict)
             {
                 MessageBox.Show(
@@ -177,6 +189,19 @@ namespace PiWebTray
             }
             if (_phase == Phase.Running) { OpenBrowser(); return; }
             if (_phase == Phase.Installing || _phase == Phase.Checking) return;
+            if (_phase == Phase.Starting)
+            {
+                // A silent start (autostart or post-update) may not have asked for a
+                // browser. A click during Starting is an explicit request to open it
+                // once the service is ready.
+                _openWhenReady = true;
+                return;
+            }
+            if (_phase == Phase.Stopping)
+            {
+                NotifyWarning(L.T("notify.stoppingTitle"), L.T("notify.stoppingBody"));
+                return;
+            }
             if (_phase == Phase.NeedsNode)
             {
                 // The background watcher normally continues after Node.js is installed;
@@ -292,7 +317,9 @@ namespace PiWebTray
                         if (!canApplyPort)
                         {
                             _config.Port = previousPort;
-                            _config.SetValue("Port", previousPort.ToString());
+                            _config.ConfiguredPort = previousPort;
+                            if (!_config.SetValue("Port", previousPort.ToString()))
+                                NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
                             portRejected = true;
                             MessageBox.Show(L.T("settings.portRequiresStopped"),
                                 L.T("settings.title"),
@@ -302,6 +329,16 @@ namespace PiWebTray
                         else
                         {
                             _port = _config.Port;
+                            // A probe for the old port may still be in flight. Drop it
+                            // and every action that was waiting for it; otherwise a
+                            // stale result could make the new port look running or
+                            // conflicted.
+                            ClearPendingOwnerActions(false);
+                            _stopAfterOwnerCheck = false;
+                            InvalidateOwnerCheck();
+                            ServiceProbe.Invalidate();
+                            _lastOwnerCheck = DateTime.MinValue;
+                            _lastNotified = "";
                             if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
                             TrayState.Save(Process.GetCurrentProcess().Id, _elevated, _port);
                             UpdateUi();

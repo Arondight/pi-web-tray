@@ -59,12 +59,13 @@ namespace PiWebTray
 
                     if (arguments.Length == 0 || cmdPath != null)
                     {
-                        if (WaitForNewTray(dataDir, parentPid, 10000, exe))
+                        int newPid = WaitForNewTrayPid(dataDir, parentPid, 10000, exe);
+                        if (newPid > 0 && WaitForStableTray(newPid, 2000, exe))
                         {
                             AppendLog(logPath, "new tray observed after explorer restart");
                             return true;
                         }
-                        AppendLog(logPath, "explorer restart not observed; falling back");
+                        AppendLog(logPath, "explorer restart not observed or not stable; falling back");
                     }
                 }
                 catch (Exception ex)
@@ -107,15 +108,46 @@ namespace PiWebTray
             int timeoutMs, string expectedExe)
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+            int newPid = 0;
             while (DateTime.Now < deadline)
             {
-                if (WaitForNewTray(dataDir, oldPid, 250, expectedExe)) return true;
+                if (newPid == 0)
+                    newPid = WaitForNewTrayPid(dataDir, oldPid, 250, expectedExe);
+                if (newPid > 0) return WaitForStableTray(newPid, 2000, expectedExe);
                 try { if (tray.HasExited) return false; }
                 catch (Exception) { return false; }
             }
             // Still alive but no state file (for example an unwritable data directory):
             // keep it rather than rolling back a working process.
             try { return !tray.HasExited; } catch (Exception) { return false; }
+        }
+
+        private static bool WaitForStableTray(int pid, int stableMs, string expectedExe)
+        {
+            DateTime stableSince = DateTime.Now;
+            while (DateTime.Now - stableSince < TimeSpan.FromMilliseconds(stableMs))
+            {
+                if (!IsExpectedTrayProcess(pid, expectedExe)) return false;
+                Thread.Sleep(100);
+            }
+            return IsExpectedTrayProcess(pid, expectedExe);
+        }
+
+        private static bool IsExpectedTrayProcess(int pid, string expectedExe)
+        {
+            if (pid <= 0 || !Sys.ProcessAlive(pid)) return false;
+            if (string.IsNullOrEmpty(expectedExe)) return true;
+            try
+            {
+                string image = NativeProcess.ImagePath(pid);
+                if (string.IsNullOrEmpty(image)) return false;
+                return string.Equals(Path.GetFullPath(image),
+                    Path.GetFullPath(expectedExe), StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private static string LaunchViaExplorerCommand(string dataDir, string target,
@@ -168,17 +200,33 @@ namespace PiWebTray
 
         private static bool HasCustomEnvironment()
         {
+            // Treat explicitly disabled values (0/false/no) like an unset variable.
+            // Otherwise PI_WEB_TRAY_PORTABLE=0 would unnecessarily disable the
+            // Explorer de-elevation path and leave the new tray elevated.
+            bool lang = false;
+            string language = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
+            if (!string.IsNullOrEmpty(language))
+            {
+                language = language.Trim();
+                lang = language.Length > 0
+                    && !string.Equals(language, L.Auto, StringComparison.OrdinalIgnoreCase);
+            }
+
+            int port;
+            bool validPort = int.TryParse(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT"),
+                out port) && port > 0 && port <= 65535;
+
             return !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME"))
                 || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_NODE"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PIWEB"))
-                || !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PICLI"));
+                || validPort
+                || lang
+                || Config.IsEnabled(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE"))
+                || Config.IsEnabled(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_NODE"))
+                || Config.IsEnabled(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PIWEB"))
+                || Config.IsEnabled(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_PICLI"));
         }
 
-        private static bool WaitForNewTray(string dataDir, int oldPid, int timeoutMs,
+        private static int WaitForNewTrayPid(string dataDir, int oldPid, int timeoutMs,
             string expectedExe)
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
@@ -201,26 +249,16 @@ namespace PiWebTray
                         {
                             continue;
                         }
-                        if (pid <= 0 || pid == oldPid || !Sys.ProcessAlive(pid)) continue;
-                        if (!string.IsNullOrEmpty(expectedExe))
-                        {
-                            string image = NativeProcess.ImagePath(pid);
-                            if (!string.IsNullOrEmpty(image)
-                                && !string.Equals(Path.GetFullPath(image),
-                                    Path.GetFullPath(expectedExe),
-                                    StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;
-                            }
-                        }
-                        return true;
+                        if (pid <= 0 || pid == oldPid || !IsExpectedTrayProcess(pid, expectedExe))
+                            continue;
+                        return pid;
                     }
                 }
                 catch (Exception)
                 {
                 }
             }
-            return false;
+            return 0;
         }
     }
 }

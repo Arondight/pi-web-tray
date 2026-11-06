@@ -49,21 +49,21 @@ Windows 8.1, 10 and 11 can install the latest PowerShell from the [official rele
 1. Download and extract the release archive.
 2. Run `.\pi-web-tray.exe`.
 
-On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version and offers the download page; it stays running and continues automatically after Node.js is installed. If Node.js disappears while Pi Web is running, the app warns without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
+On first start the app checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version and offers the download page; it stays running, rechecks when Node.js appears, and asks you to use **Install/update service** if packages are also missing. If Node.js disappears while Pi Web is running, the app warns without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the affected packages instead of trusting a partial directory.
 
-Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
+Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default; set `PI_WEB_TRAY_PORTABLE=1` to keep them beside the executable. Portable mode is ignored when the executable is in a protected system directory such as Program Files. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
 ## Tray menu
 
 The icon colour shows the state at a glance:
 
-| Colour    | State                                                                  |
-| --------- | ---------------------------------------------------------------------- |
-| 🟢 Green  | Running                                                                |
-| ⚪ Grey   | Stopped                                                                |
-| 🟠 Orange | Busy: installing, starting/stopping the service, or applying an update |
-| 🔵 Blue   | Missing prerequisites (Node.js / Pi Web)                               |
-| 🔴 Red    | Error or port conflict                                                 |
+| Colour    | State                                                                            |
+| --------- | -------------------------------------------------------------------------------- |
+| 🟢 Green  | Running                                                                          |
+| ⚪ Grey   | Stopped                                                                          |
+| 🟠 Orange | Busy: checking, installing, starting/stopping the service, or applying an update |
+| 🔵 Blue   | Missing prerequisites (Node.js / Pi / Pi Web)                                    |
+| 🔴 Red    | Error or port conflict                                                           |
 
 The menu follows the service state:
 
@@ -107,34 +107,39 @@ Exit and stop service
 
 ### Configuration file
 
-`pi-web-tray.ini` lives in `%LOCALAPPDATA%\pi-web-tray` by default so separate Windows users do not share settings; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs next to the executable. A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
+`pi-web-tray.ini` lives in `%LOCALAPPDATA%\pi-web-tray` by default so separate Windows users do not share settings; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs next to the executable (ignored for protected system directories). A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
 
-| Key                | Default         | Description                                                                                                              |
-| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `Port`             | `30141`         | Pi Web listening port.                                                                                                   |
-| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                                                 |
-| `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                 |
-| `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                 |
-| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                   |
-| `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                                                   |
-| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                  |
-| `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads only; Node, npm and Pi Web child processes are not configured. |
-| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                       |
-| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                            |
-| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).                                                                          |
+| Key                | Default         | Description                                                                                                                                      |
+| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Port`             | `30141`         | Pi Web listening port.                                                                                                                           |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                                                                         |
+| `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                                         |
+| `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                                         |
+| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                                           |
+| `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                                                                           |
+| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                                          |
+| `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads; empty uses the system proxy. Node, npm and Pi Web child processes are not configured. |
+| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                                               |
+| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                                                    |
+| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed; refused for user-writable install directories).                                                   |
+
+When the tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the setting; the tray shows a notification with a details action. This check covers the tray installation only: the elevated task also runs Node.js, npm, Pi and Pi Web with your administrator token, so user-writable configuration, Node/npm paths and working directories remain part of the administrator attack surface.
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 
-The data directory is per user because the ini may contain registry or proxy credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction. When `Proxy` is set, only Pi Web Tray update checks and downloads use it; it is not exported to Node, npm or Pi Web child processes. The **Test** button in Settings checks proxy connectivity without saving.
+The data directory is per user because the ini may contain registry or proxy credentials and logs may contain project data; do not use portable mode in a shared directory. Avoid embedding credentials in `NpmRegistry`; configure npm authentication in npm's own `.npmrc`, and treat the ini as a secret. The tray redacts URL user info and token query values from its logs; the last-resort `1>>` fallback (used only when the log-host child process cannot start) writes service output without redaction. When `Proxy` is set, only Pi Web Tray update checks and downloads use it; when it is empty, the standard system proxy is used. The setting is not exported to Node, npm or Pi Web child processes. The **Test** button in Settings checks proxy connectivity without saving.
 
 ### Environment variables
 
-| Variable               | Description                                       |
-| ---------------------- | ------------------------------------------------- |
-| `PI_WEB_TRAY_PORT`     | Overrides the configured port.                    |
-| `PI_WEB_TRAY_LANG`     | Overrides the UI language.                        |
-| `PI_WEB_TRAY_HOME`     | Overrides the data directory.                     |
-| `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable. |
+| Variable               | Description                                                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PI_WEB_TRAY_INSTANCE` | Isolated instance: separate mutex, signals, config, data and start-at-login entries. With `PI_WEB_TRAY_HOME`, data goes under `HOME\pi-web-tray.<name>`. |
+| `PI_WEB_TRAY_PORT`     | Overrides the configured port.                                                                                                                           |
+| `PI_WEB_TRAY_LANG`     | Overrides the UI language.                                                                                                                               |
+| `PI_WEB_TRAY_HOME`     | Overrides the data directory root and takes precedence over portable mode.                                                                               |
+| `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable.                                                                                                        |
+
+Named instances also use separate start-at-login names so they cannot overwrite the default installation's entries. A Run value or scheduled task does not preserve the launching environment, so use start-at-login from the default instance.
 
 ## Command line
 
@@ -143,7 +148,7 @@ The data directory is per user because the ini may contain registry or proxy cre
 .\pi-web-tray.exe --autostart       Start tray and service without a browser.
 .\pi-web-tray.exe --tray-only       Start the tray only.
 .\pi-web-tray.exe --start-no-open   Start the service without a browser.
-.\pi-web-tray.exe --stop            Stop the service, keep the tray.
+.\pi-web-tray.exe --stop            Stop the service; keep the tray if it is running.
 .\pi-web-tray.exe --quit            Stop the service and exit.
 .\pi-web-tray.exe --check           Check the environment (0 = ready, 1 = missing).
 .\pi-web-tray.exe --install         Install dependencies without the tray.
@@ -169,7 +174,7 @@ cd .\pi-web-tray
 
 - Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no network listener.
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper also validates the target installation and a staging fingerprint. Releases are unsigned, so SmartScreen may warn on first run.
-- Admin start-at-login requires an admin account and creates an on-logon task for the current user; the task name includes the user SID, so another user's task is not overwritten.
+- Admin start-at-login requires an admin account and creates an on-logon task for the current user; the task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten.
 - `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
 
 ## Related projects

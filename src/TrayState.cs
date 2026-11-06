@@ -48,10 +48,28 @@ namespace PiWebTray
         {
             get
             {
-                string home = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
-                if (!string.IsNullOrEmpty(home))
-                    return Environment.ExpandEnvironmentVariables(home.Trim());
-                return Path.Combine(Shell.LocalAppData(), "pi-web-tray" + Suffix);
+                try
+                {
+                    string home = (Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME") ?? "").Trim();
+                    if (!string.IsNullOrEmpty(home))
+                    {
+                        string expanded = Environment.ExpandEnvironmentVariables(home);
+                        // A named instance must not share its ini, logs, state file or
+                        // update staging with another instance just because HOME is set.
+                        // Keep the suffix inside HOME so parallel testing remains isolated.
+                        if (Suffix.Length > 0)
+                            expanded = Path.Combine(expanded, "pi-web-tray" + Suffix);
+                        if (!Path.IsPathRooted(expanded))
+                            expanded = Path.Combine(Application.StartupPath, expanded);
+                        return Path.GetFullPath(expanded);
+                    }
+                    return Path.Combine(Shell.LocalAppData(), "pi-web-tray" + Suffix);
+                }
+                catch (Exception)
+                {
+                    // A malformed HOME must not prevent the process from starting.
+                    return Path.Combine(Shell.LocalAppData(), "pi-web-tray" + Suffix);
+                }
             }
         }
     }

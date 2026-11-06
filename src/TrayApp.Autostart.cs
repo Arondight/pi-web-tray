@@ -15,6 +15,10 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        private int _adminAutostartRefusals;
+        private DateTime _lastAdminAutostartRefusal = DateTime.MinValue;
+        private bool _existingAdminTaskAuditDone;
+
         private bool IsRunKeyEnabled()
         {
             return Autostart.RunValueExists();
@@ -50,15 +54,20 @@ namespace PiWebTray
 
         private void ToggleAutostart()
         {
-            BeginAutostartOp(!_autostartItem.Checked, _config.AutostartAdmin);
+            bool enable = !_autostartItem.Checked;
+            if (enable && _config.AutostartAdmin && RefuseAdminAutostart()) return;
+            BeginAutostartOp(enable, _config.AutostartAdmin);
         }
 
         private void ToggleAdminAutostart()
         {
             if (AutostartBusy()) return;
 
+            bool enable = !_config.AutostartAdmin;
+            if (enable && RefuseAdminAutostart()) return;
+
             bool previous = _config.AutostartAdmin;
-            _config.AutostartAdmin = !previous;
+            _config.AutostartAdmin = enable;
             _config.SetValue("AutostartAdmin", _config.AutostartAdmin ? "1" : "0");
             UpdateAutostartItems();
 
@@ -70,6 +79,97 @@ namespace PiWebTray
                 lock (_autoLock) _revertAdminAutostart = previous ? 1 : 0;
                 BeginAutostartOp(true, _config.AutostartAdmin);
             }
+        }
+
+        // Keep the menu text unchanged when the administrator mode is unavailable.
+        // The click is rejected without mutating the preference; a detailed clickable
+        // balloon explains why, and a second attempt in the same short window falls
+        // back to a modal dialog in case notifications are suppressed.
+        private bool RefuseAdminAutostart()
+        {
+            if (!Autostart.IsUserWritableInstall(Application.ExecutablePath)) return false;
+
+            string directory = Path.GetDirectoryName(Application.ExecutablePath)
+                ?? Application.ExecutablePath;
+            try
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "administrator start-at-login refused: user-writable install " + directory);
+            }
+            catch (Exception)
+            {
+            }
+
+            DateTime now = DateTime.Now;
+            if (_lastAdminAutostartRefusal == DateTime.MinValue
+                || now - _lastAdminAutostartRefusal > TimeSpan.FromMinutes(2))
+            {
+                _adminAutostartRefusals = 0;
+            }
+            _lastAdminAutostartRefusal = now;
+            _adminAutostartRefusals++;
+
+            if (_adminAutostartRefusals >= 2)
+            {
+                _adminAutostartRefusals = 0;
+                ShowAdminAutostartBlockedDetails();
+            }
+            else
+            {
+                NotifyWarning(
+                    L.T("auto.adminWritableTitle"),
+                    L.T("auto.adminWritableBalloon"),
+                    delegate { ShowAdminAutostartBlockedDetails(); });
+            }
+            return true;
+        }
+
+        private void ShowAdminAutostartBlockedDetails()
+        {
+            string directory = Path.GetDirectoryName(Application.ExecutablePath)
+                ?? Application.ExecutablePath;
+            MessageBox.Show(
+                L.T("auto.adminWritableDetails", directory),
+                L.T("auto.adminWritableTitle"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        // Existing tasks created by older releases are not covered by the toggle-time
+        // check. Warn once per session if such a task points at this user-writable
+        // installation; disabling it remains possible through the normal menu action.
+        private void AuditExistingAdminTask()
+        {
+            if (_existingAdminTaskAuditDone || AutostartBusy()) return;
+            if (!TaskExists(false)) return;
+            if (!Autostart.IsUserWritableInstall(Application.ExecutablePath)) return;
+
+            _existingAdminTaskAuditDone = true;
+            string directory = Path.GetDirectoryName(Application.ExecutablePath)
+                ?? Application.ExecutablePath;
+            try
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "existing administrator start-at-login uses user-writable install " + directory);
+            }
+            catch (Exception)
+            {
+            }
+            NotifyWarning(
+                L.T("auto.adminWritableExistingTitle"),
+                L.T("auto.adminWritableExistingBalloon"),
+                delegate { ShowExistingAdminTaskDetails(); });
+        }
+
+        private void ShowExistingAdminTaskDetails()
+        {
+            string directory = Path.GetDirectoryName(Application.ExecutablePath)
+                ?? Application.ExecutablePath;
+            MessageBox.Show(
+                L.T("auto.adminWritableExistingDetails", Autostart.TaskName, directory),
+                L.T("auto.adminWritableExistingTitle"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         private void BeginAutostartOp(bool enable, bool admin)
@@ -185,7 +285,17 @@ namespace PiWebTray
                 done = _taskRefreshDone;
                 _taskRefreshDone = false;
             }
-            if (done) UpdateAutostartItems();
+            if (done)
+            {
+                // The two autostart modes are mutually exclusive. A stale Run value
+                // (for example left by an older release) would start a second tray at
+                // login. Remove it once the task state is known instead of letting
+                // RepairRunValue preserve both modes indefinitely.
+                if (TaskExists(false) && IsRunKeyEnabled() && !AutostartBusy())
+                    Autostart.ClearRunValue();
+                AuditExistingAdminTask();
+                UpdateAutostartItems();
+            }
 
             // Keep the cached value from going stale while the tray sits idle
             bool stale;

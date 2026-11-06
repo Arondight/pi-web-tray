@@ -29,7 +29,7 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 
 ## Tests
 
-Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup and the construction of the main dialogs; the CI smoke script exercises the built CLI:
+Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI:
 
 ```powershell
 .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe

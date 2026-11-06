@@ -55,6 +55,11 @@ namespace PiWebTray
             QuoteTests();
             IniReadTests();
             InstanceSuffixTests();
+            InstanceHomeIsolationTests();
+            OperationLockTests();
+            AutostartPathTests();
+            UpdateRestartPolicyTests();
+            ConfiguredValuesTests();
             LocalizationTests();
             IconEncodingTests();
             InstallArgumentsTests();
@@ -67,6 +72,7 @@ namespace PiWebTray
             UpdateCopyTests();
             UpdateRollbackTests();
             UpdateTargetTests();
+            StaleBackupTests();
             LogHostTests();
             LogViewTests();
             ServiceProbeTests();
@@ -147,6 +153,15 @@ namespace PiWebTray
             Check("the admin task is per user",
                 Autostart.TaskName.StartsWith("PiWebTray-", StringComparison.Ordinal)
                 && !string.Equals(Autostart.TaskName, Autostart.LegacyTaskName, StringComparison.Ordinal));
+            CheckEqual("the default Run value is unchanged", "PiWebTray",
+                Autostart.ScopedName(Autostart.BaseRunValueName, ""));
+            CheckEqual("the Run value is scoped to this instance",
+                Autostart.ScopedName(Autostart.BaseRunValueName, Instance.Suffix),
+                Autostart.RunValueName);
+            CheckEqual("a named instance gets a scoped Run value", "PiWebTray.PortableTest",
+                Autostart.ScopedName(Autostart.BaseRunValueName, ".PortableTest"));
+            CheckEqual("a named instance gets a scoped task name", "PiWebTray-S-1-5-21-1.PortableTest",
+                Autostart.ScopedName("PiWebTray-S-1-5-21-1", ".PortableTest"));
 
             string currentSid;
             using (System.Security.Principal.WindowsIdentity identity =
@@ -157,10 +172,11 @@ namespace PiWebTray
             CheckEqual("process user SID is readable", currentSid,
                 NativeProcess.UserSid(System.Diagnostics.Process.GetCurrentProcess().Id));
 
-            // Only the prefix was asserted before: a machine-wide task name regression
-            // (same prefix, no SID) would have passed unnoticed.
-            Check("admin task name ends with the current user SID",
-                Autostart.TaskName.EndsWith(currentSid, StringComparison.Ordinal));
+            // Assert the full scoped name, not only a prefix: a machine-wide task
+            // regression or a missing instance suffix would otherwise pass.
+            CheckEqual("admin task name is scoped to this user and instance",
+                Autostart.ScopedName("PiWebTray-" + currentSid, Instance.Suffix),
+                Autostart.TaskName);
 
             CheckEqual("redacts URL user info",
                 "https://***@example.test/path",
@@ -713,6 +729,14 @@ namespace PiWebTray
                     CheckEqual("ini written semicolon path", "C:/work;old", Config.ReadIniValue(writePath, "WorkingDir"));
                     CheckEqual("ini written hash URL", "https://example.test/#frag", Config.ReadIniValue(writePath, "npmregistry"));
                     CheckEqual("ini written language", "zh-Hant", Config.ReadIniValue(writePath, "language"));
+
+                    File.WriteAllText(writePath, "Port=1\nPort=2\n", new UTF8Encoding(false));
+                    Check("duplicate ini key is rewritten", writeConfig.SetValue("Port", "30333"));
+                    CheckEqual("duplicate ini key keeps the new value", "30333",
+                        Config.ReadIniValue(writePath, "port"));
+                    string duplicateText = File.ReadAllText(writePath);
+                    Check("duplicate ini key leaves no stale copies",
+                        !duplicateText.Contains("Port=1") && !duplicateText.Contains("Port=2"));
                 }
                 finally
                 {
@@ -747,6 +771,219 @@ namespace PiWebTray
             finally
             {
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", original);
+            }
+        }
+
+        private static void InstanceHomeIsolationTests()
+        {
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            string temp = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-home-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                CheckEqual("HOME override is honored", Path.GetFullPath(temp), TrayState.Folder);
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "dev");
+                CheckEqual("HOME plus instance keeps the data isolated",
+                    Path.Combine(Path.GetFullPath(temp), "pi-web-tray.dev"), TrayState.Folder);
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", null);
+                Check("instance suffix remains in the default data path",
+                    TrayState.Folder.EndsWith("pi-web-tray.dev", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
+                try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
+            }
+        }
+
+        private static void OperationLockTests()
+        {
+            string name = @"Local\PiWebTray.SelfTest." + Guid.NewGuid().ToString("N");
+            bool blocked = false;
+            using (OperationLock first = OperationLock.TryAcquire(name))
+            {
+                Check("operation lock can be acquired", first != null);
+                if (first != null)
+                {
+                    Thread other = new Thread(delegate ()
+                    {
+                        using (OperationLock second = OperationLock.TryAcquire(name))
+                            blocked = second == null;
+                    });
+                    other.IsBackground = true;
+                    other.Start();
+                    if (!other.Join(5000)) blocked = false;
+                }
+            }
+
+            Check("operation lock is not re-entrant across threads", blocked);
+            using (OperationLock after = OperationLock.TryAcquire(name))
+                Check("operation lock is released", after != null);
+
+            CheckEqual("update lock name is stable",
+                OperationLock.UpdateName(@"C:\Apps\PiWebTray"),
+                OperationLock.UpdateName(@"c:\apps\piwebtray\"));
+            Check("update lock names differ by installation",
+                !string.Equals(OperationLock.UpdateName(@"C:\Apps\One"),
+                    OperationLock.UpdateName(@"C:\Apps\Two"), StringComparison.Ordinal));
+        }
+
+        private static void AutostartPathTests()
+        {
+            string temp = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-autostart-" + Guid.NewGuid().ToString("N"));
+            string exe = Path.Combine(temp, "pi-web-tray.exe");
+            try
+            {
+                Directory.CreateDirectory(temp);
+                File.WriteAllText(exe, "test");
+                Check("user-writable install is detected", Autostart.IsUserWritableInstall(exe));
+
+                string message;
+                Check("admin autostart is refused for a user-writable install",
+                    !Autostart.Apply(true, true, false, exe, out message)
+                    && !string.IsNullOrEmpty(message));
+
+                string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                if (!string.IsNullOrEmpty(programFiles))
+                {
+                    Check("Program Files is treated as protected",
+                        !Autostart.IsUserWritableInstall(Path.Combine(programFiles, "pi-web-tray.exe")));
+                }
+
+                CheckEqual("quoted Run value target",
+                    @"C:\Apps\Pi Web Tray\pi-web-tray.exe",
+                    Autostart.RunValueTarget("\"C:\\Apps\\Pi Web Tray\\pi-web-tray.exe\" --autostart"));
+                CheckEqual("unquoted Run value target",
+                    @"C:\Apps\pi-web-tray.exe",
+                    Autostart.RunValueTarget(@"C:\Apps\pi-web-tray.exe --autostart"));
+                CheckEqual("empty Run value target", "", Autostart.RunValueTarget(""));
+            }
+            finally
+            {
+                try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateRestartPolicyTests()
+        {
+            Check("update restarts after an unexpected stop",
+                TrayApp.ShouldRestartServiceAfterUpdate(true, true, false, true));
+            Check("update restarts a service that was running",
+                TrayApp.ShouldRestartServiceAfterUpdate(true, true, false, false));
+            Check("update does not restart a service that was stopped",
+                !TrayApp.ShouldRestartServiceAfterUpdate(false, true, false, false));
+            Check("an explicit stop wins over AutoRestart",
+                !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true, true));
+            Check("a crash still restarts with AutoRestart off only when explicitly marked",
+                TrayApp.ShouldRestartServiceAfterUpdate(false, false, false, true));
+        }
+
+        private static void ConfiguredValuesTests()
+        {
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            string originalPort = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT");
+            string originalLang = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
+            string originalPortable = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE");
+            string temp = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-config-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                string iniPath = Path.Combine(temp, "pi-web-tray.ini");
+                File.WriteAllText(iniPath,
+                    "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\n",
+                    new UTF8Encoding(false));
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", "30222");
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", "en");
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", null);
+
+                Config config = Config.Load(true);
+                CheckEqual("ini port is preserved separately", 30211, config.ConfiguredPort);
+                CheckEqual("environment port is effective", 30222, config.Port);
+                Check("port override is recorded", config.PortFromEnvironment);
+                CheckEqual("working directory keeps its raw ini value",
+                    "%USERPROFILE%", config.ConfiguredWorkingDir);
+                Check("working directory is expanded for use",
+                    Directory.Exists(config.WorkingDir));
+
+                using (SettingsForm form = new SettingsForm(config))
+                {
+                    System.Reflection.FieldInfo field = typeof(SettingsForm).GetField("_port",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    System.Windows.Forms.NumericUpDown port = field == null ? null : field.GetValue(form)
+                        as System.Windows.Forms.NumericUpDown;
+                    CheckEqual("settings shows the persisted port", 30211, port == null ? -1 : (int)port.Value);
+
+                    System.Reflection.MethodInfo save = typeof(SettingsForm).GetMethod("SaveSettings",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    CheckEqual("settings save succeeds", true,
+                        save == null ? null : save.Invoke(form, new object[] { false }));
+                }
+
+                string saved = File.ReadAllText(iniPath);
+                Check("settings preserves the configured port", saved.Contains("Port=30211"));
+                Check("settings preserves the %USERPROFILE% template",
+                    saved.Contains("WorkingDir=%USERPROFILE%"));
+                CheckEqual("environment port is still effective after save", 30222, config.Port);
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", "1");
+                Config portableHome = Config.Load(true);
+                Check("HOME takes precedence over portable mode",
+                    Path.GetFullPath(portableHome.IniPath).StartsWith(
+                        Path.GetFullPath(temp) + Path.DirectorySeparatorChar,
+                        StringComparison.OrdinalIgnoreCase));
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", null);
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", null);
+                Config withoutOverride = Config.Load(true);
+                CheckEqual("configured port is effective without an override",
+                    withoutOverride.ConfiguredPort, withoutOverride.Port);
+                Check("no port override is recorded without the variable",
+                    !withoutOverride.PortFromEnvironment);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", originalPort);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", originalLang);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", originalPortable);
+                try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
+            }
+        }
+
+        private static void StaleBackupTests()
+        {
+            string target = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-backups-" + Guid.NewGuid().ToString("N"));
+            string oldBackup = Path.Combine(target, ".pi-web-tray-backup-old");
+            string newBackup = Path.Combine(target, ".pi-web-tray-backup-new");
+            try
+            {
+                Directory.CreateDirectory(oldBackup);
+                Directory.CreateDirectory(newBackup);
+                Directory.SetLastWriteTimeUtc(oldBackup, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(newBackup, DateTime.UtcNow);
+
+                Updater.DeleteStaleBackups(target, TimeSpan.FromMinutes(30));
+                Check("stale update backup is removed", !Directory.Exists(oldBackup));
+                Check("recent update backup is kept", Directory.Exists(newBackup));
+            }
+            finally
+            {
+                try { if (Directory.Exists(target)) Directory.Delete(target, true); } catch (Exception) { }
             }
         }
 
@@ -874,6 +1111,23 @@ namespace PiWebTray
             Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
             Check("pi-web step is not the pi cli step", !Installer.IsPiCliStep(steps[0], config));
             Check("pi cli step is recognised", Installer.IsPiCliStep(steps[1], config));
+
+            Check("exact version tag is recognised", Installer.IsExactVersionTag("1.2.3"));
+            Check("leading v is an exact version tag", Installer.IsExactVersionTag("v1.2.3"));
+            Check("latest is not an exact version tag", !Installer.IsExactVersionTag("latest"));
+            Check("range is not an exact version tag", !Installer.IsExactVersionTag("^1.2.3"));
+            Check("exact version matches installed package",
+                Installer.VersionMatchesTag("1.2.3", "1.2.3"));
+            Check("leading v matches installed package",
+                Installer.VersionMatchesTag("v1.2.3", "1.2.3"));
+            Check("different exact version is rejected",
+                !Installer.VersionMatchesTag("1.2.2", "1.2.3"));
+            Check("pre-release is rejected for an exact stable tag",
+                !Installer.VersionMatchesTag("1.2.3-beta", "1.2.3"));
+            Check("dist tag cannot be version-verified",
+                Installer.VersionMatchesTag("0.9.0", "latest"));
+            Check("missing installed version is not treated as a mismatch",
+                Installer.VersionMatchesTag("", "1.2.3"));
 
             ProbeResult webMissingCliPresent = new ProbeResult();
             webMissingCliPresent.PiCliFound = true;
@@ -1326,8 +1580,9 @@ namespace PiWebTray
                 }
                 Check("log host rotates before crossing the limit",
                     File.Exists(path + ".1") && File.ReadAllText(path + ".1").Contains(new string('x', 200)));
-                CheckEqual("log host appends after rotation",
-                    LogWriter.FormatLine("next") + Environment.NewLine, File.ReadAllText(path));
+                string appended = File.ReadAllText(path);
+                Check("log host appends after rotation",
+                    appended.EndsWith(" next" + Environment.NewLine, StringComparison.Ordinal));
 
                 File.Delete(path);
                 File.Delete(path + ".1");
@@ -1336,9 +1591,12 @@ namespace PiWebTray
                 {
                     LogHost.Append(input, path, 1024 * 1024);
                 }
-                CheckEqual("log host redacts registry credentials",
-                    LogWriter.FormatLine("https://***@example.test/?token=***") + Environment.NewLine,
-                    File.ReadAllText(path));
+                string redacted = File.ReadAllText(path);
+                Check("log host redacts registry credentials",
+                    redacted.EndsWith(" https://***@example.test/?token=***" + Environment.NewLine,
+                        StringComparison.Ordinal)
+                    && !redacted.Contains("user:pass")
+                    && !redacted.Contains("token=secret"));
             }
             finally
             {

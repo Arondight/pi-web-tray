@@ -216,6 +216,15 @@ namespace PiWebTray
             return "";
         }
 
+        // The probe may use a configured path, a PATH lookup or a well-known install
+        // location. Keep that effective path separate from Config.NodePath, which is
+        // the user's persisted preference (usually empty for automatic detection).
+        private string EffectiveNodePath()
+        {
+            if (_probe != null && !string.IsNullOrEmpty(_probe.NodePath)) return _probe.NodePath;
+            return _config.NodePath ?? "";
+        }
+
         // Drop requests that belong to an older user action. Stop-for-install preserves
         // the queued install continuation; every other explicit action owns the state now.
         private void ClearPendingOwnerActions(bool keepInstall)
@@ -366,7 +375,7 @@ namespace PiWebTray
                     if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                     {
                         _stopEscalatedAt = DateTime.Now;
-                        Sys.KillByPort(_port);
+                        if (owner.Pid > 4) Sys.KillTree(owner.Pid);
                         ServiceProbe.Invalidate();
                     }
                     else
@@ -466,7 +475,8 @@ namespace PiWebTray
                 BeginOwnerCheck();
                 return;
             }
-            if (IsOurPiWeb(owner))
+            if (IsOurPiWeb(owner)
+                || ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort(owner)))
             {
                 _phase = Phase.Running;
                 _lastNotified = "";
@@ -530,9 +540,11 @@ namespace PiWebTray
         private void ApplyProbeResult(ProbeResult result)
         {
             if (result == null) return;
+            // Closing an environment report can race a service action. Do not let the
+            // report overwrite Starting/Stopping/Installing; the next probe will refresh it.
+            if (IsServiceActionInProgress()) return;
 
             _probe = result;
-            _config.NodePath = result.NodePath;
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
 
@@ -609,7 +621,7 @@ namespace PiWebTray
                 ProcessResult check = ProcessRunner.Run(
                     Application.ExecutablePath,
                     "--log-host-check",
-                    _config.WorkingDir,
+                    Sys.SystemDirectory,
                     3000,
                     null,
                     null);
@@ -637,9 +649,34 @@ namespace PiWebTray
 
         private void StartServer(bool openBrowser)
         {
+            // A start request during an environment probe belongs to that probe.
+            // Let the in-flight result decide (and start only once), instead of
+            // racing it with a second node process.
+            if (_phase == Phase.Checking)
+            {
+                bool deferred = false;
+                lock (_checkLock)
+                {
+                    if (_checkRunning || _checkDone)
+                    {
+                        _checkThenStart = true;
+                        _checkOpenBrowser = _checkOpenBrowser || openBrowser;
+                        deferred = true;
+                    }
+                }
+                if (deferred) return;
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
+
             ClearPendingOwnerActions(false);
             InvalidateOwnerCheck();
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+
+            // A new explicit start overrides an earlier deliberate stop. This matters
+            // when an update is still downloading: a user stop must not be undone by
+            // the update's auto-restart logic, while a later explicit start should be.
+            _serviceStoppedByUser = false;
 
             // The fingerprint watcher can see node.exe disappear while a running service
             // is still using the already-loaded image. Re-probe before creating the next
@@ -722,7 +759,8 @@ namespace PiWebTray
                 return;
             }
 
-            string node = string.IsNullOrEmpty(_config.NodePath) ? "node.exe" : _config.NodePath;
+            string node = EffectiveNodePath();
+            if (string.IsNullOrEmpty(node)) node = "node.exe";
 
             RotateLog();
             // The service output itself is raw Node/Pi Web output, so mark the start
@@ -770,6 +808,17 @@ namespace PiWebTray
                 // The Proxy setting is deliberately not exported here: it applies only to
                 // Pi Web Tray update traffic. Do not change the Node/pi-web environment.
                 // An elevated tray passes its token to the child, which is exactly what "run as admin" means here
+                try
+                {
+                    if (_server != null && _server.HasExited)
+                    {
+                        _server.Dispose();
+                        _server = null;
+                    }
+                }
+                catch (Exception)
+                {
+                }
                 _server = Process.Start(psi);
                 ServiceProbe.Invalidate();
 
@@ -804,6 +853,20 @@ namespace PiWebTray
                 && Directory.Exists(_probe.NpmPrefix))
                 path = _probe.NpmPrefix.TrimEnd('\\') + ";" + path;
             return path;
+        }
+
+        private void StopServerFromUser()
+        {
+            // StopServer refuses to touch the service during an install. Do not mark
+            // that refused request as a user stop, or the install restore/update
+            // policy would incorrectly keep the service down afterwards.
+            if (_phase == Phase.Installing)
+            {
+                StopServer();
+                return;
+            }
+            _serviceStoppedByUser = true;
+            StopServer();
         }
 
         private void StopServer()
@@ -930,7 +993,7 @@ namespace PiWebTray
             }
             else
             {
-                Sys.KillByPort(_port);
+                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
                 ServiceProbe.Invalidate();
             }
         }
@@ -939,13 +1002,24 @@ namespace PiWebTray
         {
             try
             {
-                string node = string.IsNullOrEmpty(_config.NodePath) ? "node.exe" : _config.NodePath;
+                string node = EffectiveNodePath();
+                if (string.IsNullOrEmpty(node)) node = "node.exe";
                 ProcessRunner.Run(node, Shell.Quote(script) + " stop --port " + _port,
                     _config.WorkingDir, 20000, null, null);
             }
             catch (Exception)
             {
             }
+        }
+
+        // Shared by the helper start mode and the post-update restart decision.
+        // A user-requested stop during an update must win over AutoRestart.
+        internal static bool ShouldRestartServiceAfterUpdate(bool startedWithServiceRunning,
+            bool autoRestart, bool stoppedByUser, bool restartAfterUpdate)
+        {
+            if (stoppedByUser) return false;
+            return restartAfterUpdate
+                || (autoRestart && startedWithServiceRunning);
         }
 
         private void RestartServer(bool openBrowser)

@@ -277,6 +277,9 @@ namespace PiWebTray
             Notify(L.T("update.applyingTitle"), L.T("update.applyingBody", release.Version));
 
             bool elevated = _elevated;
+            bool stoppedByUser = _serviceStoppedByUser;
+            bool startedRunning = _updateStartedWithServiceRunning;
+            bool autoRestart = _config.AutoRestart;
             Thread worker = new Thread(delegate ()
             {
                 // The apply mode depends on the port owner, and probing it (netstat child
@@ -288,8 +291,11 @@ namespace PiWebTray
                 {
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
-                    ApplyStartMode mode = IsOurPiWeb(owner) || TrayOwnsPort(owner) || _restartAfterUpdate
-                        || (_updateStartedWithServiceRunning && _config.AutoRestart)
+                    bool serviceSilent = (!stoppedByUser
+                            && (IsOurPiWeb(owner) || TrayOwnsPort(owner)))
+                        || ShouldRestartServiceAfterUpdate(startedRunning, autoRestart,
+                            stoppedByUser, _restartAfterUpdate);
+                    ApplyStartMode mode = serviceSilent
                         ? ApplyStartMode.ServiceSilent
                         : ApplyStartMode.TrayOnly;
                     bool waitForService = mode == ApplyStartMode.ServiceSilent
@@ -351,8 +357,9 @@ namespace PiWebTray
             _updatePercent = -1;
             UpdateUi();
 
-            bool restartAfterUpdate = _restartAfterUpdate
-                || (_config.AutoRestart && _updateStartedWithServiceRunning);
+            bool restartAfterUpdate = ShouldRestartServiceAfterUpdate(
+                _updateStartedWithServiceRunning, _config.AutoRestart,
+                _serviceStoppedByUser, _restartAfterUpdate);
             _restartAfterUpdate = false;
             _updateStartedWithServiceRunning = false;
             if (restartAfterUpdate && _config.AutoRestart && _probe != null && _probe.Ready

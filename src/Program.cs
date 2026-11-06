@@ -28,6 +28,23 @@ namespace PiWebTray
             // The language must be known before any text appears: read ini / env first
             Config config = null;
 
+            // Read-only commands do not accept positional arguments. Keep the
+            // documented "unknown argument returns 2" behaviour consistent here too.
+            if (Has(args, "--help") || Has(args, "-h") || Has(args, "/?")
+                || Has(args, "--version") || Has(args, "--lang-check"))
+            {
+                string earlyUnknown = FindUnknownArgument(args);
+                if (earlyUnknown != null)
+                {
+                    // Resolve the configured language before printing the error, but
+                    // keep the read-only command free of disk writes.
+                    Config.Load(false);
+                    ConsoleHost.TryAttach();
+                    ConsoleHost.WriteError(L.T("prog.unknownArg", earlyUnknown));
+                    return 2;
+                }
+            }
+
             if (Has(args, "--lang-check"))
             {
                 ConsoleHost.TryAttach();
@@ -299,7 +316,7 @@ namespace PiWebTray
                             Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
                             return 0;
                         }
-                        Sys.KillByPort(config.Port);
+                        if (owner.Pid > 4) Sys.KillTree(owner.Pid);
                         Net.WaitPortClosed(config.Port, 8000);
                     }
                 }
@@ -477,7 +494,17 @@ namespace PiWebTray
         private static bool StopServiceWithoutTray(Config config)
         {
             ServiceProbe.Invalidate();
-            ProbeResult probe = EnvironmentProbe.Detect(config);
+            ProbeResult probe;
+            try
+            {
+                probe = EnvironmentProbe.Detect(config);
+            }
+            catch (Exception ex)
+            {
+                ConsoleHost.TryAttach();
+                ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
+                return false;
+            }
             string script = ExpectedPiWebScript(config, probe);
             PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, script);
             if (owner.IsUnknown)
@@ -513,7 +540,7 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
                     return false;
                 }
-                Sys.KillByPort(config.Port);
+                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
                 Net.WaitPortClosed(config.Port, 5000);
             }
 
@@ -547,33 +574,51 @@ namespace PiWebTray
         private static int RunCheck(Config config, bool elevated)
         {
             bool console = ConsoleHost.TryAttach();
-            ProbeResult probe = EnvironmentProbe.Detect(config);
-            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config, probe));
-
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(AppName + " " + Version);
-            sb.AppendLine(L.T("sc.config") + " : " + config.IniPath);
-            sb.AppendLine(L.T("sc.dataDir") + " : " + config.OutputDir);
-            sb.AppendLine(L.T("sc.port", config.Port, Net.IsPortOpen(config.Port, 300) ? L.T("bool.yes") : L.T("bool.no")));
-            sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
-            sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
-            sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
-            sb.AppendLine(L.T("sc.language") + " : " + L.Current);
-            sb.AppendLine();
-            sb.Append(probe.Summary());
-
-            if (console)
+            if (!console)
             {
+                // Without a console, show the report before probing. The previous
+                // implementation ran the full (possibly tens of seconds) probe before
+                // any window appeared, so a double-click looked like a no-op.
+                try
+                {
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    ProbeResult latest = CheckForm.ShowReport(config, new ProbeResult(), elevated, true);
+                    return latest.Ready ? 0 : 1;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(L.T("notify.selfCheckError", ex.Message), L.T("sc.title"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return 1;
+                }
+            }
+
+            try
+            {
+                ProbeResult probe = EnvironmentProbe.Detect(config);
+                PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config, probe));
+
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine(AppName + " " + Version);
+                sb.AppendLine(L.T("sc.config") + " : " + config.IniPath);
+                sb.AppendLine(L.T("sc.dataDir") + " : " + config.OutputDir);
+                sb.AppendLine(L.T("sc.port", config.Port, Net.IsPortOpen(config.Port, 300) ? L.T("bool.yes") : L.T("bool.no")));
+                sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
+                sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
+                sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
+                sb.AppendLine(L.T("sc.language") + " : " + L.Current);
+                sb.AppendLine();
+                sb.Append(probe.Summary());
+
                 ConsoleHost.WriteLine(sb.ToString());
+                return probe.Ready ? 0 : 1;
             }
-            else
+            catch (Exception ex)
             {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                CheckForm.ShowReport(config, probe, elevated);
+                ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
+                return 1;
             }
-
-            return probe.Ready ? 0 : 1;
         }
 
         private static int RunInstall(Config config, bool dryRun)
@@ -585,9 +630,28 @@ namespace PiWebTray
             // path must do the same, or the install fails with a locked package directory.
             bool hasWork = dryRun || Installer.HasInstallWork(config);
             bool stopped = false;
-            if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
+            try
+            {
+                if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
+            }
+            catch (Exception ex)
+            {
+                ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
+                return 1;
+            }
 
-            int code = Installer.RunInConsole(config, dryRun);
+            int code;
+            try
+            {
+                code = Installer.RunInConsole(config, dryRun);
+            }
+            catch (Exception ex)
+            {
+                // A refused install may have thrown after the service was stopped.
+                // Do not skip the restore path just because the install itself failed.
+                ConsoleHost.WriteError(L.T("install.crashBody", ex.Message));
+                code = 1;
+            }
 
             // Restore what was stopped: a tray path restarts the service it stopped for an
             // install; the CLI path asks a running tray to start it again.
@@ -604,7 +668,16 @@ namespace PiWebTray
             if (!Net.IsPortOpen(config.Port, 300)) return true;
 
             ServiceProbe.Invalidate();
-            ProbeResult probe = EnvironmentProbe.Detect(config);
+            ProbeResult probe;
+            try
+            {
+                probe = EnvironmentProbe.Detect(config);
+            }
+            catch (Exception ex)
+            {
+                ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
+                return false;
+            }
             string script = ExpectedPiWebScript(config, probe);
             PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, script);
             if (!owner.IsPiWeb) return true;
@@ -807,7 +880,10 @@ namespace PiWebTray
             sb.AppendLine("  PI_WEB_TRAY_PORT=30198     " + L.T("help.envPort"));
             sb.AppendLine("  PI_WEB_TRAY_HOME=D:\\x      " + L.T("help.envHome"));
             sb.AppendLine("  PI_WEB_TRAY_LANG=zh|en     " + L.T("help.envLang"));
-            sb.AppendLine("  PI_WEB_TRAY_NO_NODE=1      " + L.T("help.envTest"));
+            sb.AppendLine("  PI_WEB_TRAY_PORTABLE=1     " + L.T("help.envPortable"));
+            sb.AppendLine("  PI_WEB_TRAY_NO_NODE=1      " + L.T("help.envNoNode"));
+            sb.AppendLine("  PI_WEB_TRAY_NO_PIWEB=1     " + L.T("help.envNoPiweb"));
+            sb.AppendLine("  PI_WEB_TRAY_NO_PICLI=1     " + L.T("help.envNoPicli"));
 
             string text = sb.ToString();
             if (ConsoleHost.TryAttach()) ConsoleHost.WriteLine(text);

@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Resources;
+using System.Text.RegularExpressions;
 
 namespace PiWebTray
 {
@@ -31,6 +32,8 @@ namespace PiWebTray
 
         private static readonly ResourceManager Manager =
             new ResourceManager(ResourceBaseName, typeof(L).Assembly);
+        private static readonly Regex Placeholder = new Regex(
+            @"\{(\d+)(?:[^}]*)\}", RegexOptions.Compiled);
         private static readonly CultureInfo EnglishCulture = LoadCulture("en", CultureInfo.InvariantCulture);
         private static readonly CultureInfo ChineseCulture = LoadCulture("zh-Hans", EnglishCulture);
         private static readonly CultureInfo TraditionalCulture = LoadCulture("zh-Hant", EnglishCulture);
@@ -298,6 +301,8 @@ namespace PiWebTray
                     broken.Add(culture.Name + " " + pair.Key + ": missing text");
                 else if (string.IsNullOrEmpty(text))
                     broken.Add(culture.Name + " " + pair.Key + ": empty text");
+                else if (!SamePlaceholders(pair.Value, text))
+                    broken.Add(culture.Name + " " + pair.Key + ": placeholder mismatch");
             }
 
             foreach (string key in translated.Keys)
@@ -305,6 +310,30 @@ namespace PiWebTray
                 if (!english.ContainsKey(key))
                     broken.Add(culture.Name + " " + key + ": extra key");
             }
+        }
+
+        private static bool SamePlaceholders(string english, string translated)
+        {
+            List<int> expected = PlaceholderIndexes(english);
+            List<int> actual = PlaceholderIndexes(translated);
+            if (expected.Count != actual.Count) return false;
+            for (int i = 0; i < expected.Count; i++)
+            {
+                if (expected[i] != actual[i]) return false;
+            }
+            return true;
+        }
+
+        private static List<int> PlaceholderIndexes(string text)
+        {
+            List<int> indexes = new List<int>();
+            foreach (Match match in Placeholder.Matches(text ?? ""))
+            {
+                int index;
+                if (int.TryParse(match.Groups[1].Value, out index)) indexes.Add(index);
+            }
+            indexes.Sort();
+            return indexes;
         }
 
         private static Dictionary<string, string> LoadSet(CultureInfo culture)

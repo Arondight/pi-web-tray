@@ -19,7 +19,7 @@
     <value>需要安装 Node.js</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>需要安装 Pi Web</value>
+    <value>缺少依赖</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>安装中… {0}</value>
@@ -37,10 +37,10 @@
     <value>停止中… {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
-    <value>错误 · 查看日志</value>
+    <value>错误 · 点击重试</value>
   </data>
   <data name="status.stopped" xml:space="preserve">
-    <value>已停止 · 选择图标以启动</value>
+    <value>已停止 · 点击启动</value>
   </data>
   <data name="status.admin" xml:space="preserve">
     <value>（管理员）</value>
@@ -104,7 +104,7 @@
     <value>取消</value>
   </data>
 <data name="node.continue" xml:space="preserve">
-    <value>继续但不下载</value>
+    <value>保持运行</value>
   </data>
 <data name="node.exit" xml:space="preserve">
     <value>退出</value>
@@ -116,7 +116,7 @@
     <value>{0}。
 需要 Node.js {1} 或更新版本。
 {2}
-检测到 Node.js 安装后继续。</value>
+托盘将保持运行，安装 Node.js 后重试。</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7/8 使用未签名的社区构建，本项目无法验证其安全性。</value>
@@ -323,7 +323,7 @@
     <value>正在先停止 Pi Web（npm 无法在它运行时更新）。</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web 已为本次安装停止，且未重新启动（当时没有运行中的进程）。</value>
+    <value>Pi Web 已为本次安装停止，且未重新启动，因为当前没有正在运行的托盘。</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>安装后 Pi Web 没有打开端口 {0}。请查看服务日志。</value>
@@ -445,7 +445,7 @@
     <value>环境自检失败</value>
   </data>
   <data name="notify.envCheckFailedBody" xml:space="preserve">
-    <value>无法读取 Node.js / npm 信息。请参阅 install.log。</value>
+    <value>无法读取 Node.js / npm 信息，详情已写入 update.log。</value>
   </data>
   <data name="notify.selfCheckError" xml:space="preserve">
     <value>环境自检错误：{0}</value>
@@ -604,9 +604,6 @@
   <data name="help.title" xml:space="preserve">
     <value>用法：</value>
   </data>
-  <data name="help.args" xml:space="preserve">
-    <value>exe</value>
-  </data>
   <data name="help.launch" xml:space="preserve">
     <value>启动 Pi Web，安装缺失的依赖，并打开浏览器。</value>
   </data>
@@ -614,7 +611,7 @@
     <value>由开机自启动使用；在后台启动 Pi Web，但不打开浏览器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
-    <value>停止服务但不退出。</value>
+    <value>停止服务；如托盘正在运行则保留。</value>
   </data>
   <data name="help.quit" xml:space="preserve">
     <value>停止服务并退出。</value>
@@ -650,13 +647,10 @@
     <value>临时覆盖端口，无需修改 ini。</value>
   </data>
   <data name="help.envHome" xml:space="preserve">
-    <value>覆盖数据目录。</value>
+    <value>覆盖数据目录根路径；命名实例会附加后缀。</value>
   </data>
   <data name="help.envLang" xml:space="preserve">
     <value>界面语言：auto / en / zh / zh-Hant。</value>
-  </data>
-  <data name="help.envTest" xml:space="preserve">
-    <value>测试用模拟：模拟未安装 Node.js、Pi Web 或 Pi。</value>
   </data>
   <data name="langcheck.ok" xml:space="preserve">
     <value>{0} 条文案，{1} 种语言，全部完整。</value>
@@ -683,7 +677,7 @@
     <value>; 服务工作目录（Pi 的默认项目目录）</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; 启动时缺少依赖则自动安装（首次约需 10~20 分钟）</value>
+    <value>; 启动时自动安装缺失依赖（首次约需 10~20 分钟）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安装的 npm 版本标签，可改成具体版本号</value>
@@ -692,7 +686,7 @@
     <value>; 自定义 npm 来源，留空使用 npm 默认值（例如 https://registry.npmmirror.com）</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; 可选的 HTTP 或 SOCKS5 代理，仅用于检查更新</value>
+    <value>; 可选的 HTTP 或 SOCKS5 代理，用于更新检查和下载；留空时使用系统代理</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下项留空时将自动检测，通常无需修改</value>
@@ -717,9 +711,6 @@
   </data>
   <data name="check.port" xml:space="preserve">
     <value>端口</value>
-  </data>
-  <data name="check.listening" xml:space="preserve">
-    <value>{0}（监听中={1}）</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
     <value>检查更新</value>
@@ -992,7 +983,7 @@
     <value>npm 源（可选）</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>检查更新代理（可选）</value>
+    <value>更新代理（留空使用系统代理）</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>测试</value>
@@ -1139,7 +1130,7 @@
     <value>设置已保存</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>更改将在重启后生效。</value>
+    <value>部分更改将在重启后生效。</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>刷新</value>
@@ -1246,9 +1237,6 @@
   <data name="update.cancelledBody" xml:space="preserve">
     <value>更新已取消。</value>
   </data>
-  <data name="about.checkUpdates" xml:space="preserve">
-    <value>检查更新</value>
-  </data>
   <data name="update.startAfterFailureBody" xml:space="preserve">
     <value>更新未能完成。现在启动程序吗？</value>
   </data>
@@ -1276,13 +1264,69 @@
   <data name="log.noMatches" xml:space="preserve">
     <value>没有匹配“{0}”的行。</value>
   </data>
-  <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>更新服务</value>
+  <data name="install.busyBody" xml:space="preserve">
+    <value>已有安装正在进行。请等待完成后再试。</value>
   </data>
-  <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>更新服务</value>
+  <data name="update.error.busy" xml:space="preserve">
+    <value>此安装已有更新正在应用。</value>
   </data>
-  <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>现在重新安装或更新服务吗？如果服务正在运行，会先停止它；这可能需要几分钟。</value>
+  <data name="auto.adminWritableDir" xml:space="preserve">
+    <value>当前托盘安装目录可被标准用户修改，未开启管理员自启动。请将 Pi Web Tray 移到受保护目录，或使用标准用户自启动。</value>
+  </data>
+  <data name="auto.enabledAdminRunLeft" xml:space="preserve">
+    <value>管理员自启动已启用，但无法删除旧的 Run 注册表值。请手动删除，以免登录时启动两次。</value>
+  </data>
+  <data name="notify.stoppingTitle" xml:space="preserve">
+    <value>服务正在停止</value>
+  </data>
+  <data name="notify.stoppingBody" xml:space="preserve">
+    <value>服务仍在停止中，请稍后重试。</value>
+  </data>
+  <data name="help.envPortable" xml:space="preserve">
+    <value>将 ini 和日志放在可执行文件旁。</value>
+  </data>
+  <data name="help.envNoNode" xml:space="preserve">
+    <value>测试钩子：模拟未安装 Node.js。</value>
+  </data>
+  <data name="help.envNoPiweb" xml:space="preserve">
+    <value>测试钩子：模拟未安装 Pi Web。</value>
+  </data>
+  <data name="help.envNoPicli" xml:space="preserve">
+    <value>测试钩子：模拟未安装 Pi。</value>
+  </data>
+  <data name="settings.portEnvOverrideNote" xml:space="preserve">
+    <value>当前 PI_WEB_TRAY_PORT 覆盖了配置端口。移除此环境变量后才会使用此值。</value>
+  </data>
+  <data name="notify.updateBusyTitle" xml:space="preserve">
+    <value>更新进行中</value>
+  </data>
+  <data name="notify.updateBusyBody" xml:space="preserve">
+    <value>请等待当前更新检查或下载完成后再修改依赖。</value>
+  </data>
+  <data name="auto.adminWritableTitle" xml:space="preserve">
+    <value>管理员自启动被拒绝</value>
+  </data>
+  <data name="auto.adminWritableBalloon" xml:space="preserve">
+    <value>因安全问题，已拒绝在当前所在目录开启管理员自启动，点击查看详情</value>
+  </data>
+  <data name="auto.adminWritableDetails" xml:space="preserve">
+    <value>未开启管理员权限自启动，因为该目录可被标准用户修改
+{0}
+
+从该位置运行的自启动任务可能因实际程序被替换而导致安全性问题，请将 Pi Web Tray 移动到受保护目录（例如 C:\Program Files），或使用标准用户自启动。</value>
+  </data>
+  <data name="auto.adminWritableExistingTitle" xml:space="preserve">
+    <value>管理员自启动任务不安全</value>
+  </data>
+  <data name="auto.adminWritableExistingBalloon" xml:space="preserve">
+    <value>因安全问题，检测到当前目录已有管理员权限的自启动任务，点击查看详情</value>
+  </data>
+  <data name="auto.adminWritableExistingDetails" xml:space="preserve">
+    <value>此安装已启用管理员权限的开机自启动任务（{0}）：
+{1}
+
+标准用户可修改此目录，托盘或其文件可能被替换并以管理员权限运行。请用托盘菜单中的“开机自启动”禁用它，将 Pi Web Tray 移到受保护目录，再按需重新启用。
+
+此检查只覆盖托盘目录；Node.js、npm、Pi Web 以及用户可写的配置/工作目录仍会以管理员权限运行。</value>
   </data>
 </root>

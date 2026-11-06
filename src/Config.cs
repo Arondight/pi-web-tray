@@ -17,6 +17,11 @@ namespace PiWebTray
     {
         // ---- defaults ----
         internal int Port = 30141;
+        // The value persisted in the ini, before PI_WEB_TRAY_PORT is applied. The
+        // settings dialog edits this value, so a temporary environment override can
+        // never be written back as a permanent configuration change.
+        internal int ConfiguredPort = 30141;
+        internal bool PortFromEnvironment;
         internal bool AutostartAdmin;
         internal bool AutoInstall = true;
         internal bool AutoRestart;
@@ -26,6 +31,9 @@ namespace PiWebTray
         internal string NpmRegistry = "";
         internal string Proxy = "";
         internal string WorkingDir;
+        // Raw ini value (before %ENV% expansion). Settings writes this back so the
+        // default %USERPROFILE% template is not silently replaced by a literal path.
+        internal string ConfiguredWorkingDir = "";
         internal string NodePath;
 
         // ---- runtime paths ----
@@ -56,7 +64,12 @@ namespace PiWebTray
             bool isolated = Instance.Suffix.Length > 0;
             bool systemInstall = IsSystemDirectory(config.BaseDir);
             bool portable = IsTruthy(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE"), false);
-            bool useDataDir = ShouldUseDataDir(isolated, systemInstall, portable);
+            string homeOverride = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            // HOME is an explicit data-directory override and takes precedence over
+            // portable mode; otherwise ini/logs and state/update staging would end up
+            // in different roots when both variables are set.
+            bool useDataDir = !string.IsNullOrEmpty((homeOverride ?? "").Trim())
+                || ShouldUseDataDir(isolated, systemInstall, portable);
             config.OutputDir = useDataDir ? config.DataDir : config.BaseDir;
             config.LogFile = Path.Combine(config.OutputDir, "server.log");
             config.InstallLogFile = Path.Combine(config.OutputDir, "install.log");
@@ -104,6 +117,7 @@ namespace PiWebTray
                     string value;
                     if (!TryParseLine(rawLine, out key, out value)) continue;
                     key = key.ToLowerInvariant();
+                    string rawValue = value;
                     value = Environment.ExpandEnvironmentVariables(value);
 
                     switch (key)
@@ -113,7 +127,11 @@ namespace PiWebTray
                             if (int.TryParse(value, out parsed) && parsed > 0 && parsed <= 65535) config.Port = parsed;
                             break;
                         case "workingdir":
-                            if (value.Length > 0) config.WorkingDir = value;
+                            if (value.Length > 0)
+                            {
+                                config.WorkingDir = value;
+                                config.ConfiguredWorkingDir = rawValue;
+                            }
                             break;
                         case "nodepath":
                             if (value.Length > 0) config.NodePath = value;
@@ -156,15 +174,24 @@ namespace PiWebTray
             if (config.WorkingDir == null || !Directory.Exists(config.WorkingDir))
                 config.WorkingDir = Shell.Home();
 
-            // The port can be overridden by an env var, so test instances need no ini change
+            config.ConfiguredPort = config.Port;
+
+            // The port can be overridden by an env var, so test instances need no ini change.
+            // Keep the ini value separately: Settings must not persist this temporary value.
             int overridePort;
             if (int.TryParse(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT"), out overridePort)
                 && overridePort > 0 && overridePort <= 65535)
             {
                 config.Port = overridePort;
+                config.PortFromEnvironment = true;
             }
 
             return config;
+        }
+
+        internal static bool IsEnabled(string value)
+        {
+            return IsTruthy(value, false);
         }
 
         private static bool IsTruthy(string value, bool fallback)
@@ -328,9 +355,10 @@ namespace PiWebTray
                         string parsedValue;
                         if (!TryParseLine(lines[i], out parsedKey, out parsedValue)) continue;
                         if (!string.Equals(parsedKey, pair.Key, StringComparison.OrdinalIgnoreCase)) continue;
+                        // Replace every duplicate so a later load cannot override
+                        // this value with a stale second copy of the same key.
                         lines[i] = prefix + IniValue(pair.Value);
                         replaced = true;
-                        break;
                     }
                     if (!replaced)
                     {

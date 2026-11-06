@@ -23,13 +23,20 @@ namespace PiWebTray
         private readonly Button _refresh;
         private ProbeResult _probe;
         private bool _refreshing;
+        private readonly bool _refreshOnShown;
 
         internal CheckForm(Config config, ProbeResult probe, bool elevated)
+            : this(config, probe, elevated, false)
+        {
+        }
+
+        internal CheckForm(Config config, ProbeResult probe, bool elevated, bool refreshOnShown)
         {
             SuspendLayout();
             _config = config;
             _probe = probe ?? new ProbeResult();
             _elevated = elevated;
+            _refreshOnShown = refreshOnShown;
 
             Text = L.T("sc.title");
             StartPosition = FormStartPosition.CenterScreen;
@@ -119,7 +126,13 @@ namespace PiWebTray
 
         internal static ProbeResult ShowReport(Config config, ProbeResult probe, bool elevated)
         {
-            using (CheckForm form = new CheckForm(config, probe, elevated))
+            return ShowReport(config, probe, elevated, false);
+        }
+
+        internal static ProbeResult ShowReport(Config config, ProbeResult probe, bool elevated,
+            bool refreshOnShown)
+        {
+            using (CheckForm form = new CheckForm(config, probe, elevated, refreshOnShown))
             {
                 form.ShowDialog();
                 return form.Probe;
@@ -258,7 +271,8 @@ namespace PiWebTray
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            RefreshPortOwner();
+            if (_refreshOnShown) RefreshReport();
+            else RefreshPortOwner();
         }
 
         private static void FitGridHeight(DataGridView grid)
@@ -428,6 +442,8 @@ namespace PiWebTray
                             _probe = result;
                             PopulateRuntimeGrid(_runtimeGrid);
                             PopulateSoftwareGrid(_softwareGrid, listening, owner);
+                            FitGridHeight(_runtimeGrid);
+                            FitGridHeight(_softwareGrid);
                             _summary.Text = BuildSummary();
                         }));
                     }

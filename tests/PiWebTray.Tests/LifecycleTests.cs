@@ -12,6 +12,7 @@ using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -36,7 +37,8 @@ namespace PiWebTray
             try
             {
                 Process oldTray = Start(app, home, instance, port, "--tray-only", children);
-                int oldPid = WaitForState(home, 0, 10000);
+                string stateHome = Path.Combine(home, "pi-web-tray." + instance);
+                int oldPid = WaitForState(stateHome, 0, 10000);
                 Assert.IsTrue(oldPid > 0, "The first tray did not write its state file.");
                 Assert.IsFalse(oldTray.HasExited);
 
@@ -50,7 +52,7 @@ namespace PiWebTray
                 Assert.IsFalse(restart.HasExited, "The restart helper exited before the old tray.");
                 Process quitOld = Start(app, home, instance, port, "--quit", children);
                 Assert.IsTrue(oldTray.WaitForExit(15000), "The old tray did not exit.");
-                int newPid = WaitForState(home, oldPid, 15000);
+                int newPid = WaitForState(stateHome, oldPid, 15000);
                 Assert.IsTrue(newPid > 0, "The restarted tray did not write its state file.");
                 Assert.AreNotEqual(oldPid, newPid);
 
@@ -85,6 +87,123 @@ namespace PiWebTray
                     }
                 }
             }
+        }
+
+        [TestMethod]
+        public void UpdateApplyReplacesFilesAndRestarts()
+        {
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-update-lifecycle-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string home = Path.Combine(root, "data");
+            string instance = "Update" + Guid.NewGuid().ToString("N").Substring(0, 10);
+            string dataDir = Path.Combine(home, "pi-web-tray." + instance);
+            string staging = Path.Combine(dataDir, "staging");
+            string log = Path.Combine(dataDir, "update.log");
+            int port = FreePort();
+            Process helper = null;
+            Process updatedTray = null;
+            int updatedPid = 0;
+
+            try
+            {
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(staging);
+                CopyReleaseFiles(source, target);
+                CopyReleaseFiles(source, staging);
+                File.WriteAllText(Path.Combine(staging, "update-marker.txt"), "updated",
+                    new UTF8Encoding(false));
+
+                string hash = Updater.ComputeStagingHash(staging);
+                string arguments = Updater.BuildApplyArguments(staging, target, 0,
+                    ApplyStartMode.TrayOnly, false, log, "en", dataDir, hash, 0);
+
+                helper = StartIsolated(Path.Combine(target, "pi-web-tray.exe"), arguments,
+                    home, instance, port);
+                Assert.IsTrue(helper.WaitForExit(90000), "The update helper did not exit.");
+                Assert.AreEqual(0, helper.ExitCode, "The update helper failed.");
+                Assert.IsTrue(File.Exists(Path.Combine(target, "update-marker.txt")),
+                    "The staged file was not copied.");
+
+                updatedPid = WaitForState(dataDir, 0, 15000);
+                Assert.IsTrue(updatedPid > 0, "The updated tray did not write its state file.");
+                updatedTray = Process.GetProcessById(updatedPid);
+                Assert.IsFalse(updatedTray.HasExited, "The updated tray is not running.");
+
+                using (Process quit = StartIsolated(Path.Combine(target, "pi-web-tray.exe"),
+                    "--quit", home, instance, port))
+                {
+                    Assert.IsTrue(quit.WaitForExit(30000), "The quit command did not finish.");
+                    Assert.AreEqual(0, quit.ExitCode, "The quit command failed.");
+                }
+                Assert.IsTrue(updatedTray.WaitForExit(15000), "The updated tray did not quit.");
+            }
+            finally
+            {
+                if (updatedTray != null)
+                {
+                    try { if (!updatedTray.HasExited) updatedTray.Kill(); } catch (Exception) { }
+                    try { updatedTray.Dispose(); } catch (Exception) { }
+                }
+                if (updatedPid > 0 && updatedTray == null)
+                {
+                    try
+                    {
+                        using (Process tray = Process.GetProcessById(updatedPid))
+                            tray.Kill();
+                    }
+                    catch (Exception) { }
+                }
+                if (helper != null)
+                {
+                    try { if (!helper.HasExited) helper.Kill(); } catch (Exception) { }
+                    try { helper.Dispose(); } catch (Exception) { }
+                }
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void CopyReleaseFiles(string source, string destination)
+        {
+            foreach (string name in new string[] { "pi-web-tray.exe", "pi-web-tray.exe.config" })
+            {
+                string file = Path.Combine(source, name);
+                if (File.Exists(file)) File.Copy(file, Path.Combine(destination, name), true);
+            }
+
+            foreach (string culture in new string[] { "zh-Hans", "zh-Hant" })
+            {
+                string directory = Path.Combine(source, culture);
+                if (!Directory.Exists(directory)) continue;
+                string copy = Path.Combine(destination, culture);
+                Directory.CreateDirectory(copy);
+                foreach (string file in Directory.GetFiles(directory))
+                    File.Copy(file, Path.Combine(copy, Path.GetFileName(file)), true);
+            }
+        }
+
+        private static Process StartIsolated(string app, string arguments, string home,
+            string instance, int port)
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = app;
+            psi.Arguments = arguments;
+            psi.WorkingDirectory = Path.GetDirectoryName(app);
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            psi.EnvironmentVariables["PI_WEB_TRAY_HOME"] = home;
+            psi.EnvironmentVariables["PI_WEB_TRAY_INSTANCE"] = instance;
+            psi.EnvironmentVariables["PI_WEB_TRAY_PORT"] =
+                port.ToString(CultureInfo.InvariantCulture);
+            psi.EnvironmentVariables["PI_WEB_TRAY_LANG"] = "en";
+            psi.EnvironmentVariables["PI_WEB_TRAY_NO_NODE"] = "1";
+            Process process = Process.Start(psi);
+            if (process == null) throw new InvalidOperationException("Could not start " + app);
+            return process;
         }
 
         [TestMethod]
@@ -153,9 +272,9 @@ namespace PiWebTray
             }
         }
 
-        private static int WaitForState(string home, int previousPid, int timeoutMs)
+        private static int WaitForState(string stateDir, int previousPid, int timeoutMs)
         {
-            string path = Path.Combine(home, "state.ini");
+            string path = Path.Combine(stateDir, "state.ini");
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             while (DateTime.Now < deadline)
             {

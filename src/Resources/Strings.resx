@@ -19,7 +19,7 @@
     <value>Node.js required</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>Pi Web not installed</value>
+    <value>Dependencies missing</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>Installing… {0}</value>
@@ -37,10 +37,10 @@
     <value>Stopping… port {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
-    <value>Error · view log</value>
+    <value>Error · click to retry</value>
   </data>
   <data name="status.stopped" xml:space="preserve">
-    <value>Stopped · select to start</value>
+    <value>Stopped · click to start</value>
   </data>
   <data name="status.admin" xml:space="preserve">
     <value> (administrator)</value>
@@ -104,7 +104,7 @@ Open the download page?</value>
     <value>Cancel</value>
   </data>
 <data name="node.continue" xml:space="preserve">
-    <value>Continue without downloading</value>
+    <value>Keep running</value>
   </data>
 <data name="node.exit" xml:space="preserve">
     <value>Exit</value>
@@ -116,7 +116,7 @@ Open the download page?</value>
     <value>{0}.
 Node.js {1} or newer is required.
 {2}
-Continue after Node.js is installed.</value>
+Keep the tray running and retry after Node.js is installed.</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 and 8 builds are unsigned community builds; this project cannot verify them.</value>
@@ -323,7 +323,7 @@ Continue after Node.js is installed.</value>
     <value>Stopping Pi Web first (npm cannot update it while it runs).</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web was stopped for this install and was not restarted (nothing was running).</value>
+    <value>Pi Web was stopped for this install and was not restarted because no tray is running.</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>Pi Web did not open port {0} after the install. Check the service log.</value>
@@ -445,7 +445,7 @@ Exit anyway?</value>
     <value>Environment check failed</value>
   </data>
   <data name="notify.envCheckFailedBody" xml:space="preserve">
-    <value>Could not read Node.js / npm information. See install.log.</value>
+    <value>Could not read Node.js / npm information. Details were written to update.log.</value>
   </data>
   <data name="notify.selfCheckError" xml:space="preserve">
     <value>Environment check error: {0}</value>
@@ -604,9 +604,6 @@ Use --help to see the supported options.</value>
   <data name="help.title" xml:space="preserve">
     <value>Usage:</value>
   </data>
-  <data name="help.args" xml:space="preserve">
-    <value>exe</value>
-  </data>
   <data name="help.launch" xml:space="preserve">
     <value>Start Pi Web, install missing dependencies, and open the browser.</value>
   </data>
@@ -614,7 +611,7 @@ Use --help to see the supported options.</value>
     <value>Used by start-at-login; starts Pi Web in the background without opening a browser.</value>
   </data>
   <data name="help.stop" xml:space="preserve">
-    <value>Stop the service without exiting.</value>
+    <value>Stop the service; the tray keeps running if present.</value>
   </data>
   <data name="help.quit" xml:space="preserve">
     <value>Stop the service and exit.</value>
@@ -650,13 +647,10 @@ Use --help to see the supported options.</value>
     <value>Override the port without editing the ini.</value>
   </data>
   <data name="help.envHome" xml:space="preserve">
-    <value>Override the data directory.</value>
+    <value>Override the data directory root; a named instance appends its suffix.</value>
   </data>
   <data name="help.envLang" xml:space="preserve">
     <value>UI language: auto / en / zh / zh-Hant.</value>
-  </data>
-  <data name="help.envTest" xml:space="preserve">
-    <value>Test hooks: simulate missing Node.js / Pi Web / Pi.</value>
   </data>
   <data name="langcheck.ok" xml:space="preserve">
     <value>All {0} strings are complete for {1} languages.</value>
@@ -683,7 +677,7 @@ Use --help to see the supported options.</value>
     <value>; Service working directory (Pi's default project directory)</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
-    <value>; Install missing dependencies at startup when Pi Web is not installed (first installation usually takes 10-20 minutes)</value>
+    <value>; Install missing dependencies at startup (first installation usually takes 10-20 minutes)</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; npm dist-tag or exact version</value>
@@ -692,7 +686,7 @@ Use --help to see the supported options.</value>
     <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; Optional HTTP or SOCKS5 proxy for update checks only</value>
+    <value>; Optional HTTP or SOCKS5 proxy for update checks and downloads; empty uses the system proxy</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; Leave empty for automatic detection; override only if required</value>
@@ -717,9 +711,6 @@ Use --help to see the supported options.</value>
   </data>
   <data name="check.port" xml:space="preserve">
     <value>Port</value>
-  </data>
-  <data name="check.listening" xml:space="preserve">
-    <value>{0} (listening={1})</value>
   </data>
   <data name="menu.checkUpdates" xml:space="preserve">
     <value>Check for updates</value>
@@ -992,7 +983,7 @@ See {1} for details.</value>
     <value>npm registry (optional)</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Update check proxy (optional)</value>
+    <value>Update proxy (empty = system proxy)</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>Test</value>
@@ -1121,7 +1112,7 @@ See {1} for details.</value>
     <value>The existing process did not exit in time. It is still running.</value>
   </data>
   <data name="notify.restartCanceled" xml:space="preserve">
-    <value>Restart canceled</value>
+    <value>Restart cancelled</value>
   </data>
   <data name="notify.restartCanceledBody" xml:space="preserve">
     <value>Still running; nothing changed.</value>
@@ -1139,7 +1130,7 @@ See {1} for details.</value>
     <value>Settings saved</value>
   </data>
   <data name="settings.savedBody" xml:space="preserve">
-    <value>Changes take effect after a restart.</value>
+    <value>Some changes take effect after a restart.</value>
   </data>
   <data name="check.refresh" xml:space="preserve">
     <value>Refresh</value>
@@ -1246,9 +1237,6 @@ See {1} for details.</value>
   <data name="update.cancelledBody" xml:space="preserve">
     <value>The update was cancelled.</value>
   </data>
-  <data name="about.checkUpdates" xml:space="preserve">
-    <value>Check for updates</value>
-  </data>
   <data name="update.startAfterFailureBody" xml:space="preserve">
     <value>The update could not be completed. Try to start the program now?</value>
   </data>
@@ -1276,13 +1264,69 @@ See {1} for details.</value>
   <data name="log.noMatches" xml:space="preserve">
     <value>No lines match "{0}".</value>
   </data>
-  <data name="menu.installDepsPiOnly" xml:space="preserve">
-    <value>Update service</value>
+  <data name="install.busyBody" xml:space="preserve">
+    <value>Another installation is already in progress. Wait for it to finish and try again.</value>
   </data>
-  <data name="install.confirmTitlePiOnly" xml:space="preserve">
-    <value>Update service</value>
+  <data name="update.error.busy" xml:space="preserve">
+    <value>Another update is already being applied to this installation.</value>
   </data>
-  <data name="install.confirmBodyPiOnly" xml:space="preserve">
-    <value>Reinstall or update the service now? The service will be stopped if it is running. This can take several minutes.</value>
+  <data name="auto.adminWritableDir" xml:space="preserve">
+    <value>Administrator start-at-login was not enabled because standard users can modify the tray installation directory. Move Pi Web Tray to a protected folder or use standard-user start-at-login.</value>
+  </data>
+  <data name="auto.enabledAdminRunLeft" xml:space="preserve">
+    <value>Administrator start-at-login is enabled, but the old standard-user Run value could not be removed. Remove it manually to avoid two starts at login.</value>
+  </data>
+  <data name="notify.stoppingTitle" xml:space="preserve">
+    <value>Service is stopping</value>
+  </data>
+  <data name="notify.stoppingBody" xml:space="preserve">
+    <value>The service is still stopping. Try again in a moment.</value>
+  </data>
+  <data name="help.envPortable" xml:space="preserve">
+    <value>Keep the ini and logs beside the executable.</value>
+  </data>
+  <data name="help.envNoNode" xml:space="preserve">
+    <value>Test hook: simulate missing Node.js.</value>
+  </data>
+  <data name="help.envNoPiweb" xml:space="preserve">
+    <value>Test hook: simulate missing Pi Web.</value>
+  </data>
+  <data name="help.envNoPicli" xml:space="preserve">
+    <value>Test hook: simulate missing Pi.</value>
+  </data>
+  <data name="settings.portEnvOverrideNote" xml:space="preserve">
+    <value>PI_WEB_TRAY_PORT currently overrides the configured port. Remove the environment variable to use this value.</value>
+  </data>
+  <data name="notify.updateBusyTitle" xml:space="preserve">
+    <value>Update in progress</value>
+  </data>
+  <data name="notify.updateBusyBody" xml:space="preserve">
+    <value>Wait for the current update check or download to finish before changing dependencies.</value>
+  </data>
+  <data name="auto.adminWritableTitle" xml:space="preserve">
+    <value>Administrator start-at-login refused</value>
+  </data>
+  <data name="auto.adminWritableBalloon" xml:space="preserve">
+    <value>For security reasons, administrator start-at-login was refused for the current folder. Click for details.</value>
+  </data>
+  <data name="auto.adminWritableDetails" xml:space="preserve">
+    <value>Administrator start-at-login was not enabled because standard users can modify this directory
+{0}
+
+A start-at-login task running from this location could become a security risk if the actual program is replaced. Move Pi Web Tray to a protected folder (for example C:\Program Files), or use standard-user start-at-login.</value>
+  </data>
+  <data name="auto.adminWritableExistingTitle" xml:space="preserve">
+    <value>Administrator start-at-login task is unsafe</value>
+  </data>
+  <data name="auto.adminWritableExistingBalloon" xml:space="preserve">
+    <value>For security reasons, an administrator start-at-login task was found for the current folder. Click for details.</value>
+  </data>
+  <data name="auto.adminWritableExistingDetails" xml:space="preserve">
+    <value>An administrator start-at-login task is already enabled ({0}):
+{1}
+
+Standard users can modify this folder, so the tray or its files could be replaced and run with administrator rights. Use "Start at login" in the tray menu to disable it, move Pi Web Tray to a protected folder, then re-enable it if needed.
+
+This check covers the tray folder only; Node.js, npm, Pi Web and user-writable config/working folders still run elevated.</value>
   </data>
 </root>

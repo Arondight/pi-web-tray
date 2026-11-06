@@ -378,153 +378,206 @@ namespace PiWebTray
                 return result;
             }
 
-            string nodeDir = Path.GetDirectoryName(probe.NodePath);
-            IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
+            // The tray, the CLI and parallel instances all share the same global npm
+            // prefix. Reject a second npm run instead of allowing two installs to
+            // overwrite the same package directory at the same time.
+            OperationLock operationLock = OperationLock.TryAcquire(OperationLock.InstallName);
+            if (operationLock == null)
+            {
+                result.Success = false;
+                result.Message = L.T("install.busyBody");
+                result.Elapsed = DateTime.Now - started;
+                return result;
+            }
+
             try
             {
-                string npmPrefix = probe.NpmPrefix;
-                if (!string.IsNullOrEmpty(npmPrefix) && Directory.Exists(npmPrefix))
-                    env["PATH"] = nodeDir + ";" + npmPrefix + ";" + (Environment.GetEnvironmentVariable("PATH") ?? "");
-            }
-            catch (Exception)
-            {
-            }
-
-            ApplyRegistryEnvironment(config, env);
-            MarkPending(config);
-            ProcessResult last = null;
-            bool ok = true;
-            bool piCliFailed = false;
-            int lastStepNo = 0;
-            string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
-
-            for (int i = 0; i < steps.Count; i++)
-            {
-                InstallStep step = steps[i];
-                int stepNo = i + 1;
-                lastStepNo = stepNo;
-                string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
-                    probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
-
-                AppendLog(config, "==== install start (step "
-                    + stepNo + "/" + steps.Count + ") ====");
-                AppendLog(config, "node    : " + probe.NodePath + " " + probe.NodeVersion);
-                AppendLog(config, "npm     : " + probe.NpmCliPath + " " + probe.NpmVersion);
-                AppendLog(config, "packages: " + string.Join(", ", step.Packages.ToArray()));
-                AppendLog(config, "command : " + Shell.Quote(probe.NodePath) + " " + arguments);
-                if (step.AllowScripts && allowScripts.Length > 0) AppendLog(config, "scripts : " + allowScripts);
-
-                Update(stepNo, steps.Count, L.T("install.stepTitle"), "", DateTime.Now - started, true);
-
-                if (Aborted)
-                {
-                    result.Success = false;
-                    result.Message = L.T("install.cancelledBody");
-                    result.Elapsed = DateTime.Now - started;
-                    return result;
-                }
-
-                ProcessResult run;
+                string nodeDir = Path.GetDirectoryName(probe.NodePath);
+                IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
                 try
                 {
-                    run = ProcessRunner.Run(
-                        probe.NodePath,
-                        arguments,
-                        config.WorkingDir,
-                        45 * 60 * 1000,
-                        delegate (string line)
-                        {
-                            // Never expose registry credentials through the progress UI or
-                            // the CLI, not just in install.log.
-                            string safeLine = Shell.RedactSecrets(line);
-                            AppendLog(config, safeLine);
-                            Update(stepNo, steps.Count, L.T("install.stepTitle"), safeLine, DateTime.Now - started, true);
-                            if (onLine != null)
+                    string npmPrefix = probe.NpmPrefix;
+                    if (!string.IsNullOrEmpty(npmPrefix) && Directory.Exists(npmPrefix))
+                        env["PATH"] = nodeDir + ";" + npmPrefix + ";" + (Environment.GetEnvironmentVariable("PATH") ?? "");
+                }
+                catch (Exception)
+                {
+                }
+
+                ApplyRegistryEnvironment(config, env);
+                MarkPending(config);
+                ProcessResult last = null;
+                bool ok = true;
+                bool piCliFailed = false;
+                int lastStepNo = 0;
+                string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
+
+                for (int i = 0; i < steps.Count; i++)
+                {
+                    InstallStep step = steps[i];
+                    int stepNo = i + 1;
+                    lastStepNo = stepNo;
+                    string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
+                        probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
+
+                    AppendLog(config, "==== install start (step "
+                        + stepNo + "/" + steps.Count + ") ====");
+                    AppendLog(config, "node    : " + probe.NodePath + " " + probe.NodeVersion);
+                    AppendLog(config, "npm     : " + probe.NpmCliPath + " " + probe.NpmVersion);
+                    AppendLog(config, "packages: " + string.Join(", ", step.Packages.ToArray()));
+                    AppendLog(config, "command : " + Shell.Quote(probe.NodePath) + " " + arguments);
+                    if (step.AllowScripts && allowScripts.Length > 0) AppendLog(config, "scripts : " + allowScripts);
+
+                    Update(stepNo, steps.Count, L.T("install.stepTitle"), "", DateTime.Now - started, true);
+
+                    if (Aborted)
+                    {
+                        result.Success = false;
+                        result.Message = L.T("install.cancelledBody");
+                        result.Elapsed = DateTime.Now - started;
+                        return result;
+                    }
+
+                    ProcessResult run;
+                    try
+                    {
+                        run = ProcessRunner.Run(
+                            probe.NodePath,
+                            arguments,
+                            config.WorkingDir,
+                            45 * 60 * 1000,
+                            delegate (string line)
                             {
-                                try { onLine(safeLine); } catch (Exception) { }
-                            }
-                        },
-                        env,
-                        delegate (int pid)
-                        {
-                            SetRunningPid(pid);
-                            if (Aborted) Sys.KillTree(pid);
-                        });
-                }
-                finally
-                {
-                    SetRunningPid(0);
+                                // Never expose registry credentials through the progress UI or
+                                // the CLI, not just in install.log.
+                                string safeLine = Shell.RedactSecrets(line);
+                                AppendLog(config, safeLine);
+                                Update(stepNo, steps.Count, L.T("install.stepTitle"), safeLine, DateTime.Now - started, true);
+                                if (onLine != null)
+                                {
+                                    try { onLine(safeLine); } catch (Exception) { }
+                                }
+                            },
+                            env,
+                            delegate (int pid)
+                            {
+                                SetRunningPid(pid);
+                                if (Aborted) Sys.KillTree(pid);
+                            });
+                    }
+                    finally
+                    {
+                        SetRunningPid(0);
+                    }
+
+                    last = run;
+
+                    if (run.TimedOut)
+                    {
+                        AppendLog(config, "==== timed out, aborted ====");
+                        result.Success = false;
+                        result.Message = L.T("install.timeout");
+                        Update(stepNo, steps.Count, L.T("install.timeoutTitle"), "", DateTime.Now - started, false);
+                        result.Elapsed = DateTime.Now - started;
+                        return result;
+                    }
+
+                    AppendLog(config, "==== npm exit code " + run.ExitCode + " ====");
+
+                    if (!run.Started || run.ExitCode != 0)
+                    {
+                        ok = false;
+                        piCliFailed = IsPiCliStep(step, config);
+                        break;
+                    }
                 }
 
-                last = run;
+                // Exit code 0 does not prove anything (npm 12 can exit 0 while blocking install scripts), so re-probe
+                ProbeResult after = EnvironmentProbe.Detect(config);
+                string tag = SafeTag(config.InstallTag);
+                bool piWebOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.InstallerPackage + "@" + tag); })
+                    || (after.PiWebFound && VersionMatchesTag(after.PiWebVersion, tag));
+                bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + tag); })
+                    || (after.PiCliFound && VersionMatchesTag(after.PiCliVersion, tag));
 
-                if (run.TimedOut)
+                if (ok && piWebOk && piCliOk)
                 {
-                    AppendLog(config, "==== timed out, aborted ====");
+                    ClearPending(config);
+                    result.Success = true;
+                    string piWebVersion = after.PiWebVersion.Length > 0 ? after.PiWebVersion : L.T("install.ready");
+                    string piCliPart = after.PiCliFound
+                        ? L.T("install.donePi", after.PiCliVersion.Length > 0 ? after.PiCliVersion : L.T("install.ready"))
+                        : "";
+                    result.Message = L.T("install.doneBody", piWebVersion, piCliPart);
+                    Update(lastStepNo, steps.Count, L.T("install.okTitle"), "", DateTime.Now - started, false);
+                }
+                else if (ok && !piWebOk)
+                {
                     result.Success = false;
-                    result.Message = L.T("install.timeout");
-                    Update(stepNo, steps.Count, L.T("install.timeoutTitle"), "", DateTime.Now - started, false);
-                    result.Elapsed = DateTime.Now - started;
-                    return result;
+                    result.Message = L.T("install.unverifiedBody", config.InstallLogFile);
+                    Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
                 }
-
-                AppendLog(config, "==== npm exit code " + run.ExitCode + " ====");
-
-                if (!run.Started || run.ExitCode != 0)
+                else if (ok && !piCliOk)
                 {
-                    ok = false;
-                    piCliFailed = IsPiCliStep(step, config);
-                    break;
+                    result.Success = false;
+                    result.Message = L.T("install.unverifiedPiBody", config.InstallLogFile);
+                    Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
                 }
-            }
+                else if (!ok && piCliFailed)
+                {
+                    // A running pi keeps its package files locked, which is the most common
+                    // failure after the pi-web step succeeded. Say so instead of "npm failed".
+                    result.Success = false;
+                    result.Message = L.T("install.piLockedBody", config.InstallLogFile);
+                    Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
+                }
+                else
+                {
+                    result.Success = false;
+                    int exitCode = last != null && last.Started ? last.ExitCode : -1;
+                    result.Message = L.T("install.failedBody", exitCode, config.InstallLogFile);
+                    Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
+                }
 
-            // Exit code 0 does not prove anything (npm 12 can exit 0 while blocking install scripts), so re-probe
-            ProbeResult after = EnvironmentProbe.Detect(config);
-            string tag = SafeTag(config.InstallTag);
-            bool piWebOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.InstallerPackage + "@" + tag); }) || after.PiWebFound;
-            bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + tag); }) || after.PiCliFound;
+                result.Elapsed = DateTime.Now - started;
+                return result;
+            }
+            finally
+            {
+                operationLock.Dispose();
+            }
+        }
 
-            if (ok && piWebOk && piCliOk)
+        // An exact npm version can be verified after the install. Dist-tags and
+        // ranges intentionally fall back to the presence check.
+        internal static bool IsExactVersionTag(string tag)
+        {
+            string text = (tag ?? "").Trim();
+            if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                text = text.Substring(1);
+            if (text.Length == 0) return false;
+            bool dot = false;
+            bool digit = false;
+            foreach (char c in text)
             {
-                ClearPending(config);
-                result.Success = true;
-                string piWebVersion = after.PiWebVersion.Length > 0 ? after.PiWebVersion : L.T("install.ready");
-                string piCliPart = after.PiCliFound
-                    ? L.T("install.donePi", after.PiCliVersion.Length > 0 ? after.PiCliVersion : L.T("install.ready"))
-                    : "";
-                result.Message = L.T("install.doneBody", piWebVersion, piCliPart);
-                Update(lastStepNo, steps.Count, L.T("install.okTitle"), "", DateTime.Now - started, false);
+                if (c == '.')
+                {
+                    dot = true;
+                    continue;
+                }
+                if (c < '0' || c > '9') return false;
+                digit = true;
             }
-            else if (ok && !piWebOk)
-            {
-                result.Success = false;
-                result.Message = L.T("install.unverifiedBody", config.InstallLogFile);
-                Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
-            }
-            else if (ok && !piCliOk)
-            {
-                result.Success = false;
-                result.Message = L.T("install.unverifiedPiBody", config.InstallLogFile);
-                Update(lastStepNo, steps.Count, L.T("install.unverifiedTitle"), "", DateTime.Now - started, false);
-            }
-            else if (!ok && piCliFailed)
-            {
-                // A running pi keeps its package files locked, which is the most common
-                // failure after the pi-web step succeeded. Say so instead of "npm failed".
-                result.Success = false;
-                result.Message = L.T("install.piLockedBody", config.InstallLogFile);
-                Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
-            }
-            else
-            {
-                result.Success = false;
-                int exitCode = last != null && last.Started ? last.ExitCode : -1;
-                result.Message = L.T("install.failedBody", exitCode, config.InstallLogFile);
-                Update(lastStepNo, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
-            }
+            return dot && digit;
+        }
 
-            result.Elapsed = DateTime.Now - started;
-            return result;
+        internal static bool VersionMatchesTag(string installed, string tag)
+        {
+            if (!IsExactVersionTag(tag) || string.IsNullOrEmpty(installed)) return true;
+            // An exact stable tag must not accept a pre-release package just because
+            // VersionUtil compares the numeric prefix.
+            if (installed.IndexOf('-') >= 0) return false;
+            return VersionUtil.Compare(installed, tag) == 0;
         }
 
         // True when this step only installs the pi CLI. A failure there usually means a

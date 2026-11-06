@@ -36,7 +36,9 @@ if exist "%APPBIN%" (
     )
 )
 
-where dotnet >nul 2>&1
+rem A machine can have the .NET runtime without an SDK. Check for an SDK, not
+rem merely the dotnet host; otherwise the MSBuild fallback below is unreachable.
+dotnet --list-sdks 2>nul | findstr /r "." >nul
 if not errorlevel 1 goto build_dotnet
 
 set "MSBUILD="

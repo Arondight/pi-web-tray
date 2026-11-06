@@ -4,7 +4,10 @@
 // an on-logon scheduled task. Only one may exist, or login starts two trays.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
@@ -15,17 +18,32 @@ namespace PiWebTray
     internal static class Autostart
     {
         internal const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        internal const string RunValueName = "PiWebTray";
+        internal const string BaseRunValueName = "PiWebTray";
         internal const string LegacyTaskName = "PiWebTray";
 
+        // Named instances must not read, overwrite or delete the default installation's
+        // start-at-login entries. Keep each instance's Run value and task names scoped by
+        // the same suffix as its mutex and data directory.
+        internal static string ScopedName(string baseName, string suffix)
+        {
+            return baseName + (suffix ?? "");
+        }
+
+        internal static string RunValueName
+        {
+            get { return ScopedName(BaseRunValueName, Instance.Suffix); }
+        }
+
         // A machine-wide task name lets two users overwrite each other's admin autostart.
-        // Keep one task per user; the legacy "PiWebTray" task is removed when possible.
+        // Keep one task per user and per named instance; the legacy "PiWebTray" task is
+        // removed by the default instance when possible.
         private static string _taskName;
         internal static string TaskName
         {
             get
             {
-                if (_taskName == null) _taskName = "PiWebTray-" + CurrentUserKey();
+                if (_taskName == null)
+                    _taskName = ScopedName("PiWebTray-" + CurrentUserKey(), Instance.Suffix);
                 return _taskName;
             }
         }
@@ -87,16 +105,43 @@ namespace PiWebTray
         // Repair it silently for the normal (non-admin) autostart mode.
         internal static void RepairRunValue(string executablePath)
         {
+            // Each instance has its own scoped Run value, so repairing a stale target here
+            // cannot redirect the default installation's autostart.
             try
             {
                 string value = RunValue();
                 if (value.Length == 0) return;
                 if (value.IndexOf(Shell.Quote(executablePath), StringComparison.OrdinalIgnoreCase) >= 0) return;
+
+                string oldTarget = RunValueTarget(value);
+                if (string.IsNullOrEmpty(oldTarget)) return;
+                // Never redirect a valid existing installation. Repair only the stale
+                // case the comment describes: the old target file no longer exists.
+                if (File.Exists(oldTarget)) return;
+
                 SetRunValue(executablePath);
             }
             catch (Exception)
             {
             }
+        }
+
+        internal static string RunValueTarget(string value)
+        {
+            string text = (value ?? "").Trim();
+            if (text.Length == 0) return "";
+
+            if (text[0] == '"')
+            {
+                int end = text.IndexOf('"', 1);
+                return end > 1 ? text.Substring(1, end - 1) : "";
+            }
+
+            int flag = text.IndexOf(" --autostart", StringComparison.OrdinalIgnoreCase);
+            if (flag > 0) return text.Substring(0, flag).Trim();
+
+            int space = text.IndexOfAny(new char[] { ' ', '\t' });
+            return space > 0 ? text.Substring(0, space).Trim() : text;
         }
 
         internal static bool QueryTask()
@@ -111,6 +156,7 @@ namespace PiWebTray
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Sys.SystemExecutable("schtasks.exe");
                 psi.Arguments = "/query /tn " + Shell.Quote(name);
+                psi.WorkingDirectory = Sys.SystemDirectory;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
                 psi.RedirectStandardOutput = true;
@@ -139,25 +185,111 @@ namespace PiWebTray
             }
         }
 
-        internal static void ClearRunValue()
+        internal static bool ClearRunValue()
         {
             try
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
                 {
-                    if (key == null) return;
+                    if (key == null) return !RunValueExists();
                     key.DeleteValue(RunValueName, false);
                 }
+                return !RunValueExists();
             }
             catch (Exception)
             {
+                return false;
             }
+        }
+
+        // Administrator start-at-login runs the executable with a full token and no
+        // UAC prompt. Refuse it when a standard user could replace that executable:
+        // otherwise any process running as the same user could turn a normal file into
+        // an elevated logon task.
+        internal static bool IsUserWritableInstall(string executablePath)
+        {
+            try
+            {
+                string full = Path.GetFullPath(executablePath);
+                string directory = Path.GetDirectoryName(full);
+                if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return true;
+                if (HasWriteAccess(directory, true)) return true;
+                if (File.Exists(full) && HasWriteAccess(full, false)) return true;
+                return false;
+            }
+            catch (Exception)
+            {
+                // If the ACL cannot be evaluated, fail closed for this security check.
+                return true;
+            }
+        }
+
+        private static bool HasWriteAccess(string path, bool directory)
+        {
+            FileSystemSecurity security = directory
+                ? (FileSystemSecurity)new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
+                : (FileSystemSecurity)new FileInfo(path).GetAccessControl(AccessControlSections.Access);
+
+            List<SecurityIdentifier> identities = new List<SecurityIdentifier>();
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                if (identity.User == null) return true;
+                identities.Add(identity.User);
+                SecurityIdentifier administrators = new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid, null);
+                if (identity.Groups != null)
+                {
+                    foreach (IdentityReference group in identity.Groups)
+                    {
+                        SecurityIdentifier sid = group as SecurityIdentifier;
+                        if (sid == null || sid.Equals(administrators)) continue;
+                        identities.Add(sid);
+                    }
+                }
+            }
+            identities.Add(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null));
+            identities.Add(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null));
+            identities.Add(new SecurityIdentifier(WellKnownSidType.WorldSid, null));
+
+            const FileSystemRights writeMask = FileSystemRights.WriteData
+                | FileSystemRights.AppendData
+                | FileSystemRights.WriteExtendedAttributes
+                | FileSystemRights.Delete
+                | FileSystemRights.DeleteSubdirectoriesAndFiles
+                | FileSystemRights.ChangePermissions
+                | FileSystemRights.TakeOwnership;
+
+            bool allow = false;
+            bool deny = false;
+            AuthorizationRuleCollection rules = security.GetAccessRules(
+                true, true, typeof(SecurityIdentifier));
+            if (rules == null || rules.Count == 0) return true;
+
+            foreach (FileSystemAccessRule rule in rules)
+            {
+                SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                if (sid == null) continue;
+                bool interested = false;
+                foreach (SecurityIdentifier identity in identities)
+                {
+                    if (sid.Equals(identity)) { interested = true; break; }
+                }
+                if (!interested) continue;
+                if ((rule.FileSystemRights & writeMask) == 0) continue;
+
+                if (rule.AccessControlType == AccessControlType.Deny) deny = true;
+                else allow = true;
+            }
+
+            return allow && !deny;
         }
 
         internal static bool CreateTask(bool elevated, string executablePath)
         {
             // Remove the legacy machine-wide task first so login cannot start both.
-            if (QueryTask(LegacyTaskName) && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
+            // Named instances must leave the default installation's legacy task alone.
+            if (Instance.Suffix.Length == 0
+                && QueryTask(LegacyTaskName) && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
 
             string taskCommand = "\\\"" + executablePath + "\\\" --autostart";
             string args = "/create /f /tn " + Shell.Quote(TaskName)
@@ -176,7 +308,7 @@ namespace PiWebTray
         internal static bool DeleteTask(bool elevated)
         {
             bool current = QueryTask();
-            bool legacy = QueryTask(LegacyTaskName);
+            bool legacy = Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
             if (!current && !legacy) return true;
 
             if (current && !DeleteTaskByName(elevated, TaskName)) return false;
@@ -204,12 +336,14 @@ namespace PiWebTray
             {
                 if (elevated)
                 {
-                    Process p = Sys.StartHidden(Sys.SystemExecutable("schtasks.exe"), args, null);
+                    Process p = Sys.StartHidden(Sys.SystemExecutable("schtasks.exe"), args,
+                        Sys.SystemDirectory);
                     if (p == null) return false;
                     p.Dispose();
                     return true;
                 }
-                return Sys.RunElevated(Sys.SystemExecutable("schtasks.exe"), args);
+                return Sys.RunElevated(Sys.SystemExecutable("schtasks.exe"), args, true,
+                    Sys.SystemDirectory);
             }
             catch (Exception)
             {
@@ -229,18 +363,32 @@ namespace PiWebTray
                     message = L.T("auto.taskDeleteFailed");
                     return false;
                 }
-                ClearRunValue();
+                if (!ClearRunValue())
+                {
+                    message = L.T("auto.runKeyFailed");
+                    return false;
+                }
                 message = L.T("auto.disabled");
                 return true;
             }
 
             if (admin)
             {
+                if (IsUserWritableInstall(executablePath))
+                {
+                    message = L.T("auto.adminWritableDir");
+                    return false;
+                }
+
                 // Create the task before removing the old Run value. If UAC is cancelled, the
                 // previous normal-permission autostart must keep working instead of vanishing.
                 if (CreateTask(elevated, executablePath))
                 {
-                    ClearRunValue();
+                    if (!ClearRunValue())
+                    {
+                        message = L.T("auto.enabledAdminRunLeft");
+                        return true;
+                    }
                     message = L.T("auto.enabledAdmin");
                     return true;
                 }
