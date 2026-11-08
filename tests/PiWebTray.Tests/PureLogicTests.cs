@@ -62,6 +62,7 @@ namespace PiWebTray
             OperationLockTests();
             AutostartPathTests();
             AutostartTaskXmlTests();
+            TrayClickTests();
             UpdateRestartPolicyTests();
             ConfiguredValuesTests();
             LocalizationTests();
@@ -945,6 +946,17 @@ namespace PiWebTray
                 document.GetElementsByTagName("Command", "*")[0].InnerText);
             CheckEqual("task XML arguments", "--autostart",
                 document.GetElementsByTagName("Arguments", "*")[0].InnerText);
+        }
+
+        private static void TrayClickTests()
+        {
+            DateTime start = new DateTime(2026, 1, 1, 12, 0, 0);
+            Check("first tray click is handled",
+                TrayApp.ShouldHandleTrayClick(DateTime.MinValue, start));
+            Check("rapid second tray click is ignored",
+                !TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(250)));
+            Check("tray click after the debounce is handled",
+                TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(500)));
         }
 
         private static void UpdateRestartPolicyTests()

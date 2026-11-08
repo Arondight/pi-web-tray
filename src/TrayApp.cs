@@ -98,6 +98,7 @@ namespace PiWebTray
         private Color _iconColor = Color.Empty;
         private Icon _currentIcon;
         private string _lastNotified = "";
+        private DateTime _lastTrayClickAt = DateTime.MinValue;
 
         // Balloons are serialized so a click always belongs to the balloon that is
         // currently visible. NotifyIcon has no per-balloon callback identity, and a
@@ -404,10 +405,14 @@ namespace PiWebTray
             _tray.Text = Program.AppName;
             _tray.MouseClick += delegate (object sender, MouseEventArgs e)
             {
-                // A double-click raises two MouseClick events (1 then 2).
-                // Opening the browser twice is surprising; only act on the first
-                // click and leave the second event alone.
-                if (e.Button == MouseButtons.Left && e.Clicks == 1) OpenOrStart();
+                if (e.Button != MouseButtons.Left) return;
+                // Notifier-area clicks do not consistently populate
+                // MouseEventArgs.Clicks, so do not gate the action on it.
+                // Debounce instead: a double-click still opens the browser once.
+                DateTime now = DateTime.Now;
+                if (!ShouldHandleTrayClick(_lastTrayClickAt, now)) return;
+                _lastTrayClickAt = now;
+                OpenOrStart();
             };
             _tray.BalloonTipClicked += delegate
             {
@@ -469,6 +474,15 @@ namespace PiWebTray
             // waits for a short stability window before deleting its backup.
             TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port);
             _updateBackupCleanupAt = DateTime.Now.AddSeconds(90);
+        }
+
+        // NotifyIcon does not reliably report Click count for notification-area
+        // clicks. Use a short debounce instead so a double-click does not open the
+        // browser twice while a normal single click still works.
+        internal static bool ShouldHandleTrayClick(DateTime lastClick, DateTime now)
+        {
+            return lastClick == DateTime.MinValue
+                || now - lastClick >= TimeSpan.FromMilliseconds(500);
         }
 
         // ---------------- poll loop ----------------
