@@ -56,13 +56,12 @@ namespace PiWebTray
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.ColumnCount = 1;
-            root.RowCount = 5;
+            root.RowCount = 4;
             root.Padding = new Padding(12);
             // On high-DPI or small displays the two tables and the button row can
             // exceed the work area. Scroll the content instead of clipping it.
             root.AutoScroll = true;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
@@ -85,8 +84,12 @@ namespace PiWebTray
             runtimeGroup.AutoSize = true;
             runtimeGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             GroupBox softwareGroup = BuildGroup(L.T("check.software"), _softwareGrid);
-            softwareGroup.AutoSize = true;
-            softwareGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            softwareGroup.AutoSize = false;
+            softwareGroup.Dock = DockStyle.Fill;
+            // Keep the software table visible when a very small/high-DPI work
+            // area forces the form to shrink; the root's AutoScroll handles the
+            // overflow.
+            softwareGroup.MinimumSize = new Size(0, 160);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Fill;
@@ -112,7 +115,7 @@ namespace PiWebTray
             root.Controls.Add(_summary, 0, 0);
             root.Controls.Add(runtimeGroup, 0, 1);
             root.Controls.Add(softwareGroup, 0, 2);
-            root.Controls.Add(buttons, 0, 4);
+            root.Controls.Add(buttons, 0, 3);
             Controls.Add(root);
 
             ResumeLayout(false);
@@ -266,9 +269,10 @@ namespace PiWebTray
         // Separated from OnLoad so layout tests do not need an interactive desktop.
         internal void FitForDisplay()
         {
+            // The runtime table has a fixed small number of rows. The software
+            // group lives in the Percent row and fills the remaining height; only
+            // the runtime table needs a content-derived height.
             FitGridHeight(_runtimeGrid);
-            FitGridHeight(_softwareGrid);
-            FitInitialHeight();
         }
 
         protected override void OnShown(EventArgs e)
@@ -294,26 +298,6 @@ namespace PiWebTray
                     group.AutoSize = true;
                     group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                     group.PerformLayout();
-                }
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        private void FitInitialHeight()
-        {
-            try
-            {
-                int chrome = Height - ClientSize.Height;
-                int desired = _root.PreferredSize.Height + _root.Padding.Vertical;
-                int maxClient = Math.Max(300, Screen.FromControl(this).WorkingArea.Height - chrome - 20);
-                int minClient = Math.Max(300, MinimumSize.Height - chrome);
-                int height = Math.Max(minClient, Math.Min(desired, maxClient));
-                if (height != ClientSize.Height)
-                {
-                    ClientSize = new Size(ClientSize.Width, height);
-                    PerformLayout();
                 }
             }
             catch (Exception)

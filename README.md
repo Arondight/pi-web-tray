@@ -109,19 +109,21 @@ Exit and stop service
 
 `pi-web-tray.ini` lives in `%LOCALAPPDATA%\pi-web-tray` by default so separate Windows users do not share settings; set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs next to the executable (ignored for protected system directories). A commented sample is in [`config/pi-web-tray.ini`](config/pi-web-tray.ini).
 
-| Key                | Default         | Description                                                                                                                                      |
-| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Port`             | `30141`         | Pi Web listening port.                                                                                                                           |
-| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                                                                         |
-| `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                                         |
-| `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                                         |
-| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                                           |
+| Key                | Default         | Description                                                                                                                                                                       |
+| ------------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | Pi Web listening port.                                                                                                                                                            |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                                                                                                          |
+| `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                                                                          |
+| `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                                                                          |
+| `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                                                                            |
 | `InstallTag`       | `latest`        | Pi Web npm distribution tag or exact version. Exact versions/ranges do not apply to the independently versioned Pi CLI; it stays on `latest` unless the tag is a simple dist-tag. |
-| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                                          |
-| `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads; empty uses the system proxy. Node, npm and Pi Web child processes are not configured. |
-| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                                               |
-| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                                                    |
-| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed; refused for user-writable install directories).                                                   |
+| `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                                                                           |
+| `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads; empty uses the system proxy. Node, npm and Pi Web child processes are not configured.                                  |
+| `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                                                                                |
+| `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                                                                                     |
+| `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed; refused for user-writable install directories).                                                                                    |
+
+Dependency installs run from a dedicated `npm` folder inside the data directory, not from `WorkingDir`. A project-local `.npmrc` is therefore not used by the tray's npm commands; configure registries and npm authentication in the user/global npm configuration instead.
 
 When the tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the setting; the tray shows a notification with a details action. If the administrator preference is unavailable and start-at-login is enabled from the main menu, the tray clears that preference and uses standard-user start-at-login instead. This check covers the tray installation only: the elevated task also runs Node.js, npm, Pi and Pi Web with your administrator token, so user-writable configuration, Node/npm paths and working directories remain part of the administrator attack surface.
 
@@ -176,6 +178,7 @@ cd .\pi-web-tray
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256; the helper copies staged files into a protected snapshot and re-verifies them before replacing files. Releases are unsigned, so SmartScreen may warn on first run. The helper still accepts a caller-provided staging hash; it is not a substitute for code signing.
 - Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user; standard-user over-the-shoulder UAC is refused. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported; it is removed when autostart is next changed.
 - `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`; the tray menu always works.
+- The administrator start-at-login task is scoped to the current Windows user and keeps running on battery power; it does not inherit the environment of the shell that enabled it.
 
 ## Related projects
 

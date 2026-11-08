@@ -16,6 +16,7 @@ using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using System.Xml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace PiWebTray
@@ -60,6 +61,7 @@ namespace PiWebTray
             InstanceHomeIsolationTests();
             OperationLockTests();
             AutostartPathTests();
+            AutostartTaskXmlTests();
             UpdateRestartPolicyTests();
             ConfiguredValuesTests();
             LocalizationTests();
@@ -768,6 +770,9 @@ namespace PiWebTray
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "a b/c\\d");
                 CheckEqual("suffix sanitised", ".abcd", Instance.Suffix);
 
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "Dev");
+                CheckEqual("suffix is case-normalized", ".dev", Instance.Suffix);
+
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", new string('x', 80));
                 CheckEqual("suffix truncated", 33, Instance.Suffix.Length);
             }
@@ -898,6 +903,48 @@ namespace PiWebTray
             {
                 try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
             }
+        }
+
+        private static void AutostartTaskXmlTests()
+        {
+            const string sid = "S-1-5-21-2119269988-3384628244-2020626179-1001";
+            const string exe = @"C:\Program Files\Pi Web Tray\pi-web-tray.exe";
+            byte[] bytes = Autostart.BuildTaskXml(exe, sid);
+
+            XmlDocument document = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                document.Load(stream);
+            }
+
+            Check("task XML has a logon trigger",
+                document.GetElementsByTagName("LogonTrigger", "*").Count == 1);
+            Check("task XML has no any-user trigger",
+                document.GetElementsByTagName("LogonTrigger", "*").Count == 1
+                && document.GetElementsByTagName("LogonTrigger", "*")[0]
+                    .SelectNodes("descendant::*[local-name()='UserId']") != null
+                && document.GetElementsByTagName("LogonTrigger", "*")[0]
+                    .SelectNodes("descendant::*[local-name()='UserId']").Count == 1);
+            CheckEqual("task XML uses the user SID in both UserId fields", 2,
+                document.GetElementsByTagName("UserId", "*").Count);
+            CheckEqual("task XML trigger user", sid,
+                ((XmlElement)document.GetElementsByTagName("LogonTrigger", "*")[0])
+                    .GetElementsByTagName("UserId", "*")[0].InnerText);
+            CheckEqual("task XML principal user", sid,
+                ((XmlElement)document.GetElementsByTagName("Principal", "*")[0])
+                    .GetElementsByTagName("UserId", "*")[0].InnerText);
+            CheckEqual("task XML allows starting on batteries", "false",
+                document.GetElementsByTagName("DisallowStartIfOnBatteries", "*")[0].InnerText);
+            CheckEqual("task XML keeps running on batteries", "false",
+                document.GetElementsByTagName("StopIfGoingOnBatteries", "*")[0].InnerText);
+            CheckEqual("task XML has no execution time limit", "PT0S",
+                document.GetElementsByTagName("ExecutionTimeLimit", "*")[0].InnerText);
+            CheckEqual("task XML runs highest available", "HighestAvailable",
+                document.GetElementsByTagName("RunLevel", "*")[0].InnerText);
+            CheckEqual("task XML command", exe,
+                document.GetElementsByTagName("Command", "*")[0].InnerText);
+            CheckEqual("task XML arguments", "--autostart",
+                document.GetElementsByTagName("Arguments", "*")[0].InnerText);
         }
 
         private static void UpdateRestartPolicyTests()
@@ -1122,9 +1169,11 @@ namespace PiWebTray
             CheckEqual("registry uses the npm environment", "https://registry.npmmirror.com",
                 registryEnv["npm_config_registry"]);
 
-            Check("pi-web never ignores scripts", !webArgs.Contains("--ignore-scripts"));
+            Check("pi-web explicitly enables scripts", webArgs.Contains(" --ignore-scripts=false"));
+            Check("pi-web never disables scripts", !webArgs.Contains(" --ignore-scripts "));
             Check("npm 12 allows pi-web scripts", webArgs.Contains("--allow-scripts \"@agegr/pi-web,node-pty\""));
             string web11 = Installer.BuildArguments(config, path, web, "11.6.0", false, Installer.PiWebScriptPackages);
+            Check("npm 11 still enables scripts", web11.Contains(" --ignore-scripts=false"));
             Check("npm 11 has no allow-scripts flag", !web11.Contains("--allow-scripts"));
 
             string cliArgs = Installer.BuildArguments(config, path, cli, "12.2.1", true, "");
@@ -1444,6 +1493,10 @@ namespace PiWebTray
                 !TrayApp.ShouldStopServiceForInstall(Phase.Stopped, false, true, true));
             Check("install ignores an unrelated listener",
                 !TrayApp.ShouldStopServiceForInstall(Phase.PortConflict, true, false, false));
+            Check("install does not stop a foreign owner while the phase is Running",
+                !TrayApp.ShouldStopServiceForInstall(Phase.Running, true, false, false));
+            Check("install stops this installation while the phase is Running",
+                TrayApp.ShouldStopServiceForInstall(Phase.Running, true, true, false));
         }
 
         private static void RestartArgumentsTests()
@@ -1870,6 +1923,13 @@ namespace PiWebTray
                 // our own pid is alive -> trusted
                 TrayState.Save(System.Diagnostics.Process.GetCurrentProcess().Id, true, 30141);
                 Check("live state is trusted", TrayState.InstanceIsElevated());
+                int runningPort;
+                Check("live state reports the running port",
+                    TrayState.TryGetRunningPort(out runningPort) && runningPort == 30141);
+
+                TrayState.Save(System.Diagnostics.Process.GetCurrentProcess().Id, false, 30222);
+                Check("state port can change",
+                    TrayState.TryGetRunningPort(out runningPort) && runningPort == 30222);
 
                 TrayState.Delete();
                 Check("state deleted", !File.Exists(TrayState.StatePath()));

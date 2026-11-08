@@ -71,7 +71,22 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                lock (_updateLock)
+                {
+                    if (generation == _updateGeneration)
+                    {
+                        _updateRelease = null;
+                        _updateError = ex.Message;
+                        _updateDone = true;
+                    }
+                }
+            }
         }
 
         private void PollUpdate()
@@ -166,12 +181,21 @@ namespace PiWebTray
             if (!_elevated && Updater.RequiresElevation(_config.BaseDir))
                 body += "\r\n\r\n" + L.T("update.adminNote");
 
-            DialogResult answer = MessageBox.Show(
-                body,
-                L.T("update.confirmTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button2);
+            DialogResult answer;
+            BeginModal();
+            try
+            {
+                answer = MessageBox.Show(
+                    body,
+                    L.T("update.confirmTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2);
+            }
+            finally
+            {
+                EndModal();
+            }
             if (answer != DialogResult.Yes)
             {
                 Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
@@ -238,7 +262,22 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                lock (_updateLock)
+                {
+                    if (generation == _updateGeneration)
+                    {
+                        _updateStaging = null;
+                        _updateError = ex.Message;
+                        _updateDone = true;
+                    }
+                }
+            }
         }
 
         private void HandleUpdateDownload(ReleaseInfo release, string staging, string error)
@@ -322,7 +361,21 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                lock (_updateLock)
+                {
+                    if (generation == _updateGeneration)
+                    {
+                        _updateError = ex.Message;
+                        _updateDone = true;
+                    }
+                }
+            }
         }
 
         private void HandleUpdateApply(string error)
@@ -419,7 +472,15 @@ namespace PiWebTray
 
         private void ShowUpdateError(string title, string body)
         {
-            MessageBox.Show(body, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            BeginModal();
+            try
+            {
+                MessageBox.Show(body, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                EndModal();
+            }
         }
     }
 }

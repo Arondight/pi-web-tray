@@ -270,6 +270,22 @@ namespace PiWebTray
                     {
                     }
                 }
+                // A de-elevating restart script in the installation directory can
+                // survive if cmd could not delete itself. Remove only old ones; a
+                // current helper may still be waiting for the new tray to start.
+                foreach (string script in Directory.GetFiles(target,
+                    ".pi-web-tray-restart-*.cmd"))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTimeUtc(script) >= cutoff) continue;
+                        File.SetAttributes(script, FileAttributes.Normal);
+                        File.Delete(script);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
             }
             catch (Exception)
             {

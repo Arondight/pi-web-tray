@@ -143,8 +143,8 @@ namespace PiWebTray
             // Normal exit means "stop the service". If the wrapper is still alive
             // while the port is already closed (a hung start or a detached child),
             // kill it here so it cannot become an orphan holding the npm package
-            // directory or a port.
-            KillTrackedServer();
+            // directory or a port. Wait only on the final exit path.
+            KillTrackedServer(true);
 
             TrayState.Delete();
             Cleanup();
@@ -154,11 +154,16 @@ namespace PiWebTray
 
         // First start without Node.js: leave any other pi-web instance alone and just
         // shut down the tray that never managed to start its own service.
-        private void ExitWithoutStoppingService()
+        private void ExitWithoutStoppingService(bool stopTrackedService)
         {
             if (_exiting) return;
             _exiting = true;
             try { _timer.Stop(); } catch (Exception) { }
+
+            // Keep an external/older service alive, but never leave a service that
+            // this tray started behind a prompt. The elevated --tray-only takeover
+            // passes false so the previous tray's service is preserved.
+            if (stopTrackedService) KillTrackedServer();
 
             // Keep the service alive, but do not orphan an npm install or an update
             // download when another process takes over the tray (for example an
@@ -179,8 +184,22 @@ namespace PiWebTray
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) Cleanup();
+            if (disposing)
+            {
+                Cleanup();
+                // Keep the single-instance mutex until the message loop has really
+                // exited. Releasing it in Cleanup() let a --restart child acquire
+                // the mutex while the old process was still finishing ExitThread.
+                ReleaseMutexHandle();
+            }
             base.Dispose(disposing);
+        }
+
+        private void ReleaseMutexHandle()
+        {
+            if (_mutex == null) return;
+            try { _mutex.ReleaseMutex(); } catch (Exception) { }
+            try { _mutex.Close(); } catch (Exception) { }
         }
 
         private void Cleanup()
@@ -192,6 +211,8 @@ namespace PiWebTray
             // block the UI while it is finishing a registry or filesystem read.
             StopNodePresenceMonitor();
             try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
+            _notifications.Clear();
+            _currentNotification = null;
             CloseInstallForm();
             CloseUpdateForm();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
@@ -203,11 +224,6 @@ namespace PiWebTray
             try { _quitKeepServiceSignal.Close(); } catch (Exception) { }
             try { Icons.DisposeCache(); } catch (Exception) { }
             try { if (_server != null) _server.Dispose(); } catch (Exception) { }
-            if (_mutex != null)
-            {
-                try { _mutex.ReleaseMutex(); } catch (Exception) { }
-                try { _mutex.Close(); } catch (Exception) { }
-            }
         }
 
         private void CleanupStaleUpdateBackups()

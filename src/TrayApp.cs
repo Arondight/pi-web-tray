@@ -98,7 +98,22 @@ namespace PiWebTray
         private Color _iconColor = Color.Empty;
         private Icon _currentIcon;
         private string _lastNotified = "";
-        private Action _balloonAction;
+
+        // Balloons are serialized so a click always belongs to the balloon that is
+        // currently visible. NotifyIcon has no per-balloon callback identity, and a
+        // single action field is overwritten by every later notification.
+        private sealed class TrayNotification
+        {
+            internal string Title;
+            internal string Body;
+            internal ToolTipIcon Icon;
+            internal int Timeout;
+            internal Action OnClick;
+        }
+
+        private readonly Queue<TrayNotification> _notifications = new Queue<TrayNotification>();
+        private TrayNotification _currentNotification;
+        private DateTime _currentNotificationAt;
 
         // environment probe (background -> UI thread)
         private readonly object _checkLock = new object();
@@ -135,6 +150,14 @@ namespace PiWebTray
         private bool _pendingOpenBrowser;
         private bool _serviceStoppedByUser;
         private bool _exiting;
+        // A timer tick can be delivered while OnTick is showing a modal dialog
+        // (MessageBox or the missing-Node prompt). Never run a second state-machine
+        // pass inside that nested message loop.
+        private bool _tickRunning;
+        // Depth of application-modal dialogs. Automatic environment/install/update
+        // actions are paused while a dialog is open; explicit stop/start signals and
+        // the service phase polls still run.
+        private int _modalDepth;
         private bool _cleaned;
         private DateTime _startDeadline;
         private DateTime _stopDeadline;
@@ -145,10 +168,18 @@ namespace PiWebTray
         private int _autoRestartAttempts;
         private DateTime _runningSince = DateTime.MinValue;
         private DateTime _lastOwnerCheck = DateTime.MinValue;
+        private DateTime _lastNodeReprobeAt = DateTime.MinValue;
+        // A present Node signature changed while the service was running. Do not
+        // put the live service into the Checking phase; re-probe before the next
+        // start instead.
+        private bool _nodeProbeStale;
 
         // The report window performs its own background refresh; this flag only
         // prevents opening a second report or re-entering the menu action.
         private bool _selfCheckRunning;
+        // The first-run missing-Node prompt is modal; auto actions must not run
+        // behind it. The flag is cleared after ShowDialog returns.
+        private bool _nodePromptOpen;
 
         // autostart operation (background -> UI thread)
         private readonly object _autoLock = new object();
@@ -228,6 +259,10 @@ namespace PiWebTray
         private readonly object _readyLock = new object();
         private int _readyResult;
         private bool _readyCheckRunning;
+        // Incremented whenever a new service start supersedes an in-flight
+        // HTTP readiness probe. A stale worker must not mark the new service
+        // ready before it answers HTTP.
+        private int _readyGeneration;
 
         internal TrayApp(Config config, bool elevated, Mutex mutex, bool startServer,
             bool openBrowserOnStart)
@@ -369,12 +404,17 @@ namespace PiWebTray
             _tray.Text = Program.AppName;
             _tray.MouseClick += delegate (object sender, MouseEventArgs e)
             {
-                if (e.Button == MouseButtons.Left) OpenOrStart();
+                // A double-click raises two MouseClick events (1 then 2).
+                // Opening the browser twice is surprising; only act on the first
+                // click and leave the second event alone.
+                if (e.Button == MouseButtons.Left && e.Clicks == 1) OpenOrStart();
             };
             _tray.BalloonTipClicked += delegate
             {
-                Action action = _balloonAction;
-                _balloonAction = null;
+                TrayNotification current = _currentNotification;
+                if (current == null) return;
+                Action action = current.OnClick;
+                CompleteNotification();
                 if (action != null)
                 {
                     try { action(); } catch (Exception) { }
@@ -383,6 +423,33 @@ namespace PiWebTray
 
             RefreshAutostartItems();
             if (!_elevated) Autostart.RepairRunValue(Application.ExecutablePath);
+
+            if (_config.WorkingDirFallback)
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "working directory not found: " + _config.ConfiguredWorkingDir
+                        + "; using " + _config.WorkingDir);
+                }
+                catch (Exception) { }
+                NotifyWarningOnce("config-workingdir",
+                    L.T("notify.workingDirFallbackTitle"),
+                    L.T("notify.workingDirFallbackBody",
+                        _config.ConfiguredWorkingDir, _config.WorkingDir));
+            }
+            if (_config.NodePathInvalid)
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "configured Node.js path not found: " + _config.NodePath);
+                }
+                catch (Exception) { }
+                NotifyWarningOnce("config-nodepath",
+                    L.T("notify.nodePathInvalidTitle"),
+                    L.T("notify.nodePathInvalidBody", _config.NodePath));
+            }
 
             _timer.Interval = 500;
             _timer.Tick += OnTick;
@@ -406,7 +473,31 @@ namespace PiWebTray
 
         // ---------------- poll loop ----------------
 
+        private void BeginModal()
+        {
+            _modalDepth++;
+        }
+
+        private void EndModal()
+        {
+            if (_modalDepth > 0) _modalDepth--;
+        }
+
         private void OnTick(object sender, EventArgs e)
+        {
+            if (_exiting || _tickRunning) return;
+            _tickRunning = true;
+            try
+            {
+                OnTickCore(sender, e);
+            }
+            finally
+            {
+                _tickRunning = false;
+            }
+        }
+
+        private void OnTickCore(object sender, EventArgs e)
         {
             if (_exiting) return;
 
@@ -424,7 +515,7 @@ namespace PiWebTray
             // Elevated takeover with --tray-only must leave a running service alone.
             if (quitKeepServiceSignal)
             {
-                ExitWithoutStoppingService();
+                ExitWithoutStoppingService(false);
                 return;
             }
             if (quitSignal)
@@ -437,11 +528,14 @@ namespace PiWebTray
 
             PollAutostartOp();
             DispatchOwnerCheck();
-            PollEnvironmentCheck();
-            PollInstall();
+            if (_modalDepth == 0)
+            {
+                PollEnvironmentCheck();
+                PollInstall();
+                PollUpdate();
+                PollNodePresence();
+            }
             PollTaskRefresh();
-            PollUpdate();
-            PollNodePresence();
             if (_exiting) return;
 
             if (_updateBackupCleanupAt != DateTime.MinValue && DateTime.Now >= _updateBackupCleanupAt
@@ -452,7 +546,7 @@ namespace PiWebTray
             }
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
-                && !UpdateBusy() && !_exiting
+                && !UpdateBusy() && !_exiting && !_nodePromptOpen && _modalDepth == 0
                 && _phase != Phase.Installing && _phase != Phase.Checking
                 && _phase != Phase.Starting && _phase != Phase.Stopping)
             {
@@ -462,7 +556,7 @@ namespace PiWebTray
 
             if (_config.AutoRestart && _autoRestartAt != DateTime.MinValue
                 && DateTime.Now >= _autoRestartAt
-                && !UpdateBusy() && !_exiting
+                && !UpdateBusy() && !_exiting && _modalDepth == 0
                 && (_phase == Phase.Stopped || _phase == Phase.Failed))
             {
                 _autoRestartAt = DateTime.MinValue;
@@ -498,6 +592,8 @@ namespace PiWebTray
                 _updateTicks++;
                 if (_updateTicks % 4 == 0) UpdateUi();
             }
+
+            PollNotifications();
         }
     }
 }

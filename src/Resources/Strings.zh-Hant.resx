@@ -393,6 +393,24 @@
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已建立桌面捷徑</value>
   </data>
+  <data name="notify.workingDirFallbackTitle" xml:space="preserve">
+    <value>工作目錄不存在</value>
+  </data>
+  <data name="notify.workingDirFallbackBody" xml:space="preserve">
+    <value>設定的服務工作目錄不存在：{0}。將改用 {1}。請在設定中修改。</value>
+  </data>
+  <data name="notify.nodePathInvalidTitle" xml:space="preserve">
+    <value>Node.js 路徑不存在</value>
+  </data>
+  <data name="notify.nodePathInvalidBody" xml:space="preserve">
+    <value>設定的 Node.js 路徑不存在：{0}。將使用自動偵測。</value>
+  </data>
+  <data name="notify.shortcutExistsTitle" xml:space="preserve">
+    <value>捷徑已存在</value>
+  </data>
+  <data name="notify.shortcutExistsBody" xml:space="preserve">
+    <value>名為「{0}」的捷徑已存在，並且指向其他程式。要取代它嗎？</value>
+  </data>
   <data name="notify.createFailed" xml:space="preserve">
     <value>建立失敗</value>
   </data>
@@ -936,6 +954,12 @@
   </data>
   <data name="notify.portConflictBody" xml:space="preserve">
     <value>連接埠 {0} 已被其他程式占用。請停止該程式或在設定中修改連接埠。</value>
+  </data>
+  <data name="notify.ownerCheckFailedTitle" xml:space="preserve">
+    <value>無法確認連接埠佔用者</value>
+  </data>
+  <data name="notify.ownerCheckFailedBody" xml:space="preserve">
+    <value>無法識別接聽連接埠 {0} 的處理序。正在執行的服務未被更動；請從托盤功能表重試該操作。</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
     <value>Pi Web 已停止</value>

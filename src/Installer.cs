@@ -234,8 +234,16 @@ namespace PiWebTray
             sb.Append(" --no-fund --no-audit --loglevel=http");
 
             if (ignoreScripts) sb.Append(" --ignore-scripts");
-            else if (!string.IsNullOrEmpty(allowScripts) && NpmMajor(npmVersion) >= 12)
-                sb.Append(" --allow-scripts ").Append(Shell.Quote(allowScripts));
+            else
+            {
+                // User/global .npmrc files often set ignore-scripts=true. Pi Web's
+                // postinstall and node-pty's build are required, so opt in
+                // explicitly on every supported npm version. npm 12 additionally
+                // needs the allowlist to permit dependency scripts.
+                sb.Append(" --ignore-scripts=false");
+                if (!string.IsNullOrEmpty(allowScripts) && NpmMajor(npmVersion) >= 12)
+                    sb.Append(" --allow-scripts ").Append(Shell.Quote(allowScripts));
+            }
 
             return sb.ToString();
         }
@@ -413,6 +421,7 @@ namespace PiWebTray
             try
             {
                 string nodeDir = Path.GetDirectoryName(probe.NodePath);
+                string npmWorkingDir = EnvironmentProbe.NpmWorkingDirectory(config);
                 IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
                 try
                 {
@@ -430,7 +439,7 @@ namespace PiWebTray
                 bool ok = true;
                 bool piCliFailed = false;
                 int lastStepNo = 0;
-                string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
+                string allowScripts = AllowScriptsFor(steps, probe, env, npmWorkingDir);
 
                 for (int i = 0; i < steps.Count; i++)
                 {
@@ -464,7 +473,7 @@ namespace PiWebTray
                         run = ProcessRunner.Run(
                             probe.NodePath,
                             arguments,
-                            config.WorkingDir,
+                            npmWorkingDir,
                             45 * 60 * 1000,
                             delegate (string line)
                             {
@@ -650,7 +659,8 @@ namespace PiWebTray
             ApplyRegistryEnvironment(config, env);
             if (!string.IsNullOrEmpty(config.NpmRegistry))
                 ConsoleHost.WriteLine("  npm_config_registry=" + Shell.RedactSecrets(config.NpmRegistry));
-            string allowScripts = AllowScriptsFor(steps, probe, env, config.WorkingDir);
+            string allowScripts = AllowScriptsFor(steps, probe, env,
+                EnvironmentProbe.NpmWorkingDirectory(config));
             foreach (InstallStep step in steps)
             {
                 string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,

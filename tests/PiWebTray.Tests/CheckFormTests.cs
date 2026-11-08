@@ -278,6 +278,22 @@ namespace PiWebTray
                     Assert.IsTrue(table.Parent.Bottom <= form.ClientSize.Height + 1,
                         "A report table must remain inside the client area.");
                 }
+
+                // The software table occupies the Percent row; growing the form must
+                // grow the table instead of leaving an empty row below it.
+                form.ClientSize = new Size(1000, 800);
+                form.PerformLayout();
+                bool softwareTableGrew = false;
+                foreach (DataGridView table in FindControls<DataGridView>(form))
+                {
+                    if (table.Columns.Count == 2 && table.Rows.Count == 10
+                        && table.Height > 150)
+                    {
+                        softwareTableGrew = true;
+                    }
+                }
+                Assert.IsTrue(softwareTableGrew,
+                    "The software table must fill the remaining vertical space.");
                 foreach (Button button in FindControls<Button>(form))
                 {
                     Assert.IsTrue(button.Parent != null, "A button must have a parent.");

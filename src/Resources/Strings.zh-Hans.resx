@@ -393,6 +393,24 @@
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已创建桌面快捷方式</value>
   </data>
+  <data name="notify.workingDirFallbackTitle" xml:space="preserve">
+    <value>工作目录不存在</value>
+  </data>
+  <data name="notify.workingDirFallbackBody" xml:space="preserve">
+    <value>配置的服务工作目录不存在：{0}。将改用 {1}。请在设置中修改。</value>
+  </data>
+  <data name="notify.nodePathInvalidTitle" xml:space="preserve">
+    <value>Node.js 路径不存在</value>
+  </data>
+  <data name="notify.nodePathInvalidBody" xml:space="preserve">
+    <value>配置的 Node.js 路径不存在：{0}。将使用自动检测。</value>
+  </data>
+  <data name="notify.shortcutExistsTitle" xml:space="preserve">
+    <value>快捷方式已存在</value>
+  </data>
+  <data name="notify.shortcutExistsBody" xml:space="preserve">
+    <value>名为“{0}”的快捷方式已存在，并且指向其他程序。要替换它吗？</value>
+  </data>
   <data name="notify.createFailed" xml:space="preserve">
     <value>创建失败</value>
   </data>
@@ -936,6 +954,12 @@
   </data>
   <data name="notify.portConflictBody" xml:space="preserve">
     <value>端口 {0} 已被其他程序占用。请停止该程序或在设置中修改端口。</value>
+  </data>
+  <data name="notify.ownerCheckFailedTitle" xml:space="preserve">
+    <value>无法确认端口占用者</value>
+  </data>
+  <data name="notify.ownerCheckFailedBody" xml:space="preserve">
+    <value>无法识别监听端口 {0} 的进程。正在运行的服务未被改动；请从托盘菜单重试该操作。</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
     <value>Pi Web 已停止</value>

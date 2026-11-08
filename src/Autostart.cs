@@ -77,6 +77,32 @@ namespace PiWebTray
             return sb.Length == 0 ? "user" : sb.ToString();
         }
 
+        // The principal/trigger UserId must be a SID or account name. The sanitized
+        // name used for the task name is not a valid account name when it contains
+        // non-ASCII characters, so keep the real SID (or a DOMAIN\user fallback).
+        private static string CurrentUserPrincipal()
+        {
+            try
+            {
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity.User != null)
+                    {
+                        string sid = identity.User.Value;
+                        if (!string.IsNullOrEmpty(sid)) return sid;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+            }
+
+            string user = Environment.UserName ?? "";
+            if (user.Length == 0) return "";
+            string domain = Environment.UserDomainName ?? "";
+            return domain.Length == 0 ? user : domain + "\\" + user;
+        }
+
         internal static string Describe(bool task, bool run)
         {
             if (task) return L.T("auto.onAdmin");
@@ -209,6 +235,16 @@ namespace PiWebTray
         internal static bool QueryLegacyTask()
         {
             return Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
+        }
+
+        // A disabled or relocated legacy task must not suppress the current Run
+        // value. Existence alone is not enough for the menu/startup decision.
+        internal static bool QueryLegacyTaskState(out bool enabled, out bool matchesExecutable)
+        {
+            enabled = false;
+            matchesExecutable = false;
+            if (Instance.Suffix.Length != 0) return false;
+            return QueryTaskState(LegacyTaskName, out enabled, out matchesExecutable);
         }
 
         // Existence plus the state that the menu needs: a task can exist but be
@@ -449,18 +485,121 @@ namespace PiWebTray
             if (Instance.Suffix.Length == 0
                 && QueryTask(LegacyTaskName) && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
 
-            string taskCommand = "\\\"" + executablePath + "\\\" --autostart";
-            string args = "/create /f /tn " + Shell.Quote(TaskName)
-                + " /sc onlogon /rl highest /tr " + Shell.Quote(taskCommand);
+            string principal = CurrentUserPrincipal();
+            if (string.IsNullOrEmpty(principal)) return false;
 
-            if (!Launch(elevated, args)) return false;
-
-            for (int i = 0; i < 40; i++)
+            // schtasks /create /sc onlogon creates an "any user" trigger and leaves
+            // the default battery policy in place (do not start on batteries, stop
+            // when switching to batteries). Build a user-scoped XML definition
+            // instead. Keep the file open with FileShare.Read while schtasks reads
+            // it, so another process cannot replace the elevated task definition.
+            string xmlPath = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-task-" + Guid.NewGuid().ToString("N") + ".xml");
+            FileStream stream = null;
+            try
             {
-                Thread.Sleep(250);
-                if (QueryTask()) return true;
+                byte[] xml = BuildTaskXml(executablePath, principal);
+                stream = new FileStream(xmlPath, FileMode.CreateNew, FileAccess.Write,
+                    FileShare.Read);
+                stream.Write(xml, 0, xml.Length);
+                stream.Flush();
+
+                string args = "/create /f /tn " + Shell.Quote(TaskName)
+                    + " /xml " + Shell.Quote(xmlPath);
+                if (!Launch(elevated, args)) return false;
+
+                for (int i = 0; i < 40; i++)
+                {
+                    Thread.Sleep(250);
+                    if (QueryTask()) return true;
+                }
+                return QueryTask();
             }
-            return QueryTask();
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (stream != null)
+                {
+                    try { stream.Dispose(); } catch (Exception) { }
+                }
+                try { if (File.Exists(xmlPath)) File.Delete(xmlPath); } catch (Exception) { }
+            }
+        }
+
+        internal static byte[] BuildTaskXml(string executablePath, string principal)
+        {
+            // The Task Scheduler accepts UTF-16LE with a BOM; schtasks rejects an
+            // encoding declaration that does not match the file bytes.
+            using (MemoryStream memory = new MemoryStream())
+            {
+                XmlWriterSettings settings = new XmlWriterSettings();
+                settings.Encoding = new UnicodeEncoding(false, true);
+                settings.Indent = true;
+                settings.OmitXmlDeclaration = false;
+                using (XmlWriter writer = XmlWriter.Create(memory, settings))
+                {
+                    writer.WriteStartDocument();
+                    writer.WriteStartElement("Task",
+                        "http://schemas.microsoft.com/windows/2004/02/mit/task");
+                    writer.WriteAttributeString("version", "1.2");
+
+                    // A user-scoped logon trigger. Without <UserId> the task fires
+                    // for every account that logs on, and the administrator service
+                    // can start in response to another user's logon.
+                    writer.WriteStartElement("Triggers");
+                    writer.WriteStartElement("LogonTrigger");
+                    writer.WriteElementString("Enabled", "true");
+                    writer.WriteElementString("UserId", principal);
+                    writer.WriteEndElement();
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("Principals");
+                    writer.WriteStartElement("Principal");
+                    writer.WriteAttributeString("id", "Author");
+                    writer.WriteElementString("UserId", principal);
+                    writer.WriteElementString("LogonType", "InteractiveToken");
+                    writer.WriteElementString("RunLevel", "HighestAvailable");
+                    writer.WriteEndElement();
+                    writer.WriteEndElement();
+
+                    // Do not inherit schtasks' defaults: a laptop on battery must
+                    // still start the tray, and unplugging it must not stop it.
+                    writer.WriteStartElement("Settings");
+                    writer.WriteElementString("MultipleInstancesPolicy", "IgnoreNew");
+                    writer.WriteElementString("DisallowStartIfOnBatteries", "false");
+                    writer.WriteElementString("StopIfGoingOnBatteries", "false");
+                    writer.WriteElementString("AllowHardTerminate", "true");
+                    writer.WriteElementString("StartWhenAvailable", "false");
+                    writer.WriteElementString("RunOnlyIfNetworkAvailable", "false");
+                    writer.WriteStartElement("IdleSettings");
+                    writer.WriteElementString("StopOnIdleEnd", "false");
+                    writer.WriteElementString("RestartOnIdle", "false");
+                    writer.WriteEndElement();
+                    writer.WriteElementString("AllowStartOnDemand", "true");
+                    writer.WriteElementString("Enabled", "true");
+                    writer.WriteElementString("Hidden", "false");
+                    writer.WriteElementString("RunOnlyIfIdle", "false");
+                    writer.WriteElementString("WakeToRun", "false");
+                    writer.WriteElementString("ExecutionTimeLimit", "PT0S");
+                    writer.WriteElementString("Priority", "7");
+                    writer.WriteEndElement();
+
+                    writer.WriteStartElement("Actions");
+                    writer.WriteAttributeString("Context", "Author");
+                    writer.WriteStartElement("Exec");
+                    writer.WriteElementString("Command", executablePath);
+                    writer.WriteElementString("Arguments", "--autostart");
+                    writer.WriteEndElement();
+                    writer.WriteEndElement();
+
+                    writer.WriteEndElement();
+                    writer.WriteEndDocument();
+                }
+                return memory.ToArray();
+            }
         }
 
         internal static bool DeleteTask(bool elevated)

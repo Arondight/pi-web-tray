@@ -58,7 +58,7 @@ namespace PiWebTray
                     }
                     else
                     {
-                        cmdPath = LaunchViaExplorerCommand(dataDir, target, arguments, logPath);
+                        cmdPath = LaunchViaExplorerCommand(target, arguments, logPath);
                     }
 
                     if ((arguments.Length == 0 && !customEnvironment) || cmdPath != null)
@@ -154,28 +154,32 @@ namespace PiWebTray
             }
         }
 
-        private static string LaunchViaExplorerCommand(string dataDir, string target,
+        private static string LaunchViaExplorerCommand(string target,
             string arguments, string logPath)
         {
             try
             {
+                // Write the script into the installation directory and use %~dp0
+                // plus a relative executable name. The script body is then ASCII
+                // even when the installation path contains Chinese/Japanese/etc.,
+                // so cmd does not have to parse a Unicode path from the file.
+                // The helper is elevated on this path, so the protected target is
+                // writable while a standard user cannot tamper with the script.
                 string exe = Path.Combine(target, "pi-web-tray.exe");
-                string safeTarget = target.Replace("%", "%%");
-                string safeExe = exe.Replace("%", "%%");
-                string cmdPath = Path.Combine(dataDir,
+                string cmdPath = Path.Combine(target,
                     ".pi-web-tray-restart-" + Guid.NewGuid().ToString("N") + ".cmd");
 
                 StringBuilder contentBuilder = new StringBuilder();
                 contentBuilder.Append("@echo off\r\n");
+                contentBuilder.Append("chcp 65001 >nul\r\n");
                 AppendRestartEnvironment(contentBuilder);
-                contentBuilder.Append("cd /d ").Append(Shell.QuoteArg(safeTarget)).Append("\r\n");
-                contentBuilder.Append("start \"\" ").Append(Shell.QuoteArg(safeExe))
-                    .Append(' ').Append(arguments).Append("\r\n");
+                contentBuilder.Append("cd /d \"%~dp0\"\r\n");
+                contentBuilder.Append("start \"\" \".\\" + Path.GetFileName(exe) + "\" ")
+                    .Append(arguments).Append("\r\n");
                 contentBuilder.Append("del /f /q \"%~f0\" >nul 2>&1\r\n");
                 string content = contentBuilder.ToString();
 
-                Directory.CreateDirectory(dataDir);
-                File.WriteAllText(cmdPath, content, Encoding.Default);
+                File.WriteAllText(cmdPath, content, new UTF8Encoding(false));
                 AppendLog(logPath, "restart command: " + cmdPath);
 
                 ProcessStartInfo viaExplorer = new ProcessStartInfo();

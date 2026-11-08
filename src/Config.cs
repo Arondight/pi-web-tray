@@ -35,6 +35,10 @@ namespace PiWebTray
         // default %USERPROFILE% template is not silently replaced by a literal path.
         internal string ConfiguredWorkingDir = "";
         internal string NodePath;
+        // Diagnostics for the tray notification: a configured path that was invalid
+        // must not disappear silently.
+        internal bool WorkingDirFallback;
+        internal bool NodePathInvalid;
 
         // ---- runtime paths ----
         internal string BaseDir;
@@ -171,8 +175,14 @@ namespace PiWebTray
             string envLanguage = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
             L.Use(string.IsNullOrEmpty(envLanguage) ? config.Language : envLanguage);
 
+            if (!string.IsNullOrEmpty(config.NodePath) && !File.Exists(config.NodePath))
+                config.NodePathInvalid = true;
+
             if (config.WorkingDir == null || !Directory.Exists(config.WorkingDir))
+            {
+                config.WorkingDirFallback = !string.IsNullOrEmpty(config.ConfiguredWorkingDir);
                 config.WorkingDir = Shell.Home();
+            }
 
             config.ConfiguredPort = config.Port;
 

@@ -150,7 +150,9 @@ namespace PiWebTray
                 : L.T("menu.installDeps");
             _updateItem.Enabled = !busy;
             _updateItem.Text = updateBusy
-                ? L.T("menu.checkUpdatesBusy")
+                ? (_updateStage == UpdateStage.Checking
+                    ? L.T("update.status.checking")
+                    : L.T("menu.checkUpdatesBusy"))
                 : (_availableRelease != null
                     ? L.T("menu.updateAvailable", _availableRelease.Version)
                     : L.T("menu.checkUpdates"));
@@ -181,6 +183,10 @@ namespace PiWebTray
         private void OpenOrStart()
         {
             if (_exiting) return;
+            // The tray icon/menu action is an explicit start/open request. It
+            // overrides a previous user stop even when the path goes through an
+            // install (for example NeedsDeps or a missing Pi Web package).
+            _serviceStoppedByUser = false;
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;
@@ -191,11 +197,19 @@ namespace PiWebTray
             }
             if (_phase == Phase.PortConflict)
             {
-                MessageBox.Show(
-                    L.T("notify.portConflictBody", _port),
-                    L.T("notify.portConflictTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                BeginModal();
+                try
+                {
+                    MessageBox.Show(
+                        L.T("notify.portConflictBody", _port),
+                        L.T("notify.portConflictTitle"),
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+                finally
+                {
+                    EndModal();
+                }
                 ShowSettings();
                 return;
             }
@@ -280,7 +294,11 @@ namespace PiWebTray
                 L.T("node.communityTitle"), L.T("node.communityBody"),
                 true, false, L.T("node.cancel")))
             {
-                if (prompt.ShowDialog() == DialogResult.Yes)
+                DialogResult answer;
+                BeginModal();
+                try { answer = prompt.ShowDialog(); }
+                finally { EndModal(); }
+                if (answer == DialogResult.Yes)
                     OpenUrl(NodeDownloads.UrlFor(version));
             }
         }
@@ -300,7 +318,9 @@ namespace PiWebTray
             {
                 using (LogForm form = new LogForm(path, title))
                 {
-                    form.ShowDialog();
+                    BeginModal();
+                    try { form.ShowDialog(); }
+                    finally { EndModal(); }
                 }
             }
             catch (Exception ex)
@@ -313,7 +333,9 @@ namespace PiWebTray
         {
             using (AboutForm form = new AboutForm())
             {
-                form.ShowDialog();
+                BeginModal();
+                try { form.ShowDialog(); }
+                finally { EndModal(); }
             }
         }
 
@@ -346,7 +368,17 @@ namespace PiWebTray
                 && _phase != Phase.Checking;
             using (SettingsForm form = new SettingsForm(_config, allowPortChange))
             {
-                if (form.ShowDialog() == DialogResult.OK)
+                DialogResult result;
+                BeginModal();
+                try
+                {
+                    result = form.ShowDialog();
+                }
+                finally
+                {
+                    EndModal();
+                }
+                if (result == DialogResult.OK)
                 {
                     restartRequested = form.RestartRequested;
                     bool portRejected = false;
@@ -526,12 +558,21 @@ namespace PiWebTray
         {
             if (_elevated) return;
 
-            DialogResult answer = MessageBox.Show(
-                L.T("notify.adminRestartBody"),
-                L.T("notify.adminRestartTitle"),
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button2);
+            DialogResult answer;
+            BeginModal();
+            try
+            {
+                answer = MessageBox.Show(
+                    L.T("notify.adminRestartBody"),
+                    L.T("notify.adminRestartTitle"),
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2);
+            }
+            finally
+            {
+                EndModal();
+            }
             if (answer != DialogResult.Yes) return;
 
             string arguments = RestartArguments(ServiceRunningForRestart(), false);
@@ -565,6 +606,31 @@ namespace PiWebTray
                     return;
                 }
                 shell = Activator.CreateInstance(shellType);
+
+                // Do not silently overwrite an unrelated shortcut that happens to
+                // have our product name. Only replace a link that points at this
+                // executable, or after an explicit confirmation.
+                if (File.Exists(path)
+                    && !ShortcutTargetsExecutable(shellType, shell, path))
+                {
+                    DialogResult answer;
+                    BeginModal();
+                    try
+                    {
+                        answer = MessageBox.Show(
+                            L.T("notify.shortcutExistsBody", path),
+                            L.T("notify.shortcutExistsTitle"),
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question,
+                            MessageBoxDefaultButton.Button2);
+                    }
+                    finally
+                    {
+                        EndModal();
+                    }
+                    if (answer != DialogResult.Yes) return;
+                }
+
                 shortcut = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
                 if (shortcut == null) throw new InvalidOperationException("CreateShortcut returned null");
 
@@ -589,6 +655,29 @@ namespace PiWebTray
             {
                 ReleaseComObject(shortcut);
                 ReleaseComObject(shell);
+            }
+        }
+
+        private static bool ShortcutTargetsExecutable(Type shellType, object shell, string path)
+        {
+            object link = null;
+            try
+            {
+                link = shellType.InvokeMember("CreateShortcut",
+                    System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
+                if (link == null) return false;
+                object target = link.GetType().InvokeMember("TargetPath",
+                    System.Reflection.BindingFlags.GetProperty, null, link, null);
+                return string.Equals(Convert.ToString(target),
+                    Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                ReleaseComObject(link);
             }
         }
 
@@ -630,38 +719,82 @@ namespace PiWebTray
 
         private void Notify(string title, string body)
         {
-            _balloonAction = null;
-            Notifications.Show(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Info, 5000, null);
         }
 
         private void Notify(string title, string body, Action onClick)
         {
-            _balloonAction = onClick;
-            Notifications.Show(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Info, 5000, onClick);
         }
 
         private void NotifyWarning(string title, string body)
         {
-            _balloonAction = null;
-            Notifications.ShowWarning(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Warning, 8000, null);
         }
 
         private void NotifyWarning(string title, string body, Action onClick)
         {
-            _balloonAction = onClick;
-            Notifications.ShowWarning(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Warning, 8000, onClick);
         }
 
         private void NotifyError(string title, string body)
         {
-            _balloonAction = null;
-            Notifications.ShowError(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Error, 8000, null);
         }
 
         private void NotifyError(string title, string body, Action onClick)
         {
-            _balloonAction = onClick;
-            Notifications.ShowError(_tray, title, body);
+            EnqueueNotification(title, body, ToolTipIcon.Error, 8000, onClick);
+        }
+
+        private void EnqueueNotification(string title, string body, ToolTipIcon icon,
+            int timeout, Action onClick)
+        {
+            if (_exiting) return;
+            TrayNotification notification = new TrayNotification();
+            notification.Title = title;
+            notification.Body = body;
+            notification.Icon = icon;
+            notification.Timeout = timeout;
+            notification.OnClick = onClick;
+            _notifications.Enqueue(notification);
+            ShowNextNotification();
+        }
+
+        private void ShowNextNotification()
+        {
+            if (_currentNotification != null || _exiting) return;
+            while (_notifications.Count > 0)
+            {
+                TrayNotification notification = _notifications.Dequeue();
+                if (!Notifications.Show(_tray, notification.Title, notification.Body,
+                        notification.Icon, notification.Timeout))
+                {
+                    continue;
+                }
+                _currentNotification = notification;
+                _currentNotificationAt = DateTime.Now;
+                return;
+            }
+        }
+
+        private void CompleteNotification()
+        {
+            _currentNotification = null;
+            ShowNextNotification();
+        }
+
+        // WinForms does not always raise BalloonTipClosed on every Windows release.
+        // Give the shell time to hide the balloon, then advance the queue.
+        private void PollNotifications()
+        {
+            if (_currentNotification == null) return;
+            int timeout = _currentNotification.Timeout + 5000;
+            if (DateTime.Now - _currentNotificationAt >
+                TimeSpan.FromMilliseconds(timeout))
+            {
+                CompleteNotification();
+            }
         }
 
         private void NotifyWarningOnce(string key, string title, string body)

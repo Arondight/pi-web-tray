@@ -27,6 +27,10 @@ namespace PiWebTray
         internal string ScriptPath = "";
         internal bool ForeignSession;
         internal bool ForeignUser;
+        // The probe itself failed (for example a process API access error or a
+        // worker start failure). This is not evidence that another program owns
+        // the port; callers must not kill the tracked service in that case.
+        internal bool CheckFailed;
 
         internal bool IsPiWeb { get { return Owner == PortOwner.PiWeb; } }
         internal bool IsUnknown { get { return Owner == PortOwner.Unknown; } }

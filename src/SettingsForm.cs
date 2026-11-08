@@ -218,12 +218,12 @@ namespace PiWebTray
             restart.MinimumSize = new Size(112, 0);
             restart.Click += delegate { SaveSettings(true); };
 
-            // FlowDirection is RightToLeft: the first control is rightmost. Keep the
-            // primary Save action rightmost, put Save and restart immediately to its
-            // left, and Cancel at the far left as in standard Windows dialogs.
-            buttons.Controls.Add(save);
-            buttons.Controls.Add(restart);
+            // FlowDirection is RightToLeft: the first control is rightmost. Follow
+            // the Windows dialog convention: Save/Save and restart on the left,
+            // Cancel on the right.
             buttons.Controls.Add(cancel);
+            buttons.Controls.Add(restart);
+            buttons.Controls.Add(save);
             _buttons = buttons;
 
             outer.Controls.Add(scroll, 0, 0);

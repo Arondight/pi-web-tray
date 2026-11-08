@@ -393,6 +393,24 @@ Exit anyway?</value>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>Desktop shortcut created</value>
   </data>
+  <data name="notify.workingDirFallbackTitle" xml:space="preserve">
+    <value>Working directory not found</value>
+  </data>
+  <data name="notify.workingDirFallbackBody" xml:space="preserve">
+    <value>The configured service working directory does not exist: {0}. Using {1} instead. Change it in Settings.</value>
+  </data>
+  <data name="notify.nodePathInvalidTitle" xml:space="preserve">
+    <value>Node.js path not found</value>
+  </data>
+  <data name="notify.nodePathInvalidBody" xml:space="preserve">
+    <value>The configured Node.js path does not exist: {0}. Automatic detection will be used.</value>
+  </data>
+  <data name="notify.shortcutExistsTitle" xml:space="preserve">
+    <value>Shortcut already exists</value>
+  </data>
+  <data name="notify.shortcutExistsBody" xml:space="preserve">
+    <value>A shortcut named "{0}" already exists and points to another program. Replace it?</value>
+  </data>
   <data name="notify.createFailed" xml:space="preserve">
     <value>Creation failed</value>
   </data>
@@ -936,6 +954,12 @@ See {1} for details.</value>
   </data>
   <data name="notify.portConflictBody" xml:space="preserve">
     <value>Port {0} is already used by another program. Stop that program or change the port in Settings.</value>
+  </data>
+  <data name="notify.ownerCheckFailedTitle" xml:space="preserve">
+    <value>Could not verify the port owner</value>
+  </data>
+  <data name="notify.ownerCheckFailedBody" xml:space="preserve">
+    <value>The process listening on port {0} could not be identified. The running service was left alone; retry the action from the tray menu.</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
     <value>Pi Web stopped</value>

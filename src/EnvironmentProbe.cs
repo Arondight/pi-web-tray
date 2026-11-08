@@ -129,7 +129,7 @@ namespace PiWebTray
 
             DetectNode(config, result);
             DetectNpm(config, result);
-            DetectNpmPrefix(result);
+            DetectNpmPrefix(config, result);
             DetectPiWeb(result);
             DetectPiCli(result, config);
 
@@ -234,34 +234,88 @@ namespace PiWebTray
 
         private static void DetectNode(Config config, ProbeResult result)
         {
-            foreach (string candidate in NodeCandidates(config))
+            // An explicitly configured NodePath is authoritative. For automatic
+            // detection, do not stop at the first node.exe that merely exists: an
+            // old Program Files copy must not shadow a newer PATH/NVM installation.
+            bool explicitPath = !string.IsNullOrEmpty(config != null ? config.NodePath : null);
+            List<string> candidates = NodeCandidates(config);
+            if (!explicitPath)
             {
-                if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
+                string fromPath = FindOnPath("node.exe");
+                if (!string.IsNullOrEmpty(fromPath)) candidates.Add(fromPath);
+            }
+
+            string fallbackPath = null;
+            bool fallbackRunnable = false;
+            string fallbackVersion = "";
+            foreach (string candidate in candidates)
+            {
+                if (string.IsNullOrEmpty(candidate) || !File.Exists(candidate)) continue;
+
+                ProcessResult version = ProcessRunner.Run(candidate, "--version", null, 15000, null, null);
+                string output = version.Output.Replace("\r", "").Replace("\n", " ").Trim();
+                bool runnable = version.Started && version.ExitCode == 0 && output.Length > 0;
+
+                if (fallbackPath == null)
+                {
+                    fallbackPath = candidate;
+                    fallbackRunnable = runnable;
+                    fallbackVersion = runnable ? output : "";
+                }
+
+                // Honor the explicit path even when it is old or broken: the user
+                // chose it, and silently running another Node.js would be
+                // surprising. Automatic detection may continue to a valid candidate.
+                if (explicitPath)
                 {
                     result.NodePath = candidate;
-                    break;
+                    result.NodeFound = true;
+                    result.NodeRunnable = runnable;
+                    result.NodeVersion = runnable ? output : "";
+                    return;
+                }
+
+                if (runnable && VersionUtil.AtLeast(output, ProbeResult.NodeMinimum))
+                {
+                    result.NodePath = candidate;
+                    result.NodeFound = true;
+                    result.NodeRunnable = true;
+                    result.NodeVersion = output;
+                    return;
                 }
             }
 
-            if (result.NodePath.Length == 0)
-            {
-                string fromPath = FindOnPath("node.exe");
-                if (fromPath != null) result.NodePath = fromPath;
-            }
-
-            if (result.NodePath.Length == 0) return;
-
+            if (fallbackPath == null) return;
+            result.NodePath = fallbackPath;
             result.NodeFound = true;
-            ProcessResult version = ProcessRunner.Run(result.NodePath, "--version", null, 15000, null, null);
-            string output = version.Output.Replace("\r", "").Replace("\n", " ").Trim();
-            if (version.Started && version.ExitCode == 0 && output.Length > 0)
-            {
-                result.NodeRunnable = true;
-                result.NodeVersion = output;
-            }
+            result.NodeRunnable = fallbackRunnable;
+            result.NodeVersion = fallbackVersion;
         }
 
         // ---------------- npm ----------------
+
+        // npm reads .npmrc from its working directory. Never use the service's
+        // project root or the tray's current directory here: a project-local
+        // .npmrc could change the registry, prefix, cache or script policy of a
+        // global install. A dedicated directory under the per-user data root is
+        // empty unless the same user deliberately puts a file there.
+        internal static string NpmWorkingDirectory(Config config)
+        {
+            try
+            {
+                string root = config != null && !string.IsNullOrEmpty(config.DataDir)
+                    ? config.DataDir
+                    : Path.GetTempPath();
+                string directory = Path.Combine(root, "npm");
+                Directory.CreateDirectory(directory);
+                return directory;
+            }
+            catch (Exception)
+            {
+            }
+
+            try { return Path.GetTempPath(); } catch (Exception) { return null; }
+        }
 
         private static void DetectNpm(Config config, ProbeResult result)
         {
@@ -307,7 +361,7 @@ namespace PiWebTray
             ProcessResult version = ProcessRunner.Run(
                 result.NodePath,
                 Shell.Quote(result.NpmCliPath) + " --version",
-                null, 20000, null, env);
+                NpmWorkingDirectory(config), 20000, null, env);
 
             // A file on disk is not enough: a broken npm must be treated like a missing npm,
             // otherwise the tray claims the environment is ready and every install fails.
@@ -319,7 +373,7 @@ namespace PiWebTray
             if (result.NpmFound) result.NpmVersion = versionLine;
         }
 
-        private static void DetectNpmPrefix(ProbeResult result)
+        private static void DetectNpmPrefix(Config config, ProbeResult result)
         {
             if (!result.NpmFound) return;
 
@@ -328,7 +382,7 @@ namespace PiWebTray
             ProcessResult prefix = ProcessRunner.Run(
                 result.NodePath,
                 Shell.Quote(result.NpmCliPath) + " prefix -g",
-                null, 20000, null, env);
+                NpmWorkingDirectory(config), 20000, null, env);
 
             if (prefix.Started && prefix.ExitCode == 0)
             {
@@ -374,17 +428,24 @@ namespace PiWebTray
             List<string> candidates = new List<string>();
             foreach (string prefix in GlobalRoots(result))
             {
-                candidates.Add(Path.Combine(prefix, "pi.cmd"));
+                // Prefer the actual bundle over the generated shim. A stale
+                // pi.cmd left behind after a partial uninstall must not make the
+                // environment look ready.
                 candidates.Add(Path.Combine(prefix, @"node_modules\@earendil-works\pi-coding-agent\dist\bundle\cli.js"));
+                candidates.Add(Path.Combine(prefix, "pi.cmd"));
             }
 
             foreach (string candidate in candidates)
             {
-                if (!string.IsNullOrEmpty(candidate) && File.Exists(candidate))
+                if (string.IsNullOrEmpty(candidate) || !File.Exists(candidate)) continue;
+                if (string.Equals(Path.GetFileName(candidate), "pi.cmd",
+                        StringComparison.OrdinalIgnoreCase)
+                    && !HasPiCliPackage(Path.GetDirectoryName(candidate)))
                 {
-                    result.PiCliPath = candidate;
-                    break;
+                    continue;
                 }
+                result.PiCliPath = candidate;
+                break;
             }
 
             if (result.PiCliPath.Length == 0) return;
@@ -398,6 +459,23 @@ namespace PiWebTray
                     result.PiCliVersion = ReadPackageVersion(candidate);
                     break;
                 }
+            }
+        }
+
+        // A generated pi.cmd without its package is a stale shim, not an
+        // installed command line. The bundle is the authoritative candidate; this
+        // check only protects the shim fallback.
+        private static bool HasPiCliPackage(string prefix)
+        {
+            if (string.IsNullOrEmpty(prefix)) return false;
+            try
+            {
+                return File.Exists(Path.Combine(prefix,
+                    @"node_modules\@earendil-works\pi-coding-agent\package.json"));
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 

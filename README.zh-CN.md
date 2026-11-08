@@ -109,19 +109,21 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 
 `pi-web-tray.ini` 默认位于 `%LOCALAPPDATA%\pi-web-tray`，不同 Windows 用户不会共享设置；设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁（受保护的系统目录会忽略此设置）。带注释的样例见 [`config/pi-web-tray.ini`](config/pi-web-tray.ini)。
 
-| 键                 | 默认值          | 说明                                                                                                    |
-| ------------------ | --------------- | ------------------------------------------------------------------------------------------------------- |
-| `Port`             | `30141`         | Pi Web 监听端口。                                                                                       |
-| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 Pi 的默认项目目录。                                                                  |
-| `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                                                                |
-| `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                                                             |
-| `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                                                                    |
+| 键                 | 默认值          | 说明                                                                                                                          |
+| ------------------ | --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | Pi Web 监听端口。                                                                                                             |
+| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 Pi 的默认项目目录。                                                                                        |
+| `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                                                                                      |
+| `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                                                                                   |
+| `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                                                                                          |
 | `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。具体版本号/范围不适用于独立版本的 Pi CLI；除非是简单分发标签，否则 Pi CLI 使用 `latest`。 |
-| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                                    |
-| `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。不会配置 Node、npm 或 Pi Web 子进程。 |
-| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                                         |
-| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                                                |
-| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护；用户可写安装目录会被拒绝）。                                          |
+| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                                                          |
+| `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。不会配置 Node、npm 或 Pi Web 子进程。                       |
+| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                                                               |
+| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                                                                      |
+| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护；用户可写安装目录会被拒绝）。                                                                |
+
+依赖安装使用数据目录中独立的 `npm` 文件夹作为工作目录，而不是 `WorkingDir`。因此托盘执行的 npm 命令不会读取项目本地的 `.npmrc`；请改为在用户/全局 npm 配置中设置源和认证信息。
 
 当托盘安装目录可被标准用户修改时，开启管理员自启动会被拒绝，且不会改变当前设置；托盘会显示带详情入口的通知。如果管理员偏好不可用，而用户从主菜单开启自启动，托盘会清除该偏好并改用标准用户自启动。此检查只覆盖托盘安装目录：提权任务还会以管理员令牌运行 Node.js、npm、Pi 和 Pi Web，因此用户可写的配置、Node/npm 路径和工作目录仍然属于管理员攻击面。
 
@@ -176,6 +178,7 @@ cd .\pi-web-tray
 - 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验；更新助手会先将暂存文件复制到受保护快照并重新校验，然后替换文件。发布包未签名，首次运行可能触发 SmartScreen。助手仍接受调用方提供的暂存哈希，它不能替代代码签名。
 - 管理员自启动要求当前 Windows 账户属于 Administrators 组，并为当前用户创建登录任务；标准用户通过其他管理员凭据的 UAC 会被拒绝。任务名包含用户 SID 和命名实例后缀，不会覆盖其他用户的任务。旧版 `PiWebTray` 任务会被报告；下次修改自启动设置时会被移除。
 - `server.log`、`install.log` 和 `update.log` 在 4 MB 时轮转。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行；托盘菜单始终可用。
+- 管理员自启动任务只针对当前 Windows 用户，并且使用电池供电时也不会被阻止或停止；它不会继承启用自启动时的命令行环境。
 
 ## 相关项目
 

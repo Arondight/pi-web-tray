@@ -150,9 +150,11 @@ namespace PiWebTray
         private void PollNodePresence()
         {
             if (!_nodeWatching) return;
+            if (_modalDepth > 0) return;
             // Leave the flag set while an update owns the process; restarting or installing
             // during an update could race with the helper that replaces the executable.
             if (UpdateBusy()) return;
+            if (_nodePromptOpen) return;
             if (Interlocked.Exchange(ref _nodePresenceChanged, 0) == 0) return;
             if (_exiting) return;
 
@@ -170,6 +172,22 @@ namespace PiWebTray
                 // installed Node.js themselves. Refresh the state and wait for an
                 // explicit install/update menu action.
                 BeginEnvironmentCheck(_autoStartService, _initialOpenBrowser, 0, true);
+            }
+            else if (_nodePresent && _phase == Phase.Running)
+            {
+                // A live service keeps working with the already-loaded Node.js.
+                // Do not put it into Checking just to refresh paths; re-probe
+                // before the next start instead.
+                _nodeProbeStale = true;
+            }
+            else if (_nodePresent && _phase != Phase.Checking
+                && DateTime.Now - _lastNodeReprobeAt > TimeSpan.FromSeconds(30))
+            {
+                // A present fingerprint can change without disappearing (Node.js
+                // upgrade/reinstall or a different npm prefix). Refresh the cached
+                // NodePath/PiWebScript while the service is not running.
+                _lastNodeReprobeAt = DateTime.Now;
+                BeginEnvironmentCheck(false, false, 0, true);
             }
         }
 
@@ -210,7 +228,20 @@ namespace PiWebTray
             Thread worker = new Thread(delegate () { WatchNodePresence(generation); });
             worker.IsBackground = true;
             worker.Name = "pi-web-tray node watcher";
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                _nodeWatching = false;
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "could not start Node.js watcher: " + ex.Message);
+                }
+                catch (Exception) { }
+            }
         }
 
         private void StopNodePresenceMonitor()
@@ -548,10 +579,20 @@ namespace PiWebTray
             if (community) body += "\r\n" + L.T("node.communityNote");
 
             DialogResult answer;
-            using (NodePromptForm prompt = new NodePromptForm(
-                L.T("node.missingTitle"), body, true))
+            _nodePromptOpen = true;
+            BeginModal();
+            try
             {
-                answer = prompt.ShowDialog();
+                using (NodePromptForm prompt = new NodePromptForm(
+                    L.T("node.missingTitle"), body, true))
+                {
+                    answer = prompt.ShowDialog();
+                }
+            }
+            finally
+            {
+                EndModal();
+                _nodePromptOpen = false;
             }
             // Esc and the title-bar close button are not a request to exit the tray.
             // Only the explicit Exit button (No) stops the tray.
@@ -564,7 +605,9 @@ namespace PiWebTray
                 return;
             }
 
-            ExitWithoutStoppingService();
+            // Stop only the process tree this tray started. Another pi-web instance
+            // or a service from before the prompt is left alone.
+            ExitWithoutStoppingService(true);
         }
 
         private void RunSelfCheck()
@@ -578,7 +621,16 @@ namespace PiWebTray
                 // thread. Previously the menu action stayed visually idle until the
                 // whole environment probe had finished.
                 ProbeResult initial = _probe ?? new ProbeResult();
-                ProbeResult latest = CheckForm.ShowReport(_config, initial, _elevated, true);
+                ProbeResult latest;
+                BeginModal();
+                try
+                {
+                    latest = CheckForm.ShowReport(_config, initial, _elevated, true);
+                }
+                finally
+                {
+                    EndModal();
+                }
                 ApplyProbeResult(latest);
             }
             catch (Exception ex)

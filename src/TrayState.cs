@@ -28,7 +28,11 @@ namespace PiWebTray
                 {
                     if (char.IsLetterOrDigit(c) || c == '-' || c == '_') sb.Append(c);
                 }
-                string clean = sb.ToString();
+                // Filesystem directories, HKCU Run values and Task Scheduler names
+                // are case-insensitive. Normalize so Dev/dev cannot share a data
+                // directory or autostart entry while getting separate mutex/signal
+                // objects.
+                string clean = sb.ToString().ToLowerInvariant();
                 if (clean.Length == 0) return "";
                 if (clean.Length > 32) clean = clean.Substring(0, 32);
                 return "." + clean;
@@ -119,6 +123,62 @@ namespace PiWebTray
             }
             catch (Exception)
             {
+            }
+        }
+
+        // The tray may run on a port overridden by PI_WEB_TRAY_PORT while the
+        // CLI was started from a shell without that variable. When a live tray
+        // in this session wrote state.ini, use its actual port instead of the
+        // CLI's own configuration.
+        internal static bool TryGetRunningPort(out int port)
+        {
+            port = 0;
+            try
+            {
+                string path = StatePath();
+                if (!File.Exists(path)) return false;
+
+                int pid;
+                if (!int.TryParse(ReadValue("Pid="), out pid) || pid <= 0) return false;
+                if (!Sys.ProcessAlive(pid)) return false;
+
+                int currentSession = Process.GetCurrentProcess().SessionId;
+                int stateSession;
+                if (int.TryParse(ReadValue("Session="), out stateSession)
+                    && stateSession != currentSession)
+                {
+                    return false;
+                }
+                int ownerSession = NativeProcess.SessionId(pid);
+                if (ownerSession >= 0 && ownerSession != currentSession) return false;
+
+                try
+                {
+                    string image = NativeProcess.ImagePath(pid);
+                    if (!string.IsNullOrEmpty(image)
+                        && !string.Equals(Path.GetFullPath(image),
+                            Path.GetFullPath(Application.ExecutablePath),
+                            StringComparison.OrdinalIgnoreCase))
+                    {
+                        return false;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+
+                int value;
+                if (!int.TryParse(ReadValue("Port="), out value)
+                    || value <= 0 || value > 65535)
+                {
+                    return false;
+                }
+                port = value;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 

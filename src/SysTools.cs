@@ -401,8 +401,12 @@ namespace PiWebTray
 
                     foreach (string name in saved.Keys)
                     {
-                        try { Environment.SetEnvironmentVariable(name, null,
-                            EnvironmentVariableTarget.Process); } catch (Exception) { }
+                        try
+                        {
+                            Environment.SetEnvironmentVariable(name, null,
+                            EnvironmentVariableTarget.Process);
+                        }
+                        catch (Exception) { }
                     }
 
                     using (Process child = Process.Start(psi))
@@ -414,8 +418,12 @@ namespace PiWebTray
                 {
                     foreach (KeyValuePair<string, string> pair in saved)
                     {
-                        try { Environment.SetEnvironmentVariable(pair.Key, pair.Value,
-                            EnvironmentVariableTarget.Process); } catch (Exception) { }
+                        try
+                        {
+                            Environment.SetEnvironmentVariable(pair.Key, pair.Value,
+                            EnvironmentVariableTarget.Process);
+                        }
+                        catch (Exception) { }
                     }
                 }
             }

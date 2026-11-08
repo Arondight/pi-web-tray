@@ -28,8 +28,21 @@ namespace PiWebTray
             return new PortOwnerInfo
             {
                 Owner = PortOwner.Unknown,
+                CheckFailed = true,
                 Detail = "port owner check failed"
             };
+        }
+
+        // A failed probe is not a port conflict. Notify once, keep the current
+        // phase, and retry; killing a tracked service on an access/worker error
+        // would turn a transient problem into a service outage.
+        private bool HandleOwnerCheckFailure(PortOwnerInfo owner)
+        {
+            if (owner == null || !owner.CheckFailed) return false;
+            NotifyWarningOnce("owner-check-failed",
+                L.T("notify.ownerCheckFailedTitle"),
+                L.T("notify.ownerCheckFailedBody", _port));
+            return true;
         }
 
         private void BeginOwnerCheck()
@@ -138,6 +151,11 @@ namespace PiWebTray
                 PortOwnerInfo owner = TakeOwnerCheck();
                 if (owner == null) { BeginOwnerCheck(); return; }
                 _resolveAfterOwnerCheck = false;
+                if (HandleOwnerCheckFailure(owner))
+                {
+                    UpdateUi();
+                    return;
+                }
                 // A newer action may have started while this check was in flight.
                 // Never overwrite the state machine for that action with stale phase data.
                 if (_phase == Phase.Installing || _phase == Phase.Starting
@@ -181,6 +199,9 @@ namespace PiWebTray
         // continuation.
         private Phase PhaseFromOwner(PortOwnerInfo owner)
         {
+            // A failed check carries no evidence about the listener. Keep the
+            // current phase rather than turning it into PortConflict.
+            if (owner.CheckFailed) return _phase;
             if (IsOurPiWeb(owner)) return Phase.Running;
             if ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort(owner)) return Phase.Running;
             if (owner.IsUnknown || owner.IsPiWeb) return Phase.PortConflict;
@@ -203,26 +224,12 @@ namespace PiWebTray
             if (_phase == Phase.Checking) _phase = Phase.Stopped;
 
             // Resolve is a one-shot phase decision; never reuse a completed result from
-            // an earlier action.
+            // an earlier action. InvalidateOwnerCheck() clears the slot, so always
+            // start a fresh background check instead of pretending to take a result.
             ServiceProbe.Invalidate();
             InvalidateOwnerCheck();
-            PortOwnerInfo owner = TakeOwnerCheck();
-            if (owner == null)
-            {
-                _resolveAfterOwnerCheck = true;
-                BeginOwnerCheck();
-                return;
-            }
-            _phase = PhaseFromOwner(owner);
-            if (_phase == Phase.Running)
-            {
-                _runningSince = DateTime.Now;
-                _autoRestartAt = DateTime.MinValue;
-            }
-            else
-            {
-                KillTrackedServer();
-            }
+            _resolveAfterOwnerCheck = true;
+            BeginOwnerCheck();
         }
 
         // Must mirror StartServer: a configured script wins only while it still exists;
@@ -287,6 +294,12 @@ namespace PiWebTray
                     BeginOwnerCheck();
                     return;
                 }
+                if (HandleOwnerCheckFailure(owner))
+                {
+                    if (DateTime.Now > _startDeadline)
+                        FailStart(L.T("notify.startFailedTimeout", _port));
+                    return;
+                }
                 if (!IsOurPiWeb(owner) && !TrayOwnsPort(owner))
                 {
                     if (DateTime.Now > _startDeadline)
@@ -346,7 +359,14 @@ namespace PiWebTray
         // wrapper is still alive even though the service no longer listens (a
         // failed startup, a hung node process or a detached child). Without this
         // a later Start would overwrite _server and leave a second process tree.
+        // The process-exit wait is opt-in: the timer/UI paths must not block for
+        // seconds waiting for taskkill, while the final exit path does need it.
         private void KillTrackedServer()
+        {
+            KillTrackedServer(false);
+        }
+
+        private void KillTrackedServer(bool waitForExit)
         {
             Process server = _server;
             _server = null;
@@ -357,7 +377,10 @@ namespace PiWebTray
                 if (!server.HasExited)
                 {
                     Sys.KillTree(server.Id);
-                    try { server.WaitForExit(3000); } catch (Exception) { }
+                    if (waitForExit)
+                    {
+                        try { server.WaitForExit(3000); } catch (Exception) { }
+                    }
                 }
             }
             catch (Exception)
@@ -520,6 +543,13 @@ namespace PiWebTray
                     BeginOwnerCheck();
                     return;
                 }
+                if (HandleOwnerCheckFailure(current))
+                {
+                    // Retry after the normal interval instead of killing a
+                    // service whose owner cannot be read right now.
+                    _lastOwnerCheck = DateTime.Now;
+                    return;
+                }
                 _lastOwnerCheck = DateTime.Now;
                 if (IsOurPiWeb(current)) return;
                 // The command line can be unreadable while cmd still owns the tree;
@@ -546,6 +576,7 @@ namespace PiWebTray
                 BeginOwnerCheck();
                 return;
             }
+            if (HandleOwnerCheckFailure(owner)) return;
             if (IsOurPiWeb(owner)
                 || ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort(owner)))
             {
@@ -658,10 +689,12 @@ namespace PiWebTray
 
         private void BeginReadyCheck()
         {
+            int generation;
             lock (_readyLock)
             {
                 if (_readyCheckRunning) return;
                 _readyCheckRunning = true;
+                generation = _readyGeneration;
             }
 
             Thread worker = new Thread(delegate ()
@@ -669,12 +702,27 @@ namespace PiWebTray
                 bool ok = Net.IsHttpOk("http://127.0.0.1:" + _port + "/", 3000);
                 lock (_readyLock)
                 {
+                    if (generation != _readyGeneration) return;
                     _readyResult = ok ? 1 : -1;
                     _readyCheckRunning = false;
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                // Leave _readyCheckRunning set: retrying a failing thread start in a
+                // tight tick loop only spins. The start deadline will fail the start.
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "could not start readiness check: " + ex.Message);
+                }
+                catch (Exception) { }
+            }
         }
 
         private void ScheduleAutoRestart()
@@ -741,6 +789,17 @@ namespace PiWebTray
         private void StartServer(bool openBrowser)
         {
             if (_exiting) return;
+            // A Node.js upgrade changed the effective paths while the service was
+            // running. Refresh the probe before launching a new process; the live
+            // service was deliberately left in Running.
+            if (_nodeProbeStale && _phase != Phase.Running && _phase != Phase.Starting
+                && _phase != Phase.Stopping && _phase != Phase.Installing
+                && _phase != Phase.Checking)
+            {
+                _nodeProbeStale = false;
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
             // A start request during an environment probe belongs to that probe.
             // Let the in-flight result decide (and start only once), instead of
             // racing it with a second node process.
@@ -819,6 +878,15 @@ namespace PiWebTray
             if (_probe != null && _probe.NeedsNode)
             {
                 BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
+
+            if (owner != null && owner.CheckFailed)
+            {
+                // We could not decide whether the listener is ours. Do not start
+                // a second process and never kill the tracked wrapper here; a
+                // retry will be driven by the next status poll.
+                HandleOwnerCheckFailure(owner);
                 return;
             }
 
@@ -944,6 +1012,7 @@ namespace PiWebTray
 
                 lock (_readyLock)
                 {
+                    _readyGeneration++;
                     _readyResult = 0;
                     _readyCheckRunning = false;
                 }
@@ -977,15 +1046,29 @@ namespace PiWebTray
 
         private void StopServerFromUser()
         {
-            // StopServer refuses to touch the service during an install. Do not mark
-            // that refused request as a user stop, or the install restore/update
-            // policy would incorrectly keep the service down afterwards.
-            if (_phase == Phase.Installing)
-            {
-                StopServer();
-                return;
-            }
+            // A user stop must survive an install that is already stopping or has
+            // already restarted the service. StopServer still refuses to touch npm,
+            // but the install's restore/start intent must be cancelled so the
+            // service does not come back after the install finishes.
             _serviceStoppedByUser = true;
+            _installRestartService = false;
+            _installStartAfter = false;
+            _installOpenAfter = false;
+
+            // A stop requested while an environment probe is deciding whether to
+            // start the service must also cancel that queued start.
+            lock (_checkLock)
+            {
+                _checkThenStart = false;
+                _checkOpenBrowser = false;
+                _checkPendingThenStart = false;
+                _checkPendingOpenBrowser = false;
+                // A dependency install may be queued behind the probe. Keep the
+                // install itself, but do not start the service after it.
+                _installAfterCheckStart = false;
+                _installAfterCheckOpen = false;
+            }
+
             StopServer();
         }
 
@@ -1068,6 +1151,18 @@ namespace PiWebTray
         {
             // The phase may have changed while the owner check ran
             if (_phase == Phase.Stopping || _phase == Phase.Installing) return;
+
+            if (owner != null && owner.CheckFailed)
+            {
+                // Never kill a listener that could not be identified. Preserve
+                // the current service state and let the user retry once the
+                // process probe is available again.
+                _pendingRestart = false;
+                _pendingOpenBrowser = false;
+                HandleOwnerCheckFailure(owner);
+                AbortInstallAfterStop(false);
+                return;
+            }
 
             bool ownedByTray = TrayOwnsPort(owner);
             if (!IsOurPiWeb(owner) && !ownedByTray)

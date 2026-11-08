@@ -12,49 +12,26 @@ namespace PiWebTray
 {
     internal static class Notifications
     {
-        internal static void Show(NotifyIcon tray, string title, string body)
+        // One-at-a-time queueing is managed by TrayApp; this method reports whether
+        // the balloon was actually handed to the shell. A suppressed/failed balloon
+        // lets the caller advance to the next queued notification.
+        internal static bool Show(NotifyIcon tray, string title, string body,
+            ToolTipIcon icon, int timeout)
         {
-            if (tray == null) return;
+            if (tray == null) return false;
             try
             {
                 tray.BalloonTipTitle = Shell.Clip(title, 63);
                 tray.BalloonTipText = Shell.Clip(body, 255);
-                tray.BalloonTipIcon = ToolTipIcon.Info;
-                tray.ShowBalloonTip(5000);
+                tray.BalloonTipIcon = icon;
+                tray.ShowBalloonTip(timeout);
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 
-        internal static void ShowWarning(NotifyIcon tray, string title, string body)
-        {
-            if (tray == null) return;
-            try
-            {
-                tray.BalloonTipTitle = Shell.Clip(title, 63);
-                tray.BalloonTipText = Shell.Clip(body, 255);
-                tray.BalloonTipIcon = ToolTipIcon.Warning;
-                tray.ShowBalloonTip(8000);
-            }
-            catch (Exception)
-            {
-            }
-        }
-
-        internal static void ShowError(NotifyIcon tray, string title, string body)
-        {
-            if (tray == null) return;
-            try
-            {
-                tray.BalloonTipTitle = Shell.Clip(title, 63);
-                tray.BalloonTipText = Shell.Clip(body, 255);
-                tray.BalloonTipIcon = ToolTipIcon.Error;
-                tray.ShowBalloonTip(8000);
-            }
-            catch (Exception)
-            {
-            }
-        }
     }
 }

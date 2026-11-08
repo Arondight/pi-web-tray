@@ -55,7 +55,7 @@ Before a release, manually check:
 - high-DPI scaling and the Settings window on a small screen;
 - log pause/resume and filtering;
 - update cancellation while a download is in progress;
-- update while Pi Web is stopped (service restart after the update);
+- tray self-update while Pi Web is stopped (the tray restarts; the service stays stopped);
 - dependency update while Pi Web is running (service must stop before npm runs);
 - dependency update while Pi Web is stopped (the service must stay stopped);
 - Pi CLI version changes after a forced dependency update;

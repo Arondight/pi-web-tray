@@ -19,6 +19,7 @@ namespace PiWebTray
         private DateTime _lastAdminAutostartRefusal = DateTime.MinValue;
         private bool _existingAdminTaskAuditDone;
         private bool _legacyTaskCache;
+        private bool _legacyTaskEnabledCache;
         private bool _taskEnabledCache;
         private DateTime _legacyTaskCacheAt = DateTime.MinValue;
 
@@ -37,7 +38,7 @@ namespace PiWebTray
         {
             bool task = TaskExists(true);
             bool taskEnabled = task && TaskEnabled(true);
-            bool legacyTask = LegacyTaskExists(true);
+            bool legacyTask = LegacyTaskEnabled(true);
             bool run = IsRunKeyEnabled()
                 && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
                 && Autostart.RunValueApproved();
@@ -83,7 +84,12 @@ namespace PiWebTray
 
             bool previous = _config.AutostartAdmin;
             _config.AutostartAdmin = enable;
-            _config.SetValue("AutostartAdmin", _config.AutostartAdmin ? "1" : "0");
+            if (!_config.SetValue("AutostartAdmin", _config.AutostartAdmin ? "1" : "0"))
+            {
+                _config.AutostartAdmin = previous;
+                NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
+                return;
+            }
             UpdateAutostartItems();
 
             // If autostart is already on, re-apply it in the new mode. If that fails (for
@@ -156,11 +162,19 @@ namespace PiWebTray
         {
             string directory = Path.GetDirectoryName(Application.ExecutablePath)
                 ?? Application.ExecutablePath;
-            MessageBox.Show(
-                L.T("auto.adminWritableDetails", directory),
-                L.T("auto.adminWritableTitle"),
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            BeginModal();
+            try
+            {
+                MessageBox.Show(
+                    L.T("auto.adminWritableDetails", directory),
+                    L.T("auto.adminWritableTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                EndModal();
+            }
         }
 
         // Existing tasks created by older releases are not covered by the toggle-time
@@ -196,11 +210,19 @@ namespace PiWebTray
             string taskName = LegacyTaskExists(false)
                 ? Autostart.LegacyTaskName
                 : Autostart.TaskName;
-            MessageBox.Show(
-                L.T("auto.adminWritableExistingDetails", taskName, directory),
-                L.T("auto.adminWritableExistingTitle"),
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            BeginModal();
+            try
+            {
+                MessageBox.Show(
+                    L.T("auto.adminWritableExistingDetails", taskName, directory),
+                    L.T("auto.adminWritableExistingTitle"),
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                EndModal();
+            }
         }
 
         private void BeginAutostartOp(bool enable, bool admin)
@@ -236,7 +258,20 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                lock (_autoLock)
+                {
+                    _autoMessage = L.T("auto.failed") + "\r\n" + ex.Message;
+                    _autoError = true;
+                    _autoBusy = false;
+                    _autoDone = true;
+                }
+            }
         }
 
         private void PollAutostartOp()
@@ -314,6 +349,21 @@ namespace PiWebTray
             return value;
         }
 
+        private bool LegacyTaskEnabled(bool kickRefresh)
+        {
+            bool value;
+            DateTime at;
+            lock (_taskCacheLock)
+            {
+                value = _legacyTaskEnabledCache;
+                at = _legacyTaskCacheAt;
+            }
+
+            bool stale = at == DateTime.MinValue || DateTime.Now - at > TimeSpan.FromSeconds(10);
+            if (kickRefresh && stale) BeginTaskRefresh();
+            return value;
+        }
+
         private void BeginTaskRefresh()
         {
             lock (_taskCacheLock)
@@ -328,6 +378,8 @@ namespace PiWebTray
                 bool enabled = false;
                 bool matchesExecutable = true;
                 bool legacy = false;
+                bool legacyEnabled = false;
+                bool legacyMatches = false;
                 try
                 {
                     task = Autostart.QueryTaskState(out enabled, out matchesExecutable);
@@ -335,12 +387,17 @@ namespace PiWebTray
                 catch (Exception)
                 {
                 }
-                try { legacy = Autostart.QueryLegacyTask(); } catch (Exception) { }
+                try
+                {
+                    legacy = Autostart.QueryLegacyTaskState(out legacyEnabled, out legacyMatches);
+                }
+                catch (Exception) { }
                 lock (_taskCacheLock)
                 {
                     _taskCache = task;
                     _taskEnabledCache = task && enabled && matchesExecutable;
                     _legacyTaskCache = legacy;
+                    _legacyTaskEnabledCache = legacy && legacyEnabled && legacyMatches;
                     _taskCacheAt = DateTime.Now;
                     _legacyTaskCacheAt = DateTime.Now;
                     _taskRefreshRunning = false;
@@ -348,7 +405,24 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "could not start autostart state worker: " + ex.Message);
+                }
+                catch (Exception) { }
+                lock (_taskCacheLock)
+                {
+                    _taskRefreshRunning = false;
+                    _taskRefreshDone = true;
+                }
+            }
         }
 
         private void PollTaskRefresh()
@@ -368,7 +442,7 @@ namespace PiWebTray
                 // Only replace the Run value when the scheduled task is actually
                 // usable. A disabled task plus a working Run value is still the
                 // user's only working startup path.
-                if ((TaskEnabled(false) || LegacyTaskExists(false))
+                if ((TaskEnabled(false) || LegacyTaskEnabled(false))
                     && IsRunKeyEnabled() && !AutostartBusy())
                 {
                     Autostart.ClearRunValue();

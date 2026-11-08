@@ -489,7 +489,7 @@ namespace PiWebTray
                         }
                         else
                         {
-                            started = LaunchViaExplorerCommand(dataDir, target, args, logPath) != null;
+                            started = LaunchViaExplorerCommand(target, args, logPath) != null;
                         }
 
                         if (started)
