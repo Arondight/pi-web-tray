@@ -281,6 +281,41 @@ namespace PiWebTray
 
                 // The software table occupies the Percent row; growing the form must
                 // grow the table instead of leaving an empty row below it.
+                DataGridView softwareTable = null;
+                foreach (DataGridView table in FindControls<DataGridView>(form))
+                {
+                    if (table.Columns.Count == 2 && table.Rows.Count == 10)
+                    {
+                        softwareTable = table;
+                        break;
+                    }
+                }
+                Assert.IsNotNull(softwareTable, "The software table must exist.");
+                GroupBox softwareGroup = softwareTable.Parent as GroupBox;
+                Assert.IsNotNull(softwareGroup, "The software table must be in a group.");
+
+                // The default window must fit the report instead of opening with a
+                // large empty strip between the last table row and the buttons.
+                int contentHeight = softwareTable.ColumnHeadersHeight
+                    + softwareTable.Rows.GetRowsHeight(DataGridViewElementStates.Visible) + 4;
+                Assert.IsTrue(softwareTable.Height - contentHeight <= 8,
+                    "The software table must not open with a large empty strip below its rows.");
+
+                Button firstButton = FindControls<Button>(form)[0];
+                FlowLayoutPanel buttonRow = firstButton.Parent as FlowLayoutPanel;
+                Assert.IsNotNull(buttonRow, "The buttons must live in a button row.");
+                Assert.IsTrue(buttonRow.Top - softwareGroup.Bottom <= 10,
+                    "The table and the button row must not be separated by a large gap.");
+
+                // Refreshing replaces the rows and summary. It must not turn the
+                // software group into an AutoSize control again.
+                form.ApplyProbe(probe, false, null);
+                form.FitForDisplay();
+                Assert.IsTrue(softwareTable.Height - contentHeight <= 8,
+                    "A refreshed report must not leave a large empty strip.");
+                Assert.IsTrue(buttonRow.Top - softwareGroup.Bottom <= 10,
+                    "A refreshed report must not leave a gap above the buttons.");
+
                 form.ClientSize = new Size(1000, 800);
                 form.PerformLayout();
                 bool softwareTableGrew = false;

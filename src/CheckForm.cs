@@ -23,6 +23,7 @@ namespace PiWebTray
         private readonly Button _refresh;
         private ProbeResult _probe;
         private bool _refreshing;
+        private bool _userResized;
         private readonly bool _refreshOnShown;
 
         internal CheckForm(Config config, ProbeResult probe, bool elevated)
@@ -121,6 +122,9 @@ namespace PiWebTray
             ResumeLayout(false);
             PerformLayout();
 
+            // Do not re-fit after the user has chosen a window size. The initial
+            // content fit and the post-probe fit are allowed to resize the form.
+            ResizeBegin += delegate { _userResized = true; };
             CancelButton = close;
         }
 
@@ -273,6 +277,7 @@ namespace PiWebTray
             // group lives in the Percent row and fills the remaining height; only
             // the runtime table needs a content-derived height.
             FitGridHeight(_runtimeGrid);
+            FitInitialHeight();
         }
 
         protected override void OnShown(EventArgs e)
@@ -282,22 +287,62 @@ namespace PiWebTray
             else RefreshPortOwner();
         }
 
+        private static int GridContentHeight(DataGridView grid)
+        {
+            int rowHeight = grid.Rows.GetRowsHeight(DataGridViewElementStates.Visible);
+            if (rowHeight <= 0) rowHeight = grid.Rows.Count * grid.RowTemplate.Height;
+            int headerHeight = grid.ColumnHeadersHeight;
+            if (headerHeight <= 0) headerHeight = grid.RowTemplate.Height;
+            return Math.Max(60, headerHeight + rowHeight + 4);
+        }
+
         private static void FitGridHeight(DataGridView grid)
         {
             try
             {
-                int rowHeight = grid.Rows.GetRowsHeight(DataGridViewElementStates.Visible);
-                if (rowHeight <= 0) rowHeight = grid.Rows.Count * grid.RowTemplate.Height;
-                int headerHeight = grid.ColumnHeadersHeight;
-                if (headerHeight <= 0) headerHeight = grid.RowTemplate.Height;
                 grid.Dock = DockStyle.Top;
-                grid.Height = Math.Max(60, headerHeight + rowHeight + 4);
+                grid.Height = GridContentHeight(grid);
                 GroupBox group = grid.Parent as GroupBox;
                 if (group != null)
                 {
                     group.AutoSize = true;
                     group.AutoSizeMode = AutoSizeMode.GrowAndShrink;
                     group.PerformLayout();
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        // The software table is deliberately NOT fitted to its rows. It lives in
+        // the Percent row and must keep filling the space above the button row.
+        // Instead, shrink the whole dialog to its current content so the default
+        // window does not open with a large empty grid area. Resizing the window
+        // later still lets the table absorb the extra height.
+        private void FitInitialHeight()
+        {
+            try
+            {
+                if (WindowState != FormWindowState.Normal) return;
+                PerformLayout();
+                GroupBox softwareGroup = _softwareGrid.Parent as GroupBox;
+                if (softwareGroup == null) return;
+
+                int groupChrome = Math.Max(0, softwareGroup.Height - _softwareGrid.Height);
+                int desiredGroup = Math.Max(softwareGroup.MinimumSize.Height,
+                    GridContentHeight(_softwareGrid) + groupChrome);
+                int desiredClient = ClientSize.Height + (desiredGroup - softwareGroup.Height);
+
+                int chrome = Height - ClientSize.Height;
+                int maxClient = Math.Max(300,
+                    Screen.FromControl(this).WorkingArea.Height - chrome - 20);
+                int minClient = Math.Max(300, MinimumSize.Height - chrome);
+                int height = Math.Max(minClient, Math.Min(desiredClient, maxClient));
+                if (height != ClientSize.Height)
+                {
+                    ClientSize = new Size(ClientSize.Width, height);
+                    PerformLayout();
                 }
             }
             catch (Exception)
@@ -388,6 +433,17 @@ namespace PiWebTray
             AddInfoRow(grid, L.T("sc.updateLog"), _config.UpdateLogFile);
         }
 
+        // Apply a probe result without running the background probe. Used by the
+        // refresh callback and by layout tests.
+        internal void ApplyProbe(ProbeResult probe, bool listening, PortOwnerInfo owner)
+        {
+            _probe = probe;
+            PopulateRuntimeGrid(_runtimeGrid);
+            PopulateSoftwareGrid(_softwareGrid, listening, owner);
+            FitGridHeight(_runtimeGrid);
+            _summary.Text = BuildSummary();
+        }
+
         private void RefreshReport()
         {
             if (_refreshing) return;
@@ -441,12 +497,11 @@ namespace PiWebTray
                                 return;
                             }
 
-                            _probe = result;
-                            PopulateRuntimeGrid(_runtimeGrid);
-                            PopulateSoftwareGrid(_softwareGrid, listening, owner);
-                            FitGridHeight(_runtimeGrid);
-                            FitGridHeight(_softwareGrid);
-                            _summary.Text = BuildSummary();
+                            ApplyProbe(result, listening, owner);
+                            // The summary can grow after the probe. Re-fit unless the
+                            // user has already chosen a window size.
+                            if (!_userResized) FitInitialHeight();
+                            else PerformLayout();
                         }));
                     }
                 }
