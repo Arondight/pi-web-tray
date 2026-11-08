@@ -173,7 +173,9 @@ namespace PiWebTray
             }
         }
 
-        private static List<CultureInfo> InstalledCultures()
+        // Used by the settings dialog so additional satellite languages can be
+        // selected and are not reset to "auto" when the dialog is saved.
+        internal static List<CultureInfo> InstalledCultures()
         {
             List<CultureInfo> cultures = new List<CultureInfo>();
             HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

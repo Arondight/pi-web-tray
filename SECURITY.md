@@ -26,7 +26,7 @@ Pi Web Tray is a local desktop launcher. It:
 
 - runs with the normal user's token by default (`asInvoker` in the manifest);
 - runs elevated only when the user explicitly chooses "Run as administrator" or enables administrator start-at-login;
-- starts `node` / `npm` with the current process token and never requests credentials; elevated node/npm children have user-controlled Node/npm/.NET injection variables removed, but the tray and helper processes themselves still inherit the environment they were started with;
+- starts `node` / `npm` with the current process token and never requests credentials; elevated node/npm children have user-controlled Node/npm/.NET injection variables removed; before a UAC launch the tray also removes .NET profiler/startup-hook variables (`COR_*`, `CORECLR_*`, `COMPlus_*`, `DOTNET_*`) from its process environment on a best-effort basis, but other inherited environment variables remain;
 - reads `pi-web-tray.ini` and environment variables controlled by the current user;
 - creates an `HKCU\...\Run` value or an on-logon scheduled task only when the user turns on start-at-login; the administrator task is created only after UAC approval, only for a protected installation directory, and only when the current Windows account belongs to the Administrators group (standard-user over-the-shoulder UAC is refused); its name includes the user SID and named-instance suffix, so users and instances do not overwrite each other's task; the legacy `PiWebTray` task is audited and removed when autostart is next changed;
 - identifies the process that owns the configured port and reports a port conflict instead of treating or killing an unrelated listener as Pi Web;

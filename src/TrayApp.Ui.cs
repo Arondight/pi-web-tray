@@ -112,7 +112,14 @@ namespace PiWebTray
             string suffix = _elevated ? L.T("status.admin") : "";
             try { _tray.Text = Shell.Clip(L.T("status.tooltip", label + suffix), 63); } catch (Exception) { }
 
-            _statusItem.Text = (_phase == Phase.Running ? L.T("status.bulletOn") : L.T("status.bulletOff")) + label + (_elevated ? L.T("status.adminLong") : "");
+            string statusText = (_phase == Phase.Running ? L.T("status.bulletOn") : L.T("status.bulletOff"))
+                + label + (_elevated ? L.T("status.adminLong") : "");
+            // The status line can contain the last npm output line. Keep the menu
+            // readable for long localized strings and expose the full text as a tooltip.
+            _statusItem.ToolTipText = statusText;
+            // ToolStrip text treats '&' as a mnemonic marker. npm output and paths
+            // can contain it; double it so the status remains verbatim.
+            _statusItem.Text = Shell.Clip(statusText, 100).Replace("&", "&&");
 
             bool applying = _updateStage == UpdateStage.Applying;
             bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
@@ -132,7 +139,7 @@ namespace PiWebTray
             // Keep normal open/stop/restart actions available; only Applying is exclusive.
             _openItem.Enabled = !serviceBusy && !portConflict && !applying;
             _startItem.Enabled = !serviceBusy && !running && canRun && !portConflict && !applying;
-            _stopItem.Enabled = running && !applying;
+            _stopItem.Enabled = (running || _phase == Phase.Starting) && !applying;
             _restartItem.Enabled = !serviceBusy && running && !applying;
             _installItem.Enabled = !busy;
             // When the service is installed the action updates/reinstalls it; when
@@ -193,7 +200,27 @@ namespace PiWebTray
                 return;
             }
             if (_phase == Phase.Running) { OpenBrowser(); return; }
-            if (_phase == Phase.Installing || _phase == Phase.Checking) return;
+            if (_phase == Phase.Stopped && _probe != null && _probe.NeedsPiWeb)
+            {
+                // The service may have been running when a self-check found the
+                // package missing. Once it stops, a click on Open should repair the
+                // dependency instead of only showing a warning.
+                if (UpdateBusy())
+                {
+                    NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
+                    return;
+                }
+                BeginInstall(false, true, true);
+                return;
+            }
+            if (_phase == Phase.Installing) return;
+            if (_phase == Phase.Checking)
+            {
+                // A click while the first probe is running should not be lost. Queue
+                // an explicit start/open request behind the in-flight check instead.
+                BeginEnvironmentCheck(true, true);
+                return;
+            }
             if (_phase == Phase.Starting)
             {
                 // A silent start (autostart or post-update) may not have asked for a
@@ -290,6 +317,22 @@ namespace PiWebTray
             }
         }
 
+        // A foreign listener on the old port must not prevent the user from choosing
+        // a free port. Only a service phase that may still manage the old listener (or
+        // a tracked wrapper that actually owns it) blocks the change; PortConflict is
+        // explicitly allowed because changing the port is the resolution path.
+        internal static bool CanApplyPortChange(Phase phase, bool oldPortListening,
+            bool trackedServiceAlive)
+        {
+            if (phase == Phase.Running || phase == Phase.Starting || phase == Phase.Stopping
+                || phase == Phase.Installing || phase == Phase.Checking)
+            {
+                return false;
+            }
+            bool trackedServiceOwnsPort = oldPortListening && trackedServiceAlive;
+            return !trackedServiceOwnsPort || phase == Phase.PortConflict;
+        }
+
         private void ShowSettings()
         {
             if (_exiting) return;
@@ -311,11 +354,12 @@ namespace PiWebTray
                     {
                         // The state can change while the modal dialog is open (for example
                         // an auto-restart or a start signal). Never adopt a new port while
-                        // a service may still own the old one.
-                        bool canApplyPort = _phase != Phase.Running && _phase != Phase.Starting
-                            && _phase != Phase.Stopping && _phase != Phase.Installing
-                            && _phase != Phase.Checking
-                            && (_phase == Phase.PortConflict || !Net.IsPortOpen(previousPort, 200));
+                        // the service this tray started may still own the old one. A foreign
+                        // program on the old port must not block the configuration change:
+                        // changing the port is exactly how the user resolves a conflict.
+                        bool oldPortListening = Net.IsPortOpen(previousPort, 200);
+                        bool canApplyPort = CanApplyPortChange(_phase, oldPortListening,
+                            _server != null && !_server.HasExited);
                         if (!canApplyPort)
                         {
                             _config.Port = previousPort;
@@ -330,6 +374,10 @@ namespace PiWebTray
                         }
                         else
                         {
+                            // No usable service owns the old port. If a tracked
+                            // wrapper survived a failed start, release it before the
+                            // tray starts using a different port.
+                            KillTrackedServer();
                             _port = _config.Port;
                             // A probe for the old port may still be in flight. Drop it
                             // and every action that was waiting for it; otherwise a

@@ -134,6 +134,24 @@ namespace PiWebTray
             return trimmed;
         }
 
+        // Pi Web and the Pi CLI are independent packages with independent versions.
+        // A single exact version/range cannot be valid for both, so only simple dist
+        // tags (latest, next, beta, ...) are reused for the CLI. An exact Pi Web pin
+        // keeps the CLI on latest instead of failing the whole update.
+        internal static string PiCliTag(Config config)
+        {
+            string tag = SafeTag(config == null ? "latest" : config.InstallTag);
+            if (string.IsNullOrEmpty(tag) || IsExactVersionTag(tag)) return "latest";
+
+            foreach (char c in tag)
+            {
+                bool simple = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+                    || c == '-' || c == '_';
+                if (!simple) return "latest";
+            }
+            return tag;
+        }
+
         // Used by the console --install path before stopping a running service: an
         // up-to-date installation must not be stopped or restarted just to print "none".
         internal static bool HasInstallWork(Config config)
@@ -166,22 +184,24 @@ namespace PiWebTray
         internal static List<InstallStep> StepsToInstall(ProbeResult probe, Config config, bool force)
         {
             List<InstallStep> steps = new List<InstallStep>();
-            string tag = SafeTag(config.InstallTag);
+            string webTag = SafeTag(config.InstallTag);
+            string cliTag = PiCliTag(config);
 
             if (force || !probe.PiWebFound)
             {
                 InstallStep web = new InstallStep();
-                web.Packages.Add(Config.InstallerPackage + "@" + tag);
+                web.Packages.Add(Config.InstallerPackage + "@" + webTag);
                 web.AllowScripts = true;
                 steps.Add(web);
             }
 
             // When pi-web is being installed, also update the pi CLI even if an older
             // version is already present. First-run auto-install must not leave pi stale.
+            // Exact Pi Web versions/ranges are not applied to the independent CLI package.
             if (force || !probe.PiWebFound || !probe.PiCliFound)
             {
                 InstallStep cli = new InstallStep();
-                cli.Packages.Add(Config.PiCliPackage + "@" + tag);
+                cli.Packages.Add(Config.PiCliPackage + "@" + cliTag);
                 cli.IgnoreScripts = true;
                 steps.Add(cli);
             }
@@ -495,10 +515,11 @@ namespace PiWebTray
                 // Exit code 0 does not prove anything (npm 12 can exit 0 while blocking install scripts), so re-probe
                 ProbeResult after = EnvironmentProbe.Detect(config);
                 string tag = SafeTag(config.InstallTag);
+                string cliTag = PiCliTag(config);
                 bool piWebOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.InstallerPackage + "@" + tag); })
                     || (after.PiWebFound && VersionMatchesTag(after.PiWebVersion, tag));
-                bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + tag); })
-                    || (after.PiCliFound && VersionMatchesTag(after.PiCliVersion, tag));
+                bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + cliTag); })
+                    || (after.PiCliFound && VersionMatchesTag(after.PiCliVersion, cliTag));
 
                 if (ok && piWebOk && piCliOk)
                 {
@@ -573,7 +594,10 @@ namespace PiWebTray
 
         internal static bool VersionMatchesTag(string installed, string tag)
         {
-            if (!IsExactVersionTag(tag) || string.IsNullOrEmpty(installed)) return true;
+            if (!IsExactVersionTag(tag)) return true;
+            // An exact tag with an unreadable/missing installed version is not proof of
+            // success. Only a non-exact dist tag/range can fall back to presence alone.
+            if (string.IsNullOrEmpty(installed)) return false;
             // An exact stable tag must not accept a pre-release package just because
             // VersionUtil compares the numeric prefix.
             if (installed.IndexOf('-') >= 0) return false;
@@ -585,7 +609,7 @@ namespace PiWebTray
         internal static bool IsPiCliStep(InstallStep step, Config config)
         {
             if (step == null || step.AllowScripts) return false;
-            string tag = SafeTag(config.InstallTag);
+            string tag = PiCliTag(config);
             return step.Packages.Count == 1
                 && string.Equals(step.Packages[0], Config.PiCliPackage + "@" + tag, StringComparison.Ordinal);
         }

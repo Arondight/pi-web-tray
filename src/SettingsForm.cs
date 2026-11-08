@@ -152,6 +152,11 @@ namespace PiWebTray
             _npmRegistry.Text = config.NpmRegistry ?? "";
             AddRow(root, 7, L.T("settings.npmRegistry"), _npmRegistry);
 
+            _nodePath = new TextBox();
+            _nodePath.Text = config.NodePath ?? "";
+            AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
+                L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|Executables (*.exe)|*.exe"); });
+
             _proxy = new TextBox();
             _proxy.Text = config.Proxy ?? "";
             _testProxy = new Button();
@@ -177,11 +182,6 @@ namespace PiWebTray
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
             AddRow(root, 9, L.T("settings.proxy"), proxyLine);
-
-            _nodePath = new TextBox();
-            _nodePath.Text = config.NodePath ?? "";
-            AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
-                L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|*.exe|*.exe"); });
 
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
@@ -218,10 +218,11 @@ namespace PiWebTray
             restart.MinimumSize = new Size(112, 0);
             restart.Click += delegate { SaveSettings(true); };
 
-            // FlowDirection is RightToLeft: the first control is rightmost.
-            // Put Save and restart immediately to the right of Save.
-            buttons.Controls.Add(restart);
+            // FlowDirection is RightToLeft: the first control is rightmost. Keep the
+            // primary Save action rightmost, put Save and restart immediately to its
+            // left, and Cancel at the far left as in standard Windows dialogs.
             buttons.Controls.Add(save);
+            buttons.Controls.Add(restart);
             buttons.Controls.Add(cancel);
             _buttons = buttons;
 
@@ -329,26 +330,70 @@ namespace PiWebTray
             _language.Items.Add(new LanguageOption { Value = "zh", Text = L.T("settings.langZh") });
             _language.Items.Add(new LanguageOption { Value = "zh-Hant", Text = L.T("settings.langZhHant") });
 
+            // Localization supports additional Resources\Strings.<culture>.resx
+            // satellites. Expose every installed satellite instead of silently
+            // replacing an unknown configured language with "auto".
+            foreach (CultureInfo culture in L.InstalledCultures())
+            {
+                if (string.Equals(culture.Name, "zh-Hans", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(culture.Name, "zh-Hant", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(culture.Name, "en", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                AddLanguageOption(culture.Name,
+                    string.IsNullOrEmpty(culture.NativeName) ? culture.Name : culture.NativeName);
+            }
+
             string wanted = (current ?? L.Auto).Trim();
             if (wanted.Length == 0) wanted = L.Auto;
 
-            // "zh-Hans", "zh-CN" and similar values resolve to the "zh" choice;
-            // "en-US" resolves to English, and "auto" stays automatic.
-            if (!string.Equals(wanted, L.Auto, StringComparison.OrdinalIgnoreCase))
-                wanted = L.Current;
+            int index = FindLanguageIndex(wanted);
+            if (index < 0 && !string.Equals(wanted, L.Auto, StringComparison.OrdinalIgnoreCase))
+            {
+                // "zh-CN" / "en-US" and similar aliases resolve to the canonical
+                // choice. If no installed resource matches either form, preserve the
+                // raw value so saving the dialog does not lose the user's setting.
+                string normalized = wanted.ToLowerInvariant().Replace('_', '-');
+                bool knownAlias = normalized.StartsWith("zh", StringComparison.Ordinal)
+                    || normalized.StartsWith("en", StringComparison.Ordinal)
+                    || normalized == "chinese" || normalized == "english";
+                if (knownAlias) index = FindLanguageIndex(L.Current);
+                if (index < 0)
+                {
+                    AddLanguageOption(wanted, wanted);
+                    index = _language.Items.Count - 1;
+                }
+            }
+            _language.SelectedIndex = index < 0 ? 0 : index;
+        }
 
-            int index = 0;
+        private void AddLanguageOption(string value, string text)
+        {
+            for (int i = 0; i < _language.Items.Count; i++)
+            {
+                LanguageOption existing = _language.Items[i] as LanguageOption;
+                if (existing != null
+                    && string.Equals(existing.Value, value, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+            _language.Items.Add(new LanguageOption { Value = value, Text = text });
+        }
+
+        private int FindLanguageIndex(string value)
+        {
             for (int i = 0; i < _language.Items.Count; i++)
             {
                 LanguageOption option = _language.Items[i] as LanguageOption;
-                if (option == null) continue;
-                if (string.Equals(option.Value, wanted, StringComparison.OrdinalIgnoreCase))
+                if (option != null
+                    && string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase))
                 {
-                    index = i;
-                    break;
+                    return i;
                 }
             }
-            _language.SelectedIndex = index;
+            return -1;
         }
 
         private static void AddRow(TableLayoutPanel root, int row, string labelText, Control control)

@@ -147,7 +147,17 @@ namespace PiWebTray
                     return;
                 }
                 _phase = PhaseFromOwner(owner);
-                if (_phase == Phase.Running) _runningSince = DateTime.Now;
+                if (_phase == Phase.Running)
+                {
+                    _runningSince = DateTime.Now;
+                    _autoRestartAt = DateTime.MinValue;
+                }
+                else
+                {
+                    // A resolved Stopped/PortConflict state means the tracked wrapper
+                    // is not serving this port. Do not leave it behind.
+                    KillTrackedServer();
+                }
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
@@ -204,7 +214,15 @@ namespace PiWebTray
                 return;
             }
             _phase = PhaseFromOwner(owner);
-            if (_phase == Phase.Running) _runningSince = DateTime.Now;
+            if (_phase == Phase.Running)
+            {
+                _runningSince = DateTime.Now;
+                _autoRestartAt = DateTime.MinValue;
+            }
+            else
+            {
+                KillTrackedServer();
+            }
         }
 
         // Must mirror StartServer: a configured script wins only while it still exists;
@@ -273,6 +291,20 @@ namespace PiWebTray
                 {
                     if (DateTime.Now > _startDeadline)
                         FailStart(L.T("notify.startFailedTimeout", _port));
+                    else if (owner.IsUnknown || owner.IsPiWeb)
+                    {
+                        // A listener that is not ours took the port while we were
+                        // starting. Do not keep the orange Starting state for three
+                        // minutes; report the conflict immediately and release our
+                        // process tree.
+                        KillTrackedServer();
+                        _phase = Phase.PortConflict;
+                        _openWhenReady = false;
+                        _pendingRestart = false;
+                        _autoRestartAt = DateTime.MinValue;
+                        UpdateUi();
+                        NotifyPortConflict();
+                    }
                     return;
                 }
 
@@ -310,6 +342,33 @@ namespace PiWebTray
                 FailStart(L.T("notify.startFailedTimeout", _port));
         }
 
+        // Kill and release the process tree this tray started. Used when the
+        // wrapper is still alive even though the service no longer listens (a
+        // failed startup, a hung node process or a detached child). Without this
+        // a later Start would overwrite _server and leave a second process tree.
+        private void KillTrackedServer()
+        {
+            Process server = _server;
+            _server = null;
+            if (server == null) return;
+
+            try
+            {
+                if (!server.HasExited)
+                {
+                    Sys.KillTree(server.Id);
+                    try { server.WaitForExit(3000); } catch (Exception) { }
+                }
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                try { server.Dispose(); } catch (Exception) { }
+            }
+        }
+
         private void FailStart(string reason)
         {
             ClearPendingOwnerActions(false);
@@ -317,13 +376,7 @@ namespace PiWebTray
             _phase = Phase.Failed;
             _openWhenReady = false;
             _pendingRestart = false;
-            try
-            {
-                if (_server != null && !_server.HasExited) Sys.KillTree(_server.Id);
-            }
-            catch (Exception)
-            {
-            }
+            KillTrackedServer();
             UpdateUi();
             NotifyError(L.T("notify.startFailedTitle"), L.T("notify.startFailedBody", reason),
                 delegate { ShowLog(_config.LogFile, L.T("log.serverTitle")); });
@@ -416,6 +469,9 @@ namespace PiWebTray
                 InvalidateOwnerCheck();
                 if (_phase == Phase.Running)
                 {
+                    // The listener is gone. The wrapper (cmd) or a detached node
+                    // child can still be alive; keep it from becoming an orphan.
+                    KillTrackedServer();
                     _phase = Phase.Stopped;
                     UpdateUi();
                     NotifyWarningOnce("service-stopped",
@@ -433,15 +489,26 @@ namespace PiWebTray
                 }
                 else if (_phase == Phase.PortConflict)
                 {
+                    KillTrackedServer();
                     _phase = Phase.Stopped;
                     _lastNotified = "";
                     UpdateUi();
+                }
+                else
+                {
+                    // In any stable phase a closed port means a still-live wrapper is
+                    // stale (for example after a probe reclassified the service while
+                    // a previous process was still finishing). Release it.
+                    KillTrackedServer();
                 }
                 return;
             }
 
             if (_phase == Phase.Running)
             {
+                // A service that is already listening does not need a pending restart;
+                // clear a timer that was armed before the service recovered on its own.
+                _autoRestartAt = DateTime.MinValue;
                 // Re-verify occasionally so a different listener taking the port does not
                 // stay green forever. Critical stop/exit paths also invalidate the cache.
                 // _lastOwnerCheck is only advanced when a result is consumed, so an
@@ -459,6 +526,9 @@ namespace PiWebTray
                 // the tracked child is enough evidence in that case.
                 if ((current.IsUnknown || current.IsPiWeb) && TrayOwnsPort(current)) return;
 
+                // The listener is not ours. Release any stale wrapper before
+                // switching to the conflict/stopped state.
+                KillTrackedServer();
                 _phase = (current.IsUnknown || current.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
@@ -482,6 +552,7 @@ namespace PiWebTray
                 _phase = Phase.Running;
                 _lastNotified = "";
                 _lastOwnerCheck = DateTime.Now;
+                _autoRestartAt = DateTime.MinValue;
                 _runningSince = DateTime.Now;
                 _restartAfterUpdate = false;
                 UpdateUi();
@@ -490,6 +561,7 @@ namespace PiWebTray
             {
                 if (_phase != Phase.PortConflict)
                 {
+                    KillTrackedServer();
                     _phase = Phase.PortConflict;
                     UpdateUi();
                     NotifyPortConflict();
@@ -538,6 +610,22 @@ namespace PiWebTray
                 delegate { ShowSettings(); });
         }
 
+        // A probe can report missing Pi CLI (or even missing Node.js) while the
+        // already loaded service keeps listening. Do not downgrade a live service
+        // to NeedsDeps/NeedsNode: that would disable Stop and turn Open into an
+        // install action. Keep Running and let the owner check decide whether the
+        // listener is still ours.
+        private bool KeepRunningWhenListening()
+        {
+            if (_phase != Phase.Running) return false;
+            if (!Net.IsPortOpen(_port, 200)) return false;
+
+            RequestResolveServicePhase();
+            UpdateUi();
+            if (_phase == Phase.PortConflict) NotifyPortConflict();
+            return true;
+        }
+
         private void ApplyProbeResult(ProbeResult result)
         {
             if (result == null) return;
@@ -548,6 +636,8 @@ namespace PiWebTray
             _probe = result;
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
+
+            if (KeepRunningWhenListening()) return;
 
             if (result.NeedsNode)
             {
@@ -656,6 +746,10 @@ namespace PiWebTray
             // racing it with a second node process.
             if (_phase == Phase.Checking)
             {
+                // This is an explicit start request, even while the probe is in
+                // flight. It must override a previous deliberate stop; otherwise a
+                // later update could think the user still wants the service down.
+                _serviceStoppedByUser = false;
                 bool deferred = false;
                 lock (_checkLock)
                 {
@@ -749,12 +843,14 @@ namespace PiWebTray
                         _phase = Phase.Running;
                         _lastNotified = "";
                         _lastOwnerCheck = DateTime.Now;
+                        _autoRestartAt = DateTime.MinValue;
                         _runningSince = DateTime.Now;
                         _restartAfterUpdate = false;
                         UpdateUi();
                         if (openBrowser) OpenBrowser();
                         return;
                     }
+                    KillTrackedServer();
                     _phase = Phase.PortConflict;
                     UpdateUi();
                     NotifyPortConflict();
@@ -763,6 +859,11 @@ namespace PiWebTray
                 // The listener disappeared between the check and the inspection:
                 // continue and try to start the service.
             }
+
+            // The port is not owned by a listener at this point. If an older tracked
+            // wrapper is still alive, it is stale; terminate it before starting a new
+            // process tree.
+            KillTrackedServer();
 
             string script = ExpectedPiWebScript();
 
@@ -902,7 +1003,11 @@ namespace PiWebTray
             if (_phase == Phase.Checking || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
                 || _phase == Phase.Installing || _phase == Phase.Failed)
             {
-                if (!Net.IsPortOpen(_port, 200)) return;
+                if (!Net.IsPortOpen(_port, 200))
+                {
+                    KillTrackedServer();
+                    return;
+                }
             }
 
             if (_phase == Phase.Starting)
@@ -911,13 +1016,7 @@ namespace PiWebTray
                 // deadline. The tree kill is asynchronous; PollStopping confirms the port is gone.
                 _pendingRestart = false;
                 _pendingOpenBrowser = false;
-                try
-                {
-                    if (_server != null && !_server.HasExited) Sys.KillTree(_server.Id);
-                }
-                catch (Exception)
-                {
-                }
+                KillTrackedServer();
                 InvalidateOwnerCheck();
                 _phase = Phase.Stopping;
                 _stopDeadline = DateTime.Now.AddSeconds(10);
@@ -934,6 +1033,7 @@ namespace PiWebTray
 
             if (!Net.IsPortOpen(_port, 300))
             {
+                KillTrackedServer();
                 _phase = Phase.Stopped;
                 UpdateUi();
                 if (_pendingRestart)
@@ -974,6 +1074,10 @@ namespace PiWebTray
             {
                 _pendingRestart = false;
                 _pendingOpenBrowser = false;
+                // Our wrapper may still be alive (for example a failed bind while a
+                // foreign program owns the port). It cannot be the service we want to
+                // keep, so do not leave it behind.
+                KillTrackedServer();
                 _phase = (owner.IsUnknown || owner.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
@@ -1032,13 +1136,15 @@ namespace PiWebTray
         }
 
         // Shared by the helper start mode and the post-update restart decision.
-        // A user-requested stop during an update must win over AutoRestart.
+        // A user-requested stop during an update must win over AutoRestart. A service
+        // that was already running when the update began must also be restored even
+        // when AutoRestart is off; AutoRestart only governs crash recovery, not the
+        // deliberate stop performed by the updater itself.
         internal static bool ShouldRestartServiceAfterUpdate(bool startedWithServiceRunning,
             bool autoRestart, bool stoppedByUser, bool restartAfterUpdate)
         {
             if (stoppedByUser) return false;
-            return restartAfterUpdate
-                || (autoRestart && startedWithServiceRunning);
+            return restartAfterUpdate || startedWithServiceRunning;
         }
 
         private void RestartServer(bool openBrowser)

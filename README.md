@@ -116,14 +116,14 @@ Exit and stop service
 | `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                                                                         |
 | `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                                                                         |
 | `AutoCheckUpdates` | `0`             | Check for a tray update after startup.                                                                                                           |
-| `InstallTag`       | `latest`        | npm distribution tag or exact version.                                                                                                           |
+| `InstallTag`       | `latest`        | Pi Web npm distribution tag or exact version. Exact versions/ranges do not apply to the independently versioned Pi CLI; it stays on `latest` unless the tag is a simple dist-tag. |
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                                                                          |
 | `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads; empty uses the system proxy. Node, npm and Pi Web child processes are not configured. |
 | `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                                                                               |
 | `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                                                    |
 | `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed; refused for user-writable install directories).                                                   |
 
-When the tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the setting; the tray shows a notification with a details action. This check covers the tray installation only: the elevated task also runs Node.js, npm, Pi and Pi Web with your administrator token, so user-writable configuration, Node/npm paths and working directories remain part of the administrator attack surface.
+When the tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the setting; the tray shows a notification with a details action. If the administrator preference is unavailable and start-at-login is enabled from the main menu, the tray clears that preference and uses standard-user start-at-login instead. This check covers the tray installation only: the elevated task also runs Node.js, npm, Pi and Pi Web with your administrator token, so user-writable configuration, Node/npm paths and working directories remain part of the administrator attack surface.
 
 Values support `%ENV%` expansion; quote values containing `;` or `#`; comments need whitespace before the marker.
 

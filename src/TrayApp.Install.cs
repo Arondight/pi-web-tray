@@ -315,16 +315,10 @@ namespace PiWebTray
 
         private void RestoreServiceAfterInstall()
         {
-            if (CanStartServiceFromProbe(_probe, File.Exists))
-            {
-                _phase = Phase.Stopped;
-                StartServer(false);
-                return;
-            }
-
-            // Do not use AutoInstall here. A cancelled or failed install must not be
-            // restarted behind the user's back, and a stale probe must be refreshed
-            // without another automatic npm run.
+            // The probe predates the install. A failed or cancelled npm run can have
+            // left a half-written package, so never use that stale result to start the
+            // service. Re-probe first; suppress auto-install so this recovery cannot
+            // turn into an endless install loop.
             BeginEnvironmentCheck(true, false, 0, true);
         }
 

@@ -961,6 +961,9 @@ See {1} for details.</value>
   <data name="check.ownerNone" xml:space="preserve">
     <value>none</value>
   </data>
+  <data name="check.checking" xml:space="preserve">
+    <value>checking...</value>
+  </data>
   <data name="sc.portOwner" xml:space="preserve">
     <value>Port owner</value>
   </data>
@@ -989,7 +992,7 @@ See {1} for details.</value>
     <value>Check for updates at startup</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
-    <value>npm tag / version</value>
+    <value>Pi Web npm tag / version</value>
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm registry (optional)</value>

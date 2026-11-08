@@ -11,6 +11,8 @@ using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
+using System.Windows.Forms;
+using System.Xml;
 using Microsoft.Win32;
 
 namespace PiWebTray
@@ -18,6 +20,8 @@ namespace PiWebTray
     internal static class Autostart
     {
         internal const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        internal const string StartupApprovedRunKeyPath =
+            @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
         internal const string BaseRunValueName = "PiWebTray";
         internal const string LegacyTaskName = "PiWebTray";
 
@@ -126,6 +130,59 @@ namespace PiWebTray
             }
         }
 
+        internal static bool RunValueTargetsExecutable(string executablePath)
+        {
+            string target = RunValueTarget(RunValue());
+            if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(executablePath)) return false;
+            try
+            {
+                target = Environment.ExpandEnvironmentVariables(target);
+                return string.Equals(Path.GetFullPath(target), Path.GetFullPath(executablePath),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Task Manager can disable a Run entry without deleting it. The binary
+        // StartupApproved value starts with 0x03 for the common disabled state;
+        // no value means "never changed" and is treated as enabled.
+        internal static bool RunValueApproved()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(
+                    StartupApprovedRunKeyPath, false))
+                {
+                    if (key == null) return true;
+                    byte[] data = key.GetValue(RunValueName) as byte[];
+                    if (data == null || data.Length == 0) return true;
+                    return data[0] != 0x03;
+                }
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
+        private static void ClearRunApproval()
+        {
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(
+                    StartupApprovedRunKeyPath, true))
+                {
+                    if (key != null) key.DeleteValue(RunValueName, false);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
         internal static string RunValueTarget(string value)
         {
             string text = (value ?? "").Trim();
@@ -152,6 +209,74 @@ namespace PiWebTray
         internal static bool QueryLegacyTask()
         {
             return Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
+        }
+
+        // Existence plus the state that the menu needs: a task can exist but be
+        // disabled or point at an older installation. QueryTask itself remains
+        // existence-only because delete/replace operations must still find it.
+        internal static bool QueryTaskState(out bool enabled, out bool matchesExecutable)
+        {
+            return QueryTaskState(TaskName, out enabled, out matchesExecutable);
+        }
+
+        private static bool QueryTaskState(string name, out bool enabled,
+            out bool matchesExecutable)
+        {
+            enabled = false;
+            matchesExecutable = true;
+            try
+            {
+                ProcessResult run = ProcessRunner.Run(
+                    Sys.SystemExecutable("schtasks.exe"),
+                    "/query /tn " + Shell.Quote(name) + " /xml",
+                    Sys.SystemDirectory, 5000, null, null);
+                if (!run.Started || run.TimedOut || run.ExitCode != 0) return false;
+
+                string xml = run.Output.TrimStart('\uFEFF');
+                int xmlStart = xml.IndexOf('<');
+                if (xmlStart > 0) xml = xml.Substring(xmlStart);
+                XmlDocument document = new XmlDocument();
+                document.LoadXml(xml);
+
+                enabled = true;
+                XmlNodeList enabledNodes = document.GetElementsByTagName("Enabled", "*");
+                if (enabledNodes.Count > 0 && enabledNodes[0] != null
+                    && string.Equals(enabledNodes[0].InnerText.Trim(), "false",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    enabled = false;
+                }
+
+                XmlNodeList commandNodes = document.GetElementsByTagName("Command", "*");
+                if (commandNodes.Count > 0 && commandNodes[0] != null)
+                {
+                    string command = commandNodes[0].InnerText.Trim().Trim('"');
+                    if (command.Length > 0)
+                    {
+                        try
+                        {
+                            matchesExecutable = string.Equals(
+                                Path.GetFullPath(Environment.ExpandEnvironmentVariables(command)),
+                                Path.GetFullPath(Application.ExecutablePath),
+                                StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch (Exception)
+                        {
+                            matchesExecutable = false;
+                        }
+                    }
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                // XML output can be unavailable on unusual systems. Fall back to
+                // the old existence check instead of claiming the task is disabled.
+                bool exists = QueryTask(name);
+                enabled = exists;
+                matchesExecutable = true;
+                return exists;
+            }
         }
 
         private static bool QueryTask(string name)
@@ -188,6 +313,9 @@ namespace PiWebTray
                 if (key == null) throw new InvalidOperationException("cannot open the Run registry key");
                 key.SetValue(RunValueName, Shell.Quote(executablePath) + " --autostart");
             }
+            // A user who disabled the entry in Task Manager gets a working entry
+            // again when the tray deliberately enables/repairs it.
+            ClearRunApproval();
         }
 
         internal static bool ClearRunValue()
@@ -196,9 +324,9 @@ namespace PiWebTray
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RunKeyPath, true))
                 {
-                    if (key == null) return !RunValueExists();
-                    key.DeleteValue(RunValueName, false);
+                    if (key != null) key.DeleteValue(RunValueName, false);
                 }
+                ClearRunApproval();
                 return !RunValueExists();
             }
             catch (Exception)

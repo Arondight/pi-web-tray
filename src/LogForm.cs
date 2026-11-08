@@ -186,7 +186,7 @@ namespace PiWebTray
                 long newLength = info.Length;
                 DateTime newWriteUtc = info.LastWriteTimeUtc;
 
-                bool atBottom = _text.SelectionStart >= Math.Max(0, _text.TextLength - 2);
+                bool atBottom = IsScrolledToBottom();
                 int firstLine = 0;
                 if (!atBottom && _text.TextLength > 0)
                 {
@@ -236,6 +236,27 @@ namespace PiWebTray
             catch (Exception ex)
             {
                 if (force) _text.Text = ex.Message;
+            }
+        }
+
+        // SelectionStart does not move when the user scrolls with the wheel or the
+        // scrollbar. Use the last visible character instead, and preserve a selection
+        // rather than yanking the view to the end when new lines arrive.
+        private bool IsScrolledToBottom()
+        {
+            if (_text.TextLength == 0) return true;
+            if (_text.SelectionLength > 0) return false;
+
+            try
+            {
+                int lastChar = _text.TextLength - 1;
+                int y = Math.Max(1, _text.ClientSize.Height - 2);
+                int lastVisible = _text.GetCharIndexFromPosition(new Point(1, y));
+                return lastVisible >= lastChar - 1;
+            }
+            catch (Exception)
+            {
+                return _text.SelectionStart >= Math.Max(0, _text.TextLength - 2);
             }
         }
 

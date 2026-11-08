@@ -195,6 +195,28 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void SettingsFormPreservesUnknownConfiguredLanguage()
+        {
+            Config config = new Config();
+            config.WorkingDir = Path.GetTempPath();
+            config.Language = "fr";
+            config.InstallTag = "latest";
+
+            using (SettingsForm form = new SettingsForm(config))
+            {
+                List<ComboBox> combos = FindControls<ComboBox>(form);
+                Assert.AreEqual(1, combos.Count);
+                Assert.IsNotNull(combos[0].SelectedItem);
+                object selected = combos[0].SelectedItem;
+                FieldInfo value = selected.GetType().GetField("Value",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                Assert.IsNotNull(value, "Language options must expose a selectable value.");
+                Assert.AreEqual("fr", Convert.ToString(value.GetValue(selected)),
+                    "Saving Settings must not silently replace an installed/configured language.");
+            }
+        }
+
+        [TestMethod]
         public void SettingsSaveAndRestartRequestsRestart()
         {
             string ini = Path.Combine(Path.GetTempPath(),

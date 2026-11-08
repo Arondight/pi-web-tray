@@ -19,16 +19,12 @@ namespace PiWebTray
         private DateTime _lastAdminAutostartRefusal = DateTime.MinValue;
         private bool _existingAdminTaskAuditDone;
         private bool _legacyTaskCache;
+        private bool _taskEnabledCache;
         private DateTime _legacyTaskCacheAt = DateTime.MinValue;
 
         private bool IsRunKeyEnabled()
         {
             return Autostart.RunValueExists();
-        }
-
-        private bool IsTaskEnabled()
-        {
-            return Autostart.QueryTask();
         }
 
         private void RefreshAutostartItems()
@@ -40,15 +36,20 @@ namespace PiWebTray
         private void UpdateAutostartItems()
         {
             bool task = TaskExists(true);
+            bool taskEnabled = task && TaskEnabled(true);
             bool legacyTask = LegacyTaskExists(true);
-            bool run = IsRunKeyEnabled();
+            bool run = IsRunKeyEnabled()
+                && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
+                && Autostart.RunValueApproved();
             bool busy = AutostartBusy() || UpdateBusy();
 
-            task = task || legacyTask;
+            // A task that exists but is disabled or points at an older installation
+            // does not make the current installation start at login.
+            taskEnabled = taskEnabled || legacyTask;
             _autostartItem.Text = busy
                 ? L.T("menu.autostartBusy")
-                : L.T("menu.autostart", Autostart.Describe(task, run));
-            _autostartItem.Checked = task || run;
+                : L.T("menu.autostart", Autostart.Describe(taskEnabled, run));
+            _autostartItem.Checked = taskEnabled || run;
             _autostartItem.Enabled = !busy;
 
             _adminAutostartItem.Text = L.T("menu.adminAutostart", _config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no"));
@@ -59,7 +60,17 @@ namespace PiWebTray
         private void ToggleAutostart()
         {
             bool enable = !_autostartItem.Checked;
-            if (enable && _config.AutostartAdmin && RefuseAdminAutostart()) return;
+            if (enable && _config.AutostartAdmin && RefuseAdminAutostart())
+            {
+                // The administrator preference is not usable (folder or account).
+                // Fall back to standard start-at-login instead of blocking the
+                // user's obvious intent; the refusal notification already explained
+                // why administrator mode was not used.
+                _config.AutostartAdmin = false;
+                if (!_config.SetValue("AutostartAdmin", "0"))
+                    NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
+                UpdateAutostartItems();
+            }
             BeginAutostartOp(enable, _config.AutostartAdmin);
         }
 
@@ -273,6 +284,21 @@ namespace PiWebTray
             return value;
         }
 
+        private bool TaskEnabled(bool kickRefresh)
+        {
+            bool value;
+            DateTime at;
+            lock (_taskCacheLock)
+            {
+                value = _taskEnabledCache;
+                at = _taskCacheAt;
+            }
+
+            bool stale = at == DateTime.MinValue || DateTime.Now - at > TimeSpan.FromSeconds(10);
+            if (kickRefresh && stale) BeginTaskRefresh();
+            return value;
+        }
+
         private bool LegacyTaskExists(bool kickRefresh)
         {
             bool value;
@@ -299,12 +325,21 @@ namespace PiWebTray
             Thread worker = new Thread(delegate ()
             {
                 bool task = false;
+                bool enabled = false;
+                bool matchesExecutable = true;
                 bool legacy = false;
-                try { task = IsTaskEnabled(); } catch (Exception) { }
+                try
+                {
+                    task = Autostart.QueryTaskState(out enabled, out matchesExecutable);
+                }
+                catch (Exception)
+                {
+                }
                 try { legacy = Autostart.QueryLegacyTask(); } catch (Exception) { }
                 lock (_taskCacheLock)
                 {
                     _taskCache = task;
+                    _taskEnabledCache = task && enabled && matchesExecutable;
                     _legacyTaskCache = legacy;
                     _taskCacheAt = DateTime.Now;
                     _legacyTaskCacheAt = DateTime.Now;
@@ -330,7 +365,10 @@ namespace PiWebTray
                 // (for example left by an older release) would start a second tray at
                 // login. Remove it once the task state is known instead of letting
                 // RepairRunValue preserve both modes indefinitely.
-                if ((TaskExists(false) || LegacyTaskExists(false))
+                // Only replace the Run value when the scheduled task is actually
+                // usable. A disabled task plus a working Run value is still the
+                // user's only working startup path.
+                if ((TaskEnabled(false) || LegacyTaskExists(false))
                     && IsRunKeyEnabled() && !AutostartBusy())
                 {
                     Autostart.ClearRunValue();

@@ -4,6 +4,7 @@
 // console output. No dependency on business types, so they can be reused and tested in isolation.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -358,6 +359,68 @@ namespace PiWebTray
 
     internal static class Sys
     {
+        // ShellExecute/runas cannot use ProcessStartInfo.EnvironmentVariables. Temporarily
+        // remove profiler/startup-hook variables from this process so they are not inherited
+        // by the elevated child. The lock prevents two elevated launches from racing the
+        // save/restore; node/npm variables are intentionally left alone.
+        private static readonly object ElevatedLaunchLock = new object();
+
+        private static bool IsProfilerEnvironmentVariable(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            return name.StartsWith("COR_", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("CORECLR_", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("COMPlus_", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("DOTNET_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool StartElevatedSanitized(ProcessStartInfo psi)
+        {
+            lock (ElevatedLaunchLock)
+            {
+                Dictionary<string, string> saved = new Dictionary<string, string>(
+                    StringComparer.OrdinalIgnoreCase);
+                try
+                {
+                    try
+                    {
+                        foreach (DictionaryEntry entry in Environment.GetEnvironmentVariables(
+                            EnvironmentVariableTarget.Process))
+                        {
+                            string name = entry.Key as string;
+                            if (!IsProfilerEnvironmentVariable(name)) continue;
+                            saved[name] = Convert.ToString(entry.Value) ?? "";
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // If the environment cannot be enumerated, still attempt the
+                        // elevation rather than turning a hardening step into a failure.
+                        saved.Clear();
+                    }
+
+                    foreach (string name in saved.Keys)
+                    {
+                        try { Environment.SetEnvironmentVariable(name, null,
+                            EnvironmentVariableTarget.Process); } catch (Exception) { }
+                    }
+
+                    using (Process child = Process.Start(psi))
+                    {
+                        return child != null;
+                    }
+                }
+                finally
+                {
+                    foreach (KeyValuePair<string, string> pair in saved)
+                    {
+                        try { Environment.SetEnvironmentVariable(pair.Key, pair.Value,
+                            EnvironmentVariableTarget.Process); } catch (Exception) { }
+                    }
+                }
+            }
+        }
+
         // Resolve Windows tools from the system directory instead of relying on the caller's
         // current directory or PATH. This blocks a local taskkill.exe/netstat.exe
         // in a writable working directory from being executed by the tray.
@@ -440,10 +503,7 @@ namespace PiWebTray
                 psi.UseShellExecute = true;
                 psi.Verb = "runas";
                 psi.WindowStyle = hidden ? ProcessWindowStyle.Hidden : ProcessWindowStyle.Normal;
-                using (Process child = Process.Start(psi))
-                {
-                    return child != null;
-                }
+                return StartElevatedSanitized(psi);
             }
             catch (Exception)
             {

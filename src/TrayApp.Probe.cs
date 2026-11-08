@@ -408,6 +408,11 @@ namespace PiWebTray
             _nodePresent = result.NodeFound;
             if (!result.NeedsNode) _nodePresenceNotified = false;
 
+            // A background probe must not downgrade a service that is still
+            // listening. Pi CLI is install-time only, and Node.js removal while a
+            // service runs is reported separately by the presence watcher.
+            if (KeepRunningWhenListening()) return;
+
             if (result.NeedsNode)
             {
                 // An install queued behind this probe cannot run; do not execute it later

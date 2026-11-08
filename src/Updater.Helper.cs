@@ -191,7 +191,7 @@ namespace PiWebTray
                     // The tray that launched this helper has already exited. Do not
                     // leave the user without a tray just because another helper won
                     // the race; offer to start the existing installation.
-                    OfferStartAfterFailure(target, mode, logPath);
+                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                     return 1;
                 }
 
@@ -237,7 +237,7 @@ namespace PiWebTray
                         AppendLog(logPath, "staging directory missing");
                         MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath);
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
 
@@ -246,7 +246,7 @@ namespace PiWebTray
                         AppendLog(logPath, "staging executable missing");
                         MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath);
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
 
@@ -263,7 +263,7 @@ namespace PiWebTray
                         AppendLog(logPath, "staging snapshot failed: " + (snapshotError ?? ""));
                         MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath);
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
 
@@ -277,7 +277,7 @@ namespace PiWebTray
                             AppendLog(logPath, "service still owns port " + port + "; update aborted");
                             MessageBox.Show(L.T("update.error.serviceStillRunning", port),
                                 L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                             return 1;
                         }
 
@@ -293,7 +293,7 @@ namespace PiWebTray
                                     + L.T("update.rollbackBackup", copy.Backup);
                             MessageBox.Show(message, L.T("update.applyFailedTitle"),
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                             return 1;
                         }
 
@@ -313,7 +313,7 @@ namespace PiWebTray
                     AppendLog(logPath, "apply failed: " + ex);
                     MessageBox.Show(L.T("update.applyFailedBody", ex.Message, logPath),
                         L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    OfferStartAfterFailure(target, mode, logPath);
+                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                     return 1;
                 }
             }
@@ -445,7 +445,8 @@ namespace PiWebTray
             }
         }
 
-        private static void OfferStartAfterFailure(string target, ApplyStartMode mode, string logPath)
+        private static void OfferStartAfterFailure(string target, ApplyStartMode mode, string logPath,
+            bool originalElevated, string dataDir)
         {
             try
             {
@@ -462,6 +463,60 @@ namespace PiWebTray
 
                 string args = mode == ApplyStartMode.TrayOnly ? "--tray-only"
                     : mode == ApplyStartMode.ServiceSilent ? "--start-no-open" : "";
+
+                // The helper usually runs elevated only because the installation
+                // directory is protected. Do not silently leave an elevated tray
+                // running after a failed update. Use Explorer's medium token exactly
+                // like Updater.Restart; custom PI_WEB_TRAY_* overrides are copied into
+                // the restart command.
+                bool customEnvironment = HasCustomEnvironment();
+                if (!originalElevated && Elevation.IsElevated())
+                {
+                    try
+                    {
+                        bool started = false;
+                        if (args.Length == 0 && !customEnvironment)
+                        {
+                            ProcessStartInfo viaExplorer = new ProcessStartInfo();
+                            viaExplorer.FileName = ExplorerExe();
+                            viaExplorer.Arguments = Shell.QuoteArg(exe);
+                            viaExplorer.WorkingDirectory = target;
+                            viaExplorer.UseShellExecute = true;
+                            using (Process tray = Process.Start(viaExplorer))
+                            {
+                                started = tray != null;
+                            }
+                        }
+                        else
+                        {
+                            started = LaunchViaExplorerCommand(dataDir, target, args, logPath) != null;
+                        }
+
+                        if (started)
+                        {
+                            // Explorer can accept the request and still fail to run the
+                            // script. Observe the state file before trusting it; otherwise
+                            // a failed update would leave no tray at all.
+                            if (WaitForNewTrayPid(dataDir, 0, 5000, exe) > 0)
+                            {
+                                AppendLog(logPath, "started after failure via explorer: " + exe + " " + args);
+                                return;
+                            }
+                            AppendLog(logPath, "explorer start after failure was not observed; falling back");
+                        }
+                        else
+                        {
+                            AppendLog(logPath, "explorer start after failure was not started; falling back");
+                        }
+                    }
+                    catch (Exception explorerError)
+                    {
+                        // If Explorer is unavailable or refuses the launch, still make
+                        // one direct attempt so a failed update cannot strand the user.
+                        AppendLog(logPath, "explorer start after failure failed: " + explorerError);
+                    }
+                }
+
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = exe;
                 psi.Arguments = args;

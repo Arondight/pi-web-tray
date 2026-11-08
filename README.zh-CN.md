@@ -116,14 +116,14 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                                                                |
 | `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                                                             |
 | `AutoCheckUpdates` | `0`             | 启动后检查托盘更新。                                                                                    |
-| `InstallTag`       | `latest`        | npm 分发标签或具体版本号。                                                                              |
+| `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。具体版本号/范围不适用于独立版本的 Pi CLI；除非是简单分发标签，否则 Pi CLI 使用 `latest`。 |
 | `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                                    |
 | `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。不会配置 Node、npm 或 Pi Web 子进程。 |
 | `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                                         |
 | `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                                                |
 | `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护；用户可写安装目录会被拒绝）。                                          |
 
-当托盘安装目录可被标准用户修改时，开启管理员自启动会被拒绝，且不会改变当前设置；托盘会显示带详情入口的通知。此检查只覆盖托盘安装目录：提权任务还会以管理员令牌运行 Node.js、npm、Pi 和 Pi Web，因此用户可写的配置、Node/npm 路径和工作目录仍然属于管理员攻击面。
+当托盘安装目录可被标准用户修改时，开启管理员自启动会被拒绝，且不会改变当前设置；托盘会显示带详情入口的通知。如果管理员偏好不可用，而用户从主菜单开启自启动，托盘会清除该偏好并改用标准用户自启动。此检查只覆盖托盘安装目录：提权任务还会以管理员令牌运行 Node.js、npm、Pi 和 Pi Web，因此用户可写的配置、Node/npm 路径和工作目录仍然属于管理员攻击面。
 
 值支持 `%ENV%` 展开；含 `;` 或 `#` 的值可加引号；注释符号前需有空白。
 

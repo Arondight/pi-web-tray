@@ -961,6 +961,9 @@
   <data name="check.ownerNone" xml:space="preserve">
     <value>无</value>
   </data>
+  <data name="check.checking" xml:space="preserve">
+    <value>检查中…</value>
+  </data>
   <data name="sc.portOwner" xml:space="preserve">
     <value>端口所有者</value>
   </data>
@@ -989,7 +992,7 @@
     <value>启动时检查更新</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
-    <value>npm 标签 / 版本</value>
+    <value>Pi Web npm 标签 / 版本</value>
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm 源（可选）</value>

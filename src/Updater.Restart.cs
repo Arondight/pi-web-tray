@@ -20,6 +20,11 @@ namespace PiWebTray
 {
     internal static partial class Updater
     {
+        // The state file is written very early in TrayApp's constructor. Observe the
+        // new process for long enough that an immediate crash in the new release is
+        // not mistaken for a successful update before the backup is deleted.
+        private const int StableTrayMilliseconds = 5000;
+
         private static bool Restart(string target, ApplyStartMode mode, bool originalElevated,
             int parentPid, string logPath, string dataDir)
         {
@@ -28,19 +33,18 @@ namespace PiWebTray
                 : mode == ApplyStartMode.ServiceSilent ? "--start-no-open" : "";
             bool helperElevated = Elevation.IsElevated();
 
-            // An elevated helper would normally create an elevated child. In the common
-            // case (no extra arguments) let Explorer launch it with the logged-on user's
-            // medium token, then confirm that the new tray wrote its state file. If that
-            // is not observable, fall back to a direct start.
-            //
-            // Explorer does not preserve PI_WEB_TRAY_* overrides, so skip this path when
-            // the current instance uses a custom data directory, port or language.
-            if (!originalElevated && helperElevated && !HasCustomEnvironment())
+            // An elevated helper would normally create an elevated child. Let Explorer
+            // launch it with the logged-on user's medium token, then confirm that the
+            // new tray wrote its state file. PI_WEB_TRAY_* overrides are copied into
+            // the restart command because Explorer itself does not inherit them. If the
+            // launch is not observable, fall back to a direct start.
+            bool customEnvironment = HasCustomEnvironment();
+            if (!originalElevated && helperElevated)
             {
                 string cmdPath = null;
                 try
                 {
-                    if (arguments.Length == 0)
+                    if (arguments.Length == 0 && !customEnvironment)
                     {
                         AppendLog(logPath, "restart via explorer (de-elevate)");
                         ProcessStartInfo viaExplorer = new ProcessStartInfo();
@@ -57,10 +61,10 @@ namespace PiWebTray
                         cmdPath = LaunchViaExplorerCommand(dataDir, target, arguments, logPath);
                     }
 
-                    if (arguments.Length == 0 || cmdPath != null)
+                    if ((arguments.Length == 0 && !customEnvironment) || cmdPath != null)
                     {
                         int newPid = WaitForNewTrayPid(dataDir, parentPid, 10000, exe);
-                        if (newPid > 0 && WaitForStableTray(newPid, 2000, exe))
+                        if (newPid > 0 && WaitForStableTray(newPid, StableTrayMilliseconds, exe))
                         {
                             AppendLog(logPath, "new tray observed after explorer restart");
                             return true;
@@ -113,7 +117,7 @@ namespace PiWebTray
             {
                 if (newPid == 0)
                     newPid = WaitForNewTrayPid(dataDir, oldPid, 250, expectedExe);
-                if (newPid > 0) return WaitForStableTray(newPid, 2000, expectedExe);
+                if (newPid > 0) return WaitForStableTray(newPid, StableTrayMilliseconds, expectedExe);
                 try { if (tray.HasExited) return false; }
                 catch (Exception) { return false; }
             }
@@ -161,10 +165,14 @@ namespace PiWebTray
                 string cmdPath = Path.Combine(dataDir,
                     ".pi-web-tray-restart-" + Guid.NewGuid().ToString("N") + ".cmd");
 
-                string content = "@echo off\r\n"
-                    + "cd /d " + Shell.QuoteArg(safeTarget) + "\r\n"
-                    + "start \"\" " + Shell.QuoteArg(safeExe) + " " + arguments + "\r\n"
-                    + "del /f /q \"%~f0\" >nul 2>&1\r\n";
+                StringBuilder contentBuilder = new StringBuilder();
+                contentBuilder.Append("@echo off\r\n");
+                AppendRestartEnvironment(contentBuilder);
+                contentBuilder.Append("cd /d ").Append(Shell.QuoteArg(safeTarget)).Append("\r\n");
+                contentBuilder.Append("start \"\" ").Append(Shell.QuoteArg(safeExe))
+                    .Append(' ').Append(arguments).Append("\r\n");
+                contentBuilder.Append("del /f /q \"%~f0\" >nul 2>&1\r\n");
+                string content = contentBuilder.ToString();
 
                 Directory.CreateDirectory(dataDir);
                 File.WriteAllText(cmdPath, content, Encoding.Default);
@@ -177,6 +185,11 @@ namespace PiWebTray
                 viaExplorer.UseShellExecute = true;
                 using (Process explorer = Process.Start(viaExplorer))
                 {
+                    if (explorer == null)
+                    {
+                        try { File.Delete(cmdPath); } catch (Exception) { }
+                        return null;
+                    }
                 }
                 return cmdPath;
             }
@@ -184,6 +197,28 @@ namespace PiWebTray
             {
                 AppendLog(logPath, "explorer command failed: " + ex.Message);
                 return null;
+            }
+        }
+
+        // Explorer does not inherit the tray's environment. Preserve only the
+        // documented PI_WEB_TRAY_* overrides; they are needed by named instances and
+        // testing setups. All values are placed inside quoted set commands.
+        private static void AppendRestartEnvironment(StringBuilder content)
+        {
+            string[] names = new string[]
+            {
+                "PI_WEB_TRAY_INSTANCE", "PI_WEB_TRAY_PORT", "PI_WEB_TRAY_LANG",
+                "PI_WEB_TRAY_HOME", "PI_WEB_TRAY_PORTABLE",
+                "PI_WEB_TRAY_NO_NODE", "PI_WEB_TRAY_NO_PIWEB", "PI_WEB_TRAY_NO_PICLI"
+            };
+            foreach (string name in names)
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                if (string.IsNullOrEmpty(value)) continue;
+                value = value.Replace("\r", "").Replace("\n", "")
+                    .Replace("%", "%%").Replace("\"", "");
+                content.Append("set \"").Append(name).Append('=').Append(value)
+                    .Append("\"\r\n");
             }
         }
 
@@ -200,9 +235,9 @@ namespace PiWebTray
 
         private static bool HasCustomEnvironment()
         {
-            // Treat explicitly disabled values (0/false/no) like an unset variable.
-            // Otherwise PI_WEB_TRAY_PORTABLE=0 would unnecessarily disable the
-            // Explorer de-elevation path and leave the new tray elevated.
+            // Used to decide whether an empty-argument restart needs the command
+            // wrapper to preserve PI_WEB_TRAY_* overrides. Treat explicitly disabled
+            // values (0/false/no) like an unset variable.
             bool lang = false;
             string language = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
             if (!string.IsNullOrEmpty(language))

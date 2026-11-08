@@ -314,6 +314,10 @@ namespace PiWebTray
                     OpenUrl(url);
                 };
             }
+            // Long sentence fragments (the non-link parts) must wrap inside the
+            // fixed-width dialog; a plain AutoSize Label is clipped at high DPI.
+            int maxWidth = line.MaximumSize.Width > 0 ? line.MaximumSize.Width : 440;
+            label.MaximumSize = new Size(maxWidth, 0);
             line.Controls.Add(label);
         }
 

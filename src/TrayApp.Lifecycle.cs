@@ -140,6 +140,12 @@ namespace PiWebTray
             {
             }
 
+            // Normal exit means "stop the service". If the wrapper is still alive
+            // while the port is already closed (a hung start or a detached child),
+            // kill it here so it cannot become an orphan holding the npm package
+            // directory or a port.
+            KillTrackedServer();
+
             TrayState.Delete();
             Cleanup();
             ExitThread();

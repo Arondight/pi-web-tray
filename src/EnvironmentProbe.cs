@@ -311,9 +311,12 @@ namespace PiWebTray
 
             // A file on disk is not enough: a broken npm must be treated like a missing npm,
             // otherwise the tray claims the environment is ready and every install fails.
-            string output = version.Output.Replace("\r", "").Replace("\n", " ").Trim();
-            result.NpmFound = version.Started && version.ExitCode == 0 && output.Length > 0;
-            if (result.NpmFound) result.NpmVersion = output;
+            // npm writes warnings to stderr; ProcessRunner merges both streams, so use the
+            // last meaningful line instead of the whole merged text.
+            string versionLine = LastMeaningfulLine(version.Output);
+            result.NpmFound = version.Started && version.ExitCode == 0
+                && versionLine.Length > 0;
+            if (result.NpmFound) result.NpmVersion = versionLine;
         }
 
         private static void DetectNpmPrefix(ProbeResult result)
@@ -329,8 +332,8 @@ namespace PiWebTray
 
             if (prefix.Started && prefix.ExitCode == 0)
             {
-                string text = prefix.Output.Replace("\r", "").Trim();
-                if (text.Length > 0 && Directory.Exists(text)) result.NpmPrefix = text;
+                string text = LastExistingDirectory(prefix.Output);
+                if (text.Length > 0) result.NpmPrefix = text;
             }
 
             if (result.NpmPrefix.Length == 0)
@@ -407,11 +410,58 @@ namespace PiWebTray
 
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             if (!string.IsNullOrEmpty(programFiles))
-                roots.Add(Path.Combine(programFiles, @"nodejs\node_modules"));
+                roots.Add(Path.Combine(programFiles, "nodejs"));
             return roots;
         }
 
         // ---------------- helpers ----------------
+
+        // npm writes version/prefix output together with warnings on stderr. The last
+        // non-empty, non-diagnostic line is the actual value; using the merged text would
+        // turn "npm warn ..." into the npm version or the global prefix.
+        internal static string LastMeaningfulLine(string output)
+        {
+            if (string.IsNullOrEmpty(output)) return "";
+            string[] lines = output.Replace("\r", "").Split('\n');
+            for (int i = lines.Length - 1; i >= 0; i--)
+            {
+                string line = lines[i].Trim();
+                if (line.Length == 0) continue;
+                if (line.StartsWith("npm warn", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("npm error", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("npm notice", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                return line;
+            }
+            return "";
+        }
+
+        private static string LastExistingDirectory(string output)
+        {
+            if (string.IsNullOrEmpty(output)) return "";
+            string[] lines = output.Replace("\r", "").Split('\n');
+            for (int i = lines.Length - 1; i >= 0; i--)
+            {
+                string line = lines[i].Trim().Trim('"');
+                if (line.Length == 0) continue;
+                if (line.StartsWith("npm warn", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("npm error", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("npm notice", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                try
+                {
+                    if (Directory.Exists(line)) return line;
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return "";
+        }
 
         // Installing Node.js updates the registry PATH, not this process (or the Explorer
         // that launched it). Read all three sources so a custom install directory is found

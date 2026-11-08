@@ -73,7 +73,9 @@ namespace PiWebTray
             _summary.AutoSize = true;
             _summary.MaximumSize = new Size(880, 0);
             _summary.Padding = new Padding(0, 0, 0, 8);
-            _summary.Text = BuildSummary();
+            // A report opened with refreshOnShown performs its own probe. Do not show
+            // a stale/empty ProbeResult as a final "not ready" verdict first.
+            _summary.Text = _refreshOnShown ? L.T("check.refreshing") : BuildSummary();
 
             _runtimeGrid = BuildRuntimeGrid();
             _softwareGrid = BuildSoftwareGrid();
@@ -246,8 +248,9 @@ namespace PiWebTray
 
             // The owner probe can take seconds (netstat + HTTP fallback). Populate the
             // static rows immediately and refresh the port owner on a background worker
-            // after the form is shown.
-            PopulateSoftwareGrid(grid, false, null);
+            // after the form is shown. The port row must say "checking", not falsely
+            // claim that the port is closed before the worker has run.
+            PopulateSoftwareGrid(grid, false, null, true);
             return grid;
         }
 
@@ -375,12 +378,21 @@ namespace PiWebTray
 
         private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner)
         {
+            PopulateSoftwareGrid(grid, listening, owner, false);
+        }
+
+        private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner,
+            bool checking)
+        {
             grid.Rows.Clear();
             AddInfoRow(grid, L.T("sc.config"), _config.IniPath);
             AddInfoRow(grid, L.T("check.port"),
-                L.T("check.portState", _config.Port,
-                    listening ? L.T("bool.yes") : L.T("bool.no"),
-                    ServiceProbe.OwnerText(owner)));
+                checking
+                    ? L.T("check.portState", _config.Port,
+                        L.T("check.checking"), L.T("check.checking"))
+                    : L.T("check.portState", _config.Port,
+                        listening ? L.T("bool.yes") : L.T("bool.no"),
+                        ServiceProbe.OwnerText(owner)));
             AddInfoRow(grid, L.T("sc.workDir"), _config.WorkingDir);
             AddInfoRow(grid, L.T("sc.dataDir"), _config.OutputDir);
             AddInfoRow(grid, L.T("sc.admin"), _elevated ? L.T("bool.yes") : L.T("bool.no"));
@@ -411,7 +423,13 @@ namespace PiWebTray
                     result = EnvironmentProbe.Detect(_config);
                     listening = Net.IsPortOpen(_config.Port, 300);
                     ServiceProbe.Invalidate();
-                    owner = ServiceProbe.Inspect(_config.Port, ExpectedScript());
+                    // Use the fresh probe (not the pre-refresh _probe) for the expected
+                    // script; otherwise a package that was just installed/updated can be
+                    // classified against the old path.
+                    string expectedScript = result != null && result.PiWebFound
+                        ? result.PiWebScript
+                        : ExpectedScript();
+                    owner = ServiceProbe.Inspect(_config.Port, expectedScript);
                 }
                 catch (Exception ex)
                 {

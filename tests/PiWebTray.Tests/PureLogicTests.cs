@@ -69,6 +69,7 @@ namespace PiWebTray
             UpdateTests();
             InstallServiceStopTests();
             RestartArgumentsTests();
+            PortChangeTests();
             ServiceRestoreTests();
             UpdateCancellationTests();
             UpdateCopyTests();
@@ -907,6 +908,8 @@ namespace PiWebTray
                 TrayApp.ShouldRestartServiceAfterUpdate(true, true, false, false));
             Check("update does not restart a service that was stopped",
                 !TrayApp.ShouldRestartServiceAfterUpdate(false, true, false, false));
+            Check("update restores a running service with AutoRestart off",
+                TrayApp.ShouldRestartServiceAfterUpdate(true, false, false, false));
             Check("an explicit stop wins over AutoRestart",
                 !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true, true));
             Check("a crash still restarts with AutoRestart off only when explicitly marked",
@@ -1165,8 +1168,32 @@ namespace PiWebTray
                 !Installer.VersionMatchesTag("1.2.3-beta", "1.2.3"));
             Check("dist tag cannot be version-verified",
                 Installer.VersionMatchesTag("0.9.0", "latest"));
-            Check("missing installed version is not treated as a mismatch",
-                Installer.VersionMatchesTag("", "1.2.3"));
+            Check("missing installed version is a mismatch for an exact tag",
+                !Installer.VersionMatchesTag("", "1.2.3"));
+            Check("missing installed version is fine for a dist tag",
+                Installer.VersionMatchesTag("", "latest"));
+
+            Config exactConfig = new Config();
+            exactConfig.InstallTag = "1.2.3";
+            CheckEqual("exact pi-web tag keeps cli on latest", "latest",
+                Installer.PiCliTag(exactConfig));
+            List<InstallStep> exactSteps = Installer.StepsToInstall(new ProbeResult(), exactConfig, false);
+            Check("exact tag is used for pi-web",
+                exactSteps[0].Packages.Contains("@agegr/pi-web@1.2.3"));
+            Check("exact tag is not used for pi cli",
+                exactSteps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
+            Check("exact tag pi cli step is recognised",
+                Installer.IsPiCliStep(exactSteps[1], exactConfig));
+
+            Config nextConfig = new Config();
+            nextConfig.InstallTag = "next";
+            CheckEqual("dist tag is shared with the pi cli", "next",
+                Installer.PiCliTag(nextConfig));
+
+            CheckEqual("npm warning is not the npm version", "12.2.1",
+                EnvironmentProbe.LastMeaningfulLine("npm warn deprecated x\n12.2.1\n"));
+            CheckEqual("npm errors alone do not provide a version", "",
+                EnvironmentProbe.LastMeaningfulLine("npm error network failure\n"));
 
             ProbeResult webMissingCliPresent = new ProbeResult();
             webMissingCliPresent.PiCliFound = true;
@@ -1429,6 +1456,26 @@ namespace PiWebTray
                 "--start-no-open", TrayApp.RestartArguments(true, false));
             CheckEqual("admin restart while stopped keeps the service stopped",
                 "--tray-only", TrayApp.RestartArguments(false, false));
+        }
+
+        private static void PortChangeTests()
+        {
+            Check("port change allows a foreign listener while stopped",
+                TrayApp.CanApplyPortChange(Phase.Stopped, true, false));
+            Check("port change allows a foreign listener in a port conflict",
+                TrayApp.CanApplyPortChange(Phase.PortConflict, true, false));
+            Check("port change blocks a tracked service on the old port",
+                !TrayApp.CanApplyPortChange(Phase.Stopped, true, true));
+            Check("port change allows resolving a port conflict with a tracked wrapper",
+                TrayApp.CanApplyPortChange(Phase.PortConflict, true, true));
+            Check("port change allows a stopped service with a closed port",
+                TrayApp.CanApplyPortChange(Phase.Stopped, false, true));
+            Check("port change blocks a running service",
+                !TrayApp.CanApplyPortChange(Phase.Running, false, false));
+            Check("port change blocks a starting service",
+                !TrayApp.CanApplyPortChange(Phase.Starting, false, false));
+            Check("port change blocks an environment check",
+                !TrayApp.CanApplyPortChange(Phase.Checking, false, false));
         }
 
         private static void ServiceRestoreTests()

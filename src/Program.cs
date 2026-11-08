@@ -329,11 +329,19 @@ namespace PiWebTray
                     {
                         if (!ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
                         {
-                            Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", config.Port));
-                            return 0;
+                            // Another Pi Web installation owns the port. The old tray has
+                            // already exited, so returning here would leave the user without
+                            // a tray. Start the new tray in the normal conflict state instead;
+                            // it will report the conflict and offer Settings.
+                            Updater.AppendLog(config.UpdateLogFile,
+                                "elevated takeover: port " + config.Port
+                                + " is owned by another Pi Web installation; keeping it running");
                         }
-                        if (owner.Pid > 4) Sys.KillTree(owner.Pid);
-                        Net.WaitPortClosed(config.Port, 8000);
+                        else
+                        {
+                            if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                            Net.WaitPortClosed(config.Port, 8000);
+                        }
                     }
                 }
                 RunTray(config, elevated, !isTrayOnly, taken, !isTrayOnly && !isStartNoOpen);
