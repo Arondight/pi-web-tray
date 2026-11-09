@@ -183,10 +183,6 @@ namespace PiWebTray
         private void OpenOrStart()
         {
             if (_exiting) return;
-            // The tray icon/menu action is an explicit start/open request. It
-            // overrides a previous user stop even when the path goes through an
-            // install (for example NeedsDeps or a missing Pi Web package).
-            _serviceStoppedByUser = false;
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;
@@ -213,7 +209,14 @@ namespace PiWebTray
                 ShowSettings();
                 return;
             }
-            if (_phase == Phase.Running) { OpenBrowser(); return; }
+            if (_phase == Phase.Running)
+            {
+                // This click is an explicit open request. Do not leave an older
+                // "user stopped" marker behind for the next update decision.
+                _serviceStoppedByUser = false;
+                OpenBrowser();
+                return;
+            }
             if (_phase == Phase.Stopped && _probe != null && _probe.NeedsPiWeb)
             {
                 // The service may have been running when a self-check found the
@@ -224,6 +227,8 @@ namespace PiWebTray
                     NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
                     return;
                 }
+                // Explicit start/open consent for the install that follows.
+                _serviceStoppedByUser = false;
                 BeginInstall(false, true, true);
                 return;
             }
@@ -232,6 +237,7 @@ namespace PiWebTray
             {
                 // A click while the first probe is running should not be lost. Queue
                 // an explicit start/open request behind the in-flight check instead.
+                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
@@ -240,6 +246,7 @@ namespace PiWebTray
                 // A silent start (autostart or post-update) may not have asked for a
                 // browser. A click during Starting is an explicit request to open it
                 // once the service is ready.
+                _serviceStoppedByUser = false;
                 _openWhenReady = true;
                 return;
             }
@@ -252,6 +259,7 @@ namespace PiWebTray
             {
                 // The background watcher normally continues after Node.js is installed;
                 // clicking the tray is also an explicit retry if that was missed.
+                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
@@ -259,16 +267,19 @@ namespace PiWebTray
             {
                 // Re-probe first: the failure may have been a start timeout, not a broken
                 // installation. ApplyCheckResult decides whether to retry install or start.
+                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
             if (_phase == Phase.NeedsDeps)
             {
                 // The user clicked the icon, which counts as consent to install or repair
+                _serviceStoppedByUser = false;
                 if (_probe == null || _probe.NeedsNode) BeginEnvironmentCheck(true, true);
                 else BeginInstall(false, true, true);
                 return;
             }
+            _serviceStoppedByUser = false;
             StartServer(true);
         }
 
@@ -399,10 +410,18 @@ namespace PiWebTray
                             if (!_config.SetValue("Port", previousPort.ToString()))
                                 NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
                             portRejected = true;
-                            MessageBox.Show(L.T("settings.portRequiresStopped"),
-                                L.T("settings.title"),
-                                MessageBoxButtons.OK,
-                                MessageBoxIcon.Warning);
+                            BeginModal();
+                            try
+                            {
+                                MessageBox.Show(L.T("settings.portRequiresStopped"),
+                                    L.T("settings.title"),
+                                    MessageBoxButtons.OK,
+                                    MessageBoxIcon.Warning);
+                            }
+                            finally
+                            {
+                                EndModal();
+                            }
                         }
                         else
                         {
@@ -479,8 +498,19 @@ namespace PiWebTray
         private bool ServiceRunningForRestart()
         {
             if (_phase == Phase.Running) return true;
-            try { return _server != null && !_server.HasExited; }
-            catch (Exception) { return false; }
+            try { if (_server != null && !_server.HasExited) return true; }
+            catch (Exception) { }
+
+            // A tray started while Pi Web is already listening can still be in the
+            // asynchronous Checking/Starting phase with no _server handle. Do not
+            // choose --tray-only for this case: ExitApp will stop the existing
+            // listener, and the replacement would then leave the service down.
+            if (_phase == Phase.Checking || _phase == Phase.Starting)
+            {
+                try { return Net.IsPortOpen(_port, 200); }
+                catch (Exception) { }
+            }
+            return false;
         }
 
         private bool StartRestartProcess()
@@ -566,6 +596,14 @@ namespace PiWebTray
         private void RestartAsAdministrator()
         {
             if (_elevated) return;
+            // The update helper is already replacing this executable. A second
+            // replacement would race the helper and could leave two trays fighting
+            // over the mutex and port; the settings restart has the same guard.
+            if (_updateStage == UpdateStage.Applying)
+            {
+                Notify(L.T("notify.restartCanceled"), L.T("notify.restartBusyBody"));
+                return;
+            }
 
             DialogResult answer;
             BeginModal();

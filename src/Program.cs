@@ -168,6 +168,9 @@ namespace PiWebTray
             bool isTrayOnly = Has(args, "--tray-only");
             bool isStartNoOpen = Has(args, "--start-no-open");
             bool isRestart = Has(args, "--restart");
+            // Autostart must never open a browser, including when another tray
+            // already owns the mutex and this process only forwards a signal.
+            bool noBrowser = SuppressBrowserOnStart(isAutostart, isStartNoOpen);
 
             // Save-and-restart starts this process before the old tray exits.
             // Wait for the single-instance mutex so the old service is fully
@@ -226,7 +229,7 @@ namespace PiWebTray
                     ReleaseMutex(mutex);
                     return stopped ? 0 : 1;
                 }
-                RunTray(config, elevated, !isTrayOnly, mutex, !isTrayOnly && !isStartNoOpen);
+                RunTray(config, elevated, !isTrayOnly, mutex, !isTrayOnly && !noBrowser);
                 return 0;
             }
 
@@ -265,7 +268,7 @@ namespace PiWebTray
                 // path. Otherwise --tray-only opens a browser and --start-no-open starts
                 // nothing when the service is stopped.
                 if (isTrayOnly) return 0;
-                if (isStartNoOpen)
+                if (noBrowser)
                 {
                     if (SendSignal(Instance.StartSignalName)) return 0;
                     Inform(L.T("prog.adminAlreadyTitle"), L.T("prog.adminAlreadyBody"));
@@ -293,7 +296,7 @@ namespace PiWebTray
                 // A tray-only start must not start the service; a no-browser start
                 // must not open a browser. Send the specific signal to the tray.
                 if (isTrayOnly) return 0;
-                if (isStartNoOpen)
+                if (noBrowser)
                     return SendSignal(Instance.StartSignalName) ? 0 : 1;
 
                 // Normal double-click: let the running tray start/open it.
@@ -312,7 +315,7 @@ namespace PiWebTray
             if (existingElevated)
             {
                 if (isTrayOnly) return 0;
-                if (isStartNoOpen)
+                if (noBrowser)
                     return SendSignal(Instance.StartSignalName) ? 0 : 1;
 
                 // A plain elevated start with the service running just opens the browser.
@@ -364,7 +367,7 @@ namespace PiWebTray
                         }
                     }
                 }
-                RunTray(config, elevated, !isTrayOnly, taken, !isTrayOnly && !isStartNoOpen);
+                RunTray(config, elevated, !isTrayOnly, taken, !isTrayOnly && !noBrowser);
                 return 0;
             }
 
@@ -393,6 +396,11 @@ namespace PiWebTray
                 }
                 return "dev";
             }
+        }
+
+        internal static bool SuppressBrowserOnStart(bool autostart, bool startNoOpen)
+        {
+            return autostart || startNoOpen;
         }
 
         private static bool Has(string[] args, string name)

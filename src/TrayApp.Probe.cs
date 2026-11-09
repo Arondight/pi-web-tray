@@ -635,8 +635,16 @@ namespace PiWebTray
             }
             catch (Exception ex)
             {
-                MessageBox.Show(L.T("notify.selfCheckError", ex.Message), L.T("sc.title"),
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                BeginModal();
+                try
+                {
+                    MessageBox.Show(L.T("notify.selfCheckError", ex.Message), L.T("sc.title"),
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+                finally
+                {
+                    EndModal();
+                }
             }
             finally
             {

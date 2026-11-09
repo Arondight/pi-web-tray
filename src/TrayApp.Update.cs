@@ -132,11 +132,19 @@ namespace PiWebTray
                 EndUpdate();
                 if (!silent)
                 {
-                    MessageBox.Show(
-                        L.T("update.upToDateBody", Program.Version),
-                        L.T("update.upToDateTitle"),
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
+                    BeginModal();
+                    try
+                    {
+                        MessageBox.Show(
+                            L.T("update.upToDateBody", Program.Version),
+                            L.T("update.upToDateTitle"),
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                    }
+                    finally
+                    {
+                        EndModal();
+                    }
                 }
                 return;
             }
@@ -401,9 +409,17 @@ namespace PiWebTray
                 Updater.AppendLog(_config.UpdateLogFile,
                     "tray exit was blocked; clearing the update state");
                 EndUpdate();
-                MessageBox.Show(L.T("update.error.exitBlocked"),
-                    L.T("update.applyFailedTitle"), MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                BeginModal();
+                try
+                {
+                    MessageBox.Show(L.T("update.error.exitBlocked"),
+                        L.T("update.applyFailedTitle"), MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+                finally
+                {
+                    EndModal();
+                }
             }
         }
 

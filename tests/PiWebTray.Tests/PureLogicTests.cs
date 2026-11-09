@@ -72,6 +72,7 @@ namespace PiWebTray
             UpdateTests();
             InstallServiceStopTests();
             RestartArgumentsTests();
+            StartSuppressionTests();
             PortChangeTests();
             ServiceRestoreTests();
             UpdateCancellationTests();
@@ -1520,6 +1521,18 @@ namespace PiWebTray
                 "--restart --start-no-open", TrayApp.RestartArguments(true));
             CheckEqual("restart while stopped keeps the service stopped",
                 "--restart --tray-only", TrayApp.RestartArguments(false));
+        }
+
+        private static void StartSuppressionTests()
+        {
+            Check("autostart never opens a browser",
+                Program.SuppressBrowserOnStart(true, false));
+            Check("silent start never opens a browser",
+                Program.SuppressBrowserOnStart(false, true));
+            Check("autostart plus silent start stays silent",
+                Program.SuppressBrowserOnStart(true, true));
+            Check("a normal start may open a browser",
+                !Program.SuppressBrowserOnStart(false, false));
         }
 
         private static void PortChangeTests()
