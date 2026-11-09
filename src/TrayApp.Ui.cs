@@ -469,11 +469,9 @@ namespace PiWebTray
         // an intentionally stopped service must not start again just because
         // AutoStart is enabled. Running: start the replacement service silently.
         // Stopped: keep the replacement tray-only.
-        internal static string RestartArguments(bool serviceRunning, bool includeRestart)
+        internal static string RestartArguments(bool serviceRunning)
         {
-            string arguments = includeRestart ? "--restart" : "";
-            arguments += serviceRunning ? " --start-no-open" : " --tray-only";
-            return arguments.Trim();
+            return "--restart " + (serviceRunning ? "--start-no-open" : "--tray-only");
         }
 
         // The phase can temporarily be Checking/NeedsDeps/NeedsNode while a service
@@ -487,7 +485,18 @@ namespace PiWebTray
 
         private bool StartRestartProcess()
         {
-            string arguments = RestartArguments(ServiceRunningForRestart(), true);
+            string arguments = RestartArguments(ServiceRunningForRestart());
+
+            if (_replaceWithElevated)
+            {
+                if (!Sys.RunElevated(Application.ExecutablePath, arguments))
+                {
+                    NotifyError(L.T("notify.adminRestartFailed"),
+                        L.T("notify.adminRestartFailedBody"));
+                    return false;
+                }
+                return true;
+            }
 
             try
             {
@@ -575,9 +584,14 @@ namespace PiWebTray
             }
             if (answer != DialogResult.Yes) return;
 
-            string arguments = RestartArguments(ServiceRunningForRestart(), false);
-            if (!Sys.RunElevated(Application.ExecutablePath, arguments))
-                NotifyError(L.T("notify.adminRestartFailed"), L.T("notify.adminRestartFailedBody"));
+            // Start the elevated child only after ExitApp's update/install prompts
+            // have been accepted. The child uses --restart and waits for this tray
+            // to release the mutex, so it cannot race the old service still closing.
+            _replaceWithElevated = true;
+            if (!ExitApp(true))
+            {
+                _replaceWithElevated = false;
+            }
         }
 
         private void CreateDesktopShortcut()

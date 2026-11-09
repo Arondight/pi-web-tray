@@ -1513,14 +1513,13 @@ namespace PiWebTray
 
         private static void RestartArgumentsTests()
         {
+            // Both a normal and an elevated replacement use --restart: it waits for
+            // the old tray to release the mutex, so the elevated process cannot
+            // observe the old service's port as a conflict.
             CheckEqual("restart while running keeps the service silent",
-                "--restart --start-no-open", TrayApp.RestartArguments(true, true));
+                "--restart --start-no-open", TrayApp.RestartArguments(true));
             CheckEqual("restart while stopped keeps the service stopped",
-                "--restart --tray-only", TrayApp.RestartArguments(false, true));
-            CheckEqual("admin restart while running keeps the service silent",
-                "--start-no-open", TrayApp.RestartArguments(true, false));
-            CheckEqual("admin restart while stopped keeps the service stopped",
-                "--tray-only", TrayApp.RestartArguments(false, false));
+                "--restart --tray-only", TrayApp.RestartArguments(false));
         }
 
         private static void PortChangeTests()

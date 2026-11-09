@@ -151,6 +151,10 @@ namespace PiWebTray
         private bool _pendingOpenBrowser;
         private bool _serviceStoppedByUser;
         private bool _exiting;
+        // Set only while ExitApp is replacing this tray with an elevated one. The
+        // replacement uses --restart, so it waits for this tray to finish stopping
+        // the old service instead of racing an elevated takeover against the port.
+        private bool _replaceWithElevated;
         // A timer tick can be delivered while OnTick is showing a modal dialog
         // (MessageBox or the missing-Node prompt). Never run a second state-machine
         // pass inside that nested message loop.

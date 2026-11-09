@@ -398,6 +398,11 @@ namespace PiWebTray
         // the entered administrator account, not for the user who enabled autostart.
         internal static bool IsAdministratorAccount()
         {
+            // A UAC-filtered administrator token does not expose BUILTIN\Administrators
+            // through WindowsIdentity.Groups. Ask for the elevation type first so a
+            // normal tray can still enable the administrator task after the UAC prompt.
+            if (Elevation.IsAdministratorAccount()) return true;
+
             try
             {
                 using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
@@ -495,14 +500,24 @@ namespace PiWebTray
             // it, so another process cannot replace the elevated task definition.
             string xmlPath = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-task-" + Guid.NewGuid().ToString("N") + ".xml");
-            FileStream stream = null;
+            FileStream write = null;
+            FileStream guard = null;
             try
             {
                 byte[] xml = BuildTaskXml(executablePath, principal);
-                stream = new FileStream(xmlPath, FileMode.CreateNew, FileAccess.Write,
+                write = new FileStream(xmlPath, FileMode.CreateNew, FileAccess.Write,
                     FileShare.Read);
-                stream.Write(xml, 0, xml.Length);
-                stream.Flush();
+                write.Write(xml, 0, xml.Length);
+                write.Flush();
+                // schtasks opens the XML for read with a share mode that does not
+                // permit our write handle. Close the writer and hold a read-only
+                // handle instead: schtasks can read it, but another process still
+                // cannot replace or modify the elevated task definition while it is
+                // being registered.
+                write.Dispose();
+                write = null;
+                guard = new FileStream(xmlPath, FileMode.Open, FileAccess.Read,
+                    FileShare.Read);
 
                 string args = "/create /f /tn " + Shell.Quote(TaskName)
                     + " /xml " + Shell.Quote(xmlPath);
@@ -521,9 +536,13 @@ namespace PiWebTray
             }
             finally
             {
-                if (stream != null)
+                if (write != null)
                 {
-                    try { stream.Dispose(); } catch (Exception) { }
+                    try { write.Dispose(); } catch (Exception) { }
+                }
+                if (guard != null)
+                {
+                    try { guard.Dispose(); } catch (Exception) { }
                 }
                 try { if (File.Exists(xmlPath)) File.Delete(xmlPath); } catch (Exception) { }
             }
