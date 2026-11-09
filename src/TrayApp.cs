@@ -481,12 +481,29 @@ namespace PiWebTray
         }
 
         // NotifyIcon does not reliably report Click count for notification-area
-        // clicks. Use a short debounce instead so a double-click does not open the
-        // browser twice while a normal single click still works.
+        // clicks. Debounce using the user's Windows double-click interval so a
+        // double-click opens the browser once even when the user has configured a
+        // slower double-click speed than the old hard-coded 500 ms.
         internal static bool ShouldHandleTrayClick(DateTime lastClick, DateTime now)
         {
-            return lastClick == DateTime.MinValue
-                || now - lastClick >= TimeSpan.FromMilliseconds(500);
+            int threshold = 500;
+            try
+            {
+                int system = SystemInformation.DoubleClickTime;
+                if (system >= 200 && system <= 5000) threshold = system;
+            }
+            catch (Exception)
+            {
+            }
+            return ShouldHandleTrayClick(lastClick, now, threshold);
+        }
+
+        internal static bool ShouldHandleTrayClick(DateTime lastClick, DateTime now,
+            int thresholdMs)
+        {
+            if (lastClick == DateTime.MinValue) return true;
+            if (thresholdMs < 1) thresholdMs = 1;
+            return now - lastClick >= TimeSpan.FromMilliseconds(thresholdMs);
         }
 
         // ---------------- poll loop ----------------

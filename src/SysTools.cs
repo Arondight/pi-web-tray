@@ -844,6 +844,62 @@ namespace PiWebTray
                 if (l < r) return -1;
                 if (l > r) return 1;
             }
+
+            // Semver pre-release ordering: for equal numeric cores a stable
+            // version is newer than any pre-release, and pre-release identifiers
+            // are compared numerically/lexically. Without this, 0.4.0 and
+            // 0.4.0-beta compare equal and a beta user never sees the stable
+            // release.
+            string leftPre = PreRelease(a);
+            string rightPre = PreRelease(b);
+            if (leftPre.Length == 0 && rightPre.Length == 0) return 0;
+            if (leftPre.Length == 0) return 1;
+            if (rightPre.Length == 0) return -1;
+            return ComparePreRelease(leftPre, rightPre);
+        }
+
+        private static string PreRelease(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return "";
+            string text = raw.Trim();
+            if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase)) text = text.Substring(1);
+            int dash = text.IndexOf('-');
+            if (dash < 0) return "";
+            string value = text.Substring(dash + 1);
+            int plus = value.IndexOf('+');
+            return plus >= 0 ? value.Substring(0, plus) : value;
+        }
+
+        private static int ComparePreRelease(string a, string b)
+        {
+            string[] left = a.Split('.');
+            string[] right = b.Split('.');
+            int length = Math.Max(left.Length, right.Length);
+            for (int i = 0; i < length; i++)
+            {
+                if (i >= left.Length) return -1;
+                if (i >= right.Length) return 1;
+
+                int leftNumber;
+                int rightNumber;
+                bool leftNumeric = int.TryParse(left[i], NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out leftNumber);
+                bool rightNumeric = int.TryParse(right[i], NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out rightNumber);
+
+                if (leftNumeric && rightNumeric)
+                {
+                    if (leftNumber < rightNumber) return -1;
+                    if (leftNumber > rightNumber) return 1;
+                    continue;
+                }
+                if (leftNumeric != rightNumeric)
+                    return leftNumeric ? -1 : 1;
+
+                int text = string.Compare(left[i], right[i], StringComparison.OrdinalIgnoreCase);
+                if (text < 0) return -1;
+                if (text > 0) return 1;
+            }
             return 0;
         }
 

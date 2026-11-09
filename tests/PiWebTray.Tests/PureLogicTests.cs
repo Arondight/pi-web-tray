@@ -128,6 +128,14 @@ namespace PiWebTray
             Check("at least 22.19.0", VersionUtil.AtLeast("22.19.0", "22.19.0"));
             Check("at least v24.1.0", VersionUtil.AtLeast("v24.1.0", "22.19.0"));
             Check("not at least 22.18.0", !VersionUtil.AtLeast("22.18.0", "22.19.0"));
+            CheckEqual("stable is newer than the same pre-release", 1,
+                VersionUtil.Compare("1.2.3", "1.2.3-beta"));
+            CheckEqual("pre-release is older than stable", -1,
+                VersionUtil.Compare("1.2.3-beta", "1.2.3"));
+            CheckEqual("pre-release with a numeric suffix orders numerically", 1,
+                VersionUtil.Compare("1.2.3-beta.10", "1.2.3-beta.2"));
+            CheckEqual("identical pre-releases compare equal", 0,
+                VersionUtil.Compare("1.2.3-beta.2", "1.2.3-beta.2"));
         }
 
         private static void VersionParseTests()
@@ -953,11 +961,15 @@ namespace PiWebTray
         {
             DateTime start = new DateTime(2026, 1, 1, 12, 0, 0);
             Check("first tray click is handled",
-                TrayApp.ShouldHandleTrayClick(DateTime.MinValue, start));
+                TrayApp.ShouldHandleTrayClick(DateTime.MinValue, start, 500));
             Check("rapid second tray click is ignored",
-                !TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(250)));
+                !TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(250), 500));
             Check("tray click after the debounce is handled",
-                TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(500)));
+                TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(500), 500));
+            Check("a slower system double-click interval is honored",
+                !TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(750), 900));
+            Check("a click after a slower interval is handled",
+                TrayApp.ShouldHandleTrayClick(start, start.AddMilliseconds(900), 900));
         }
 
         private static void UpdateRestartPolicyTests()

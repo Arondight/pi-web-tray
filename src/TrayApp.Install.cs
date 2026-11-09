@@ -21,6 +21,19 @@ namespace PiWebTray
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_exiting) return;
+            // npm and the update helper both touch the global package tree. The
+            // update helper is the only operation allowed to stop/replace files;
+            // do not start an npm install while a check/download/apply is active.
+            if (UpdateBusy())
+            {
+                // A probe may have completed while an update check/download was
+                // active. Do not leave the tray stuck in Checking after declining
+                // the install; expose the stable dependency state instead.
+                if (_phase == Phase.Checking) _phase = Phase.NeedsDeps;
+                UpdateUi();
+                NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
+                return;
+            }
             // A newer explicit action owns the phase now; do not let a stale phase-resolve
             // or start continuation overwrite it later.
             ClearPendingOwnerActions(false);

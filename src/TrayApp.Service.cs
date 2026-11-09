@@ -256,6 +256,7 @@ namespace PiWebTray
         {
             _startAfterOwnerCheck = false;
             _startAfterOwnerCheckOpen = false;
+            _stopAfterOwnerCheck = false;
             _resolveAfterOwnerCheck = false;
             if (keepInstall) return;
 
@@ -446,6 +447,17 @@ namespace PiWebTray
                         // The decision to kill must be based on fresh data, but never on the
                         // UI thread; the result is consumed on a later tick.
                         BeginOwnerCheck();
+                        return;
+                    }
+                    if (HandleOwnerCheckFailure(owner))
+                    {
+                        // No evidence that the listener may be killed. Stay in Stopping
+                        // and retry the owner probe instead of claiming a port conflict.
+                        // Do not let a queued restart/install fire after an unverifiable
+                        // stop; the caller can retry explicitly.
+                        _pendingRestart = false;
+                        _pendingOpenBrowser = false;
+                        AbortInstallAfterStop(false);
                         return;
                     }
                     if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
@@ -789,6 +801,10 @@ namespace PiWebTray
         private void StartServer(bool openBrowser)
         {
             if (_exiting) return;
+            // The update helper is replacing the executable and has already stopped
+            // the service. An external --start-no-open signal or a queued action must
+            // not launch the old binary again during that window.
+            if (_updateStage == UpdateStage.Applying) return;
             // A Node.js upgrade changed the effective paths while the service was
             // running. Refresh the probe before launching a new process; the live
             // service was deliberately left in Running.
@@ -1023,6 +1039,11 @@ namespace PiWebTray
             }
             catch (Exception ex)
             {
+                // The failure can happen after Process.Start (for example while
+                // updating the UI). Do not leave that process tree behind in a
+                // Failed state; it would hold the port without a tray owner.
+                KillTrackedServer();
+                _openWhenReady = false;
                 _phase = Phase.Failed;
                 UpdateUi();
                 NotifyError(L.T("notify.cannotStart"), ex.Message);
@@ -1051,6 +1072,14 @@ namespace PiWebTray
             // but the install's restore/start intent must be cancelled so the
             // service does not come back after the install finishes.
             _serviceStoppedByUser = true;
+            // A stop that arrives while a restart is already in Stopping must
+            // cancel the queued start; otherwise PollStopping brings the service
+            // back after the user explicitly asked for it to stay down.
+            _pendingRestart = false;
+            _pendingOpenBrowser = false;
+            _restartAfterUpdate = false;
+            _autoRestartAt = DateTime.MinValue;
+            _autoRestartAttempts = 0;
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
@@ -1074,6 +1103,10 @@ namespace PiWebTray
 
         private void StopServer()
         {
+            // A click during Starting can queue "open when ready"; if the start is
+            // then stopped, that old open request must not fire on a later silent
+            // start (autostart, update restart or install recovery).
+            _openWhenReady = false;
             ClearPendingOwnerActions(_installAfterStop);
             InvalidateOwnerCheck();
             if (_phase == Phase.Stopping) return;

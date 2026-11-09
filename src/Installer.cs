@@ -384,18 +384,21 @@ namespace PiWebTray
             DateTime started = DateTime.Now;
 
             List<InstallStep> steps = StepsToInstall(probe, config, force);
+
+            // A missing/broken Node.js is a failed install even when both npm packages
+            // happen to be present; the service cannot run and "none" would be a lie.
+            if (!probe.NodeFound || !probe.NpmFound)
+            {
+                result.Success = false;
+                result.Message = probe.NodeIssue();
+                return result;
+            }
+
             if (steps.Count == 0)
             {
                 ClearPending(config);
                 result.Success = true;
                 result.Message = L.T("install.none");
-                return result;
-            }
-
-            if (!probe.NodeFound || !probe.NpmFound)
-            {
-                result.Success = false;
-                result.Message = probe.NodeIssue();
                 return result;
             }
 
@@ -640,18 +643,22 @@ namespace PiWebTray
 
             bool force = HasPending(config);
             List<InstallStep> steps = StepsToInstall(probe, config, force);
-            if (steps.Count == 0)
-            {
-                ClearPending(config);
-                ConsoleHost.WriteLine(L.T("install.none"));
-                return 0;
-            }
 
+            // Check the runtime before reporting "nothing to do": an old machine can
+            // still have both npm packages installed while node.exe is gone. Returning
+            // 0 in that case would tell a script that the environment is ready.
             if (probe.NeedsNode)
             {
                 ConsoleHost.WriteError(L.T("install.cannot", probe.NodeIssue()));
                 ConsoleHost.WriteLine(L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Url()));
                 return 2;
+            }
+
+            if (steps.Count == 0)
+            {
+                ClearPending(config);
+                ConsoleHost.WriteLine(L.T("install.none"));
+                return 0;
             }
 
             ConsoleHost.WriteLine(L.T("install.willRun"));

@@ -597,7 +597,7 @@ namespace PiWebTray
             // Esc and the title-bar close button are not a request to exit the tray.
             // Only the explicit Exit button (No) stops the tray.
             if (answer == DialogResult.Ignore || answer == DialogResult.Yes
-                || answer == DialogResult.Cancel)
+                || answer == DialogResult.Cancel || answer == DialogResult.None)
             {
                 // Downloading must not shut the tray down: the user may install Node.js
                 // while it is running, and the background watcher will continue.
