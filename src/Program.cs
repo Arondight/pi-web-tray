@@ -683,34 +683,57 @@ namespace PiWebTray
             // path must do the same, or the install fails with a locked package directory.
             bool hasWork = dryRun || Installer.HasInstallWork(config);
             bool stopped = false;
+            // The CLI and an elevated update helper can otherwise touch the same
+            // installation at the same time: an update could replace the executable
+            // while npm is rewriting the global package tree. An update helper holds
+            // this lock for the whole apply phase.
+            OperationLock updateLock = null;
             try
             {
-                if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
-            }
-            catch (Exception ex)
-            {
-                ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
-                return 1;
-            }
+                if (!dryRun)
+                {
+                    updateLock = OperationLock.TryAcquire(
+                        OperationLock.UpdateName(config.BaseDir));
+                    if (updateLock == null)
+                    {
+                        ConsoleHost.WriteError(L.T("update.error.busy"));
+                        return 1;
+                    }
+                }
 
-            int code;
-            try
-            {
-                code = Installer.RunInConsole(config, dryRun);
-            }
-            catch (Exception ex)
-            {
-                // A refused install may have thrown after the service was stopped.
-                // Do not skip the restore path just because the install itself failed.
-                ConsoleHost.WriteError(L.T("install.crashBody", ex.Message));
-                code = 1;
-            }
+                try
+                {
+                    if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
+                }
+                catch (Exception ex)
+                {
+                    ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
+                    return 1;
+                }
 
-            // Restore what was stopped: a tray path restarts the service it stopped for an
-            // install; the CLI path asks a running tray to start it again.
-            bool restored = true;
-            if (stopped && !dryRun) restored = RestartServiceAfterConsoleInstall(config);
-            return code == 0 && !restored ? 1 : code;
+                int code;
+                try
+                {
+                    code = Installer.RunInConsole(config, dryRun);
+                }
+                catch (Exception ex)
+                {
+                    // A refused install may have thrown after the service was stopped.
+                    // Do not skip the restore path just because the install itself failed.
+                    ConsoleHost.WriteError(L.T("install.crashBody", ex.Message));
+                    code = 1;
+                }
+
+                // Restore what was stopped: a tray path restarts the service it stopped for an
+                // install; the CLI path asks a running tray to start it again.
+                bool restored = true;
+                if (stopped && !dryRun) restored = RestartServiceAfterConsoleInstall(config);
+                return code == 0 && !restored ? 1 : code;
+            }
+            finally
+            {
+                if (updateLock != null) updateLock.Dispose();
+            }
         }
 
         // Mirror TrayApp.ShouldStopServiceForInstall: only stop a listener that is really

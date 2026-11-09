@@ -59,6 +59,21 @@ namespace PiWebTray
 
                 string target = SafeFullPath(config.BaseDir);
                 string dataDir = SafeFullPath(config.DataDir);
+
+                // Fail before ExitApp stops the tray if another installer/updater
+                // already owns this installation. The helper re-checks the lock
+                // before copying; this preflight only avoids a needless outage.
+                using (OperationLock preflight = OperationLock.TryAcquire(
+                    OperationLock.UpdateName(target)))
+                {
+                    if (preflight == null)
+                    {
+                        error = L.T("update.error.busy");
+                        AppendLog(logPath, "another update/install owns the installation");
+                        return false;
+                    }
+                }
+
                 string stagingHash = ComputeStagingHash(staging);
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
