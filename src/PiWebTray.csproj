@@ -21,10 +21,10 @@
     <Product>Pi Web Tray</Product>
     <Company>Pi Web Tray contributors</Company>
     <Copyright>Copyright (c) 2026 Pi Web Tray contributors</Copyright>
-    <Version>0.3.5</Version>
-    <AssemblyVersion>0.3.5.0</AssemblyVersion>
-    <FileVersion>0.3.5.0</FileVersion>
-    <InformationalVersion>0.3.5</InformationalVersion>
+    <Version>0.4.0</Version>
+    <AssemblyVersion>0.4.0.0</AssemblyVersion>
+    <FileVersion>0.4.0.0</FileVersion>
+    <InformationalVersion>0.4.0</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
