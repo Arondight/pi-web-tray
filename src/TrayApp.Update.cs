@@ -20,6 +20,16 @@ namespace PiWebTray
             lock (_updateLock) return _updateBusy;
         }
 
+        // The helper can only wait for a port quickly, not inspect its owner. Pass the
+        // port only when the update expects our service to occupy it. Otherwise a
+        // foreign listener on the configured port would block an otherwise safe update.
+        internal static bool ShouldWaitForServicePortBeforeUpdate(bool serviceSilent,
+            bool startedWithServiceRunning, bool listenerIsOurs)
+        {
+            if (serviceSilent) return true;
+            return startedWithServiceRunning && listenerIsOurs;
+        }
+
         private void BeginUpdateCheck(bool silent)
         {
             if (_exiting) return;
@@ -207,6 +217,10 @@ namespace PiWebTray
             if (answer != DialogResult.Yes)
             {
                 Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
+                // Allow a fresh check next time instead of making the menu offer the
+                // same declined release forever. Only clear the exact release that was
+                // offered; a newer check must not be discarded here.
+                if (ReferenceEquals(_availableRelease, release)) _availableRelease = null;
                 if (ownsCheck && UpdateBusy()) EndUpdate();
                 return;
             }
@@ -345,15 +359,19 @@ namespace PiWebTray
                 {
                     ServiceProbe.Invalidate();
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
-                    bool serviceSilent = (!stoppedByUser
-                            && (IsOurPiWeb(owner) || TrayOwnsPort(owner)))
+                    bool listenerIsOurs = IsOurPiWeb(owner) || TrayOwnsPort(owner);
+                    bool serviceSilent = (!stoppedByUser && listenerIsOurs)
                         || ShouldRestartServiceAfterUpdate(startedRunning, autoRestart,
                             stoppedByUser, _restartAfterUpdate);
                     ApplyStartMode mode = serviceSilent
                         ? ApplyStartMode.ServiceSilent
                         : ApplyStartMode.TrayOnly;
-                    bool waitForService = mode == ApplyStartMode.ServiceSilent
-                        || _updateStartedWithServiceRunning;
+                    // Only wait for the port when the update itself is meant to keep
+                    // or restore our service. A listener that appeared after the user
+                    // stopped Pi Web is not a reason to abort the update.
+                    bool waitForService = ShouldWaitForServicePortBeforeUpdate(
+                        mode == ApplyStartMode.ServiceSilent,
+                        startedRunning, listenerIsOurs);
                     ok = Updater.StartHelper(_config, staging, mode, elevated,
                         waitForService, out error);
                 }
@@ -399,9 +417,13 @@ namespace PiWebTray
             }
 
             // The helper is already waiting for this process to exit. Stop pi-web and
-            // let it replace the files and start the new tray.
+            // let it replace the files and start the new tray. This is the only ExitApp
+            // call allowed while the update is in the Applying stage.
             Updater.AppendLog(_config.UpdateLogFile, "helper started; stopping the tray");
-            if (!ExitApp(false))
+            _exitForUpdateApply = true;
+            bool exited = ExitApp(false);
+            if (!exited) _exitForUpdateApply = false;
+            if (!exited)
             {
                 // An install confirmation or another exit guard can leave the tray
                 // running while the helper is still waiting. Do not leave the update

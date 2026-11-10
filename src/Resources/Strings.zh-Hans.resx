@@ -417,6 +417,9 @@
   <data name="notify.noShell" xml:space="preserve">
     <value>系统中未找到 WScript.Shell。</value>
   </data>
+  <data name="notify.shortcutCreateFailed" xml:space="preserve">
+    <value>无法创建快捷方式。</value>
+  </data>
   <data name="notify.openLogFailed" xml:space="preserve">
     <value>无法打开日志文件</value>
   </data>
@@ -842,6 +845,9 @@
   <data name="update.busyBody" xml:space="preserve">
     <value>更新仍在进行中。是否退出并放弃更新？</value>
   </data>
+  <data name="update.exitDuringApplyBody" xml:space="preserve">
+    <value>更新助手正在替换文件，无法安全中断。请等待更新完成。</value>
+  </data>
   <data name="update.error.http" xml:space="preserve">
     <value>GitHub 返回 HTTP {0}。</value>
   </data>
@@ -984,6 +990,9 @@
   </data>
   <data name="check.ownerNone" xml:space="preserve">
     <value>无</value>
+  </data>
+  <data name="check.ownerUnavailable" xml:space="preserve">
+    <value>未知（探测失败）</value>
   </data>
   <data name="check.checking" xml:space="preserve">
     <value>检查中…</value>

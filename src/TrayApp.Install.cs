@@ -26,12 +26,20 @@ namespace PiWebTray
             // do not start an npm install while a check/download/apply is active.
             if (UpdateBusy())
             {
+                if (_phase == Phase.Installing) return;
                 // A probe may have completed while an update check/download was
                 // active. Do not leave the tray stuck in Checking after declining
                 // the install; expose the stable dependency state instead.
                 if (_phase == Phase.Checking) _phase = Phase.NeedsDeps;
+                bool restore = _installRestartService;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                ReleaseInstallUpdateLock();
                 UpdateUi();
                 NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
+                if (restore && _updateStage != UpdateStage.Applying)
+                    RestoreServiceAfterInstall();
                 return;
             }
             // A newer explicit action owns the phase now; do not let a stale phase-resolve
@@ -56,6 +64,7 @@ namespace PiWebTray
             // let PollEnvironmentCheck start it when the probe result arrives.
             if (_probe == null)
             {
+                ReleaseInstallUpdateLock();
                 lock (_checkLock)
                 {
                     _installAfterCheck = true;
@@ -71,6 +80,7 @@ namespace PiWebTray
 
             if (probe.NeedsNode)
             {
+                ReleaseInstallUpdateLock();
                 _phase = Phase.NeedsNode;
                 UpdateUi();
                 NotifyWarningOnce("needs-node-install",
@@ -83,6 +93,7 @@ namespace PiWebTray
 
             if (packages.Count == 0)
             {
+                ReleaseInstallUpdateLock();
                 BeginEnvironmentCheck(thenStart, thenOpen);
                 return;
             }
@@ -113,8 +124,13 @@ namespace PiWebTray
 
         private void ContinueBeginInstall(bool force, bool thenStart, bool thenOpen, PortOwnerInfo owner)
         {
-            // The phase may have changed while the owner check ran
-            if (_phase == Phase.Starting || _phase == Phase.Stopping) return;
+            // The phase may have changed while the owner check ran. A dropped install
+            // must not leave its cross-process update lock held.
+            if (_phase == Phase.Starting || _phase == Phase.Stopping)
+            {
+                ReleaseInstallUpdateLock();
+                return;
+            }
             if (_installAfterStop)
             {
                 _installAfterStopForce = _installAfterStopForce || force;
@@ -124,9 +140,26 @@ namespace PiWebTray
             }
             if (_phase == Phase.Installing) return;
 
+            // An update check/download can start while the owner probe is in flight
+            // because the phase is still stable. Re-check before stopping the service
+            // or starting npm; otherwise npm and the updater could overlap.
+            if (UpdateBusy())
+            {
+                bool restore = _installRestartService;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                ReleaseInstallUpdateLock();
+                NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
+                if (restore && _updateStage != UpdateStage.Applying)
+                    RestoreServiceAfterInstall();
+                return;
+            }
+
             ProbeResult probe = _probe;
             if (probe == null)
             {
+                ReleaseInstallUpdateLock();
                 BeginEnvironmentCheck(thenStart, thenOpen);
                 return;
             }
@@ -134,6 +167,7 @@ namespace PiWebTray
             {
                 // The environment check can finish while the owner check runs; re-guard
                 // here so an install queued before that result is not started anyway.
+                ReleaseInstallUpdateLock();
                 _phase = Phase.NeedsNode;
                 UpdateUi();
                 NotifyWarningOnce("needs-node-install",
@@ -144,7 +178,21 @@ namespace PiWebTray
             List<string> packages = Installer.PackagesToInstall(probe, _config, force);
             if (packages.Count == 0)
             {
+                ReleaseInstallUpdateLock();
                 BeginEnvironmentCheck(thenStart, thenOpen);
+                return;
+            }
+
+            // Serialize with the CLI install path and the update helper before stopping
+            // the service. The lock is held through the stop and the npm run.
+            if (!EnsureInstallUpdateLock())
+            {
+                bool restore = _installRestartService;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                if (restore && _updateStage != UpdateStage.Applying)
+                    RestoreServiceAfterInstall();
                 return;
             }
 
@@ -262,6 +310,9 @@ namespace PiWebTray
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
+            // npm has finished; the follow-up probe only reads state and may start the
+            // service, so the installation lock can be released now.
+            ReleaseInstallUpdateLock();
             CloseInstallForm();
 
             if (result == null)
@@ -339,11 +390,30 @@ namespace PiWebTray
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
+            ReleaseInstallUpdateLock();
             Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: Pi Web is still running");
             if (notify && _phase != Phase.PortConflict)
             {
                 NotifyWarning(L.T("notify.stopFailedTitle"), L.T("notify.stopFailedBody", _port));
             }
+        }
+
+        private bool EnsureInstallUpdateLock()
+        {
+            if (_installUpdateLock != null) return true;
+            _installUpdateLock = OperationLock.TryAcquire(
+                OperationLock.UpdateName(_config.BaseDir));
+            if (_installUpdateLock != null) return true;
+            NotifyWarning(L.T("notify.updateBusyTitle"), L.T("update.error.busy"));
+            return false;
+        }
+
+        private void ReleaseInstallUpdateLock()
+        {
+            OperationLock operationLock = _installUpdateLock;
+            _installUpdateLock = null;
+            if (operationLock == null) return;
+            try { operationLock.Dispose(); } catch (Exception) { }
         }
 
         // A service can run from the installed pi-web script even when the separate

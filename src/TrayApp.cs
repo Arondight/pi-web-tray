@@ -87,6 +87,7 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _autostartItem;
         private readonly ToolStripMenuItem _adminAutostartItem;
         private readonly ToolStripMenuItem _aboutItem;
+        private readonly ToolStripMenuItem _exitItem;
 
         private Process _server;
         private InstallForm _installForm;
@@ -144,6 +145,10 @@ namespace PiWebTray
         private InstallResult _installResult;
         private DateTime _installStartedAt = DateTime.MinValue;
         private int _installTicks;
+        // Cross-process lock held from the stop-for-install step until npm finishes.
+        // The CLI and the update helper use the same lock so npm and file replacement
+        // cannot touch the installation at the same time.
+        private OperationLock _installUpdateLock;
 
         // service control
         private bool _openWhenReady;
@@ -151,6 +156,14 @@ namespace PiWebTray
         private bool _pendingOpenBrowser;
         private bool _serviceStoppedByUser;
         private bool _exiting;
+        // Set only for the ExitApp call made by the updater after its helper has
+        // started. Every other exit during Applying is refused: the helper cannot be
+        // cancelled safely and may already be replacing files.
+        private bool _exitForUpdateApply;
+        // A quit signal can be processed by the timer while an exit confirmation is
+        // already open. Refuse a nested ExitApp instead of stacking dialogs or exiting
+        // behind the first prompt.
+        private bool _exitPromptOpen;
         // Set only while ExitApp is replacing this tray with an elevated one. The
         // replacement uses --restart, so it waits for this tray to finish stopping
         // the old service instead of racing an elevated takeover against the port.
@@ -169,6 +182,10 @@ namespace PiWebTray
         private DateTime _lastSignalHandled = DateTime.MinValue;
         private DateTime _stopEscalatedAt = DateTime.MinValue;
         private volatile bool _stopWorkerRunning;
+        // Held while the background pi-web stop command runs. The CLI install path
+        // waits for this lock after the port closes before starting npm.
+        private OperationLock _stopWorkerLock;
+        private int _stopOwnerCheckFailures;
         private DateTime _autoRestartAt = DateTime.MinValue;
         private int _autoRestartAttempts;
         private DateTime _runningSince = DateTime.MinValue;
@@ -366,8 +383,8 @@ namespace PiWebTray
             _aboutItem = new ToolStripMenuItem(L.T("menu.about"));
             _aboutItem.Click += delegate { ShowAbout(); };
 
-            ToolStripMenuItem exitItem = new ToolStripMenuItem(L.T("menu.exit"));
-            exitItem.Click += delegate { ExitApp(); };
+            _exitItem = new ToolStripMenuItem(L.T("menu.exit"));
+            _exitItem.Click += delegate { ExitApp(); };
 
             _menu.Items.Add(_statusItem);
             _menu.Items.Add(new ToolStripSeparator());
@@ -394,7 +411,7 @@ namespace PiWebTray
             _menu.Items.Add(_restartAdminItem);
             _menu.Items.Add(_updateItem);
             _menu.Items.Add(_aboutItem);
-            _menu.Items.Add(exitItem);
+            _menu.Items.Add(_exitItem);
 
             // The check margin must stay: turning off only ShowImageMargin clips the check box, which makes
             // Checked look like a no-op. The state is therefore written into the text as well.

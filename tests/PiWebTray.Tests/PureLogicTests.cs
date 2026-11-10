@@ -633,6 +633,8 @@ namespace PiWebTray
             {
                 Check("configured Node candidate is listed",
                     EnvironmentProbe.NodeCandidates(config).Contains(node));
+                Check("a missing configured Node path is not authoritative",
+                    !EnvironmentProbe.HasUsableConfiguredNodePath(config));
 
                 string missing = EnvironmentProbe.NodePresenceSignature(config);
                 Check("missing configured Node is not in the signature",
@@ -640,6 +642,8 @@ namespace PiWebTray
 
                 Directory.CreateDirectory(root);
                 File.WriteAllBytes(node, new byte[] { 0x4D, 0x5A });
+                Check("an existing configured Node path is authoritative",
+                    EnvironmentProbe.HasUsableConfiguredNodePath(config));
                 string installed = EnvironmentProbe.NodePresenceSignature(config);
                 Check("installed Node is in the signature",
                     installed.IndexOf(node, StringComparison.OrdinalIgnoreCase) >= 0);
@@ -647,6 +651,8 @@ namespace PiWebTray
                     !string.Equals(missing, installed, StringComparison.Ordinal));
 
                 File.Delete(node);
+                Check("a removed configured Node path becomes non-authoritative",
+                    !EnvironmentProbe.HasUsableConfiguredNodePath(config));
                 string removed = EnvironmentProbe.NodePresenceSignature(config);
                 Check("removed Node is no longer in the signature",
                     removed.IndexOf(node, StringComparison.OrdinalIgnoreCase) < 0);
@@ -877,6 +883,11 @@ namespace PiWebTray
             Check("operation locks use the global namespace",
                 OperationLock.UpdateName(@"C:\Apps\One").StartsWith(@"Global\",
                     StringComparison.OrdinalIgnoreCase));
+            CheckEqual("stop lock is scoped to the instance",
+                @"Local\PiWebTray.StopLock" + Instance.Suffix, OperationLock.StopName);
+            Check("stop lock does not collide with the stop event",
+                !string.Equals(OperationLock.StopName, Instance.StopSignalName,
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         private static void AutostartPathTests()
@@ -987,6 +998,15 @@ namespace PiWebTray
                 !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true, true));
             Check("a crash still restarts with AutoRestart off only when explicitly marked",
                 TrayApp.ShouldRestartServiceAfterUpdate(false, false, false, true));
+
+            Check("helper waits when the update starts a silent service",
+                TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false));
+            Check("helper waits while our service is still listening",
+                TrayApp.ShouldWaitForServicePortBeforeUpdate(false, true, true));
+            Check("helper does not wait for a foreign listener after a user stop",
+                !TrayApp.ShouldWaitForServicePortBeforeUpdate(false, true, false));
+            Check("helper does not wait for a foreign listener when no service ran",
+                !TrayApp.ShouldWaitForServicePortBeforeUpdate(false, false, false));
         }
 
         private static void NpmWorkingDirectoryTests()

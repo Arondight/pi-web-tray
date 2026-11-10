@@ -232,12 +232,24 @@ namespace PiWebTray
             }
         }
 
+        // A missing configured path must not suppress PATH/NVM detection. Keeping the
+        // rule in one function also makes the recovery behavior directly testable.
+        internal static bool HasUsableConfiguredNodePath(Config config)
+        {
+            return config != null
+                && !string.IsNullOrEmpty(config.NodePath)
+                && File.Exists(config.NodePath);
+        }
+
         private static void DetectNode(Config config, ProbeResult result)
         {
-            // An explicitly configured NodePath is authoritative. For automatic
-            // detection, do not stop at the first node.exe that merely exists: an
-            // old Program Files copy must not shadow a newer PATH/NVM installation.
-            bool explicitPath = !string.IsNullOrEmpty(config != null ? config.NodePath : null);
+            // A configured NodePath that exists is authoritative. A path that no
+            // longer exists is treated as invalid so automatic detection can recover,
+            // including PATH/NVM installations that are not in the fixed candidate list.
+            // For automatic detection, do not stop at the first node.exe that merely
+            // exists: an old Program Files copy must not shadow a newer PATH/NVM
+            // installation.
+            bool explicitPath = HasUsableConfiguredNodePath(config);
             List<string> candidates = NodeCandidates(config);
             if (!explicitPath)
             {

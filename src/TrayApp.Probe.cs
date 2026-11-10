@@ -423,6 +423,15 @@ namespace PiWebTray
             if (result == null)
             {
                 _nodePresenceNotified = false;
+                // A failed probe is not evidence that a live service broke. Keep the
+                // running service and let the phase poll verify its owner instead of
+                // flashing a red error and disabling Stop.
+                if (KeepRunningWhenListening())
+                {
+                    NotifyWarningOnce("env-check-failed",
+                        L.T("notify.envCheckFailed"), L.T("notify.envCheckFailedBody"));
+                    return;
+                }
                 _phase = Phase.Failed;
                 UpdateUi();
                 NotifyError(L.T("notify.envCheckFailed"), L.T("notify.envCheckFailedBody"));
@@ -631,7 +640,10 @@ namespace PiWebTray
                 {
                     EndModal();
                 }
-                ApplyProbeResult(latest);
+                // The window returns null when it was closed before its background
+                // probe completed. Applying the initial placeholder would turn a live
+                // service into NeedsNode/Failed without any new evidence.
+                if (latest != null) ApplyProbeResult(latest);
             }
             catch (Exception ex)
             {

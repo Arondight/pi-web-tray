@@ -21,6 +21,18 @@ namespace PiWebTray
         // fails closed instead of allowing a competing install/update.
         internal const string InstallName = @"Global\PiWebTray.Install";
 
+        // Held while the tray's `pi-web stop` child is running. The CLI install path
+        // waits for this lock after the port closes, so npm cannot start while the
+        // stop command still holds the package directory. Local\ is enough: only a
+        // tray in the current Windows session can serve this instance's port.
+        internal static string StopName
+        {
+            // Keep this distinct from Instance.StopSignalName (Local\PiWebTray.Stop...).
+            // Reusing that name for a Mutex conflicts with the named stop event created by
+            // the tray, and TryAcquire fails as a result.
+            get { return @"Local\PiWebTray.StopLock" + Instance.Suffix; }
+        }
+
         private readonly Mutex _mutex;
         private bool _owned;
 

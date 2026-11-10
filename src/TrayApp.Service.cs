@@ -452,14 +452,25 @@ namespace PiWebTray
                     if (HandleOwnerCheckFailure(owner))
                     {
                         // No evidence that the listener may be killed. Stay in Stopping
-                        // and retry the owner probe instead of claiming a port conflict.
-                        // Do not let a queued restart/install fire after an unverifiable
-                        // stop; the caller can retry explicitly.
+                        // for a few retries instead of claiming a port conflict. If the
+                        // process probe remains unavailable, leave the intermediate state:
+                        // otherwise Stop/Restart stay disabled and the tray is stuck.
+                        _stopOwnerCheckFailures++;
                         _pendingRestart = false;
                         _pendingOpenBrowser = false;
                         AbortInstallAfterStop(false);
+                        if (_stopOwnerCheckFailures >= 3)
+                        {
+                            _stopOwnerCheckFailures = 0;
+                            KillTrackedServer();
+                            _phase = Phase.Failed;
+                            UpdateUi();
+                            NotifyError(L.T("notify.stopFailedTitle"),
+                                L.T("notify.stopFailedBody", _port));
+                        }
                         return;
                     }
+                    _stopOwnerCheckFailures = 0;
                     if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                     {
                         _stopEscalatedAt = DateTime.Now;
@@ -840,9 +851,14 @@ namespace PiWebTray
                 return;
             }
 
+            // A request that cannot be executed yet must not mutate the current user
+            // intent or discard another pending action. In particular, a start signal
+            // during Stopping used to clear _serviceStoppedByUser even though the start
+            // itself was dropped, which later confused the update restart decision.
+            if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+
             ClearPendingOwnerActions(false);
             InvalidateOwnerCheck();
-            if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
 
             // A new explicit start overrides an earlier deliberate stop. This matters
             // when an update is still downloading: a user stop must not be undone by
@@ -1137,6 +1153,7 @@ namespace PiWebTray
                 _phase = Phase.Stopping;
                 _stopDeadline = DateTime.Now.AddSeconds(10);
                 _stopEscalatedAt = DateTime.MinValue;
+                _stopOwnerCheckFailures = 0;
                 UpdateUi();
                 return;
             }
@@ -1219,6 +1236,7 @@ namespace PiWebTray
             _phase = Phase.Stopping;
             _stopDeadline = DateTime.Now.AddSeconds(20);
             _stopEscalatedAt = DateTime.MinValue;
+            _stopOwnerCheckFailures = 0;
             UpdateUi();
 
             // pi-web's own stop command starts node and takes a while, so run it in the background
@@ -1226,11 +1244,20 @@ namespace PiWebTray
 
             if (!string.IsNullOrEmpty(script) && File.Exists(script))
             {
+                // Hold a cross-process lock before publishing _stopWorkerRunning. The
+                // CLI install path waits on this lock after the port closes, so it cannot
+                // start npm while `pi-web stop` still holds the package directory.
+                ReleaseStopWorkerLock();
+                _stopWorkerLock = OperationLock.TryAcquire(OperationLock.StopName);
                 _stopWorkerRunning = true;
                 Thread worker = new Thread(delegate ()
                 {
                     try { StopWithCli(script); }
-                    finally { _stopWorkerRunning = false; }
+                    finally
+                    {
+                        _stopWorkerRunning = false;
+                        ReleaseStopWorkerLock();
+                    }
                 });
                 worker.IsBackground = true;
                 try
@@ -1240,6 +1267,7 @@ namespace PiWebTray
                 catch (Exception)
                 {
                     _stopWorkerRunning = false;
+                    ReleaseStopWorkerLock();
                 }
             }
             else
@@ -1261,6 +1289,14 @@ namespace PiWebTray
             catch (Exception)
             {
             }
+        }
+
+        private void ReleaseStopWorkerLock()
+        {
+            OperationLock operationLock = _stopWorkerLock;
+            _stopWorkerLock = null;
+            if (operationLock == null) return;
+            try { operationLock.Dispose(); } catch (Exception) { }
         }
 
         // Shared by the helper start mode and the post-update restart decision.

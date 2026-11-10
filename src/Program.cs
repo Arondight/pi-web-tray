@@ -244,7 +244,11 @@ namespace PiWebTray
                 // fail to kill it from this shell; verify the port actually closed so the
                 // exit code reflects reality instead of the signal delivery.
                 if (!SendSignal(Instance.StopSignalName)) return 1;
-                return Net.WaitPortClosed(servicePort, 30000) ? 0 : 1;
+                if (!Net.WaitPortClosed(servicePort, 30000)) return 1;
+                // A closed port does not mean the tray's `pi-web stop` child has
+                // released the package directory. Wait so `--stop && --install` does
+                // not start npm too early.
+                return WaitForStopWorker(25000) ? 0 : 1;
             }
 
             if (isQuit)
@@ -636,6 +640,13 @@ namespace PiWebTray
                     // this process was started without PI_WEB_TRAY_PORT.
                     config.Port = EffectivePort(config);
                     ProbeResult latest = CheckForm.ShowReport(config, new ProbeResult(), elevated, true);
+                    if (latest == null)
+                    {
+                        // The user closed the report before its background probe finished.
+                        // Do not report the placeholder result as "not ready"; run one
+                        // synchronous probe so the CLI exit code still reflects reality.
+                        latest = EnvironmentProbe.Detect(config);
+                    }
                     return latest.Ready ? 0 : 1;
                 }
                 catch (Exception ex)
@@ -742,7 +753,17 @@ namespace PiWebTray
         {
             stopped = false;
             int port = EffectivePort(config);
-            if (!Net.IsPortOpen(port, 300)) return true;
+            if (!Net.IsPortOpen(port, 300))
+            {
+                // A tray may have closed the port for a prior stop while its
+                // `pi-web stop` child is still releasing the package directory.
+                if (!dryRun && TrayRunning() && !WaitForStopWorker(25000))
+                {
+                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
+                    return false;
+                }
+                return true;
+            }
 
             ServiceProbe.Invalidate();
             ProbeResult probe;
@@ -773,6 +794,14 @@ namespace PiWebTray
                     return false;
                 }
                 if (!Net.WaitPortClosed(port, 30000))
+                {
+                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
+                    return false;
+                }
+                // The port can close while the tray's `pi-web stop` child is still
+                // finishing. Starting npm now can hit a locked package directory; wait
+                // for the same lock the tray holds until that child exits.
+                if (!WaitForStopWorker(25000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -841,6 +870,23 @@ namespace PiWebTray
                     return true;
                 }
                 Thread.Sleep(150);
+            }
+            return false;
+        }
+
+        // The tray holds OperationLock.StopName while its `pi-web stop` child is
+        // running. Acquiring the lock after the port closes means that child has
+        // finished; if the lock is free already, there was no stop worker to wait for.
+        private static bool WaitForStopWorker(int timeoutMs)
+        {
+            DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+            while (DateTime.Now < deadline)
+            {
+                using (OperationLock stopLock = OperationLock.TryAcquire(OperationLock.StopName))
+                {
+                    if (stopLock != null) return true;
+                }
+                Thread.Sleep(100);
             }
             return false;
         }

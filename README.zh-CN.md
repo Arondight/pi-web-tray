@@ -49,7 +49,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 1. 下载并解压发布包。
 2. 运行 `.\pi-web-tray.exe`。
 
-首次启动会检查环境、安装缺失依赖、启动 Pi Web 并打开浏览器。若缺少 Node.js，会说明所需版本并提供下载页，此时 Pi Web Tray 保持运行，检测到 Node.js 后重新检查。如果依赖包也缺失，会提示使用 **安装/更新服务**。若 Pi Web 运行期间 Node.js 被移除，会通知但不会停止正在运行的服务，并在下次启动前重新检查。若安装被中断，下次尝试会重新安装相关包，而不会直接信任不完整的目录。
+首次启动会检查环境、安装缺失依赖、启动 Pi Web 并打开浏览器。默认 `AutoInstall=1` 时，正常启动会自动安装缺失依赖。若缺少 Node.js，会说明所需版本并提供下载页，此时 Pi Web Tray 保持运行，检测到 Node.js 后重新检查。若 Node.js 是在该提示之后安装的，则不会自动安装依赖：会报告缺失的依赖，并在菜单中提供 **安装/更新服务**。若 Pi Web 运行期间 Node.js 被移除，会通知但不会停止正在运行的服务，并在下次启动前重新检查。若安装被中断，下次尝试会重新安装相关包，而不会直接信任不完整的目录。
 
 配置与日志默认在 `%LOCALAPPDATA%\pi-web-tray`。设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁。若可执行文件位于 `C:\Program Files` 等受保护的系统目录，便携模式会被忽略。即使在便携模式，`state.ini`、`crash.log` 和更新暂存仍位于数据目录。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
 
@@ -99,7 +99,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 退出并停止服务
 ```
 
-- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web 和 Pi，并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消。
+- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web 和 Pi，并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为 Pi Web Tray 的服务。其他会话或安装会报告 **端口冲突**，Pi Web Tray 不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
 - Pi Web 意外退出会通知。`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
 
@@ -138,6 +138,9 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `PI_WEB_TRAY_LANG`     | 覆盖界面语言。                                                                                                               |
 | `PI_WEB_TRAY_HOME`     | 覆盖数据目录根路径，并优先于便携模式。                                                                                       |
 | `PI_WEB_TRAY_PORTABLE` | 设为 `1` 时 ini 和日志放在可执行文件旁。                                                                                     |
+| `PI_WEB_TRAY_NO_NODE`  | 测试钩子：模拟 Node.js 缺失。                                                                                                |
+| `PI_WEB_TRAY_NO_PIWEB` | 测试钩子：模拟 Pi Web 包缺失。                                                                                               |
+| `PI_WEB_TRAY_NO_PICLI` | 测试钩子：模拟 Pi CLI 包缺失。                                                                                               |
 
 命名实例也会使用独立的开机自启动名称，避免覆盖默认安装的条目。但 Run 值或计划任务不会保留启动时的环境变量，因此开机自启动只应从默认实例使用。
 
@@ -154,6 +157,8 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 .\pi-web-tray.exe --install         安装依赖，不启动 Pi Web Tray 托盘。
 .\pi-web-tray.exe --dry-run         与 --install 配合，仅打印 npm 命令。
 .\pi-web-tray.exe --diag            将诊断快照写入 diag.txt。
+.\pi-web-tray.exe --lang-check      检查所有受支持语言的界面字符串是否完整。
+.\pi-web-tray.exe --make-ico        生成程序图标（构建工具）。
 .\pi-web-tray.exe --version         显示版本。
 .\pi-web-tray.exe --help            显示命令行帮助。
 ```
@@ -173,9 +178,9 @@ cd .\pi-web-tray
 ## 安全与限制
 
 - 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权。无遥测、无持久网络监听。SOCKS5 更新代理会打开一个仅当前托盘进程可用的临时 loopback 监听。
-- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验。更新助手会先将暂存文件复制到受保护快照并重新校验，然后替换文件。发布包未签名，首次运行可能触发 SmartScreen。助手仍接受调用方提供的暂存哈希，它不能替代代码签名。
+- 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验。更新助手会先将暂存文件复制到目标快照并重新校验，然后替换文件；安装目录受保护时该快照也受保护。发布包未签名，首次运行可能触发 SmartScreen。助手仍接受调用方提供的暂存哈希，它不能替代代码签名。
 - 管理员自启动要求当前 Windows 账户属于 Administrators 组，并为当前用户创建登录任务。标准用户通过其他管理员凭据的 UAC 会被拒绝。任务名包含用户 SID 和命名实例后缀，不会覆盖其他用户的任务。旧版 `PiWebTray` 任务会被报告。下次修改自启动设置时会被移除。
-- `server.log`、`install.log` 和 `update.log` 在 4 MB 时轮转。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行。托盘菜单始终可用。
+- `server.log`、`install.log` 和 `update.log` 在 4 MB 时轮转。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行。托盘菜单始终可用。若日志宿主子进程无法创建，服务输出会回退到未经脱敏、不会轮转的 `1>>` 路径，详见 [SECURITY.md](SECURITY.md)。
 - 管理员自启动任务只针对当前 Windows 用户，并且使用电池供电时也不会被阻止或停止。它不会继承启用自启动时的命令行环境。
 
 ## 相关项目

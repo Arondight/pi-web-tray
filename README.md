@@ -49,7 +49,7 @@ Windows 8.1, 10 and 11 can install the latest PowerShell from the [official rele
 1. Download and extract the release archive.
 2. Run `.\pi-web-tray.exe`.
 
-On first start Pi Web Tray checks the environment, installs missing dependencies, starts Pi Web and opens the browser. If Node.js is missing, it explains the required version and offers the download page; Pi Web Tray stays running and rechecks when Node.js appears. If dependencies are also missing, it prompts you to use **Install/update service**. If Node.js is removed while Pi Web is running, Pi Web Tray notifies you without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the relevant packages instead of trusting an incomplete directory.
+On first start Pi Web Tray checks the environment, installs missing dependencies, starts Pi Web and opens the browser. With the default `AutoInstall=1`, missing dependencies are installed automatically during a normal start. If Node.js is missing, it explains the required version and offers the download page; Pi Web Tray stays running and rechecks when Node.js appears. When Node.js was installed after that prompt, automatic installation stays off: missing dependencies are reported and the menu offers **Install/update service**. If Node.js is removed while Pi Web is running, Pi Web Tray notifies you without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the relevant packages instead of trusting an incomplete directory.
 
 Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default. Set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs beside the executable. Portable mode is ignored when the executable is in a protected system directory such as `C:\Program Files`. Even in portable mode, `state.ini`, `crash.log` and update staging remain in the data directory. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
@@ -99,7 +99,7 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops Pi Web first, reinstalls or updates Pi Web and Pi, and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation.
+- **Update service** stops Pi Web first, reinstalls or updates Pi Web and Pi, and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
 - A listener is treated as Pi Web Tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so Pi Web Tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically; with `AutoCheckUpdates=1` it checks for a new release after startup.
 
@@ -138,6 +138,9 @@ The data directory is per user. Pi Web Tray redacts URL user info and token quer
 | `PI_WEB_TRAY_LANG`     | Overrides the UI language.                                                                                                                               |
 | `PI_WEB_TRAY_HOME`     | Overrides the data directory root and takes precedence over portable mode.                                                                               |
 | `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable.                                                                                                        |
+| `PI_WEB_TRAY_NO_NODE`  | Test hook: simulate a missing Node.js installation.                                                                                                      |
+| `PI_WEB_TRAY_NO_PIWEB` | Test hook: simulate a missing Pi Web package.                                                                                                            |
+| `PI_WEB_TRAY_NO_PICLI` | Test hook: simulate a missing Pi CLI package.                                                                                                            |
 
 Named instances also use separate start-at-login names so they cannot overwrite the default installation's entries. A Run value or scheduled task does not preserve the launching environment, so use start-at-login from the default instance.
 
@@ -154,6 +157,8 @@ Named instances also use separate start-at-login names so they cannot overwrite 
 .\pi-web-tray.exe --install         Install dependencies without starting Pi Web Tray.
 .\pi-web-tray.exe --dry-run         With --install, print the npm commands only.
 .\pi-web-tray.exe --diag            Write a diagnostic snapshot to diag.txt.
+.\pi-web-tray.exe --lang-check      Verify that every UI string is complete for all supported languages.
+.\pi-web-tray.exe --make-ico        Generate the application icon (build tool).
 .\pi-web-tray.exe --version         Print the version.
 .\pi-web-tray.exe --help            Show command-line help.
 ```
@@ -173,9 +178,9 @@ cd .\pi-web-tray
 ## Security and limitations
 
 - Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no persistent network listener. A SOCKS5 update proxy opens a temporary loopback listener that only the current tray process may use.
-- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. The helper copies staged files into a protected snapshot and re-verifies them before replacing files. Releases are unsigned, so SmartScreen may warn on first run. The helper still accepts a caller-provided staging hash; it is not a substitute for code signing.
+- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. The helper copies staged files into a target snapshot and re-verifies them before replacing files; the snapshot is protected when the installation directory is protected. Releases are unsigned, so SmartScreen may warn on first run. The helper still accepts a caller-provided staging hash; it is not a substitute for code signing.
 - Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user. Standard-user over-the-shoulder UAC is refused. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported. It is removed when autostart is next changed.
-- `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`. The tray menu always works.
+- `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`. The tray menu always works. If the log-host child cannot be created, service output falls back to the unredacted, non-rotating `1>>` path described in [SECURITY.md](SECURITY.md).
 - The administrator start-at-login task is scoped to the current Windows user and keeps running on battery power. It does not inherit the environment of the shell that enabled it.
 
 ## Related projects

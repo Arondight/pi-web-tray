@@ -256,6 +256,69 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void CheckFormReportsUnknownPortOwnerWithoutClaimingNone()
+        {
+            Config config = NewReportConfig();
+            ProbeResult probe = new ProbeResult();
+            using (CheckForm form = new CheckForm(config, probe, false, false))
+            {
+                Assert.IsTrue(form.ProbeIsFresh,
+                    "A form opened with an existing probe already has a usable result.");
+                form.ApplyProbe(probe, true, null, true);
+
+                DataGridView software = null;
+                foreach (DataGridView table in FindControls<DataGridView>(form))
+                {
+                    if (table.Columns.Count == 2 && table.Rows.Count == 10)
+                    {
+                        software = table;
+                        break;
+                    }
+                }
+                Assert.IsNotNull(software, "The software table must exist.");
+
+                string portValue = null;
+                foreach (DataGridViewRow row in software.Rows)
+                {
+                    if (Convert.ToString(row.Cells[0].Value) == L.T("check.port"))
+                    {
+                        portValue = Convert.ToString(row.Cells[1].Value);
+                        break;
+                    }
+                }
+                Assert.IsNotNull(portValue, "The port row must exist.");
+                Assert.IsTrue(portValue.Contains(L.T("check.ownerUnavailable")),
+                    "A failed owner probe must be shown as unknown, not as no owner.");
+            }
+        }
+
+        [TestMethod]
+        public void CheckFormTracksWhetherTheRefreshCompleted()
+        {
+            Config config = NewReportConfig();
+            using (CheckForm form = new CheckForm(config, new ProbeResult(), false, true))
+            {
+                Assert.IsFalse(form.ProbeIsFresh,
+                    "A refreshing form must not expose the placeholder as a fresh result.");
+                form.ApplyProbe(new ProbeResult(), false, null);
+                Assert.IsTrue(form.ProbeIsFresh,
+                    "A completed refresh must mark the probe as usable.");
+            }
+        }
+
+        private static Config NewReportConfig()
+        {
+            Config config = new Config();
+            config.IniPath = "pi-web-tray.ini";
+            config.OutputDir = ".";
+            config.WorkingDir = ".";
+            config.LogFile = "server.log";
+            config.InstallLogFile = "install.log";
+            config.UpdateLogFile = "update.log";
+            return config;
+        }
+
+        [TestMethod]
         public void CheckFormLayoutFitsContent()
         {
             Config config = new Config();

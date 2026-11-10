@@ -259,7 +259,9 @@ namespace PiWebTray
             out bool matchesExecutable)
         {
             enabled = false;
-            matchesExecutable = true;
+            // Do not claim an unknown task belongs to this installation. A false
+            // positive can make PollTaskRefresh remove a working Run value.
+            matchesExecutable = false;
             try
             {
                 ProcessResult run = ProcessRunner.Run(
@@ -307,10 +309,12 @@ namespace PiWebTray
             catch (Exception)
             {
                 // XML output can be unavailable on unusual systems. Fall back to
-                // the old existence check instead of claiming the task is disabled.
+                // the old existence check, but do not claim that the task points at
+                // this executable: treating another installation's task as enabled
+                // would allow PollTaskRefresh to remove the current Run value.
                 bool exists = QueryTask(name);
                 enabled = exists;
-                matchesExecutable = true;
+                matchesExecutable = false;
                 return exists;
             }
         }

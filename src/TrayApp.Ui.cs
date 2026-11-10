@@ -133,13 +133,18 @@ namespace PiWebTray
             // and with the thenStart path in ApplyCheckResult.
             bool canRun = CanStartServiceFromProbe(_probe, File.Exists);
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
+            bool trackedAlive = TrackedServerAlive();
+            bool trackedStopAvailable = trackedAlive
+                && (_phase == Phase.Stopped || _phase == Phase.Failed
+                    || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps);
 
             _openItem.Text = running ? L.T("menu.open") : L.T("menu.startAndOpen");
             // Checking or downloading an update does not affect the running service.
             // Keep normal open/stop/restart actions available; only Applying is exclusive.
             _openItem.Enabled = !serviceBusy && !portConflict && !applying;
             _startItem.Enabled = !serviceBusy && !running && canRun && !portConflict && !applying;
-            _stopItem.Enabled = (running || _phase == Phase.Starting) && !applying;
+            _stopItem.Enabled = (running || _phase == Phase.Starting || trackedStopAvailable)
+                && !applying;
             _restartItem.Enabled = !serviceBusy && running && !applying;
             _installItem.Enabled = !busy;
             // When the service is installed the action updates/reinstalls it; when
@@ -173,11 +178,22 @@ namespace PiWebTray
             _updateLogItem.Enabled = File.Exists(_config.UpdateLogFile);
             _copyUrlItem.Enabled = running;
             _restartAdminItem.Enabled = !_elevated && !busy;
+            // Applying replaces this executable and starts a helper that cannot be
+            // cancelled safely. Exiting at that point would leave the update and the
+            // service in an unpredictable state, so keep the action unavailable until
+            // the updater itself calls ExitApp.
+            _exitItem.Enabled = !applying;
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
             if (portConflict) _openItem.Text = L.T("menu.portConflict");
 
             RefreshNodeHealth();
+        }
+
+        private bool TrackedServerAlive()
+        {
+            try { return _server != null && !_server.HasExited; }
+            catch (Exception) { return false; }
         }
 
         private void OpenOrStart()
@@ -684,7 +700,8 @@ namespace PiWebTray
                 }
 
                 shortcut = shellType.InvokeMember("CreateShortcut", System.Reflection.BindingFlags.InvokeMethod, null, shell, new object[] { path });
-                if (shortcut == null) throw new InvalidOperationException("CreateShortcut returned null");
+                if (shortcut == null)
+                    throw new InvalidOperationException(L.T("notify.shortcutCreateFailed"));
 
                 Type shortcutType = shortcut.GetType();
                 shortcutType.InvokeMember("TargetPath", System.Reflection.BindingFlags.SetProperty, null, shortcut, new object[] { Application.ExecutablePath });

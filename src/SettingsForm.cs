@@ -485,7 +485,7 @@ namespace PiWebTray
 
         private void TestProxy()
         {
-            string text = (_proxy.Text ?? "").Trim();
+            string text = Environment.ExpandEnvironmentVariables((_proxy.Text ?? "").Trim());
             ProxySettings parsed;
             string error;
             if (!ProxySettings.TryParse(text, out parsed, out error))
@@ -551,7 +551,8 @@ namespace PiWebTray
                 workingDirValue = "%USERPROFILE%";
             }
 
-            string nodePath = (_nodePath.Text ?? "").Trim();
+            string nodePathRaw = (_nodePath.Text ?? "").Trim();
+            string nodePath = Environment.ExpandEnvironmentVariables(nodePathRaw);
             if (nodePath.Length > 0 && !File.Exists(nodePath))
             {
                 ShowError(L.T("settings.invalidNodePath"));
@@ -559,7 +560,8 @@ namespace PiWebTray
                 return false;
             }
 
-            string registry = (_npmRegistry.Text ?? "").Trim();
+            string registryRaw = (_npmRegistry.Text ?? "").Trim();
+            string registry = Environment.ExpandEnvironmentVariables(registryRaw);
             if (registry.Length > 0)
             {
                 Uri uri;
@@ -572,7 +574,8 @@ namespace PiWebTray
                 }
             }
 
-            string proxy = (_proxy.Text ?? "").Trim();
+            string proxyRaw = (_proxy.Text ?? "").Trim();
+            string proxy = Environment.ExpandEnvironmentVariables(proxyRaw);
             if (proxy.Length > 0)
             {
                 string proxyError;
@@ -623,9 +626,11 @@ namespace PiWebTray
             values.Add(new KeyValuePair<string, string>("AutoRestart", _autoRestart.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoCheckUpdates", _autoCheckUpdates.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallTag", tag));
-            values.Add(new KeyValuePair<string, string>("NpmRegistry", registry));
-            values.Add(new KeyValuePair<string, string>("Proxy", proxy));
-            values.Add(new KeyValuePair<string, string>("NodePath", nodePath));
+            // Persist the raw values so a deliberate %ENV% template survives; the
+            // expanded values below are what the current process can use immediately.
+            values.Add(new KeyValuePair<string, string>("NpmRegistry", registryRaw));
+            values.Add(new KeyValuePair<string, string>("Proxy", proxyRaw));
+            values.Add(new KeyValuePair<string, string>("NodePath", nodePathRaw));
 
             if (!_config.SetValues(values))
             {

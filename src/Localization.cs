@@ -3,6 +3,7 @@
 // Standard .NET resource-based localization:
 //   Resources/Strings.resx        neutral language (English)
 //   Resources/Strings.zh-Hans.resx Simplified Chinese
+//   Resources/Strings.zh-Hant.resx Traditional Chinese
 //
 // ResourceManager loads the neutral resources from the main assembly and culture-specific
 // resources from the generated satellite assemblies. Additional languages can be added by

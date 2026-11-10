@@ -22,18 +22,40 @@ namespace PiWebTray
 
         private bool ExitApp(bool restart)
         {
-            if (_exiting) return false;
+            if (_exiting || _exitPromptOpen) return false;
+
+            // The updater's own ExitApp call is the only exit allowed while the helper
+            // is replacing files. A menu/CLI exit at that point would abandon the
+            // helper or leave the service and the installation in an inconsistent state.
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying && !_exitForUpdateApply)
+            {
+                // Do not show a modal dialog here: --quit may be running without an
+                // interactive user, and the menu exit action is disabled in this stage.
+                NotifyWarning(L.T("update.busyTitle"), L.T("update.exitDuringApplyBody"));
+                return false;
+            }
 
             // The updater calls ExitApp only after its helper has been started. Any other
             // update stage can still be abandoned, but the user should confirm it.
             if (UpdateBusy() && _updateStage != UpdateStage.Applying)
             {
-                DialogResult updateAnswer = MessageBox.Show(
-                    L.T("update.busyBody"),
-                    L.T("update.busyTitle"),
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning,
-                    MessageBoxDefaultButton.Button2);
+                DialogResult updateAnswer;
+                _exitPromptOpen = true;
+                BeginModal();
+                try
+                {
+                    updateAnswer = MessageBox.Show(
+                        L.T("update.busyBody"),
+                        L.T("update.busyTitle"),
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                }
+                finally
+                {
+                    EndModal();
+                    _exitPromptOpen = false;
+                }
                 if (updateAnswer != DialogResult.Yes)
                 {
                     if (restart)
@@ -45,12 +67,23 @@ namespace PiWebTray
             // Aborting midway leaves a half-installed global package: ask first, and kill npm if confirmed
             if (_phase == Phase.Installing)
             {
-                DialogResult answer = MessageBox.Show(
-                    L.T("exit.installingBody"),
-                    L.T("exit.installingTitle"),
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning,
-                    MessageBoxDefaultButton.Button2);
+                DialogResult answer;
+                _exitPromptOpen = true;
+                BeginModal();
+                try
+                {
+                    answer = MessageBox.Show(
+                        L.T("exit.installingBody"),
+                        L.T("exit.installingTitle"),
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                }
+                finally
+                {
+                    EndModal();
+                    _exitPromptOpen = false;
+                }
                 if (answer != DialogResult.Yes)
                 {
                     if (restart)
@@ -215,6 +248,8 @@ namespace PiWebTray
             _currentNotification = null;
             CloseInstallForm();
             CloseUpdateForm();
+            ReleaseInstallUpdateLock();
+            ReleaseStopWorkerLock();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
             try { _menu.Dispose(); } catch (Exception) { }
             try { _openSignal.Close(); } catch (Exception) { }

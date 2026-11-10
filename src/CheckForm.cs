@@ -22,6 +22,7 @@ namespace PiWebTray
         private readonly Label _summary;
         private readonly Button _refresh;
         private ProbeResult _probe;
+        private bool _probeIsFresh;
         private bool _refreshing;
         private bool _userResized;
         private readonly bool _refreshOnShown;
@@ -36,6 +37,7 @@ namespace PiWebTray
             SuspendLayout();
             _config = config;
             _probe = probe ?? new ProbeResult();
+            _probeIsFresh = !refreshOnShown;
             _elevated = elevated;
             _refreshOnShown = refreshOnShown;
 
@@ -133,6 +135,15 @@ namespace PiWebTray
             get { return _probe; }
         }
 
+        // True after this window has applied a completed refresh (or when it was
+        // opened with an already authoritative probe). A window closed while the
+        // background probe is still running must not overwrite the tray with the
+        // initial placeholder result.
+        internal bool ProbeIsFresh
+        {
+            get { return _probeIsFresh; }
+        }
+
         internal static ProbeResult ShowReport(Config config, ProbeResult probe, bool elevated)
         {
             return ShowReport(config, probe, elevated, false);
@@ -144,6 +155,7 @@ namespace PiWebTray
             using (CheckForm form = new CheckForm(config, probe, elevated, refreshOnShown))
             {
                 form.ShowDialog();
+                if (refreshOnShown && !form.ProbeIsFresh) return null;
                 return form.Probe;
             }
         }
@@ -257,7 +269,7 @@ namespace PiWebTray
             // static rows immediately and refresh the port owner on a background worker
             // after the form is shown. The port row must say "checking", not falsely
             // claim that the port is closed before the worker has run.
-            PopulateSoftwareGrid(grid, false, null, true);
+            PopulateSoftwareGrid(grid, false, null, true, false);
             return grid;
         }
 
@@ -360,6 +372,7 @@ namespace PiWebTray
             Thread worker = new Thread(delegate ()
             {
                 bool listening = false;
+                bool ownerFailed = false;
                 PortOwnerInfo owner = null;
                 try
                 {
@@ -369,6 +382,10 @@ namespace PiWebTray
                 }
                 catch (Exception)
                 {
+                    // A failed owner probe is not evidence that the port is closed or
+                    // that no process owns it. Show the uncertainty instead of a false
+                    // "none" result.
+                    ownerFailed = true;
                 }
 
                 try
@@ -381,7 +398,7 @@ namespace PiWebTray
                             _refreshing = false;
                             _refresh.Enabled = true;
                             UseWaitCursor = false;
-                            PopulateSoftwareGrid(_softwareGrid, listening, owner);
+                            PopulateSoftwareGrid(_softwareGrid, listening, owner, false, ownerFailed);
                         }));
                     }
                 }
@@ -405,23 +422,19 @@ namespace PiWebTray
                 _probe.PiCliFound ? L.T("check.ok") : L.T("check.missing"));
         }
 
-        private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner)
-        {
-            PopulateSoftwareGrid(grid, listening, owner, false);
-        }
-
         private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner,
-            bool checking)
+            bool checking, bool ownerFailed)
         {
+            string ownerText = checking
+                ? L.T("check.checking")
+                : ownerFailed ? L.T("check.ownerUnavailable") : ServiceProbe.OwnerText(owner);
+
             grid.Rows.Clear();
             AddInfoRow(grid, L.T("sc.config"), _config.IniPath);
             AddInfoRow(grid, L.T("check.port"),
-                checking
-                    ? L.T("check.portState", _config.Port,
-                        L.T("check.checking"), L.T("check.checking"))
-                    : L.T("check.portState", _config.Port,
-                        listening ? L.T("bool.yes") : L.T("bool.no"),
-                        ServiceProbe.OwnerText(owner)));
+                L.T("check.portState", _config.Port,
+                    listening ? L.T("bool.yes") : L.T("bool.no"),
+                    ownerText));
             AddInfoRow(grid, L.T("sc.workDir"), _config.WorkingDir);
             AddInfoRow(grid, L.T("sc.dataDir"), _config.OutputDir);
             AddInfoRow(grid, L.T("sc.admin"), _elevated ? L.T("bool.yes") : L.T("bool.no"));
@@ -435,11 +448,13 @@ namespace PiWebTray
 
         // Apply a probe result without running the background probe. Used by the
         // refresh callback and by layout tests.
-        internal void ApplyProbe(ProbeResult probe, bool listening, PortOwnerInfo owner)
+        internal void ApplyProbe(ProbeResult probe, bool listening, PortOwnerInfo owner,
+            bool ownerFailed = false)
         {
             _probe = probe;
+            _probeIsFresh = true;
             PopulateRuntimeGrid(_runtimeGrid);
-            PopulateSoftwareGrid(_softwareGrid, listening, owner);
+            PopulateSoftwareGrid(_softwareGrid, listening, owner, false, ownerFailed);
             FitGridHeight(_runtimeGrid);
             _summary.Text = BuildSummary();
         }
@@ -448,6 +463,10 @@ namespace PiWebTray
         {
             if (_refreshing) return;
             _refreshing = true;
+            // A manual Refresh invalidates the previous probe as a report result: if
+            // the window is closed before this probe finishes, its caller must not
+            // apply the pre-refresh snapshot to the tray.
+            _probeIsFresh = false;
             _refresh.Enabled = false;
             _summary.Text = L.T("check.refreshing");
             UseWaitCursor = true;
@@ -457,6 +476,7 @@ namespace PiWebTray
                 ProbeResult result = null;
                 string error = null;
                 bool listening = false;
+                bool ownerFailed = false;
                 PortOwnerInfo owner = null;
                 try
                 {
@@ -474,6 +494,7 @@ namespace PiWebTray
                 catch (Exception ex)
                 {
                     error = ex.Message;
+                    ownerFailed = true;
                 }
 
                 try
@@ -497,7 +518,7 @@ namespace PiWebTray
                                 return;
                             }
 
-                            ApplyProbe(result, listening, owner);
+                            ApplyProbe(result, listening, owner, ownerFailed);
                             // The summary can grow after the probe. Re-fit unless the
                             // user has already chosen a window size.
                             if (!_userResized) FitInitialHeight();

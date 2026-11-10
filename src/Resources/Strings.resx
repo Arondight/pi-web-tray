@@ -417,6 +417,9 @@ Exit anyway?</value>
   <data name="notify.noShell" xml:space="preserve">
     <value>WScript.Shell is not available on this system.</value>
   </data>
+  <data name="notify.shortcutCreateFailed" xml:space="preserve">
+    <value>The shortcut could not be created.</value>
+  </data>
   <data name="notify.openLogFailed" xml:space="preserve">
     <value>Cannot open the log file</value>
   </data>
@@ -842,6 +845,9 @@ See {1} for details.</value>
   <data name="update.busyBody" xml:space="preserve">
     <value>An update is still in progress. Exit without updating?</value>
   </data>
+  <data name="update.exitDuringApplyBody" xml:space="preserve">
+    <value>The update helper is applying files and cannot be interrupted safely. Wait for the update to finish.</value>
+  </data>
   <data name="update.error.http" xml:space="preserve">
     <value>GitHub returned HTTP {0}.</value>
   </data>
@@ -984,6 +990,9 @@ See {1} for details.</value>
   </data>
   <data name="check.ownerNone" xml:space="preserve">
     <value>none</value>
+  </data>
+  <data name="check.ownerUnavailable" xml:space="preserve">
+    <value>unknown (probe failed)</value>
   </data>
   <data name="check.checking" xml:space="preserve">
     <value>checking...</value>
