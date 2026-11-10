@@ -65,6 +65,7 @@ namespace PiWebTray
             TrayClickTests();
             UpdateRestartPolicyTests();
             ConfiguredValuesTests();
+            NpmWorkingDirectoryTests();
             LocalizationTests();
             IconEncodingTests();
             InstallArgumentsTests();
@@ -986,6 +987,26 @@ namespace PiWebTray
                 !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true, true));
             Check("a crash still restarts with AutoRestart off only when explicitly marked",
                 TrayApp.ShouldRestartServiceAfterUpdate(false, false, false, true));
+        }
+
+        private static void NpmWorkingDirectoryTests()
+        {
+            Config config = new Config();
+            config.DataDir = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-npm-data-" + Guid.NewGuid().ToString("N"));
+            config.WorkingDir = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-npm-project-" + Guid.NewGuid().ToString("N"));
+
+            string directory = EnvironmentProbe.NpmWorkingDirectory(config);
+            Check("npm working directory is available",
+                !string.IsNullOrEmpty(directory) && Directory.Exists(directory));
+            Check("npm uses the user home instead of a data subfolder",
+                string.Equals(Path.GetFullPath(directory), Path.GetFullPath(Shell.Home()),
+                    StringComparison.OrdinalIgnoreCase));
+            Check("npm does not recreate the old data npm folder",
+                !string.Equals(Path.GetFullPath(directory),
+                    Path.GetFullPath(Path.Combine(config.DataDir, "npm")),
+                    StringComparison.OrdinalIgnoreCase));
         }
 
         private static void ConfiguredValuesTests()

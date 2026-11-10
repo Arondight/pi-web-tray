@@ -294,21 +294,18 @@ namespace PiWebTray
 
         // ---------------- npm ----------------
 
-        // npm reads .npmrc from its working directory. Never use the service's
-        // project root or the tray's current directory here: a project-local
-        // .npmrc could change the registry, prefix, cache or script policy of a
-        // global install. A dedicated directory under the per-user data root is
-        // empty unless the same user deliberately puts a file there.
+        // npm reads its configuration from the user profile .npmrc and, when
+        // the working directory is a project with a package.json, from that
+        // project's .npmrc too. Run dependency commands from the user's home
+        // directory: this is npm's normal user-config location, but a separate
+        // project WorkingDir cannot inject project-level registry, prefix,
+        // cache or script policy into a global install.
         internal static string NpmWorkingDirectory(Config config)
         {
             try
             {
-                string root = config != null && !string.IsNullOrEmpty(config.DataDir)
-                    ? config.DataDir
-                    : Path.GetTempPath();
-                string directory = Path.Combine(root, "npm");
-                Directory.CreateDirectory(directory);
-                return directory;
+                string home = Shell.Home();
+                if (!string.IsNullOrEmpty(home) && Directory.Exists(home)) return home;
             }
             catch (Exception)
             {
