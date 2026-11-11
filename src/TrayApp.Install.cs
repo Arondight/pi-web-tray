@@ -417,8 +417,8 @@ namespace PiWebTray
         }
 
         // A service can run from the installed pi-web script even when the separate
-        // Pi CLI package is missing. Readiness for starting the service must not be
-        // tied to ProbeResult.Ready, which also includes Pi CLI.
+        // Pi CLI package is missing or its installation is disabled. Readiness for
+        // starting the service must not be tied to ProbeResult.Ready.
         internal static bool CanStartServiceFromProbe(ProbeResult probe, Func<string, bool> fileExists)
         {
             if (probe == null || probe.NeedsNode || !probe.PiWebFound
@@ -488,11 +488,11 @@ namespace PiWebTray
 
         private void ConfirmInstall()
         {
-            // A force install always reinstalls both packages. Show the warning whenever
-            // at least one package already exists, not only when the whole environment
-            // is ready (for example when only the Pi CLI is missing).
+            // A force install reinstalls every enabled package. Show the warning whenever
+            // at least one of those packages already exists, not only when the whole
+            // environment is ready (for example when only the Pi CLI is missing).
             bool existingPackage = _probe != null
-                && (_probe.PiWebFound || _probe.PiCliFound);
+                && (_probe.PiWebFound || (_config.InstallPi && _probe.PiCliFound));
             if (_probe != null && !_probe.NeedsNode && (_probe.Ready || existingPackage))
             {
                 string title = L.T("install.confirmTitle");

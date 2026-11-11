@@ -2,9 +2,9 @@
 
 [English](README.md) | **简体中文**
 
-Pi Web Tray 是基于 Pi Web 和 Pi 的 Windows 7 至 11 通用 Harness 解决方案，在 Pi Web Tray 中完成运行环境检测、依赖安装与更新、服务托管和自更新。
+Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 通用 Harness 解决方案，在 Pi Web Tray 中完成运行环境检测、依赖安装与更新、服务托管和自更新。
 
-- **一键使用** — 安装并管理 Pi 和 Pi Web，一键启停。
+- **一键使用** — 安装并管理 Pi Web，一键启停。
 - **状态可见** — 彩色托盘图标、通知，以及实时日志。
 - **开机自启动** — 使用普通 Run 键或管理员计划任务设置开机自启动。
 - **端口安全** — 用原生 API 识别监听进程，不误杀无关程序。
@@ -99,7 +99,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 退出并停止服务
 ```
 
-- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web 和 Pi，并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
+- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web，并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为 Pi Web Tray 的服务。其他会话或安装会报告 **端口冲突**，Pi Web Tray 不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
 - Pi Web 意外退出会通知。`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
 
@@ -114,6 +114,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `Port`             | `30141`         | Pi Web 监听端口。                                                  |
 | `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 Pi 的默认项目目录。                             |
 | `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                           |
+| `InstallPi`        | `1`             | 随 Pi Web 一并安装/更新 Pi。                                       |
 | `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                        |
 | `AutoCheckUpdates` | `0`             | 启动后检查 Pi Web Tray 更新。                                      |
 | `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。具体版本号/范围不适用于 Pi。   |
@@ -122,6 +123,8 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                    |
 | `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                           |
 | `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                               |
+
+Pi 不是 Pi Web 的必需依赖。设置 `InstallPi=1` 时，Pi 会随 Pi Web 一起安装或更新；设为 `0` 时不会改动已安装的 Pi。
 
 值支持 `%ENV%` 展开。含 `;` 或 `#` 的值可加引号。注释符号前需有空白。
 

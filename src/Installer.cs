@@ -180,7 +180,8 @@ namespace PiWebTray
 
         // pi-web and the pi CLI must be installed separately: pi-web needs its lifecycle scripts,
         // while the pi CLI is documented to be installed with --ignore-scripts. Combining them in
-        // one npm command cannot express that difference.
+        // one npm command cannot express that difference. Installing Pi is optional: Pi Web runs
+        // without it, so InstallPi=0 skips the CLI step entirely.
         internal static List<InstallStep> StepsToInstall(ProbeResult probe, Config config, bool force)
         {
             List<InstallStep> steps = new List<InstallStep>();
@@ -198,7 +199,7 @@ namespace PiWebTray
             // When pi-web is being installed, also update the pi CLI even if an older
             // version is already present. First-run auto-install must not leave pi stale.
             // Exact Pi Web versions/ranges are not applied to the independent CLI package.
-            if (force || !probe.PiWebFound || !probe.PiCliFound)
+            if (config.InstallPi && (force || !probe.PiWebFound || !probe.PiCliFound))
             {
                 InstallStep cli = new InstallStep();
                 cli.Packages.Add(Config.PiCliPackage + "@" + cliTag);
@@ -340,7 +341,7 @@ namespace PiWebTray
         }
 
         // A marker survives a crash or a failed npm run. The next install attempt is then
-        // forced to reinstall both packages instead of trusting a half-written directory.
+        // forced to reinstall the enabled packages instead of trusting a half-written directory.
         internal static string PendingMarker(Config config)
         {
             return Path.Combine(config.OutputDir, "install.pending");
@@ -530,7 +531,8 @@ namespace PiWebTray
                 string cliTag = PiCliTag(config);
                 bool piWebOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.InstallerPackage + "@" + tag); })
                     || (after.PiWebFound && VersionMatchesTag(after.PiWebVersion, tag));
-                bool piCliOk = !steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + cliTag); })
+                bool piCliRequested = steps.Exists(delegate (InstallStep step) { return step.Packages.Contains(Config.PiCliPackage + "@" + cliTag); });
+                bool piCliOk = !piCliRequested
                     || (after.PiCliFound && VersionMatchesTag(after.PiCliVersion, cliTag));
 
                 if (ok && piWebOk && piCliOk)
@@ -538,7 +540,7 @@ namespace PiWebTray
                     ClearPending(config);
                     result.Success = true;
                     string piWebVersion = after.PiWebVersion.Length > 0 ? after.PiWebVersion : L.T("install.ready");
-                    string piCliPart = after.PiCliFound
+                    string piCliPart = piCliRequested && after.PiCliFound
                         ? L.T("install.donePi", after.PiCliVersion.Length > 0 ? after.PiCliVersion : L.T("install.ready"))
                         : "";
                     result.Message = L.T("install.doneBody", piWebVersion, piCliPart);

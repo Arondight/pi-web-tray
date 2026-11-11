@@ -2,7 +2,7 @@
 //
 // Edits the supported keys of pi-web-tray.ini without requiring the user to find and
 // edit the file. Port, language, working directory and explicit tool paths take effect
-// after the tray is restarted.
+// after the tray is restarted; InstallPi refreshes the cached readiness immediately.
 
 using System;
 using System.Collections.Generic;
@@ -37,6 +37,7 @@ namespace PiWebTray
         private readonly bool _workingDirWasUnset;
         private readonly ComboBox _language;
         private readonly CheckBox _autoInstall;
+        private readonly CheckBox _installPi;
         private readonly CheckBox _autoRestart;
         private readonly CheckBox _autoCheckUpdates;
         private readonly TextBox _installTag;
@@ -91,10 +92,10 @@ namespace PiWebTray
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 11;
+            root.RowCount = 12;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            for (int i = 0; i < 11; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             scroll.Controls.Add(root);
             _root = root;
 
@@ -144,17 +145,23 @@ namespace PiWebTray
             _autoCheckUpdates.AutoSize = true;
             AddRow(root, 5, "", _autoCheckUpdates);
 
+            _installPi = new CheckBox();
+            _installPi.Text = L.T("settings.installPi");
+            _installPi.Checked = config.InstallPi;
+            _installPi.AutoSize = true;
+            AddRow(root, 6, "", _installPi);
+
             _installTag = new TextBox();
             _installTag.Text = config.InstallTag ?? "latest";
-            AddRow(root, 6, L.T("settings.installTag"), _installTag);
+            AddRow(root, 7, L.T("settings.installTag"), _installTag);
 
             _npmRegistry = new TextBox();
             _npmRegistry.Text = config.NpmRegistry ?? "";
-            AddRow(root, 7, L.T("settings.npmRegistry"), _npmRegistry);
+            AddRow(root, 8, L.T("settings.npmRegistry"), _npmRegistry);
 
             _nodePath = new TextBox();
             _nodePath.Text = config.NodePath ?? "";
-            AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
+            AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|Executables (*.exe)|*.exe"); });
 
             _proxy = new TextBox();
@@ -181,7 +188,7 @@ namespace PiWebTray
             _testProxy.Margin = new Padding(6, 0, 0, 0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
-            AddRow(root, 9, L.T("settings.proxy"), proxyLine);
+            AddRow(root, 10, L.T("settings.proxy"), proxyLine);
 
             Label note = new Label();
             note.Text = L.T("settings.restartNote");
@@ -190,7 +197,7 @@ namespace PiWebTray
             note.AutoSize = true;
             note.MaximumSize = new Size(680, 0);
             note.Margin = new Padding(0, 12, 0, 12);
-            root.Controls.Add(note, 0, 10);
+            root.Controls.Add(note, 0, 11);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -623,6 +630,7 @@ namespace PiWebTray
             values.Add(new KeyValuePair<string, string>("WorkingDir", workingDirValue));
             values.Add(new KeyValuePair<string, string>("Language", languageValue));
             values.Add(new KeyValuePair<string, string>("AutoInstall", _autoInstall.Checked ? "1" : "0"));
+            values.Add(new KeyValuePair<string, string>("InstallPi", _installPi.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoRestart", _autoRestart.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoCheckUpdates", _autoCheckUpdates.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallTag", tag));
@@ -646,6 +654,7 @@ namespace PiWebTray
             _config.ConfiguredWorkingDir = workingDirValue;
             _config.Language = languageValue;
             _config.AutoInstall = _autoInstall.Checked;
+            _config.InstallPi = _installPi.Checked;
             _config.AutoRestart = _autoRestart.Checked;
             _config.AutoCheckUpdates = _autoCheckUpdates.Checked;
             _config.InstallTag = tag;

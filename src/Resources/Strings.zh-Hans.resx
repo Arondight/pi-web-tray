@@ -193,6 +193,9 @@
   <data name="probe.notInstalled" xml:space="preserve">
     <value>（未安装）</value>
   </data>
+  <data name="probe.notInstalledOptional" xml:space="preserve">
+    <value>（未安装；可选）</value>
+  </data>
   <data name="probe.notFound" xml:space="preserve">
     <value>（未找到）</value>
   </data>
@@ -498,6 +501,9 @@
   <data name="check.missing" xml:space="preserve">
     <value>缺失</value>
   </data>
+  <data name="check.optional" xml:space="preserve">
+    <value>可选</value>
+  </data>
   <data name="check.cannotRun" xml:space="preserve">
     <value>无法运行</value>
   </data>
@@ -708,6 +714,9 @@
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; 启动时自动安装缺失依赖（首次约需 10~20 分钟）</value>
+  </data>
+  <data name="ini.installPiC" xml:space="preserve">
+    <value>; 随 Pi Web 一并安装 Pi（1 = 启用，0 = 禁用）；Pi 不是必需依赖</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安装的 npm 版本标签，可改成具体版本号</value>
@@ -1017,6 +1026,9 @@
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
     <value>启动时自动安装缺失依赖</value>
+  </data>
+  <data name="settings.installPi" xml:space="preserve">
+    <value>同时安装 Pi（可选）</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Pi Web 停止后自动重启</value>

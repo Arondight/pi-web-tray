@@ -24,6 +24,9 @@ namespace PiWebTray
         internal bool PortFromEnvironment;
         internal bool AutostartAdmin;
         internal bool AutoInstall = true;
+        // Pi Web runs without the separately installed Pi CLI. When this is off,
+        // the tray neither installs nor updates Pi, and a missing Pi is optional.
+        internal bool InstallPi = true;
         internal bool AutoRestart;
         internal bool AutoCheckUpdates;
         internal string Language = L.Auto;
@@ -142,6 +145,9 @@ namespace PiWebTray
                             break;
                         case "autoinstall":
                             config.AutoInstall = IsTruthy(value, true);
+                            break;
+                        case "installpi":
+                            config.InstallPi = IsTruthy(value, true);
                             break;
                         case "autorestart":
                             config.AutoRestart = IsTruthy(value, false);
@@ -295,6 +301,9 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.autoInstallC"));
                 sb.AppendLine("AutoInstall=1");
+                sb.AppendLine();
+                sb.AppendLine(L.T("ini.installPiC"));
+                sb.AppendLine("InstallPi=1");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.autoRestartC"));
                 sb.AppendLine("AutoRestart=0");

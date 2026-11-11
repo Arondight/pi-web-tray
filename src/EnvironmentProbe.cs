@@ -4,7 +4,7 @@
 //   1. Is Node.js installed, and is it new enough (pi-web requires 22.19+)?
 //   2. Where is npm? (.cmd files cannot be CreateProcess'd, so we run node + npm-cli.js)
 //   3. Is pi-web installed, and where?
-//   4. Is the pi command line installed?
+//   4. Is the pi command line installed? (optional when InstallPi=0)
 //
 // Results are not cached: re-probing after an install or upgrade shows the new state.
 //
@@ -42,6 +42,9 @@ namespace PiWebTray
         internal bool PiCliFound;
         internal string PiCliPath = "";
         internal string PiCliVersion = "";
+        // False when InstallPi=0. Pi Web runs without the separate Pi CLI, so a
+        // missing Pi must not keep the environment from being ready in that mode.
+        internal bool PiCliRequired = true;
 
         internal string ForcedReason = "";
 
@@ -63,7 +66,7 @@ namespace PiWebTray
 
         internal bool NeedsPiCli
         {
-            get { return !PiCliFound; }
+            get { return PiCliRequired && !PiCliFound; }
         }
 
         internal bool Ready
@@ -89,7 +92,9 @@ namespace PiWebTray
             sb.AppendLine(Row(L.T("probe.npm"), NpmFound ? NpmVersion + "  " + NpmCliPath : L.T("probe.notFound")));
             sb.AppendLine(Row(L.T("probe.npmGlobal"), NpmPrefix.Length > 0 ? NpmPrefix : L.T("probe.unknown")));
             sb.AppendLine(Row(L.T("probe.piweb"), PiWebFound ? PiWebVersion + "  " + PiWebScript : L.T("probe.notInstalled")));
-            sb.AppendLine(Row(L.T("probe.picli"), PiCliFound ? PiCliVersion + "  " + PiCliPath : L.T("probe.notInstalled")));
+            sb.AppendLine(Row(L.T("probe.picli"), PiCliFound
+                ? PiCliVersion + "  " + PiCliPath
+                : PiCliRequired ? L.T("probe.notInstalled") : L.T("probe.notInstalledOptional")));
             string verdict = Ready ? L.T("probe.ready")
                 : NeedsNode ? NodeIssue()
                 : NeedsPiWeb ? L.T("probe.needPiweb")
@@ -132,6 +137,7 @@ namespace PiWebTray
             DetectNpmPrefix(config, result);
             DetectPiWeb(result);
             DetectPiCli(result, config);
+            result.PiCliRequired = config == null || config.InstallPi;
 
             if (IsTruthy(Environment.GetEnvironmentVariable("PI_WEB_TRAY_NO_NODE")))
             {

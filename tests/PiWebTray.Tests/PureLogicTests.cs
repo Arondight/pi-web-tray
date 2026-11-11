@@ -1043,7 +1043,7 @@ namespace PiWebTray
                 Directory.CreateDirectory(temp);
                 string iniPath = Path.Combine(temp, "pi-web-tray.ini");
                 File.WriteAllText(iniPath,
-                    "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\n",
+                    "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\nInstallPi=0\n",
                     new UTF8Encoding(false));
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
@@ -1058,6 +1058,7 @@ namespace PiWebTray
                 Check("port override is recorded", config.PortFromEnvironment);
                 CheckEqual("working directory keeps its raw ini value",
                     "%USERPROFILE%", config.ConfiguredWorkingDir);
+                Check("install Pi can be disabled from the ini", !config.InstallPi);
                 Check("working directory is expanded for use",
                     Directory.Exists(config.WorkingDir));
 
@@ -1077,6 +1078,8 @@ namespace PiWebTray
 
                 string saved = File.ReadAllText(iniPath);
                 Check("settings preserves the configured port", saved.Contains("Port=30211"));
+                Check("settings preserves the disabled install Pi option",
+                    saved.Contains("InstallPi=0"));
                 Check("settings preserves the %USERPROFILE% template",
                     saved.Contains("WorkingDir=%USERPROFILE%"));
                 CheckEqual("environment port is still effective after save", 30222, config.Port);
@@ -1268,6 +1271,26 @@ namespace PiWebTray
             Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
             Check("pi-web step is not the pi cli step", !Installer.IsPiCliStep(steps[0], config));
             Check("pi cli step is recognised", Installer.IsPiCliStep(steps[1], config));
+
+            Config webOnlyConfig = new Config();
+            webOnlyConfig.InstallPi = false;
+            List<InstallStep> webOnly = Installer.StepsToInstall(new ProbeResult(), webOnlyConfig, false);
+            CheckEqual("InstallPi=0 skips the pi cli step", 1, webOnly.Count);
+            Check("InstallPi=0 still installs pi-web",
+                webOnly[0].Packages.Contains("@agegr/pi-web@latest"));
+            CheckEqual("InstallPi=0 force only installs pi-web", 1,
+                Installer.PackagesToInstall(new ProbeResult(), webOnlyConfig, true).Count);
+            ProbeResult optionalCli = new ProbeResult();
+            optionalCli.NodeFound = true;
+            optionalCli.NodeRunnable = true;
+            optionalCli.NpmFound = true;
+            optionalCli.NodeVersion = ProbeResult.NodeMinimum;
+            optionalCli.PiWebFound = true;
+            optionalCli.PiCliRequired = false;
+            Check("missing Pi is optional when installation is disabled",
+                !optionalCli.NeedsPiCli && optionalCli.Ready);
+            Check("missing Pi still needs installation when enabled",
+                new ProbeResult().NeedsPiCli);
 
             Check("exact version tag is recognised", Installer.IsExactVersionTag("1.2.3"));
             Check("leading v is an exact version tag", Installer.IsExactVersionTag("v1.2.3"));
@@ -2164,6 +2187,7 @@ namespace PiWebTray
                 Config fresh = new Config();
                 CheckEqual("field default port", 30141, fresh.Port);
                 Check("field default auto install", fresh.AutoInstall);
+                Check("field default install Pi is on", fresh.InstallPi);
                 Check("field default auto restart is off", !fresh.AutoRestart);
                 Check("field default auto update check is off", !fresh.AutoCheckUpdates);
                 CheckEqual("field default install tag", "latest", fresh.InstallTag);
@@ -2177,6 +2201,7 @@ namespace PiWebTray
 
                 CheckEqual("default port", 30141, config.Port);
                 Check("default auto install is on", config.AutoInstall);
+                Check("default install Pi is on", config.InstallPi);
                 Check("default auto restart is off", !config.AutoRestart);
                 Check("default auto update check is off", !config.AutoCheckUpdates);
                 CheckEqual("default install tag", "latest", config.InstallTag);
@@ -2191,6 +2216,7 @@ namespace PiWebTray
                 Check("ini documents the port", content.Contains("Port=30141"));
                 Check("ini documents the working dir", content.Contains("WorkingDir=%USERPROFILE%"));
                 Check("ini documents auto install", content.Contains("AutoInstall=1"));
+                Check("ini documents install Pi", content.Contains("InstallPi=1"));
                 Check("ini documents auto restart", content.Contains("AutoRestart=0"));
                 Check("ini documents update checks", content.Contains("AutoCheckUpdates=0"));
                 Check("ini documents the install tag", content.Contains("InstallTag=latest"));
@@ -2199,7 +2225,7 @@ namespace PiWebTray
                 Check("ini documents node path", content.Contains("NodePath="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 11 documented keys", 11, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
             }
             finally
             {

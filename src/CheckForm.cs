@@ -419,7 +419,8 @@ namespace PiWebTray
             AddComponentRow(grid, L.T("probe.piweb"), _probe.PiWebVersion, _probe.PiWebScript,
                 _probe.PiWebFound ? L.T("check.ok") : L.T("check.missing"));
             AddComponentRow(grid, L.T("probe.picli"), _probe.PiCliVersion, _probe.PiCliPath,
-                _probe.PiCliFound ? L.T("check.ok") : L.T("check.missing"));
+                _probe.PiCliFound ? L.T("check.ok")
+                : _probe.PiCliRequired ? L.T("check.missing") : L.T("check.optional"));
         }
 
         private void PopulateSoftwareGrid(DataGridView grid, bool listening, PortOwnerInfo owner,

@@ -193,6 +193,9 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="probe.notInstalled" xml:space="preserve">
     <value>(not installed)</value>
   </data>
+  <data name="probe.notInstalledOptional" xml:space="preserve">
+    <value>(not installed; optional)</value>
+  </data>
   <data name="probe.notFound" xml:space="preserve">
     <value>(not found)</value>
   </data>
@@ -498,6 +501,9 @@ Exit anyway?</value>
   <data name="check.missing" xml:space="preserve">
     <value>Missing</value>
   </data>
+  <data name="check.optional" xml:space="preserve">
+    <value>Optional</value>
+  </data>
   <data name="check.cannotRun" xml:space="preserve">
     <value>Cannot run</value>
   </data>
@@ -708,6 +714,9 @@ Use --help to see the supported options.</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; Install missing dependencies at startup (first installation usually takes 10-20 minutes)</value>
+  </data>
+  <data name="ini.installPiC" xml:space="preserve">
+    <value>; Also install Pi with Pi Web (1 = enabled, 0 = disabled); Pi is not required</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; npm dist-tag or exact version</value>
@@ -1017,6 +1026,9 @@ See {1} for details.</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
     <value>Install missing dependencies at startup</value>
+  </data>
+  <data name="settings.installPi" xml:space="preserve">
+    <value>Also install Pi (optional)</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Restart Pi Web automatically if it stops</value>

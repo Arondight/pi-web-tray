@@ -193,6 +193,9 @@
   <data name="probe.notInstalled" xml:space="preserve">
     <value>（未安裝）</value>
   </data>
+  <data name="probe.notInstalledOptional" xml:space="preserve">
+    <value>（未安裝；可選）</value>
+  </data>
   <data name="probe.notFound" xml:space="preserve">
     <value>（未找到）</value>
   </data>
@@ -498,6 +501,9 @@
   <data name="check.missing" xml:space="preserve">
     <value>缺少</value>
   </data>
+  <data name="check.optional" xml:space="preserve">
+    <value>可選</value>
+  </data>
   <data name="check.cannotRun" xml:space="preserve">
     <value>無法執行</value>
   </data>
@@ -708,6 +714,9 @@
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; 啟動時自動安裝缺少的相依套件（首次約需 10~20 分鐘）</value>
+  </data>
+  <data name="ini.installPiC" xml:space="preserve">
+    <value>; 隨 Pi Web 一併安裝 Pi（1 = 啟用，0 = 停用）；Pi 不是必需依賴</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安裝的 npm 版本標籤，可改成具體版本號</value>
@@ -1017,6 +1026,9 @@
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
     <value>啟動時自動安裝缺少的相依套件</value>
+  </data>
+  <data name="settings.installPi" xml:space="preserve">
+    <value>同時安裝 Pi（可選）</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
     <value>Pi Web 停止後自動重新啟動</value>

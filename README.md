@@ -2,9 +2,9 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Pi Web Tray is a universal Windows 7 to 11 harness for Pi Web and Pi. It provides runtime detection, dependency installation and updates, service hosting and self-update.
+Pi Web Tray is a universal Windows 7 to 11 harness for Pi Web. It provides runtime detection, dependency installation and updates, service hosting and self-update.
 
-- **One click** — installs and manages Pi and Pi Web; start or stop them with one click.
+- **One click** — installs and manages Pi Web; start or stop the service with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
 - **Start at login** — uses the standard Run key or an administrator scheduled task.
 - **Port safe** — native process APIs identify the listener; unrelated programs are never killed.
@@ -99,7 +99,7 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops Pi Web first, reinstalls or updates Pi Web and Pi, and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
+- **Update service** stops Pi Web first, reinstalls or updates Pi Web, and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
 - A listener is treated as Pi Web Tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so Pi Web Tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically; with `AutoCheckUpdates=1` it checks for a new release after startup.
 
@@ -114,6 +114,7 @@ Exit and stop service
 | `Port`             | `30141`         | Pi Web listening port.                                                                  |
 | `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                |
 | `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                |
+| `InstallPi`        | `1`             | Also install/update Pi with Pi Web.                                                     |
 | `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                |
 | `AutoCheckUpdates` | `0`             | Check for a Pi Web Tray update after startup.                                           |
 | `InstallTag`       | `latest`        | Pi Web npm distribution tag or exact version. Exact versions/ranges do not apply to Pi. |
@@ -122,6 +123,8 @@ Exit and stop service
 | `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                      |
 | `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                           |
 | `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).                                         |
+
+Pi is not a required dependency of Pi Web. When `InstallPi=1`, Pi is installed or updated together with Pi Web; when `0`, an existing Pi installation is left alone.
 
 Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker.
 

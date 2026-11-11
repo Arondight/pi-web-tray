@@ -128,9 +128,10 @@ namespace PiWebTray
             bool running = _phase == Phase.Running;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
-            // Pi CLI and npm are install-time requirements; a runnable Pi Web can be
-            // started without them. Keep the menu consistent with CanStartServiceFromProbe
-            // and with the thenStart path in ApplyCheckResult.
+            // Pi and npm are install-time requirements; a runnable Pi Web can be
+            // started without them. Pi installation itself can be disabled in
+            // Settings. Keep the menu consistent with CanStartServiceFromProbe and
+            // with the thenStart path in ApplyCheckResult.
             bool canRun = CanStartServiceFromProbe(_probe, File.Exists);
             bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
             bool trackedAlive = TrackedServerAlive();
@@ -386,6 +387,7 @@ namespace PiWebTray
         {
             if (_exiting) return;
             int previousPort = _port;
+            bool installPiBefore = _config.InstallPi;
             bool restartRequested = false;
             // A running/starting/stopping service owns the old port. Changing the
             // configured port without restarting the whole tray would make CLI
@@ -481,7 +483,24 @@ namespace PiWebTray
                         return;
                     }
                     if (!portRejected)
+                    {
+                        // Turning Pi installation on/off changes readiness without
+                        // changing the installed packages. Refresh the cached probe so
+                        // the tray icon and menu stop/start offering the wrong action.
+                        if (_config.InstallPi != installPiBefore && !IsServiceActionInProgress())
+                        {
+                            if (_probe == null)
+                            {
+                                BeginEnvironmentCheck(false, false);
+                            }
+                            else
+                            {
+                                _probe.PiCliRequired = _config.InstallPi;
+                                ApplyProbeResult(_probe);
+                            }
+                        }
                         Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
+                    }
                 }
             }
         }
