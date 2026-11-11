@@ -1446,4 +1446,25 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
   <data name="auto.repairSuccessRetry" xml:space="preserve">
     <value>The installation folder is now protected. Turn on administrator start-at-login again to finish.</value>
   </data>
+  <data name="status.unverified" xml:space="preserve">
+    <value>Running · port {0} (owner unverified)</value>
+  </data>
+  <data name="update.error.tooLarge" xml:space="preserve">
+    <value>The update is larger than the allowed size or expands too far.</value>
+  </data>
+  <data name="update.error.writableInstall" xml:space="preserve">
+    <value>The installation directory is writable by standard users. Restart Pi Web Tray normally before updating.</value>
+  </data>
+  <data name="notify.adminRestartWritableBody" xml:space="preserve">
+    <value>Pi Web Tray is installed in a folder that standard users can modify. Starting it elevated from this location would let another process replace the program. Move it to a protected folder such as Program Files, or run it without administrator rights.</value>
+  </data>
+  <data name="notify.adminAccountBody" xml:space="preserve">
+    <value>Only an account that is a member of the Administrators group can restart Pi Web Tray as administrator. Use your own administrator account or run the tray normally.</value>
+  </data>
+  <data name="notify.elevatedWritableTitle" xml:space="preserve">
+    <value>Administrator mode unavailable</value>
+  </data>
+  <data name="notify.elevatedWritableBody" xml:space="preserve">
+    <value>Pi Web Tray is running as an administrator from a folder that standard users can modify. Service start, dependency install, and self-update are disabled. Restart it normally before making changes.</value>
+  </data>
 </root>

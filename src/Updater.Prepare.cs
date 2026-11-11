@@ -96,7 +96,7 @@ namespace PiWebTray
                     return null;
                 }
 
-                string expected = ParseChecksum(checksumText);
+                string expected = ParseChecksum(checksumText, release.ZipName);
                 if (expected.Length == 0)
                 {
                     error = L.T("update.error.badChecksum");
@@ -186,6 +186,7 @@ namespace PiWebTray
                     try
                     {
                         if (Directory.GetLastWriteTimeUtc(directory) >= cutoff) continue;
+                        if (PathSafety.ContainsReparsePoint(directory)) continue;
                         Directory.Delete(directory, true);
                     }
                     catch (Exception) { }
@@ -196,6 +197,8 @@ namespace PiWebTray
             }
         }
 
+        internal const long MaxDownloadBytes = 512L * 1024 * 1024;
+
         private static bool Download(string url, string path, long expectedSize, Action<int> progress,
             UpdateCancellation cancellation, out string error)
         {
@@ -203,29 +206,61 @@ namespace PiWebTray
             HttpWebRequest request = null;
             try
             {
+                if (PathSafety.ContainsReparsePoint(path))
+                {
+                    error = L.T("update.error.unsafePath");
+                    return false;
+                }
                 request = CreateRequest(url, 60000, false);
                 if (cancellation != null) cancellation.Register(request);
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-                using (Stream input = response.GetResponseStream())
-                using (FileStream output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
-                    long total = response.ContentLength > 0 ? response.ContentLength : expectedSize;
-                    byte[] buffer = new byte[81920];
-                    long received = 0;
-                    int lastReported = -2;
-                    int read;
-                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                    // AllowAutoRedirect is enabled so GitHub's CDN can serve release
+                    // assets, but the final host must still be trusted.
+                    if (!IsTrustedUrl(response.ResponseUri.AbsoluteUri))
                     {
-                        output.Write(buffer, 0, read);
-                        received += read;
+                        error = L.T("update.error.untrustedUrl");
+                        return false;
+                    }
 
-                        int percent = total > 0 ? (int)(received * 100 / total) : -1;
-                        if (percent != lastReported)
+                    // A trusted initial URL can redirect to another host. Verify the
+                    // final response and cap the download even if the server sends more
+                    // data than the release metadata declared.
+                    long limit = MaxDownloadBytes;
+                    if (expectedSize > 0)
+                        limit = Math.Min(limit, expectedSize + 1024 * 1024);
+                    if (response.ContentLength > limit)
+                    {
+                        error = L.T("update.error.tooLarge");
+                        return false;
+                    }
+
+                    using (Stream input = response.GetResponseStream())
+                    using (FileStream output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        long total = response.ContentLength > 0 ? response.ContentLength : expectedSize;
+                        byte[] buffer = new byte[81920];
+                        long received = 0;
+                        int lastReported = -2;
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                         {
-                            lastReported = percent;
-                            if (progress != null)
+                            received += read;
+                            if (received > limit)
                             {
-                                try { progress(percent); } catch (Exception) { }
+                                error = L.T("update.error.tooLarge");
+                                return false;
+                            }
+                            output.Write(buffer, 0, read);
+
+                            int percent = total > 0 ? (int)(received * 100 / total) : -1;
+                            if (percent != lastReported)
+                            {
+                                lastReported = percent;
+                                if (progress != null)
+                                {
+                                    try { progress(percent); } catch (Exception) { }
+                                }
                             }
                         }
                     }
@@ -297,18 +332,27 @@ namespace PiWebTray
         }
 
         // Security-critical component (zip-slip defence); internal so the test suite can
-        // exercise it directly.
+        // exercise it directly. Extract entries through a bounded stream instead of
+        // ExtractToFile so a zip bomb cannot fill the disk before the checksum or the
+        // caller notices.
         internal static void Extract(string zipPath, string targetDir)
         {
             string root = Path.GetFullPath(targetDir);
             string prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                 + Path.DirectorySeparatorChar;
+            const int MaxEntries = 10000;
+            const long MaxTotalBytes = 512L * 1024 * 1024;
+            const long MaxSingleBytes = 256L * 1024 * 1024;
 
+            int entryCount = 0;
+            long totalBytes = 0;
             using (ZipArchive archive = ZipFile.OpenRead(zipPath))
             {
                 foreach (ZipArchiveEntry entry in archive.Entries)
                 {
                     if (entry == null || string.IsNullOrEmpty(entry.FullName)) continue;
+                    if (++entryCount > MaxEntries)
+                        throw new InvalidDataException("archive has too many entries");
 
                     string name = entry.FullName.Replace('/', Path.DirectorySeparatorChar);
                     string destination = Path.GetFullPath(Path.Combine(root, name));
@@ -317,6 +361,8 @@ namespace PiWebTray
                     {
                         throw new InvalidDataException("unsafe archive entry: " + entry.FullName);
                     }
+                    if (PathSafety.ContainsReparsePoint(destination))
+                        throw new InvalidDataException("archive entry crosses a reparse point: " + entry.FullName);
 
                     if (entry.FullName.EndsWith("/", StringComparison.Ordinal) || entry.Name.Length == 0)
                     {
@@ -326,7 +372,23 @@ namespace PiWebTray
 
                     string parent = Path.GetDirectoryName(destination);
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
-                    entry.ExtractToFile(destination, true);
+
+                    using (Stream input = entry.Open())
+                    using (FileStream output = new FileStream(destination, FileMode.Create,
+                        FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[81920];
+                        long entryBytes = 0;
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            entryBytes += read;
+                            totalBytes += read;
+                            if (entryBytes > MaxSingleBytes || totalBytes > MaxTotalBytes)
+                                throw new InvalidDataException("archive expands beyond the size limit");
+                            output.Write(buffer, 0, read);
+                        }
+                    }
                 }
             }
         }

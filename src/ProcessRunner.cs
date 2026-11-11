@@ -64,9 +64,14 @@ namespace PiWebTray
                 {
                     process.StartInfo = psi;
 
+                    int eofCount = 0;
                     DataReceivedEventHandler handler = delegate (object sender, DataReceivedEventArgs e)
                     {
-                        if (e.Data == null) return;
+                        if (e.Data == null)
+                        {
+                            Interlocked.Increment(ref eofCount);
+                            return;
+                        }
                         lock (output)
                         {
                             if (output.Length < outputLimit) output.AppendLine(e.Data);
@@ -110,6 +115,13 @@ namespace PiWebTray
                         // Losing the tail of the output beats never returning.
                         try { process.WaitForExit(5000); } catch (Exception) { }
                     }
+
+                    // Wait for both output streams to reach EOF, but never longer than
+                    // two seconds. A grandchild can keep the pipe open after the child
+                    // exits; losing the tail is better than hanging the caller.
+                    DateTime flushDeadline = DateTime.Now.AddSeconds(2);
+                    while (Volatile.Read(ref eofCount) < 2 && DateTime.Now < flushDeadline)
+                        Thread.Sleep(20);
 
                     try { result.ExitCode = process.ExitCode; }
                     catch (Exception) { result.ExitCode = -1; }

@@ -339,16 +339,31 @@ namespace PiWebTray
         private static List<LinkSpan> FindProductSpans(string text)
         {
             List<LinkSpan> spans = new List<LinkSpan>();
-            int webStart = text.IndexOf("Pi Web", StringComparison.Ordinal);
-            if (webStart >= 0)
-                spans.Add(new LinkSpan(webStart, "Pi Web".Length, PiWebUrl));
+            List<LinkSpan> webSpans = new List<LinkSpan>();
+
+            int webStart = 0;
+            while ((webStart = text.IndexOf("Pi Web", webStart, StringComparison.Ordinal)) >= 0)
+            {
+                LinkSpan span = new LinkSpan(webStart, "Pi Web".Length, PiWebUrl);
+                webSpans.Add(span);
+                spans.Add(span);
+                webStart += span.Length;
+            }
 
             int start = 0;
             while ((start = text.IndexOf("Pi", start, StringComparison.Ordinal)) >= 0)
             {
-                bool insideWeb = webStart >= 0
-                    && start < webStart + "Pi Web".Length
-                    && start + "Pi".Length > webStart;
+                // Skip every Pi inside every Pi Web occurrence, not just the first.
+                bool insideWeb = false;
+                foreach (LinkSpan webSpan in webSpans)
+                {
+                    if (start < webSpan.Start + webSpan.Length
+                        && start + "Pi".Length > webSpan.Start)
+                    {
+                        insideWeb = true;
+                        break;
+                    }
+                }
                 if (!insideWeb) spans.Add(new LinkSpan(start, "Pi".Length, PiUrl));
                 start += "Pi".Length;
             }

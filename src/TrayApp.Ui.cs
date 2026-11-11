@@ -46,6 +46,10 @@ namespace PiWebTray
                     label = L.T("status.running", _port);
                     color = Icons.RunningColor;
                     break;
+                case Phase.RunningUnverified:
+                    label = L.T("status.unverified", _port);
+                    color = Icons.BusyColor;
+                    break;
                 case Phase.Stopping:
                     label = L.T("status.stopping", _port);
                     color = Icons.BusyColor;
@@ -112,7 +116,8 @@ namespace PiWebTray
             string suffix = _elevated ? L.T("status.admin") : "";
             try { _tray.Text = Shell.Clip(L.T("status.tooltip", label + suffix), 63); } catch (Exception) { }
 
-            string statusText = (_phase == Phase.Running ? L.T("status.bulletOn") : L.T("status.bulletOff"))
+            bool phaseRunning = _phase == Phase.Running || _phase == Phase.RunningUnverified;
+            string statusText = (phaseRunning ? L.T("status.bulletOn") : L.T("status.bulletOff"))
                 + label + (_elevated ? L.T("status.adminLong") : "");
             // The status line can contain the last npm output line. Keep the menu
             // readable for long localized strings and expose the full text as a tooltip.
@@ -125,7 +130,7 @@ namespace PiWebTray
             bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
                 || _phase == Phase.Starting || _phase == Phase.Stopping;
             bool busy = serviceBusy || updateBusy;
-            bool running = _phase == Phase.Running;
+            bool running = _phase == Phase.Running || _phase == Phase.RunningUnverified;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
             // Pi and npm are install-time requirements; a runnable Pi Web can be
@@ -231,6 +236,17 @@ namespace PiWebTray
                 // This click is an explicit open request. Do not leave an older
                 // "user stopped" marker behind for the next update decision.
                 _serviceStoppedByUser = false;
+                OpenBrowser();
+                return;
+            }
+            if (_phase == Phase.RunningUnverified)
+            {
+                // The port is open but the owner could not be verified. Opening the
+                // local URL is still useful; do not start a second service or claim
+                // that the listener is ours.
+                _serviceStoppedByUser = false;
+                NotifyWarning(L.T("notify.ownerCheckFailedTitle"),
+                    L.T("notify.ownerCheckFailedBody", _port));
                 OpenBrowser();
                 return;
             }
@@ -374,7 +390,8 @@ namespace PiWebTray
         internal static bool CanApplyPortChange(Phase phase, bool oldPortListening,
             bool trackedServiceAlive)
         {
-            if (phase == Phase.Running || phase == Phase.Starting || phase == Phase.Stopping
+            if (phase == Phase.Running || phase == Phase.RunningUnverified
+                || phase == Phase.Starting || phase == Phase.Stopping
                 || phase == Phase.Installing || phase == Phase.Checking)
             {
                 return false;
@@ -392,7 +409,8 @@ namespace PiWebTray
             // A running/starting/stopping service owns the old port. Changing the
             // configured port without restarting the whole tray would make CLI
             // commands and the service state disagree, so require a stopped service.
-            bool allowPortChange = _phase != Phase.Running && _phase != Phase.Starting
+            bool allowPortChange = _phase != Phase.Running
+                && _phase != Phase.RunningUnverified && _phase != Phase.Starting
                 && _phase != Phase.Stopping && _phase != Phase.Installing
                 && _phase != Phase.Checking;
             using (SettingsForm form = new SettingsForm(_config, allowPortChange))
@@ -516,6 +534,12 @@ namespace PiWebTray
                 Notify(L.T("notify.restartCanceled"), L.T("notify.restartBusyBody"));
                 return;
             }
+            if (ElevatedInstallUnsafe())
+            {
+                NotifyWarning(L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                return;
+            }
             ExitApp(true);
         }
 
@@ -532,7 +556,7 @@ namespace PiWebTray
         // started by this tray is still alive. Preserve that service on restart too.
         private bool ServiceRunningForRestart()
         {
-            if (_phase == Phase.Running) return true;
+            if (_phase == Phase.Running || _phase == Phase.RunningUnverified) return true;
             try { if (_server != null && !_server.HasExited) return true; }
             catch (Exception) { }
 
@@ -600,6 +624,11 @@ namespace PiWebTray
         {
             try
             {
+                if (PathSafety.ContainsReparsePoint(_config.IniPath))
+                {
+                    NotifyError(L.T("notify.openConfigFailed"), L.T("update.error.unsafePath"));
+                    return;
+                }
                 if (!File.Exists(_config.IniPath)) File.WriteAllText(_config.IniPath, "");
                 // Resolve from the system directory too; the tray may be elevated and
                 // must not pick up a notepad.exe from the current directory or PATH.
@@ -637,6 +666,19 @@ namespace PiWebTray
             if (_updateStage == UpdateStage.Applying)
             {
                 Notify(L.T("notify.restartCanceled"), L.T("notify.restartBusyBody"));
+                return;
+            }
+            // Running the whole tray elevated from a user-writable directory would
+            // let a same-user process replace the executable or a loaded resource. Also
+            // refuse over-the-shoulder elevation from a standard-user account.
+            if (!Autostart.IsAdministratorAccount())
+            {
+                NotifyWarning(L.T("notify.adminRestartTitle"), L.T("notify.adminAccountBody"));
+                return;
+            }
+            if (Autostart.IsUserWritableInstall(Application.ExecutablePath))
+            {
+                NotifyWarning(L.T("notify.adminRestartTitle"), L.T("notify.adminRestartWritableBody"));
                 return;
             }
 

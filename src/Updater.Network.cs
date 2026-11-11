@@ -48,15 +48,30 @@ namespace PiWebTray
                 request = CreateRequest(url, timeoutMs, githubApi);
                 if (cancellation != null) cancellation.Register(request);
                 using (HttpWebResponse response = (HttpWebResponse)request.GetResponse())
-                using (Stream stream = response.GetResponseStream())
-                using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                 {
-                    return reader.ReadToEnd();
+                    // AllowAutoRedirect is enabled so GitHub's CDN can serve release
+                    // assets, but the final host must still be a trusted GitHub host.
+                    if (!IsTrustedUrl(response.ResponseUri.AbsoluteUri))
+                    {
+                        error = L.T("update.error.untrustedUrl");
+                        return null;
+                    }
+
+                    using (Stream stream = response.GetResponseStream())
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        return ReadLimited(reader, 1024 * 1024);
+                    }
                 }
             }
             catch (WebException ex)
             {
                 error = DescribeWebError(ex);
+                return null;
+            }
+            catch (InvalidDataException)
+            {
+                error = L.T("update.error.badResponse");
                 return null;
             }
             catch (Exception ex)
@@ -68,6 +83,20 @@ namespace PiWebTray
             {
                 if (cancellation != null) cancellation.Release(request);
             }
+        }
+
+        private static string ReadLimited(StreamReader reader, int maxChars)
+        {
+            StringBuilder text = new StringBuilder();
+            char[] buffer = new char[8192];
+            int read;
+            while ((read = reader.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                if (text.Length + read > maxChars)
+                    throw new InvalidDataException("response is too large");
+                text.Append(buffer, 0, read);
+            }
+            return text.ToString();
         }
 
         private static string DescribeWebError(WebException ex)

@@ -109,8 +109,10 @@ namespace PiWebTray
             }
             else
             {
-                AcceptButton = exit;
-                _initialFocus = exit;
+                // A continue button is still the safe default even when download is
+                // not offered. Enter must not exit the tray in that case.
+                AcceptButton = keep != null ? keep : exit;
+                _initialFocus = keep != null ? keep : exit;
             }
 
             // A RightToLeft FlowLayoutPanel clipped the leftmost button when

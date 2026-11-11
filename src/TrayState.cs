@@ -91,16 +91,49 @@ namespace PiWebTray
 
         internal static void Save(int pid, bool elevated, int port)
         {
+            string path = StatePath();
             try
             {
                 Directory.CreateDirectory(Folder);
+                // Never follow a symlink planted at the known state-file name.
+                if (PathSafety.ContainsReparsePoint(path)) return;
+
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("Pid=" + pid);
                 sb.AppendLine("Elevated=" + (elevated ? "1" : "0"));
                 sb.AppendLine("Port=" + port);
                 sb.AppendLine("Url=http://127.0.0.1:" + port);
                 sb.AppendLine("Session=" + Process.GetCurrentProcess().SessionId);
-                File.WriteAllText(StatePath(), sb.ToString(), new UTF8Encoding(true));
+
+                // Write beside the destination and replace it atomically. A CLI process
+                // can read this file at any time; a partially written Pid/Port line must
+                // not make it fall back to the wrong port.
+                string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                string backup = path + "." + Guid.NewGuid().ToString("N") + ".bak";
+                if (PathSafety.ContainsReparsePoint(temp)
+                    || PathSafety.ContainsReparsePoint(backup)) return;
+                try
+                {
+                    File.WriteAllText(temp, sb.ToString(), new UTF8Encoding(true));
+                    if (File.Exists(path))
+                    {
+                        try { File.Replace(temp, path, backup, true); }
+                        catch (Exception)
+                        {
+                            if (File.Exists(path)) File.Delete(path);
+                            File.Move(temp, path);
+                        }
+                    }
+                    else
+                    {
+                        File.Move(temp, path);
+                    }
+                }
+                finally
+                {
+                    try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                    try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
+                }
             }
             catch (Exception)
             {

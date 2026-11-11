@@ -98,7 +98,12 @@ namespace PiWebTray
                     try
                     {
                         Directory.CreateDirectory(config.DataDir);
-                        if (!File.Exists(dataIni) && File.Exists(localIni)) File.Copy(localIni, dataIni);
+                        if (!PathSafety.ContainsReparsePoint(localIni)
+                            && !PathSafety.ContainsReparsePoint(dataIni)
+                            && !File.Exists(dataIni) && File.Exists(localIni))
+                        {
+                            File.Copy(localIni, dataIni);
+                        }
                     }
                     catch (Exception)
                     {
@@ -118,58 +123,63 @@ namespace PiWebTray
 
             try
             {
-                foreach (string rawLine in File.ReadAllLines(config.IniPath))
+                // Never parse a symlink planted at the known ini name. Reading it could
+                // copy protected file contents into configuration values and logs.
+                if (!PathSafety.ContainsReparsePoint(config.IniPath))
                 {
-                    string key;
-                    string value;
-                    if (!TryParseLine(rawLine, out key, out value)) continue;
-                    key = key.ToLowerInvariant();
-                    string rawValue = value;
-                    value = Environment.ExpandEnvironmentVariables(value);
-
-                    switch (key)
+                    foreach (string rawLine in File.ReadAllLines(config.IniPath))
                     {
-                        case "port":
-                            int parsed;
-                            if (int.TryParse(value, out parsed) && parsed > 0 && parsed <= 65535) config.Port = parsed;
-                            break;
-                        case "workingdir":
-                            if (value.Length > 0)
-                            {
-                                config.WorkingDir = value;
-                                config.ConfiguredWorkingDir = rawValue;
-                            }
-                            break;
-                        case "nodepath":
-                            if (value.Length > 0) config.NodePath = value;
-                            break;
-                        case "autoinstall":
-                            config.AutoInstall = IsTruthy(value, true);
-                            break;
-                        case "installpi":
-                            config.InstallPi = IsTruthy(value, true);
-                            break;
-                        case "autorestart":
-                            config.AutoRestart = IsTruthy(value, false);
-                            break;
-                        case "autocheckupdates":
-                            config.AutoCheckUpdates = IsTruthy(value, false);
-                            break;
-                        case "installtag":
-                            if (value.Length > 0) config.InstallTag = value;
-                            break;
-                        case "npmregistry":
-                            if (value.Length > 0) config.NpmRegistry = value;
-                            break;
-                        case "proxy":
-                            if (value.Length > 0) config.Proxy = value;
-                            break;
-                        case "language":
-                            if (value.Length > 0) config.Language = value;
-                            break;
-                        case "autostartadmin":
-                            config.AutostartAdmin = IsTruthy(value, false);
-                            break;
+                        string key;
+                        string value;
+                        if (!TryParseLine(rawLine, out key, out value)) continue;
+                        key = key.ToLowerInvariant();
+                        string rawValue = value;
+                        value = Environment.ExpandEnvironmentVariables(value);
+
+                        switch (key)
+                        {
+                            case "port":
+                                int parsed;
+                                if (int.TryParse(value, out parsed) && parsed > 0 && parsed <= 65535) config.Port = parsed;
+                                break;
+                            case "workingdir":
+                                if (value.Length > 0)
+                                {
+                                    config.WorkingDir = value;
+                                    config.ConfiguredWorkingDir = rawValue;
+                                }
+                                break;
+                            case "nodepath":
+                                if (value.Length > 0) config.NodePath = value;
+                                break;
+                            case "autoinstall":
+                                config.AutoInstall = IsTruthy(value, true);
+                                break;
+                            case "installpi":
+                                config.InstallPi = IsTruthy(value, true);
+                                break;
+                            case "autorestart":
+                                config.AutoRestart = IsTruthy(value, false);
+                                break;
+                            case "autocheckupdates":
+                                config.AutoCheckUpdates = IsTruthy(value, false);
+                                break;
+                            case "installtag":
+                                if (value.Length > 0) config.InstallTag = value;
+                                break;
+                            case "npmregistry":
+                                if (value.Length > 0) config.NpmRegistry = value;
+                                break;
+                            case "proxy":
+                                if (value.Length > 0) config.Proxy = value;
+                                break;
+                            case "language":
+                                if (value.Length > 0) config.Language = value;
+                                break;
+                            case "autostartadmin":
+                                config.AutostartAdmin = IsTruthy(value, false);
+                                break;
+                        }
                     }
                 }
             }
@@ -268,6 +278,7 @@ namespace PiWebTray
             try
             {
                 if (!File.Exists(path)) return "";
+                if (PathSafety.ContainsReparsePoint(path)) return "";
                 string wanted = (key ?? "").Trim();
                 foreach (string rawLine in File.ReadAllLines(path))
                 {
@@ -288,6 +299,7 @@ namespace PiWebTray
         {
             try
             {
+                if (PathSafety.ContainsReparsePoint(IniPath)) return;
                 Directory.CreateDirectory(Path.GetDirectoryName(IniPath));
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine(L.T("ini.title"));
@@ -360,6 +372,9 @@ namespace PiWebTray
         {
             try
             {
+                // A symlink at the known ini name must not redirect an elevated settings
+                // save (or read a protected file) into an arbitrary target.
+                if (PathSafety.ContainsReparsePoint(IniPath)) return false;
                 List<string> lines = File.Exists(IniPath)
                     ? new List<string>(File.ReadAllLines(IniPath))
                     : new List<string>();
@@ -390,6 +405,8 @@ namespace PiWebTray
                 // the user with a truncated configuration file.
                 string temp = IniPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 string backup = IniPath + "." + Guid.NewGuid().ToString("N") + ".bak";
+                if (PathSafety.ContainsReparsePoint(temp)
+                    || PathSafety.ContainsReparsePoint(backup)) return false;
                 bool keepBackup = false;
                 try
                 {

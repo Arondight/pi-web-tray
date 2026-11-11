@@ -90,7 +90,8 @@ namespace PiWebTray
                 ProbeResult result = null;
                 try
                 {
-                    result = EnvironmentProbe.Detect(_config);
+                    if (!ElevatedInstallUnsafe())
+                        result = EnvironmentProbe.Detect(_config);
                 }
                 catch (Exception ex)
                 {
@@ -109,7 +110,10 @@ namespace PiWebTray
                 // Probe the log-host child once, here in the background: StartServer needs
                 // the answer, and the 3 s self-probe must not run on the UI thread.
                 int logHostState = _logHostState;
-                if (logHostState == -1)
+                // Retry a previously failed probe on the next background check. A
+                // transient antivirus/resource error must not permanently disable
+                // redaction and rotation for the rest of the process lifetime.
+                if (logHostState != 1)
                 {
                     try { logHostState = LogHostAvailable() ? 1 : 0; }
                     catch (Exception) { }
@@ -403,6 +407,19 @@ namespace PiWebTray
         private void ApplyCheckResult(ProbeResult result, bool thenStart, bool openBrowser,
             bool suppressAutoInstall)
         {
+            // Never run node/npm or start a service from an elevated tray whose own
+            // directory is writable by standard users. The background probe is skipped
+            // in that case, so this is also the stable phase for the tray.
+            if (ElevatedInstallUnsafe())
+            {
+                _phase = Phase.Failed;
+                UpdateUi();
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                return;
+            }
+
             // A service action started while the probe was in flight. Do not overwrite
             // Starting/Stopping/Installing; re-probe after the action reaches a stable
             // phase instead. This also prevents a second StartServer from launching a
@@ -622,6 +639,12 @@ namespace PiWebTray
         private void RunSelfCheck()
         {
             if (_selfCheckRunning) return;
+            if (ElevatedInstallUnsafe())
+            {
+                NotifyWarning(L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                return;
+            }
             _selfCheckRunning = true;
             UpdateUi();
             try

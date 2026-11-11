@@ -5,6 +5,7 @@
 // and fail closed when the attributes cannot be read.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace PiWebTray
@@ -37,6 +38,40 @@ namespace PiWebTray
             catch (Exception)
             {
                 // A path that cannot be inspected must not be used for an elevated write.
+                return true;
+            }
+        }
+
+        // Recursive ACL repair must never walk through a junction. A standard user can
+        // create a child junction in a user-writable installation directory and redirect
+        // an elevated icacls /t operation into a protected directory. Fail closed if any
+        // entry below the root is a reparse point, or if the tree cannot be inspected.
+        internal static bool ContainsReparsePointInTree(string directory)
+        {
+            try
+            {
+                string root = Path.GetFullPath(directory);
+                if (!Directory.Exists(root)) return true;
+
+                Stack<string> pending = new Stack<string>();
+                pending.Push(root);
+                while (pending.Count > 0)
+                {
+                    string current = pending.Pop();
+                    FileAttributes currentAttributes = File.GetAttributes(current);
+                    if ((currentAttributes & FileAttributes.ReparsePoint) != 0) return true;
+
+                    foreach (string entry in Directory.GetFileSystemEntries(current))
+                    {
+                        FileAttributes attributes = File.GetAttributes(entry);
+                        if ((attributes & FileAttributes.ReparsePoint) != 0) return true;
+                        if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
+                    }
+                }
+                return false;
+            }
+            catch (Exception)
+            {
                 return true;
             }
         }

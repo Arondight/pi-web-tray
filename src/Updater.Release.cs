@@ -161,6 +161,14 @@ namespace PiWebTray
 
         internal static string ParseChecksum(string text)
         {
+            return ParseChecksum(text, null);
+        }
+
+        // When the checksum file contains more than one entry, only accept the line
+        // whose filename matches the archive the caller selected. A checksum for a
+        // different asset must not be used as the archive's integrity check.
+        internal static string ParseChecksum(string text, string expectedFileName)
+        {
             if (string.IsNullOrEmpty(text)) return "";
             foreach (string rawLine in text.Replace("\r", "").Split('\n'))
             {
@@ -171,6 +179,17 @@ namespace PiWebTray
                 while (end < line.Length && IsHex(line[end])) end++;
                 if (end != 64) continue;
                 if (end < line.Length && !char.IsWhiteSpace(line[end]) && line[end] != '*') continue;
+
+                string name = line.Substring(end).Trim();
+                if (name.StartsWith("*", StringComparison.Ordinal))
+                    name = name.Substring(1).Trim();
+                if (!string.IsNullOrEmpty(expectedFileName) && name.Length > 0
+                    && !string.Equals(Path.GetFileName(name), expectedFileName,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 return line.Substring(0, end).ToLowerInvariant();
             }
             return "";

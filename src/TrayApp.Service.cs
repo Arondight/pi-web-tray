@@ -219,9 +219,16 @@ namespace PiWebTray
                 return;
             }
 
-            // An environment check sets the phase to Checking; once its result is being
-            // applied, the phase must not remain Checking while the owner probe runs.
-            if (_phase == Phase.Checking) _phase = Phase.Stopped;
+            // A listener exists, but its owner has not been verified yet. Do not claim
+            // "Stopped" (which disables Open/Stop and can make a live service
+            // unmanageable) and do not claim "Running" (which could be a foreign
+            // listener). Use an explicit unverified state until the check completes.
+            if (_phase == Phase.Checking || _phase == Phase.Stopped
+                || _phase == Phase.Failed || _phase == Phase.NeedsNode
+                || _phase == Phase.NeedsDeps)
+            {
+                _phase = Phase.RunningUnverified;
+            }
 
             // Resolve is a one-shot phase decision; never reuse a completed result from
             // an earlier action. InvalidateOwnerCheck() clears the slot, so always
@@ -248,6 +255,18 @@ namespace PiWebTray
         {
             if (_probe != null && !string.IsNullOrEmpty(_probe.NodePath)) return _probe.NodePath;
             return _config.NodePath ?? "";
+        }
+
+        // An elevated tray must not launch itself or user-installed packages from a
+        // directory that standard users can replace. The manual elevation path and the
+        // admin-autostart eligibility check normally prevent this, but an old task or a
+        // directory that became writable after the task was created must fail closed too.
+        private bool ElevatedInstallUnsafe()
+        {
+            if (!_elevated) return false;
+            // Re-check at action time: the installation ACL can change after startup.
+            try { return Autostart.IsUserWritableInstall(Application.ExecutablePath); }
+            catch (Exception) { return true; }
         }
 
         // Drop requests that belong to an older user action. Stop-for-install preserves
@@ -298,7 +317,27 @@ namespace PiWebTray
                 if (HandleOwnerCheckFailure(owner))
                 {
                     if (DateTime.Now > _startDeadline)
-                        FailStart(L.T("notify.startFailedTimeout", _port));
+                    {
+                        // We started this process tree and the port is accepting
+                        // connections. A transient inability to read the owner is not
+                        // proof that the service is broken. Keep it alive in an
+                        // explicit unverified state instead of killing it.
+                        bool trackedAlive = false;
+                        try { trackedAlive = _server != null && !_server.HasExited; }
+                        catch (Exception) { }
+                        if (trackedAlive)
+                        {
+                            _phase = Phase.RunningUnverified;
+                            _openWhenReady = false;
+                            _pendingRestart = false;
+                            _autoRestartAt = DateTime.MinValue;
+                            UpdateUi();
+                        }
+                        else
+                        {
+                            FailStart(L.T("notify.startFailedTimeout", _port));
+                        }
+                    }
                     return;
                 }
                 if (!IsOurPiWeb(owner) && !TrayOwnsPort(owner))
@@ -533,6 +572,15 @@ namespace PiWebTray
                     }
                     ScheduleAutoRestart();
                 }
+                else if (_phase == Phase.RunningUnverified)
+                {
+                    // The unverified listener is gone. There is no proof that it was
+                    // ours, so do not report a service crash or auto-restart it.
+                    KillTrackedServer();
+                    _phase = Phase.Stopped;
+                    _lastNotified = "";
+                    UpdateUi();
+                }
                 else if (_phase == Phase.PortConflict)
                 {
                     KillTrackedServer();
@@ -550,6 +598,38 @@ namespace PiWebTray
                 return;
             }
 
+            if (_phase == Phase.RunningUnverified)
+            {
+                // Retry the owner check promptly, but not on every tick.
+                if (DateTime.Now - _lastOwnerCheck < TimeSpan.FromSeconds(10)) return;
+                PortOwnerInfo current = TakeOwnerCheck();
+                if (current == null)
+                {
+                    BeginOwnerCheck();
+                    return;
+                }
+                if (HandleOwnerCheckFailure(current))
+                {
+                    _lastOwnerCheck = DateTime.Now;
+                    return;
+                }
+                _lastOwnerCheck = DateTime.Now;
+                _phase = PhaseFromOwner(current);
+                if (_phase == Phase.Running)
+                {
+                    _lastNotified = "";
+                    _autoRestartAt = DateTime.MinValue;
+                    _runningSince = DateTime.Now;
+                    _restartAfterUpdate = false;
+                }
+                else
+                {
+                    KillTrackedServer();
+                }
+                UpdateUi();
+                if (_phase == Phase.PortConflict) NotifyPortConflict();
+                return;
+            }
             if (_phase == Phase.Running)
             {
                 // A service that is already listening does not need a pending restart;
@@ -685,6 +765,15 @@ namespace PiWebTray
         private void ApplyProbeResult(ProbeResult result)
         {
             if (result == null) return;
+            if (ElevatedInstallUnsafe())
+            {
+                _phase = Phase.Failed;
+                UpdateUi();
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                return;
+            }
             // Closing an environment report can race a service action. Do not let the
             // report overwrite Starting/Stopping/Installing; the next probe will refresh it.
             if (IsServiceActionInProgress()) return;
@@ -780,6 +869,7 @@ namespace PiWebTray
         // broken pipe. Log rotation is then limited to service start.
         private bool LogHostAvailable()
         {
+            if (ElevatedInstallUnsafe()) return false;
             try
             {
                 ProcessResult check = ProcessRunner.Run(
@@ -818,6 +908,17 @@ namespace PiWebTray
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
             if (_updateStage == UpdateStage.Applying) return;
+            if (ElevatedInstallUnsafe())
+            {
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                _phase = Phase.Failed;
+                _openWhenReady = false;
+                _pendingRestart = false;
+                UpdateUi();
+                return;
+            }
             // A Node.js upgrade changed the effective paths while the service was
             // running. Refresh the probe before launching a new process; the live
             // service was deliberately left in Running.
@@ -909,6 +1010,19 @@ namespace PiWebTray
         {
             // The phase may have changed while the owner check ran
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+            // Re-check at the last moment: the installation ACL can change while the
+            // background owner probe is running.
+            if (ElevatedInstallUnsafe())
+            {
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                _phase = Phase.Failed;
+                _openWhenReady = false;
+                _pendingRestart = false;
+                UpdateUi();
+                return;
+            }
             if (_probe != null && _probe.NeedsNode)
             {
                 BeginEnvironmentCheck(true, openBrowser);
@@ -980,23 +1094,41 @@ namespace PiWebTray
             string node = EffectiveNodePath();
             if (string.IsNullOrEmpty(node)) node = "node.exe";
 
-            RotateLog();
-            // The service output itself is raw Node/Pi Web output, so mark the start
-            // of each run with a timestamp and the operation being performed.
-            Updater.AppendLog(_config.LogFile,
-                "==== service start (port " + _port + ") ====");
+            // A symlink at server.log must not redirect elevated service output. If the
+            // configured log path is unsafe, run the service without a log instead of
+            // following the link.
+            bool safeLog = !PathSafety.ContainsReparsePoint(_config.LogFile);
+            if (safeLog)
+            {
+                RotateLog();
+                // The service output itself is raw Node/Pi Web output, so mark the start
+                // of each run with a timestamp and the operation being performed.
+                Updater.AppendLog(_config.LogFile,
+                    "==== service start (port " + _port + ") ====");
+            }
+            else
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "unsafe server log path; service output is not logged: " + _config.LogFile);
+            }
             try
             {
                 // Pipe the output through a separate log-host process. cmd cannot rotate a
                 // file it redirects itself, while the host owns its log and can rotate it at
                 // any time. Neither the tray nor the pipe has to stay alive for the service.
                 string command;
-                if (LogHostAvailableCached())
+                if (!safeLog)
                 {
-                    string logHost = Shell.Quote(Application.ExecutablePath)
-                        + " --log-host " + Shell.Quote(_config.LogFile) + " "
+                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
+                        + " --no-open -p " + _port
+                        + " >NUL 2>&1";
+                }
+                else if (LogHostAvailableCached())
+                {
+                    string logHost = Shell.CmdQuote(Application.ExecutablePath)
+                        + " --log-host " + Shell.CmdQuote(_config.LogFile) + " "
                         + MaxLogBytes.ToString(CultureInfo.InvariantCulture);
-                    command = Shell.Quote(node) + " " + Shell.Quote(script)
+                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
                         + " --no-open -p " + _port
                         + " 2>&1 | " + logHost;
                 }
@@ -1006,9 +1138,9 @@ namespace PiWebTray
                     // the log-host's redaction (npm credential forms would land in server.log
                     // as-is), but keeps the service startable when the log-host child cannot
                     // be launched. SECURITY.md documents this residual risk.
-                    command = Shell.Quote(node) + " " + Shell.Quote(script)
+                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
                         + " --no-open -p " + _port
-                        + " 1>>" + Shell.Quote(_config.LogFile) + " 2>&1";
+                        + " 1>>" + Shell.CmdQuote(_config.LogFile) + " 2>&1";
                 }
 
                 ProcessStartInfo psi = new ProcessStartInfo();
@@ -1241,10 +1373,13 @@ namespace PiWebTray
             _stopOwnerCheckFailures = 0;
             UpdateUi();
 
-            // pi-web's own stop command starts node and takes a while, so run it in the background
+            // pi-web's own stop command starts node and takes a while, so run it in the background.
+            // In an elevated tray whose install directory is no longer protected, do
+            // not execute the configured NodePath; kill the already-identified listener.
+            bool unsafeStop = ElevatedInstallUnsafe();
             string script = ExpectedPiWebScript();
 
-            if (!string.IsNullOrEmpty(script) && File.Exists(script))
+            if (!unsafeStop && !string.IsNullOrEmpty(script) && File.Exists(script))
             {
                 // Hold a cross-process lock before publishing _stopWorkerRunning. The
                 // CLI install path waits on this lock after the port closes, so it cannot
@@ -1328,7 +1463,7 @@ namespace PiWebTray
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
             _pendingRestart = true;
             _pendingOpenBrowser = openBrowser;
-            if (_phase != Phase.Running)
+            if (_phase != Phase.Running && _phase != Phase.RunningUnverified)
             {
                 _pendingRestart = false;
                 _pendingOpenBrowser = false;

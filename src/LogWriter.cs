@@ -30,6 +30,11 @@ namespace PiWebTray
             {
                 try
                 {
+                    // This writer is also called from an elevated tray and helper. A
+                    // symlink at a known log name must not turn a log append into an
+                    // elevated write to a protected file.
+                    if (PathSafety.ContainsReparsePoint(path)) return;
+
                     string directory = Path.GetDirectoryName(path);
                     if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 

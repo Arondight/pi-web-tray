@@ -358,7 +358,9 @@ namespace PiWebTray
             try
             {
                 Directory.CreateDirectory(config.OutputDir);
-                File.WriteAllText(PendingMarker(config),
+                string marker = PendingMarker(config);
+                if (PathSafety.ContainsReparsePoint(marker)) return;
+                File.WriteAllText(marker,
                     DateTime.UtcNow.ToString("o"), new UTF8Encoding(false));
             }
             catch (Exception)
@@ -386,9 +388,10 @@ namespace PiWebTray
 
             List<InstallStep> steps = StepsToInstall(probe, config, force);
 
-            // A missing/broken Node.js is a failed install even when both npm packages
-            // happen to be present; the service cannot run and "none" would be a lie.
-            if (!probe.NodeFound || !probe.NpmFound)
+            // A missing/broken Node.js or an unsupported version is a failed install
+            // even when both npm packages happen to be present; the service cannot run
+            // safely and "none" would be a lie.
+            if (probe.NeedsNode)
             {
                 result.Success = false;
                 result.Message = probe.NodeIssue();

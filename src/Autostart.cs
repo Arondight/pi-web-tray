@@ -277,14 +277,7 @@ namespace PiWebTray
                 XmlDocument document = new XmlDocument();
                 document.LoadXml(xml);
 
-                enabled = true;
-                XmlNodeList enabledNodes = document.GetElementsByTagName("Enabled", "*");
-                if (enabledNodes.Count > 0 && enabledNodes[0] != null
-                    && string.Equals(enabledNodes[0].InnerText.Trim(), "false",
-                        StringComparison.OrdinalIgnoreCase))
-                {
-                    enabled = false;
-                }
+                enabled = IsTaskXmlEnabled(document);
 
                 XmlNodeList commandNodes = document.GetElementsByTagName("Command", "*");
                 if (commandNodes.Count > 0 && commandNodes[0] != null)
@@ -318,6 +311,37 @@ namespace PiWebTray
                 matchesExecutable = false;
                 return exists;
             }
+        }
+
+        // Exposed to the test suite so the task-settings/trigger distinction is
+        // checked without invoking schtasks (which needs an interactive task service).
+        internal static bool IsTaskXmlEnabled(XmlDocument document)
+        {
+            if (document == null) return false;
+
+            bool enabled = true;
+            XmlNode settingsEnabled = document.SelectSingleNode(
+                "/*[local-name()='Task']/*[local-name()='Settings']/*[local-name()='Enabled']");
+            if (settingsEnabled != null && string.Equals(
+                    settingsEnabled.InnerText.Trim(), "false",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                enabled = false;
+            }
+
+            // A disabled logon trigger also prevents the task from starting.
+            foreach (XmlNode trigger in document.GetElementsByTagName("LogonTrigger", "*"))
+            {
+                XmlNode triggerEnabled = trigger.SelectSingleNode("*[local-name()='Enabled']");
+                if (triggerEnabled != null && string.Equals(
+                        triggerEnabled.InnerText.Trim(), "false",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    enabled = false;
+                    break;
+                }
+            }
+            return enabled;
         }
 
         private static bool QueryTask(string name)
@@ -401,6 +425,13 @@ namespace PiWebTray
 
                 if (File.Exists(full))
                 {
+                    // The executable is not the whole trusted computing base. The
+                    // elevated tray also loads .config, satellite resource DLLs, and
+                    // other files from this directory. Check every child, and fail
+                    // closed on reparse points.
+                    if (PathSafety.ContainsReparsePointInTree(directory)) return true;
+                    if (HasUnsafeChildAcl(directory)) return true;
+
                     FileSecurity fileSecurity = new FileInfo(full)
                         .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
                     if (IsOwnedByStandardUser(fileSecurity)) return true;
@@ -465,6 +496,16 @@ namespace PiWebTray
                 return false;
             }
 
+            // icacls /t follows child junctions. A standard user can create a junction
+            // below a writable install directory and redirect the elevated reset into a
+            // protected directory. Refuse to start the repair if any child is a reparse
+            // point or cannot be inspected.
+            if (PathSafety.ContainsReparsePointInTree(directory))
+            {
+                message = L.T("auto.repairParentUnsafe");
+                return false;
+            }
+
             int exitCode;
             string command = BuildSecureDirectoryCommand(directory);
             if (!RunRepairCommand(command, out exitCode))
@@ -501,7 +542,7 @@ namespace PiWebTray
 
         internal static string BuildSecureDirectoryCommand(string directory)
         {
-            string icacls = Shell.Quote(Sys.SystemExecutable("icacls.exe"));
+            string icacls = Shell.CmdQuote(Sys.SystemExecutable("icacls.exe"));
             // These are Microsoft well-known SIDs, not machine-specific values:
             // S-1-5-18 = LOCAL SYSTEM, S-1-5-32-544 = BUILTIN\Administrators,
             // S-1-5-32-545 = BUILTIN\Users. Their display names change with the
@@ -514,23 +555,23 @@ namespace PiWebTray
 
             StringBuilder command = new StringBuilder();
             command.Append(icacls);
-            command.Append(" ").Append(Shell.Quote(directory));
+            command.Append(" ").Append(Shell.CmdQuote(directory));
             command.Append(" /setowner \"*").Append(administratorsSid)
                 .Append("\" /t /l && ");
             command.Append(icacls);
-            command.Append(" ").Append(Shell.Quote(directory));
+            command.Append(" ").Append(Shell.CmdQuote(directory));
             // Reset the root first: an explicit standard-user ACE from an older
             // installation is not removed by /inheritance:r.
             command.Append(" /reset && ");
             command.Append(icacls);
-            command.Append(" ").Append(Shell.Quote(directory));
+            command.Append(" ").Append(Shell.CmdQuote(directory));
             command.Append(" /inheritance:r /grant:r");
             command.Append(" \"*").Append(systemSid).Append(":(OI)(CI)F\"");
             command.Append(" \"*").Append(administratorsSid).Append(":(OI)(CI)F\"");
             command.Append(" \"*").Append(usersSid).Append(":(OI)(CI)RX\"");
             command.Append(" && ");
             command.Append(icacls);
-            command.Append(" ").Append(Shell.Quote(directory + "\\*"));
+            command.Append(" ").Append(Shell.CmdQuote(directory + "\\*"));
             command.Append(" /reset /t /l");
             return command.ToString();
         }
@@ -684,6 +725,43 @@ namespace PiWebTray
             return HasAccess(security, WriteRights);
         }
 
+        // Check the files the elevated tray can load, not just pi-web-tray.exe. An
+        // explicit ACE on app.config or a satellite resource DLL is enough for code
+        // execution in the elevated process. Reparse points are always unsafe here.
+        private static bool HasUnsafeChildAcl(string directory)
+        {
+            try
+            {
+                Stack<string> pending = new Stack<string>();
+                pending.Push(Path.GetFullPath(directory));
+                while (pending.Count > 0)
+                {
+                    string current = pending.Pop();
+                    foreach (string entry in Directory.GetFileSystemEntries(current))
+                    {
+                        FileAttributes attributes = File.GetAttributes(entry);
+                        if ((attributes & FileAttributes.ReparsePoint) != 0) return true;
+
+                        FileSystemSecurity security = (attributes & FileAttributes.Directory) != 0
+                            ? (FileSystemSecurity)new DirectoryInfo(entry).GetAccessControl(
+                                AccessControlSections.Access | AccessControlSections.Owner)
+                            : new FileInfo(entry).GetAccessControl(
+                                AccessControlSections.Access | AccessControlSections.Owner);
+                        if (IsOwnedByStandardUser(security)) return true;
+                        if (HasWriteAccess(security)) return true;
+
+                        if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
+                    }
+                }
+                return false;
+            }
+            catch (Exception)
+            {
+                // If any child ACL cannot be inspected, fail closed.
+                return true;
+            }
+        }
+
         private static bool HasUnsafeAncestor(string directory)
         {
             try
@@ -799,7 +877,13 @@ namespace PiWebTray
             // when switching to batteries). Build a user-scoped XML definition
             // instead. Keep the file open with FileShare.Read while schtasks reads
             // it, so another process cannot replace the elevated task definition.
-            string xmlPath = Path.Combine(Path.GetTempPath(),
+            // An elevated process can write beside the protected executable. A
+            // non-elevated process cannot, so it uses the user temp directory and the
+            // byte comparison below guards that file against modification.
+            string xmlDirectory = elevated
+                ? (Path.GetDirectoryName(Application.ExecutablePath) ?? Path.GetTempPath())
+                : Path.GetTempPath();
+            string xmlPath = Path.Combine(xmlDirectory,
                 "pi-web-tray-task-" + Guid.NewGuid().ToString("N") + ".xml");
             FileStream write = null;
             FileStream guard = null;
@@ -819,6 +903,13 @@ namespace PiWebTray
                 write = null;
                 guard = new FileStream(xmlPath, FileMode.Open, FileAccess.Read,
                     FileShare.Read);
+
+                // The writer was closed and the read guard was opened in two steps. A
+                // same-user process can win that tiny window and modify the XML. The
+                // guard prevents further writes, so compare the bytes read through the
+                // guard with the XML we built. This turns the former TOCTOU into a
+                // failed task creation instead of registering attacker-controlled XML.
+                if (!BytesEqual(xml, File.ReadAllBytes(xmlPath))) return false;
 
                 string args = "/create /f /tn " + Shell.Quote(TaskName)
                     + " /xml " + Shell.Quote(xmlPath);
@@ -847,6 +938,17 @@ namespace PiWebTray
                 }
                 try { if (File.Exists(xmlPath)) File.Delete(xmlPath); } catch (Exception) { }
             }
+        }
+
+        private static bool BytesEqual(byte[] left, byte[] right)
+        {
+            if (ReferenceEquals(left, right)) return true;
+            if (left == null || right == null || left.Length != right.Length) return false;
+            for (int i = 0; i < left.Length; i++)
+            {
+                if (left[i] != right[i]) return false;
+            }
+            return true;
         }
 
         internal static byte[] BuildTaskXml(string executablePath, string principal)

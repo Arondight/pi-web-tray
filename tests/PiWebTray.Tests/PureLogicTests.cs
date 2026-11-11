@@ -696,12 +696,14 @@ namespace PiWebTray
         private static void QuoteTests()
         {
             CheckEqual("quote plain", "\"C:\\Program Files\\node.exe\"", Shell.Quote("C:\\Program Files\\node.exe"));
-            CheckEqual("cmd line", "/d /s /c \"cmd\"", Shell.CmdLine("cmd"));
+            CheckEqual("cmd line", "/d /v:off /s /c \"cmd\"", Shell.CmdLine("cmd"));
             CheckEqual("quote arg plain", "\"abc\"", Shell.QuoteArg("abc"));
             CheckEqual("quote arg spaces", "\"a b\"", Shell.QuoteArg("a b"));
             CheckEqual("quote arg trailing slash", "\"C:\\dir\\\\\"", Shell.QuoteArg("C:\\dir\\"));
             CheckEqual("quote arg embedded quote", "\"a\\\"b\"", Shell.QuoteArg("a\"b"));
             CheckEqual("quote arg null", "\"\"", Shell.QuoteArg(null));
+            CheckEqual("cmd quote escapes percent", "\"C:\\x^%PATH^%\"",
+                Shell.CmdQuote("C:\\x%PATH%"));
         }
 
         private static void IniReadTests()
@@ -1018,6 +1020,19 @@ namespace PiWebTray
                 document.GetElementsByTagName("Command", "*")[0].InnerText);
             CheckEqual("task XML arguments", "--autostart",
                 document.GetElementsByTagName("Arguments", "*")[0].InnerText);
+            Check("generated task XML is enabled", Autostart.IsTaskXmlEnabled(document));
+
+            // A task disabled in Task Scheduler has Settings/Enabled=false while the
+            // logon trigger can still be true. The parser must not pick the trigger's
+            // Enabled element (which is first in document order).
+            const string disabledXml =
+                "<Task xmlns='http://schemas.microsoft.com/windows/2004/02/mit/task'>"
+                + "<Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>"
+                + "<Settings><Enabled>false</Enabled></Settings></Task>";
+            XmlDocument disabled = new XmlDocument();
+            disabled.LoadXml(disabledXml);
+            Check("disabled task settings override an enabled trigger",
+                !Autostart.IsTaskXmlEnabled(disabled));
         }
 
         private static void TrayClickTests()
@@ -1433,6 +1448,12 @@ namespace PiWebTray
 
             string hash = new string('a', 64);
             CheckEqual("checksum parsed", hash, Updater.ParseChecksum(hash + "  pi-web-tray-0.2.0-win.zip\r\n"));
+            CheckEqual("checksum selects the requested file", hash,
+                Updater.ParseChecksum(hash + "  pi-web-tray-0.2.0-win.zip\r\n",
+                    "pi-web-tray-0.2.0-win.zip"));
+            CheckEqual("checksum rejects another file", "",
+                Updater.ParseChecksum(hash + "  other.zip\r\n",
+                    "pi-web-tray-0.2.0-win.zip"));
             CheckEqual("checksum star format", hash, Updater.ParseChecksum(hash + " *file.zip"));
             CheckEqual("checksum rejects short", "", Updater.ParseChecksum("abc  file.zip"));
             CheckEqual("checksum rejects junk", "",
@@ -1676,6 +1697,8 @@ namespace PiWebTray
                 TrayApp.CanApplyPortChange(Phase.Stopped, false, true));
             Check("port change blocks a running service",
                 !TrayApp.CanApplyPortChange(Phase.Running, false, false));
+            Check("port change blocks an unverified listener",
+                !TrayApp.CanApplyPortChange(Phase.RunningUnverified, false, false));
             Check("port change blocks a starting service",
                 !TrayApp.CanApplyPortChange(Phase.Starting, false, false));
             Check("port change blocks an environment check",

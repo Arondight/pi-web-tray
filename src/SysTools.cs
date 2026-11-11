@@ -753,6 +753,15 @@ namespace PiWebTray
             return "\"" + value + "\"";
         }
 
+        // Quote a path for a command line parsed by cmd.exe. A percent sign starts
+        // environment expansion even inside double quotes; ^% is the command-line
+        // escape that leaves a literal percent sign for the child process.
+        internal static string CmdQuote(string value)
+        {
+            if (value == null) value = "";
+            return "\"" + value.Replace("%", "^%") + "\"";
+        }
+
         // Quote one argument using the CommandLineToArgvW rules. Backslashes are literal
         // unless they precede a quote, and a trailing run of backslashes must be doubled
         // before the closing quote. Used for paths passed to the update helper.
@@ -789,10 +798,11 @@ namespace PiWebTray
             return sb.ToString();
         }
 
-        // cmd.exe /c needs the whole command wrapped in one more pair of quotes; inner quotes stay
+        // cmd.exe /c needs the whole command wrapped in one more pair of quotes; inner quotes stay.
+        // /v:off prevents !VAR! expansion in user-controlled paths; /d disables AutoRun.
         internal static string CmdLine(string command)
         {
-            return "/d /s /c \"" + command + "\"";
+            return "/d /v:off /s /c \"" + command + "\"";
         }
 
         internal static string ComSpec()

@@ -67,6 +67,17 @@ namespace PiWebTray
                 string target = SafeFullPath(config.BaseDir);
                 string dataDir = SafeFullPath(config.DataDir);
 
+                // A helper started by an elevated tray inherits that token. If the
+                // installation directory is writable by standard users, the helper
+                // itself, its config, or its resources could have been replaced. Refuse
+                // to expand the elevated attack surface; restart the tray normally first.
+                if (elevated && Autostart.IsUserWritableInstall(target))
+                {
+                    error = L.T("update.error.writableInstall");
+                    AppendLog(logPath, "elevated update refused for a user-writable installation: " + target);
+                    return false;
+                }
+
                 // Fail before ExitApp stops the tray if another installer/updater
                 // already owns this installation. The helper re-checks the lock
                 // before copying; this preflight only avoids a needless outage.
@@ -402,7 +413,11 @@ namespace PiWebTray
             string snapshot = Path.Combine(target, ".pi-web-tray-stage-" + Guid.NewGuid().ToString("N"));
             try
             {
+                if (PathSafety.ContainsReparsePoint(target))
+                    throw new InvalidDataException("update target is a reparse point");
                 Directory.CreateDirectory(snapshot);
+                if (PathSafety.ContainsReparsePoint(snapshot))
+                    throw new InvalidDataException("update snapshot is a reparse point");
 
                 foreach (string source in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
                 {
@@ -412,6 +427,8 @@ namespace PiWebTray
                         throw new InvalidDataException("staging contains a reparse point: " + relative);
 
                     string destination = Path.Combine(snapshot, relative);
+                    if (PathSafety.ContainsReparsePoint(destination))
+                        throw new InvalidDataException("staging destination is a reparse point: " + relative);
                     string parent = Path.GetDirectoryName(destination);
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
 
@@ -463,8 +480,12 @@ namespace PiWebTray
             {
                 if (PathSafety.ContainsReparsePoint(zipPath))
                     throw new InvalidDataException("update archive is a reparse point");
+                if (PathSafety.ContainsReparsePoint(target))
+                    throw new InvalidDataException("update target is a reparse point");
 
                 Directory.CreateDirectory(target);
+                if (PathSafety.ContainsReparsePoint(zipSnapshot))
+                    throw new InvalidDataException("update archive snapshot is a reparse point");
                 using (FileStream input = new FileStream(zipPath, FileMode.Open,
                     FileAccess.Read, FileShare.Read))
                 using (FileStream output = new FileStream(zipSnapshot, FileMode.CreateNew,
@@ -486,6 +507,8 @@ namespace PiWebTray
                 }
 
                 Directory.CreateDirectory(snapshot);
+                if (PathSafety.ContainsReparsePoint(snapshot))
+                    throw new InvalidDataException("update snapshot is a reparse point");
                 Extract(zipSnapshot, snapshot);
                 if (!File.Exists(Path.Combine(snapshot, "pi-web-tray.exe")))
                 {
@@ -514,8 +537,11 @@ namespace PiWebTray
         {
             try
             {
-                if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
+                if (!string.IsNullOrEmpty(path) && Directory.Exists(path)
+                    && !PathSafety.ContainsReparsePoint(path))
+                {
                     Directory.Delete(path, true);
+                }
             }
             catch (Exception)
             {

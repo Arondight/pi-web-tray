@@ -53,6 +53,8 @@ namespace PiWebTray
                     if (ShouldSkip(relative)) continue;
 
                     string destination = Path.Combine(target, relative);
+                    if (PathSafety.ContainsReparsePoint(destination))
+                        throw new InvalidDataException("update destination crosses a reparse point: " + relative);
                     string parent = Path.GetDirectoryName(destination);
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
 
@@ -171,6 +173,15 @@ namespace PiWebTray
 
                     try
                     {
+                        // A manifest entry can be redirected by a junction below the
+                        // target. Never follow it during elevated stale-file cleanup.
+                        if (PathSafety.ContainsReparsePoint(full))
+                        {
+                            keep.Add(relative);
+                            AppendLog(logPath, "stale cleanup rejected reparse path " + relative);
+                            continue;
+                        }
+
                         if (File.Exists(full))
                         {
                             File.SetAttributes(full, FileAttributes.Normal);
@@ -264,7 +275,24 @@ namespace PiWebTray
                     try
                     {
                         if (Directory.GetLastWriteTimeUtc(old) >= cutoff) continue;
+                        if (PathSafety.ContainsReparsePoint(old)) continue;
                         Directory.Delete(old, true);
+                    }
+                    catch (Exception)
+                    {
+                    }
+                }
+
+                // SnapshotFromZip deletes its temporary archive file on normal paths;
+                // a crash can leave one behind. It is not a directory, so the loop above
+                // does not see it.
+                foreach (string old in Directory.GetFiles(target, ".pi-web-tray-stage-zip-*"))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTimeUtc(old) >= cutoff) continue;
+                        if (PathSafety.ContainsReparsePoint(old)) continue;
+                        File.Delete(old);
                     }
                     catch (Exception)
                     {
@@ -319,6 +347,12 @@ namespace PiWebTray
                 {
                     string relative = RelativePath(backupRoot, file);
                     string destination = Path.Combine(target, relative);
+                    if (PathSafety.ContainsReparsePoint(destination))
+                    {
+                        complete = false;
+                        AppendLog(logPath, "rollback rejected reparse path: " + relative);
+                        continue;
+                    }
                     string parent = Path.GetDirectoryName(destination);
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
                     try

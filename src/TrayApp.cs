@@ -31,6 +31,7 @@ namespace PiWebTray
         Installing,
         Starting,
         Running,
+        RunningUnverified,
         Stopping,
         Stopped,
         Failed,

@@ -158,6 +158,8 @@ namespace PiWebTray
                 Assert.IsNotNull(form.CancelButton);
                 Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
                     "Esc should continue without exiting the tray.");
+                Assert.AreEqual(DialogResult.Ignore, form.AcceptButton.DialogResult,
+                    "Enter should continue without exiting the tray when download is unavailable.");
             }
         }
 

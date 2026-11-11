@@ -1446,4 +1446,25 @@
   <data name="auto.repairSuccessRetry" xml:space="preserve">
     <value>安裝目錄現在受保護。請重新開啟管理員自啟動以完成操作。</value>
   </data>
+  <data name="status.unverified" xml:space="preserve">
+    <value>執行中 · 連接埠 {0}（擁有者未驗證）</value>
+  </data>
+  <data name="update.error.tooLarge" xml:space="preserve">
+    <value>更新檔案超過允許的大小，或解壓縮後過大。</value>
+  </data>
+  <data name="update.error.writableInstall" xml:space="preserve">
+    <value>安裝目錄可被標準使用者修改。請以一般權限重新啟動 Pi Web Tray 後再更新。</value>
+  </data>
+  <data name="notify.adminRestartWritableBody" xml:space="preserve">
+    <value>Pi Web Tray 安裝在一個可被標準使用者修改的目錄中。從該位置以管理員身分啟動，可能讓其他處理程序取代程式。請將其移到 Program Files 等受保護目錄，或以一般權限執行。</value>
+  </data>
+  <data name="notify.adminAccountBody" xml:space="preserve">
+    <value>只有屬於 Administrators 群組的帳戶才能以管理員身分重新啟動 Pi Web Tray。請使用自己的管理員帳戶，或以一般權限執行托盤。</value>
+  </data>
+  <data name="notify.elevatedWritableTitle" xml:space="preserve">
+    <value>管理員模式無法使用</value>
+  </data>
+  <data name="notify.elevatedWritableBody" xml:space="preserve">
+    <value>Pi Web Tray 正以管理員身分從一個可被標準使用者修改的目錄執行。服務啟動、相依套件安裝與自我更新已停用。請以一般權限重新啟動後再操作。</value>
+  </data>
 </root>

@@ -464,14 +464,11 @@ namespace PiWebTray
             Mutex candidate = null;
             try
             {
-                bool created;
-                candidate = new Mutex(false, Instance.MutexName, out created);
-                if (created)
-                {
-                    candidate.WaitOne(0);
-                    mutex = candidate;
-                    return true;
-                }
+                candidate = new Mutex(false, Instance.MutexName, out _);
+                // Even the process that created the named mutex must actually acquire
+                // it. Another instance can open and acquire it between CreateMutex and
+                // WaitOne; ignoring the WaitOne result would let both processes believe
+                // they own the single instance.
                 try
                 {
                     if (candidate.WaitOne(waitMs))
@@ -689,6 +686,15 @@ namespace PiWebTray
         private static int RunInstall(Config config, bool dryRun)
         {
             ConsoleHost.TryAttach();
+
+            // Do not run npm with an elevated token from a user-writable installation.
+            // The dry run is read-only and remains usable for diagnostics.
+            if (!dryRun && Elevation.IsElevated()
+                && Autostart.IsUserWritableInstall(Application.ExecutablePath))
+            {
+                ConsoleHost.WriteError(L.T("update.error.writableInstall"));
+                return 1;
+            }
 
             // npm cannot replace a globally installed package while its node process runs.
             // The tray's install path stops pi-web first (TrayApp.BeginInstall); the CLI
@@ -981,7 +987,8 @@ namespace PiWebTray
             try
             {
                 Directory.CreateDirectory(config.OutputDir);
-                File.WriteAllText(config.DiagFile, sb.ToString(), new UTF8Encoding(true));
+                if (!PathSafety.ContainsReparsePoint(config.DiagFile))
+                    File.WriteAllText(config.DiagFile, sb.ToString(), new UTF8Encoding(true));
             }
             catch (Exception)
             {
@@ -1069,6 +1076,7 @@ namespace PiWebTray
             {
                 Directory.CreateDirectory(TrayState.Folder);
                 string path = Path.Combine(TrayState.Folder, "crash.log");
+                if (PathSafety.ContainsReparsePoint(path)) return;
                 FileInfo info = new FileInfo(path);
                 if (info.Exists && info.Length > 4 * 1024 * 1024)
                 {

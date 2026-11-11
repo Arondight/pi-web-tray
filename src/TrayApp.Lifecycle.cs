@@ -304,6 +304,7 @@ namespace PiWebTray
         {
             try
             {
+                if (PathSafety.ContainsReparsePoint(_config.LogFile)) return;
                 FileInfo info = new FileInfo(_config.LogFile);
                 if (info.Exists && info.Length > MaxLogBytes)
                 {

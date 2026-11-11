@@ -41,7 +41,8 @@ namespace PiWebTray
 
             if (!silent) _autoUpdateCheckAt = DateTime.MinValue;
 
-            bool serviceRunning = _phase == Phase.Running;
+            bool serviceRunning = _phase == Phase.Running
+                || _phase == Phase.RunningUnverified;
             UpdateCancellation cancellation = new UpdateCancellation();
             int generation;
             lock (_updateLock)
@@ -241,7 +242,8 @@ namespace PiWebTray
             // download. If the service stops before the helper is launched, this still
             // preserves a service that was running when the update began.
             _updateStartedWithServiceRunning = _updateStartedWithServiceRunning
-                || _phase == Phase.Running || _restartAfterUpdate;
+                || _phase == Phase.Running || _phase == Phase.RunningUnverified
+                || _restartAfterUpdate;
 
             UpdateCancellation cancellation = new UpdateCancellation();
             int generation;
@@ -504,6 +506,10 @@ namespace PiWebTray
         private void CancelUpdate()
         {
             if (!UpdateBusy()) return;
+            // Once the helper has been started it cannot be cancelled safely: the
+            // helper may already be waiting for this process to exit and replacing
+            // files. The UI disables the button, but protect the code path too.
+            if (_updateStage == UpdateStage.Applying) return;
             Updater.AppendLog(_config.UpdateLogFile, "cancelled by user");
             UpdateCancellation cancellation;
             lock (_updateLock) cancellation = _updateCancellation;

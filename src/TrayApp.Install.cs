@@ -21,6 +21,15 @@ namespace PiWebTray
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_exiting) return;
+            if (ElevatedInstallUnsafe())
+            {
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                _phase = Phase.Failed;
+                UpdateUi();
+                return;
+            }
             // npm and the update helper both touch the global package tree. The
             // update helper is the only operation allowed to stop/replace files;
             // do not start an npm install while a check/download/apply is active.
@@ -124,6 +133,16 @@ namespace PiWebTray
 
         private void ContinueBeginInstall(bool force, bool thenStart, bool thenOpen, PortOwnerInfo owner)
         {
+            if (ElevatedInstallUnsafe())
+            {
+                ReleaseInstallUpdateLock();
+                NotifyWarningOnce("elevated-writable-install",
+                    L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                _phase = Phase.Failed;
+                UpdateUi();
+                return;
+            }
             // The phase may have changed while the owner check ran. A dropped install
             // must not leave its cross-process update lock held.
             if (_phase == Phase.Starting || _phase == Phase.Stopping)
