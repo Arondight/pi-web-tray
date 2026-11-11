@@ -1379,7 +1379,7 @@
     <value>未开启管理员权限自启动，因为该目录可被标准用户修改
 {0}
 
-从该位置运行的自启动任务可能因实际程序被替换而导致安全性问题，请将 Pi Web Tray 移动到受保护目录（例如 C:\Program Files），或使用标准用户自启动。</value>
+从该位置运行的自启动任务可能因实际程序被替换而导致安全性问题。点击“修复”保护此目录，然后重新开启管理员自启动。也可以改用标准用户自启动。</value>
   </data>
   <data name="auto.adminWritableExistingTitle" xml:space="preserve">
     <value>管理员自启动任务不安全</value>
@@ -1391,8 +1391,50 @@
     <value>此安装已启用管理员权限的开机自启动任务（{0}）：
 {1}
 
-标准用户可修改此目录，托盘或其文件可能被替换并以管理员权限运行。请用托盘菜单中的“开机自启动”禁用它，将 Pi Web Tray 移到受保护目录，再按需重新启用。
+标准用户可修改此目录，托盘或其文件可能被替换并以管理员权限运行。点击“修复”保护此目录，或在托盘菜单中禁用管理员自启动。
 
 此检查只覆盖托盘目录；Node.js、npm、Pi Web 以及用户可写的配置/工作目录仍会以管理员权限运行。</value>
+  </data>
+  <data name="auto.repair" xml:space="preserve">
+    <value>修复</value>
+  </data>
+  <data name="auto.repairRunning" xml:space="preserve">
+    <value>正在修复目录权限...</value>
+  </data>
+  <data name="auto.repairNoDirectory" xml:space="preserve">
+    <value>未找到安装目录。</value>
+  </data>
+  <data name="auto.repairLaunchFailed" xml:space="preserve">
+    <value>无法启动修复进程。</value>
+  </data>
+  <data name="auto.repairCancelled" xml:space="preserve">
+    <value>已在 UAC 提示中取消修复。</value>
+  </data>
+  <data name="auto.repairTimeout" xml:space="preserve">
+    <value>权限修复未在规定时间内完成。请检查目录权限后重试。</value>
+  </data>
+  <data name="auto.repairCommandFailed" xml:space="preserve">
+    <value>权限修复命令失败（退出代码 {0}）。</value>
+  </data>
+  <data name="auto.repairStillUnsafe" xml:space="preserve">
+    <value>修复后安装目录仍可被普通用户写入。</value>
+  </data>
+  <data name="auto.repairAlreadySafe" xml:space="preserve">
+    <value>安装目录权限已经安全。</value>
+  </data>
+  <data name="auto.repairSuccess" xml:space="preserve">
+    <value>安装目录权限已修复。</value>
+  </data>
+  <data name="auto.repairFailed" xml:space="preserve">
+    <value>无法修复目录权限：{0}</value>
+  </data>
+  <data name="auto.repairDoneTitle" xml:space="preserve">
+    <value>目录权限已修复</value>
+  </data>
+  <data name="auto.repairSuccessExisting" xml:space="preserve">
+    <value>安装目录现在受保护，管理员自启动任务已安全。</value>
+  </data>
+  <data name="auto.repairSuccessRetry" xml:space="preserve">
+    <value>安装目录现在受保护。请重新开启管理员自启动以完成操作。</value>
   </data>
 </root>

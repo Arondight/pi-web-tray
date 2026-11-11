@@ -556,6 +556,69 @@ namespace PiWebTray
             }
         }
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool AttachThreadInput(uint attach, uint attachTo, bool attachInput);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetForegroundWindow(IntPtr window);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool BringWindowToTop(IntPtr window);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetActiveWindow(IntPtr window);
+
+        // Balloon clicks are delivered by the shell, so the tray process does not
+        // automatically receive foreground rights. Attach to the foreground input
+        // queue before showing a dialog opened from a notification.
+        internal static void BringToForeground(IntPtr window)
+        {
+            if (window == IntPtr.Zero) return;
+            uint foregroundThread = 0;
+            uint currentThread = GetCurrentThreadId();
+            bool attached = false;
+            try
+            {
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground != IntPtr.Zero)
+                    GetWindowThreadProcessId(foreground, out foregroundThread);
+
+                if (foregroundThread != 0 && foregroundThread != currentThread)
+                {
+                    attached = AttachThreadInput(foregroundThread, currentThread, true);
+                }
+
+                const int Restore = 9;
+                ShowWindow(window, Restore);
+                BringWindowToTop(window);
+                SetForegroundWindow(window);
+                SetActiveWindow(window);
+            }
+            catch (Exception)
+            {
+            }
+            finally
+            {
+                if (attached)
+                {
+                    try { AttachThreadInput(foregroundThread, currentThread, false); }
+                    catch (Exception) { }
+                }
+            }
+        }
+
         internal static bool ProcessAlive(int pid)
         {
             if (pid <= 0) return false;

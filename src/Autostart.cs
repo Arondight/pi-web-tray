@@ -5,6 +5,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Security.AccessControl;
@@ -386,8 +387,19 @@ namespace PiWebTray
                 string full = Path.GetFullPath(executablePath);
                 string directory = Path.GetDirectoryName(full);
                 if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return true;
-                if (HasWriteAccess(directory, true)) return true;
-                if (File.Exists(full) && HasWriteAccess(full, false)) return true;
+
+                DirectorySecurity directorySecurity = new DirectoryInfo(directory)
+                    .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
+                if (IsOwnedByStandardUser(directorySecurity)) return true;
+                if (HasWriteAccess(directorySecurity)) return true;
+
+                if (File.Exists(full))
+                {
+                    FileSecurity fileSecurity = new FileInfo(full)
+                        .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
+                    if (IsOwnedByStandardUser(fileSecurity)) return true;
+                    if (HasWriteAccess(fileSecurity)) return true;
+                }
                 return false;
             }
             catch (Exception)
@@ -395,6 +407,202 @@ namespace PiWebTray
                 // If the ACL cannot be evaluated, fail closed for this security check.
                 return true;
             }
+        }
+
+        // Repair the installation directory so the existing administrator logon task
+        // cannot be hijacked by a standard user. This needs one UAC prompt unless the
+        // tray is already elevated. icacls exists on Windows 7 through 11.
+        internal static bool SecureInstallDirectory(string executablePath, out string message)
+        {
+            message = "";
+            string directory;
+            try
+            {
+                string full = Path.GetFullPath(executablePath);
+                directory = Path.GetDirectoryName(full);
+                if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+                {
+                    message = L.T("auto.repairFailed", L.T("auto.repairNoDirectory"));
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                message = L.T("auto.repairFailed", ex.Message);
+                return false;
+            }
+
+            if (!IsUserWritableInstall(executablePath))
+            {
+                message = L.T("auto.repairAlreadySafe");
+                return true;
+            }
+
+            int exitCode;
+            string command = BuildSecureDirectoryCommand(directory);
+            if (!RunRepairCommand(command, out exitCode))
+            {
+                if (exitCode == -2)
+                    message = L.T("auto.repairCancelled");
+                else if (exitCode == -3)
+                    message = L.T("auto.repairTimeout");
+                else
+                    message = L.T("auto.repairFailed", L.T("auto.repairLaunchFailed"));
+                return false;
+            }
+            if (exitCode != 0)
+            {
+                message = L.T("auto.repairFailed", L.T("auto.repairCommandFailed", exitCode));
+                return false;
+            }
+
+            // ACL changes propagate asynchronously. Re-run the same check the tray uses
+            // before reporting success, instead of trusting the tool exit code alone.
+            for (int i = 0; i < 20; i++)
+            {
+                if (!IsUserWritableInstall(executablePath))
+                {
+                    message = L.T("auto.repairSuccess");
+                    return true;
+                }
+                Thread.Sleep(250);
+            }
+
+            message = L.T("auto.repairFailed", L.T("auto.repairStillUnsafe"));
+            return false;
+        }
+
+        internal static string BuildSecureDirectoryCommand(string directory)
+        {
+            string icacls = Shell.Quote(Sys.SystemExecutable("icacls.exe"));
+            // These are Microsoft well-known SIDs, not machine-specific values:
+            // S-1-5-18 = LOCAL SYSTEM, S-1-5-32-544 = BUILTIN\Administrators,
+            // S-1-5-32-545 = BUILTIN\Users. Their display names change with the
+            // Windows language, but the SIDs do not. Resolve them through .NET
+            // instead of embedding the numbers in the command.
+            string systemSid = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value;
+            string administratorsSid = new SecurityIdentifier(
+                WellKnownSidType.BuiltinAdministratorsSid, null).Value;
+            string usersSid = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null).Value;
+
+            StringBuilder command = new StringBuilder();
+            command.Append(icacls);
+            command.Append(" ").Append(Shell.Quote(directory));
+            command.Append(" /setowner \"*").Append(administratorsSid)
+                .Append("\" /t /l && ");
+            command.Append(icacls);
+            command.Append(" ").Append(Shell.Quote(directory));
+            // Reset the root first: an explicit standard-user ACE from an older
+            // installation is not removed by /inheritance:r.
+            command.Append(" /reset && ");
+            command.Append(icacls);
+            command.Append(" ").Append(Shell.Quote(directory));
+            command.Append(" /inheritance:r /grant:r");
+            command.Append(" \"*").Append(systemSid).Append(":(OI)(CI)F\"");
+            command.Append(" \"*").Append(administratorsSid).Append(":(OI)(CI)F\"");
+            command.Append(" \"*").Append(usersSid).Append(":(OI)(CI)RX\"");
+            command.Append(" && ");
+            command.Append(icacls);
+            command.Append(" ").Append(Shell.Quote(directory + "\\*"));
+            command.Append(" /reset /t /l");
+            return command.ToString();
+        }
+
+        private static bool RunRepairCommand(string command, out int exitCode)
+        {
+            exitCode = -1;
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = Sys.SystemExecutable("cmd.exe");
+                psi.Arguments = Shell.CmdLine(command);
+                psi.WorkingDirectory = Sys.SystemDirectory;
+                if (Elevation.IsElevated())
+                {
+                    psi.UseShellExecute = false;
+                    psi.CreateNoWindow = true;
+                    ProcessRunner.HardenEnvironment(psi, true);
+                }
+                else
+                {
+                    psi.UseShellExecute = true;
+                    psi.Verb = "runas";
+                    psi.WindowStyle = ProcessWindowStyle.Hidden;
+                }
+
+                using (Process process = Process.Start(psi))
+                {
+                    if (process == null) return false;
+                    if (!process.WaitForExit(120000))
+                    {
+                        try { Sys.KillTree(process.Id); }
+                        catch (Exception)
+                        {
+                            try { process.Kill(); } catch (Exception) { }
+                        }
+                        try { process.WaitForExit(5000); } catch (Exception) { }
+                        exitCode = -3;
+                        return false;
+                    }
+                    exitCode = process.ExitCode;
+                    return true;
+                }
+            }
+            catch (Win32Exception ex)
+            {
+                // ERROR_CANCELLED: the user declined the UAC prompt.
+                exitCode = ex.NativeErrorCode == 1223 ? -2 : -1;
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool IsOwnedByStandardUser(FileSystemSecurity security)
+        {
+            try
+            {
+                SecurityIdentifier owner = security.GetOwner(typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+                if (owner == null) return true;
+
+                SecurityIdentifier administrators = new SecurityIdentifier(
+                    WellKnownSidType.BuiltinAdministratorsSid, null);
+                // An Administrators-owned directory is protected by the UAC boundary.
+                if (owner.Equals(administrators)) return false;
+
+                // These owners are writable by standard users even if the token
+                // groups below do not explicitly list them.
+                SecurityIdentifier users = new SecurityIdentifier(
+                    WellKnownSidType.BuiltinUsersSid, null);
+                SecurityIdentifier authenticated = new SecurityIdentifier(
+                    WellKnownSidType.AuthenticatedUserSid, null);
+                SecurityIdentifier world = new SecurityIdentifier(
+                    WellKnownSidType.WorldSid, null);
+                if (owner.Equals(users) || owner.Equals(authenticated) || owner.Equals(world))
+                    return true;
+
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity.User != null && owner.Equals(identity.User)) return true;
+                    if (identity.Groups != null)
+                    {
+                        foreach (IdentityReference group in identity.Groups)
+                        {
+                            SecurityIdentifier sid = group as SecurityIdentifier;
+                            if (sid == null || sid.Equals(administrators)) continue;
+                            if (owner.Equals(sid)) return true;
+                        }
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+            return false;
         }
 
         // The account (not merely the current filtered token) must be a member of the
@@ -427,12 +635,8 @@ namespace PiWebTray
             return false;
         }
 
-        private static bool HasWriteAccess(string path, bool directory)
+        private static bool HasWriteAccess(FileSystemSecurity security)
         {
-            FileSystemSecurity security = directory
-                ? (FileSystemSecurity)new DirectoryInfo(path).GetAccessControl(AccessControlSections.Access)
-                : (FileSystemSecurity)new FileInfo(path).GetAccessControl(AccessControlSections.Access);
-
             List<SecurityIdentifier> identities = new List<SecurityIdentifier>();
             using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
             {

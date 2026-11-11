@@ -128,7 +128,7 @@ Pi is not a required dependency of Pi Web. When `InstallPi=1`, Pi is installed o
 
 Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker.
 
-When the Pi Web Tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the current setting. If the administrator preference is unavailable and the user enables start-at-login from the main menu, Pi Web Tray clears that preference and uses standard-user start-at-login instead.
+When the Pi Web Tray installation directory can be modified by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC. If the administrator preference is unavailable and the user enables start-at-login from the main menu, Pi Web Tray clears that preference and uses standard-user start-at-login instead.
 
 The data directory is per user. Pi Web Tray redacts URL user info and token query values from its logs. When `Proxy` is set, only Pi Web Tray update checks and downloads use it. An empty value uses the system proxy. The setting is not passed to Node, npm or Pi Web child processes. The **Test** button in Settings only tests proxy connectivity and does not save.
 

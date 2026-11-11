@@ -162,19 +162,36 @@ namespace PiWebTray
         {
             string directory = Path.GetDirectoryName(Application.ExecutablePath)
                 ?? Application.ExecutablePath;
+            ShowAdminAutostartWarning(
+                L.T("auto.adminWritableTitle"),
+                L.T("auto.adminWritableDetails", directory),
+                false);
+        }
+
+        private bool ShowAdminAutostartWarning(string title, string body, bool existingTask)
+        {
+            bool repaired = false;
             BeginModal();
             try
             {
-                MessageBox.Show(
-                    L.T("auto.adminWritableDetails", directory),
-                    L.T("auto.adminWritableTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                using (AdminAutostartWarningForm form = new AdminAutostartWarningForm(title, body))
+                {
+                    form.ShowDialog();
+                    repaired = form.RepairSucceeded;
+                }
             }
             finally
             {
                 EndModal();
             }
+
+            if (repaired)
+            {
+                Notify(L.T("auto.repairDoneTitle"), existingTask
+                    ? L.T("auto.repairSuccessExisting")
+                    : L.T("auto.repairSuccessRetry"));
+            }
+            return repaired;
         }
 
         // Existing tasks created by older releases are not covered by the toggle-time
@@ -210,19 +227,10 @@ namespace PiWebTray
             string taskName = LegacyTaskExists(false)
                 ? Autostart.LegacyTaskName
                 : Autostart.TaskName;
-            BeginModal();
-            try
-            {
-                MessageBox.Show(
-                    L.T("auto.adminWritableExistingDetails", taskName, directory),
-                    L.T("auto.adminWritableExistingTitle"),
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-            }
-            finally
-            {
-                EndModal();
-            }
+            ShowAdminAutostartWarning(
+                L.T("auto.adminWritableExistingTitle"),
+                L.T("auto.adminWritableExistingDetails", taskName, directory),
+                true);
         }
 
         private void BeginAutostartOp(bool enable, bool admin)

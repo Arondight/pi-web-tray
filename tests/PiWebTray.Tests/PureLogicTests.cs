@@ -920,6 +920,23 @@ namespace PiWebTray
                     @"C:\Apps\pi-web-tray.exe",
                     Autostart.RunValueTarget(@"C:\Apps\pi-web-tray.exe --autostart"));
                 CheckEqual("empty Run value target", "", Autostart.RunValueTarget(""));
+
+                string command = Autostart.BuildSecureDirectoryCommand(
+                    @"C:\Program Files\Pi Web Tray");
+                Check("repair uses icacls",
+                    command.Contains(Shell.Quote(Sys.SystemExecutable("icacls.exe"))));
+                Check("repair sets an Administrators owner",
+                    command.Contains(" /setowner \"*S-1-5-32-544\" /t /l"));
+                Check("repair resets the root ACL first",
+                    command.Contains(" /reset && "));
+                Check("repair removes inherited ACLs", command.Contains(" /inheritance:r"));
+                Check("repair grants SYSTEM full control",
+                    command.Contains("*S-1-5-18:(OI)(CI)F"));
+                Check("repair grants Administrators full control",
+                    command.Contains("*S-1-5-32-544:(OI)(CI)F"));
+                Check("repair leaves Users read-only",
+                    command.Contains("*S-1-5-32-545:(OI)(CI)RX"));
+                Check("repair resets child file ACLs", command.Contains("\\*\" /reset /t /l"));
             }
             finally
             {

@@ -162,6 +162,35 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void AdminAutostartWarningFormHasRepairAndCloseButtons()
+        {
+            using (AdminAutostartWarningForm form = new AdminAutostartWarningForm(
+                L.T("auto.adminWritableExistingTitle"), "Body"))
+            {
+                Assert.AreEqual(L.T("auto.adminWritableExistingTitle"), form.Text);
+                Assert.IsFalse(form.RepairSucceeded,
+                    "Opening the warning must not run the repair.");
+                AssertDpiScaling(form);
+                Assert.AreEqual(1, FindControls<Label>(form).FindAll(
+                    delegate (Label label) { return label.Text == "Body"; }).Count);
+
+                List<Button> buttons = FindControls<Button>(form);
+                Assert.AreEqual(2, buttons.Count);
+                bool fix = false;
+                bool close = false;
+                foreach (Button button in buttons)
+                {
+                    if (button.Text == L.T("auto.repair")) fix = true;
+                    if (button.Text == L.T("check.close")) close = true;
+                }
+                Assert.IsTrue(fix, "The warning must offer the repair action.");
+                Assert.IsTrue(close, "The warning must remain closable.");
+                Assert.IsNotNull(form.CancelButton);
+                Assert.AreEqual(DialogResult.Cancel, form.CancelButton.DialogResult);
+            }
+        }
+
+        [TestMethod]
         public void SettingsFormCanBeConstructed()
         {
             Config config = new Config();

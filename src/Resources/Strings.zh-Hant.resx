@@ -1379,7 +1379,7 @@
     <value>未開啟管理員權限自啟動，因為該目錄可被標準使用者修改
 {0}
 
-從該位置執行的自啟動工作可能因實際程式被取代而導致安全性問題，請將 Pi Web Tray 移至受保護目錄（例如 C:\Program Files），或改用標準使用者自啟動。</value>
+從該位置執行的自啟動工作可能因實際程式被取代而導致安全性問題。點擊「修復」保護此目錄，然後重新開啟管理員自啟動。也可以改用標準使用者自啟動。</value>
   </data>
   <data name="auto.adminWritableExistingTitle" xml:space="preserve">
     <value>管理員自啟動工作不安全</value>
@@ -1391,8 +1391,50 @@
     <value>此安裝已啟用管理員權限的開機自啟動工作（{0}）：
 {1}
 
-標準使用者可修改此目錄，托盤或其檔案可能被取代並以管理員權限執行。請用托盤功能表中的「開機自啟動」停用它，將 Pi Web Tray 移至受保護目錄，再視需要重新啟用。
+標準使用者可修改此目錄，托盤或其檔案可能被取代並以管理員權限執行。點擊「修復」保護此目錄，或在托盤功能表中停用管理員自啟動。
 
 此檢查只涵蓋托盤目錄；Node.js、npm、Pi Web 以及使用者可寫的設定/工作目錄仍會以管理員權限執行。</value>
+  </data>
+  <data name="auto.repair" xml:space="preserve">
+    <value>修復</value>
+  </data>
+  <data name="auto.repairRunning" xml:space="preserve">
+    <value>正在修復目錄權限...</value>
+  </data>
+  <data name="auto.repairNoDirectory" xml:space="preserve">
+    <value>找不到安裝目錄。</value>
+  </data>
+  <data name="auto.repairLaunchFailed" xml:space="preserve">
+    <value>無法啟動修復程序。</value>
+  </data>
+  <data name="auto.repairCancelled" xml:space="preserve">
+    <value>已在 UAC 提示中取消修復。</value>
+  </data>
+  <data name="auto.repairTimeout" xml:space="preserve">
+    <value>權限修復未在規定時間內完成。請檢查目錄權限後重試。</value>
+  </data>
+  <data name="auto.repairCommandFailed" xml:space="preserve">
+    <value>權限修復命令失敗（結束代碼 {0}）。</value>
+  </data>
+  <data name="auto.repairStillUnsafe" xml:space="preserve">
+    <value>修復後安裝目錄仍可被標準使用者寫入。</value>
+  </data>
+  <data name="auto.repairAlreadySafe" xml:space="preserve">
+    <value>安裝目錄權限已經安全。</value>
+  </data>
+  <data name="auto.repairSuccess" xml:space="preserve">
+    <value>安裝目錄權限已修復。</value>
+  </data>
+  <data name="auto.repairFailed" xml:space="preserve">
+    <value>無法修復目錄權限：{0}</value>
+  </data>
+  <data name="auto.repairDoneTitle" xml:space="preserve">
+    <value>目錄權限已修復</value>
+  </data>
+  <data name="auto.repairSuccessExisting" xml:space="preserve">
+    <value>安裝目錄現在受保護，管理員自啟動工作已安全。</value>
+  </data>
+  <data name="auto.repairSuccessRetry" xml:space="preserve">
+    <value>安裝目錄現在受保護。請重新開啟管理員自啟動以完成操作。</value>
   </data>
 </root>
