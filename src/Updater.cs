@@ -4,9 +4,10 @@
 // into two processes:
 //
 //   1. the tray checks the latest GitHub release, downloads the Windows archive, verifies
-//      its SHA-256 checksum and extracts it to a staging directory;
-//   2. a helper process (the staged executable) waits for the tray to exit, replaces the
-//      application files and restarts the new tray.
+//      its published SHA-256 checksum and extracts it to a user-writable staging directory;
+//   2. the already-installed helper waits for the tray to exit, copies the verified archive
+//      into a protected snapshot, re-hashes and extracts that copy, replaces the application
+//      files and restarts the new tray. The staging tree is never trusted for the apply.
 //
 // When the installation directory is not writable by the current user (Program Files),
 // the helper is started through UAC. The user's pi-web-tray.ini and logs are skipped
@@ -51,6 +52,9 @@ namespace PiWebTray
         internal string ZipUrl = "";
         internal string ChecksumName = "";
         internal string ChecksumUrl = "";
+        // The SHA-256 of the verified zip, kept so the elevated helper can
+        // re-verify the archive instead of trusting extracted staging files.
+        internal string ZipChecksum = "";
         internal long ZipSize;
     }
 

@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -86,6 +87,99 @@ namespace PiWebTray
                         Thread.Sleep(100);
                     }
                 }
+            }
+        }
+
+        [TestMethod]
+        public void UpdateApplyExtractsVerifiedZipInsteadOfStaging()
+        {
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-zip-update-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string home = Path.Combine(root, "data");
+            string instance = "ZipUpdate" + Guid.NewGuid().ToString("N").Substring(0, 10);
+            string dataDir = Path.Combine(home, "pi-web-tray." + instance);
+            string work = Path.Combine(dataDir, "update", "session-test");
+            string staging = Path.Combine(work, "staging");
+            string zipSource = Path.Combine(work, "zip-source");
+            string zipPath = Path.Combine(work, "pi-web-tray-test-win.zip");
+            string log = Path.Combine(dataDir, "update.log");
+            int port = FreePort();
+            Process helper = null;
+            Process updatedTray = null;
+            int updatedPid = 0;
+
+            try
+            {
+                Directory.CreateDirectory(target);
+                CopyReleaseFiles(source, target);
+
+                // The staging tree is deliberately different from the verified zip.
+                // The helper must install the zip content, not this user-writable tree.
+                Directory.CreateDirectory(staging);
+                CopyReleaseFiles(source, staging);
+                File.WriteAllText(Path.Combine(staging, "update-marker.txt"), "staging",
+                    new UTF8Encoding(false));
+
+                Directory.CreateDirectory(zipSource);
+                CopyReleaseFiles(source, zipSource);
+                File.WriteAllText(Path.Combine(zipSource, "update-marker.txt"), "zip",
+                    new UTF8Encoding(false));
+                ZipFile.CreateFromDirectory(zipSource, zipPath, CompressionLevel.Optimal, false);
+
+                string zipHash = Updater.ComputeSha256(zipPath);
+                string stagingHash = Updater.ComputeStagingHash(staging);
+                string arguments = Updater.BuildApplyArguments(staging, target, 0,
+                    ApplyStartMode.TrayOnly, false, log, "en", dataDir, stagingHash, 0,
+                    zipPath, zipHash);
+
+                helper = StartIsolated(Path.Combine(target, "pi-web-tray.exe"), arguments,
+                    home, instance, port);
+                Assert.IsTrue(helper.WaitForExit(90000), "The zip update helper did not exit.");
+                Assert.AreEqual(0, helper.ExitCode, "The zip update helper failed.");
+                Assert.AreEqual("zip",
+                    File.ReadAllText(Path.Combine(target, "update-marker.txt")),
+                    "The helper installed staging instead of the verified zip.");
+
+                updatedPid = WaitForState(dataDir, 0, 15000);
+                Assert.IsTrue(updatedPid > 0, "The updated tray did not write its state file.");
+                updatedTray = Process.GetProcessById(updatedPid);
+                Assert.IsFalse(updatedTray.HasExited, "The updated tray is not running.");
+
+                using (Process quit = StartIsolated(Path.Combine(target, "pi-web-tray.exe"),
+                    "--quit", home, instance, port))
+                {
+                    Assert.IsTrue(quit.WaitForExit(30000), "The quit command did not finish.");
+                    Assert.AreEqual(0, quit.ExitCode, "The quit command failed.");
+                }
+                Assert.IsTrue(updatedTray.WaitForExit(15000), "The updated tray did not quit.");
+            }
+            finally
+            {
+                if (updatedTray != null)
+                {
+                    try { if (!updatedTray.HasExited) updatedTray.Kill(); } catch (Exception) { }
+                    try { updatedTray.Dispose(); } catch (Exception) { }
+                }
+                if (updatedPid > 0 && updatedTray == null)
+                {
+                    try
+                    {
+                        using (Process tray = Process.GetProcessById(updatedPid))
+                            tray.Kill();
+                    }
+                    catch (Exception) { }
+                }
+                if (helper != null)
+                {
+                    try { if (!helper.HasExited) helper.Kill(); } catch (Exception) { }
+                    try { helper.Dispose(); } catch (Exception) { }
+                }
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
         }
 

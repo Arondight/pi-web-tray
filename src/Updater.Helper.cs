@@ -41,16 +41,23 @@ namespace PiWebTray
         internal static bool StartHelper(Config config, string staging, ApplyStartMode mode, bool elevated,
             bool waitForService, out string error)
         {
+            return StartHelper(config, staging, "", "", mode, elevated, waitForService, out error);
+        }
+
+        internal static bool StartHelper(Config config, string staging, string zipPath, string zipChecksum,
+            ApplyStartMode mode, bool elevated, bool waitForService, out string error)
+        {
             error = "";
             string logPath = SafeFullPath(config.UpdateLogFile);
             try
             {
                 // The staged executable is payload, not a safe process to launch with
                 // elevation: staging is user-writable and can be replaced after the hash
-                // is computed. Run the already-installed helper instead; it validates the
-                // staged payload after the UAC prompt.
+                // is computed. Run the already-installed helper instead. Production passes
+                // the verified zip; the legacy staging path remains for old callers.
+                bool useZip = !string.IsNullOrEmpty(zipPath) || !string.IsNullOrEmpty(zipChecksum);
                 string stagedExe = Path.Combine(staging, "pi-web-tray.exe");
-                if (!File.Exists(stagedExe))
+                if (!useZip && !File.Exists(stagedExe))
                 {
                     error = L.T("update.error.noHelper");
                     return false;
@@ -74,14 +81,39 @@ namespace PiWebTray
                     }
                 }
 
-                string stagingHash = ComputeStagingHash(staging);
+                zipPath = SafeFullPath(zipPath);
+                if (useZip)
+                {
+                    // The helper re-verifies this archive against the checksum from
+                    // the GitHub release before extracting it. Never fall back to the
+                    // user-writable staging tree when a zip was expected.
+                    if (zipPath.Length == 0 || !File.Exists(zipPath)
+                        || !IsHexHash(zipChecksum))
+                    {
+                        error = L.T("update.error.badHash");
+                        AppendLog(logPath, "verified update archive is missing or invalid: " + zipPath);
+                        return false;
+                    }
+                }
+
+                // The staging hash is only used by the legacy staging path. For a
+                // verified zip the helper ignores staging entirely, so a deleted or
+                // tampered staging tree cannot block the update.
+                string stagingHash = useZip
+                    ? new string('0', 64)
+                    : ComputeStagingHash(staging);
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
                     mode, elevated, logPath, L.Current, dataDir, stagingHash,
-                    waitForService ? config.Port : 0);
+                    waitForService ? config.Port : 0, zipPath, zipChecksum);
 
                 AppendLog(logPath, "launch helper: " + helper);
-                AppendLog(logPath, "staging hash : " + stagingHash);
+                if (!useZip) AppendLog(logPath, "staging hash : " + stagingHash);
+                if (useZip)
+                {
+                    AppendLog(logPath, "update archive: " + zipPath);
+                    AppendLog(logPath, "archive hash : " + zipChecksum);
+                }
                 AppendLog(logPath, "helper args : " + arguments);
 
                 if (!elevated && RequiresElevation(config.BaseDir))
@@ -118,7 +150,15 @@ namespace PiWebTray
             ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
             string stagingHash, int port)
         {
-            return "--apply-update "
+            return BuildApplyArguments(staging, target, parentPid, mode, elevated, logPath,
+                language, dataDir, stagingHash, port, "", "");
+        }
+
+        internal static string BuildApplyArguments(string staging, string target, int parentPid,
+            ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
+            string stagingHash, int port, string zipPath, string zipChecksum)
+        {
+            string arguments = "--apply-update "
                 + Shell.QuoteArg(staging) + " "
                 + Shell.QuoteArg(target) + " "
                 + parentPid.ToString(CultureInfo.InvariantCulture) + " "
@@ -129,6 +169,13 @@ namespace PiWebTray
                 + Shell.QuoteArg(dataDir) + " "
                 + Shell.QuoteArg(stagingHash) + " "
                 + port.ToString(CultureInfo.InvariantCulture);
+
+            if (!string.IsNullOrEmpty(zipPath) && !string.IsNullOrEmpty(zipChecksum))
+            {
+                arguments += " " + Shell.QuoteArg(zipPath)
+                    + " " + Shell.QuoteArg(zipChecksum);
+            }
+            return arguments;
         }
 
         internal static string ModeText(ApplyStartMode mode)
@@ -146,6 +193,8 @@ namespace PiWebTray
             string language;
             string dataDir;
             string stagingHash;
+            string zipPath;
+            string zipChecksum;
             int port;
             int parentPid;
             ApplyStartMode mode;
@@ -153,7 +202,7 @@ namespace PiWebTray
 
             if (!TryParseApplyArgs(args, out staging, out target, out parentPid,
                 out mode, out originalElevated, out logPath, out language,
-                out dataDir, out stagingHash, out port))
+                out dataDir, out stagingHash, out port, out zipPath, out zipChecksum))
             {
                 Application.EnableVisualStyles();
                 MessageBox.Show(L.T("update.error.badArgs"), L.T("update.applyFailedTitle"),
@@ -190,6 +239,7 @@ namespace PiWebTray
             // been identified as the helper's own directory.
             AppendLog(logPath, "apply start (pid " + Process.GetCurrentProcess().Id + ")");
             AppendLog(logPath, "staging: " + staging);
+            if (zipPath.Length > 0) AppendLog(logPath, "archive: " + zipPath);
             AppendLog(logPath, "target : " + target);
 
             // Two helpers must never replace the same installation concurrently. The
@@ -247,36 +297,43 @@ namespace PiWebTray
                         return 1;
                     }
 
-                    if (!Directory.Exists(staging))
+                    bool fromZip = zipPath.Length > 0;
+                    if (!fromZip)
                     {
-                        AppendLog(logPath, "staging directory missing");
-                        MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
-                        return 1;
+                        if (!Directory.Exists(staging))
+                        {
+                            AppendLog(logPath, "staging directory missing");
+                            MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            return 1;
+                        }
+
+                        if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
+                        {
+                            AppendLog(logPath, "staging executable missing");
+                            MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
+                                MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            return 1;
+                        }
                     }
 
-                    if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
-                    {
-                        AppendLog(logPath, "staging executable missing");
-                        MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
-                            MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
-                        return 1;
-                    }
-
-                    // The tray fingerprints the staged files before starting the helper.
-                    // Copy the staged files into a protected snapshot first and verify
-                    // that snapshot. The copy happens after the parent exits, and every
-                    // source file is opened with FileShare.Read so a local process cannot
-                    // add or replace files between verification and CopyFiles.
+                    // A verified zip is extracted by the helper into a protected snapshot.
+                    // The old staging path remains for compatibility with older helpers and
+                    // tests; production starts the helper with the archive path/hash.
                     string snapshotError;
-                    string snapshot = SnapshotStaging(staging, stagingHash, target,
-                        logPath, out snapshotError);
+                    string snapshot = fromZip
+                        ? SnapshotFromZip(zipPath, zipChecksum, target, logPath, out snapshotError)
+                        : SnapshotStaging(staging, stagingHash, target, logPath, out snapshotError);
                     if (snapshot == null)
                     {
-                        AppendLog(logPath, "staging snapshot failed: " + (snapshotError ?? ""));
-                        MessageBox.Show(L.T("update.error.stagingChanged"), L.T("update.applyFailedTitle"),
+                        AppendLog(logPath, (fromZip ? "archive snapshot failed: " : "staging snapshot failed: ")
+                            + (snapshotError ?? ""));
+                        MessageBox.Show(fromZip
+                                ? L.T("update.error.zipChanged")
+                                : L.T("update.error.stagingChanged"),
+                            L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                         OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
@@ -334,10 +391,10 @@ namespace PiWebTray
             }
         }
 
-        // Copy the staging directory into a protected snapshot under the target while
-        // denying writes to the source files, then verify the snapshot against the
-        // hash the tray computed before the helper was started. This closes the
-        // add-a-file/modify-a-file window between ComputeStagingHash and CopyFiles.
+        // Legacy path: copy the staging directory into a protected snapshot under the
+        // target while denying writes to the source files, then verify the snapshot
+        // against the hash the tray computed. New callers use SnapshotFromZip instead,
+        // because the hash is computed after a user-writable extraction.
         private static string SnapshotStaging(string staging, string expectedHash, string target,
             string logPath, out string error)
         {
@@ -387,6 +444,69 @@ namespace PiWebTray
                 AppendLog(logPath, "staging snapshot failed: " + ex);
                 DeleteStagingSnapshot(snapshot);
                 return null;
+            }
+        }
+
+        // Copy the verified zip into the protected target first, hash the copy, and
+        // extract from that copy. The user-writable zip/staging cannot change the
+        // bytes the helper authenticates and extracts.
+        private static string SnapshotFromZip(string zipPath, string expectedHash, string target,
+            string logPath, out string error)
+        {
+            error = "";
+            string zipSnapshot = Path.Combine(target,
+                ".pi-web-tray-stage-zip-" + Guid.NewGuid().ToString("N"));
+            string snapshot = Path.Combine(target,
+                ".pi-web-tray-stage-" + Guid.NewGuid().ToString("N"));
+            bool success = false;
+            try
+            {
+                if (PathSafety.ContainsReparsePoint(zipPath))
+                    throw new InvalidDataException("update archive is a reparse point");
+
+                Directory.CreateDirectory(target);
+                using (FileStream input = new FileStream(zipPath, FileMode.Open,
+                    FileAccess.Read, FileShare.Read))
+                using (FileStream output = new FileStream(zipSnapshot, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None))
+                {
+                    byte[] buffer = new byte[81920];
+                    int read;
+                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        output.Write(buffer, 0, read);
+                }
+
+                string actual = ComputeSha256(zipSnapshot);
+                if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = L.T("update.error.zipChanged");
+                    AppendLog(logPath, "zip snapshot hash mismatch: expected " + expectedHash
+                        + ", got " + actual);
+                    return null;
+                }
+
+                Directory.CreateDirectory(snapshot);
+                Extract(zipSnapshot, snapshot);
+                if (!File.Exists(Path.Combine(snapshot, "pi-web-tray.exe")))
+                {
+                    error = L.T("update.error.noHelper");
+                    AppendLog(logPath, "update archive has no pi-web-tray.exe");
+                    return null;
+                }
+
+                success = true;
+                return snapshot;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                AppendLog(logPath, "zip snapshot failed: " + ex);
+                return null;
+            }
+            finally
+            {
+                try { if (File.Exists(zipSnapshot)) File.Delete(zipSnapshot); } catch (Exception) { }
+                if (!success) DeleteStagingSnapshot(snapshot);
             }
         }
 
@@ -563,12 +683,26 @@ namespace PiWebTray
             out string logPath, out string language, out string dataDir, out string stagingHash,
             out int port)
         {
+            string zipPath;
+            string zipChecksum;
+            return TryParseApplyArgs(args, out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out port, out zipPath, out zipChecksum);
+        }
+
+        internal static bool TryParseApplyArgs(string[] args, out string staging, out string target,
+            out int parentPid, out ApplyStartMode mode, out bool originalElevated,
+            out string logPath, out string language, out string dataDir, out string stagingHash,
+            out int port, out string zipPath, out string zipChecksum)
+        {
             staging = "";
             target = "";
             logPath = "";
             language = "";
             dataDir = "";
             stagingHash = "";
+            zipPath = "";
+            zipChecksum = "";
             port = 0;
             parentPid = 0;
             mode = ApplyStartMode.Tray;
@@ -583,11 +717,15 @@ namespace PiWebTray
                     break;
                 }
             }
+            if (index < 0) return false;
 
-            // The staging hash is mandatory. The port was added after the hash,
-            // so a 10-argument helper call (hash, no port) remains valid.
-            bool hasPort = args.Length == index + 11;
-            if (index < 0 || (args.Length != index + 10 && !hasPort)) return false;
+            // The staging hash is mandatory. The port was added after the hash, and
+            // the verified zip path/checksum were added after the port. Older helper
+            // calls (with or without a port) remain valid for compatibility.
+            int tail = args.Length - index - 1;
+            bool hasPort = tail == 10 || tail == 12;
+            bool hasZip = tail == 12;
+            if (tail != 9 && tail != 10 && tail != 12) return false;
 
             staging = args[index + 1];
             target = args[index + 2];
@@ -615,6 +753,16 @@ namespace PiWebTray
                     || port < 0 || port > 65535))
             {
                 return false;
+            }
+            if (hasZip)
+            {
+                zipPath = args[index + 11];
+                zipChecksum = args[index + 12];
+                if (zipPath.Length == 0 || zipChecksum.Length != 64
+                    || !IsHexHash(zipChecksum))
+                {
+                    return false;
+                }
             }
 
             // The helper is elevated. Keep its log and staging inside the installation's
@@ -647,6 +795,13 @@ namespace PiWebTray
             // reparse-point paths that could redirect an elevated write.
             string updateRoot = SafeFullPath(Path.Combine(dataDir, "update"));
             if (!IsPathUnder(staging, updateRoot)) return false;
+            if (zipPath.Length > 0)
+            {
+                zipPath = SafeFullPath(zipPath);
+                if (zipPath.Length == 0 || !File.Exists(zipPath)) return false;
+                if (!IsPathUnder(zipPath, updateRoot)) return false;
+                if (PathSafety.ContainsReparsePoint(zipPath)) return false;
+            }
             if (PathSafety.ContainsReparsePoint(dataDir)
                 || PathSafety.ContainsReparsePoint(logPath)
                 || PathSafety.ContainsReparsePoint(staging))

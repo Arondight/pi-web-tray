@@ -904,6 +904,12 @@ See {1} for details.</value>
   <data name="update.error.stagingChanged" xml:space="preserve">
     <value>The downloaded update files changed before they could be applied. The update was cancelled.</value>
   </data>
+  <data name="update.error.zipChanged" xml:space="preserve">
+    <value>The downloaded update archive changed on disk. The update was cancelled.</value>
+  </data>
+  <data name="update.error.unsafePath" xml:space="preserve">
+    <value>The update directory is unsafe: a reparse point was detected.</value>
+  </data>
   <data name="update.error.targetMissing" xml:space="preserve">
     <value>The installation directory does not exist.</value>
   </data>
@@ -1415,6 +1421,9 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
   </data>
   <data name="auto.repairCommandFailed" xml:space="preserve">
     <value>The permission repair command failed (exit code {0}).</value>
+  </data>
+  <data name="auto.repairParentUnsafe" xml:space="preserve">
+    <value>The installation path contains a folder that standard users can rename or replace. Move Pi Web Tray to a protected folder such as Program Files, or use standard-user start at login.</value>
   </data>
   <data name="auto.repairStillUnsafe" xml:space="preserve">
     <value>The installation directory is still writable after the repair.</value>

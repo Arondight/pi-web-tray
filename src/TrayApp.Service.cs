@@ -671,7 +671,9 @@ namespace PiWebTray
         // listener is still ours.
         private bool KeepRunningWhenListening()
         {
-            if (_phase != Phase.Running) return false;
+            // A probe can report missing Node/Pi while a service started earlier is
+            // still listening. Do not downgrade that live service to Failed/Needs*
+            // just because this check did not run in the Running phase.
             if (!Net.IsPortOpen(_port, 200)) return false;
 
             RequestResolveServicePhase();
@@ -1248,7 +1250,8 @@ namespace PiWebTray
                 // CLI install path waits on this lock after the port closes, so it cannot
                 // start npm while `pi-web stop` still holds the package directory.
                 ReleaseStopWorkerLock();
-                _stopWorkerLock = OperationLock.TryAcquire(OperationLock.StopName);
+                _stopWorkerLock = OperationLock.TryAcquireCrossThread(OperationLock.StopName);
+                OperationLock stopLock = _stopWorkerLock;
                 _stopWorkerRunning = true;
                 Thread worker = new Thread(delegate ()
                 {
@@ -1256,7 +1259,9 @@ namespace PiWebTray
                     finally
                     {
                         _stopWorkerRunning = false;
-                        ReleaseStopWorkerLock();
+                        // Release only the lock this worker owns. A later stop worker
+                        // may already hold a new lock in _stopWorkerLock.
+                        ReleaseStopWorkerLock(stopLock);
                     }
                 });
                 worker.IsBackground = true;
@@ -1267,7 +1272,7 @@ namespace PiWebTray
                 catch (Exception)
                 {
                     _stopWorkerRunning = false;
-                    ReleaseStopWorkerLock();
+                    ReleaseStopWorkerLock(stopLock);
                 }
             }
             else
@@ -1293,9 +1298,16 @@ namespace PiWebTray
 
         private void ReleaseStopWorkerLock()
         {
-            OperationLock operationLock = _stopWorkerLock;
+            ReleaseStopWorkerLock(_stopWorkerLock);
             _stopWorkerLock = null;
+        }
+
+        private void ReleaseStopWorkerLock(OperationLock operationLock)
+        {
             if (operationLock == null) return;
+            // The worker may finish after a new stop worker has replaced the field.
+            // Never clear or dispose the newer lock here; just release this one.
+            if (ReferenceEquals(_stopWorkerLock, operationLock)) _stopWorkerLock = null;
             try { operationLock.Dispose(); } catch (Exception) { }
         }
 

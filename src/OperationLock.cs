@@ -28,17 +28,21 @@ namespace PiWebTray
         internal static string StopName
         {
             // Keep this distinct from Instance.StopSignalName (Local\PiWebTray.Stop...).
-            // Reusing that name for a Mutex conflicts with the named stop event created by
-            // the tray, and TryAcquire fails as a result.
+            // The stop lock is a semaphore (see TryAcquireCrossThread), so its name must
+            // not collide with the named stop event or with the Mutex-based locks.
             get { return @"Local\PiWebTray.StopLock" + Instance.Suffix; }
         }
 
         private readonly Mutex _mutex;
+        // A Semaphore is not owned by a thread, so a worker may release a lock
+        // that was acquired by the UI thread (used by the stop lock).
+        private readonly Semaphore _semaphore;
         private bool _owned;
 
-        private OperationLock(Mutex mutex, bool owned)
+        private OperationLock(Mutex mutex, Semaphore semaphore, bool owned)
         {
             _mutex = mutex;
+            _semaphore = semaphore;
             _owned = owned;
         }
 
@@ -82,7 +86,7 @@ namespace PiWebTray
                 {
                     // The lock was acquired by the exception.
                 }
-                return new OperationLock(mutex, true);
+                return new OperationLock(mutex, null, true);
             }
             catch (Exception)
             {
@@ -94,14 +98,55 @@ namespace PiWebTray
             }
         }
 
+        // The stop lock is acquired on the UI thread and released by the stop worker.
+        // Mutex ownership is thread-affine, so the stop lock uses a named semaphore.
+        internal static OperationLock TryAcquireCrossThread(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+
+            Semaphore semaphore = null;
+            try
+            {
+                semaphore = new Semaphore(1, 1, name);
+                if (!semaphore.WaitOne(0))
+                {
+                    semaphore.Close();
+                    return null;
+                }
+                return new OperationLock(null, semaphore, true);
+            }
+            catch (Exception)
+            {
+                if (semaphore != null)
+                {
+                    try { semaphore.Close(); } catch (Exception) { }
+                }
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             if (_owned)
             {
                 _owned = false;
-                try { _mutex.ReleaseMutex(); } catch (Exception) { }
+                if (_semaphore != null)
+                {
+                    try { _semaphore.Release(); } catch (Exception) { }
+                }
+                else if (_mutex != null)
+                {
+                    try { _mutex.ReleaseMutex(); } catch (Exception) { }
+                }
             }
-            try { _mutex.Close(); } catch (Exception) { }
+            if (_semaphore != null)
+            {
+                try { _semaphore.Close(); } catch (Exception) { }
+            }
+            else if (_mutex != null)
+            {
+                try { _mutex.Close(); } catch (Exception) { }
+            }
         }
     }
 }

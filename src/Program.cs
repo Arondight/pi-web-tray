@@ -74,8 +74,9 @@ namespace PiWebTray
                 return 0;
             }
 
-            // The update helper is a separate process started from the staged release. It must
-            // be handled before the argument validation, because its paths are positional.
+            // The update helper is the already-installed pi-web-tray.exe, started after
+            // UAC when needed. It must be handled before argument validation because its
+            // paths are positional.
             if (Has(args, "--apply-update"))
             {
                 Config.Load(false);
@@ -882,7 +883,7 @@ namespace PiWebTray
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             while (DateTime.Now < deadline)
             {
-                using (OperationLock stopLock = OperationLock.TryAcquire(OperationLock.StopName))
+                using (OperationLock stopLock = OperationLock.TryAcquireCrossThread(OperationLock.StopName))
                 {
                     if (stopLock != null) return true;
                 }

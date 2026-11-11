@@ -372,8 +372,12 @@ namespace PiWebTray
                     bool waitForService = ShouldWaitForServicePortBeforeUpdate(
                         mode == ApplyStartMode.ServiceSilent,
                         startedRunning, listenerIsOurs);
-                    ok = Updater.StartHelper(_config, staging, mode, elevated,
-                        waitForService, out error);
+                    string work = Path.GetDirectoryName(staging);
+                    string zipPath = string.IsNullOrEmpty(work)
+                        ? ""
+                        : Path.Combine(work, release.ZipName);
+                    ok = Updater.StartHelper(_config, staging, zipPath, release.ZipChecksum,
+                        mode, elevated, waitForService, out error);
                 }
                 catch (Exception ex)
                 {

@@ -1,6 +1,7 @@
-// Pi Web Tray — download, verify and extract a release
+// Pi Web Tray — download and verify a release archive
 //
-// Partial of Updater. Kept separate so the update workflow stays readable.
+// The verified zip is kept for the elevated helper, which extracts it into a
+// protected target snapshot. Partial of Updater.
 
 using System;
 using System.Collections.Generic;
@@ -20,12 +21,28 @@ namespace PiWebTray
 {
     internal static partial class Updater
     {
+        // A cancelled update worker may still be hashing/inspecting while the user
+        // starts another download. Serialize Prepare so the new worker cannot delete
+        // the old worker's session directory (and vice versa).
+        private static readonly object PrepareLock = new object();
+
         internal static string Prepare(Config config, ReleaseInfo release, Action<int> progress, out string error)
         {
             return Prepare(config, release, progress, null, out error);
         }
 
         internal static string Prepare(Config config, ReleaseInfo release, Action<int> progress,
+            UpdateCancellation cancellation, out string error)
+        {
+            lock (PrepareLock)
+            {
+                return PrepareCore(config, release, progress, cancellation, out error);
+            }
+        }
+
+        // Keep the current work directory free of reparse points before writing the
+        // verified zip. The helper repeats the check after elevation.
+        private static string PrepareCore(Config config, ReleaseInfo release, Action<int> progress,
             UpdateCancellation cancellation, out string error)
         {
             error = "";
@@ -42,11 +59,24 @@ namespace PiWebTray
                 // it is under dataDir\update.
                 string root = SafeFullPath(Path.Combine(config.DataDir, "update",
                     "session-" + Process.GetCurrentProcess().SessionId));
+                string unsafePathError = L.T("update.error.unsafePath");
+                if (PathSafety.ContainsReparsePoint(root))
+                {
+                    error = unsafePathError;
+                    AppendLog(config.UpdateLogFile, "unsafe update directory: " + root);
+                    return null;
+                }
                 CleanupOld(root);
 
                 string work = Path.Combine(root,
                     SafeFilePart(release.Version) + "-" + Guid.NewGuid().ToString("N").Substring(0, 8));
                 Directory.CreateDirectory(work);
+                if (PathSafety.ContainsReparsePoint(work))
+                {
+                    error = unsafePathError;
+                    AppendLog(config.UpdateLogFile, "unsafe update work directory: " + work);
+                    return null;
+                }
 
                 AppendLog(config.UpdateLogFile, "==== update " + release.Tag + " ====");
                 AppendLog(config.UpdateLogFile, "release : " + release.ZipName);
@@ -82,30 +112,36 @@ namespace PiWebTray
                         "sha256 mismatch: expected " + expected + ", got " + actual);
                     return null;
                 }
+                release.ZipChecksum = expected;
                 AppendLog(config.UpdateLogFile, "sha256  : " + actual);
 
-                string staging = Path.Combine(work, "staging");
-                Directory.CreateDirectory(staging);
+                // Do not extract user-writable staging here. The helper copies the
+                // verified zip into the protected target, re-hashes that copy and
+                // extracts it. Only inspect the zip now so an obviously invalid archive
+                // fails before any UAC prompt or tray exit.
                 try
                 {
-                    Extract(zipPath, staging);
+                    using (ZipArchive archive = ZipFile.OpenRead(zipPath))
+                    {
+                        if (archive.GetEntry("pi-web-tray.exe") == null)
+                        {
+                            error = L.T("update.error.noHelper");
+                            AppendLog(config.UpdateLogFile, "archive has no pi-web-tray.exe");
+                            return null;
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     error = L.T("update.error.extract", ex.Message);
-                    AppendLog(config.UpdateLogFile, "extract failed: " + ex);
+                    AppendLog(config.UpdateLogFile, "archive check failed: " + ex);
                     return null;
                 }
 
-                if (!File.Exists(Path.Combine(staging, "pi-web-tray.exe")))
-                {
-                    error = L.T("update.error.noHelper");
-                    AppendLog(config.UpdateLogFile, "staging has no pi-web-tray.exe");
-                    return null;
-                }
-
-                AppendLog(config.UpdateLogFile, "staging : " + staging);
-                try { File.Delete(zipPath); } catch (Exception) { }
+                // Kept as a stable path for the helper's data-directory validation.
+                // The helper extracts into its own protected snapshot instead.
+                string staging = Path.Combine(work, "staging");
+                AppendLog(config.UpdateLogFile, "staging : " + staging + " (extracted by helper)");
                 return staging;
             }
             catch (Exception ex)
@@ -141,9 +177,18 @@ namespace PiWebTray
             try
             {
                 if (!Directory.Exists(root)) return;
+
+                // Never delete a directory that another process may still be using.
+                // A failed/cancelled download is cleaned on a later attempt.
+                DateTime cutoff = DateTime.UtcNow.AddHours(-1);
                 foreach (string directory in Directory.GetDirectories(root))
                 {
-                    try { Directory.Delete(directory, true); } catch (Exception) { }
+                    try
+                    {
+                        if (Directory.GetLastWriteTimeUtc(directory) >= cutoff) continue;
+                        Directory.Delete(directory, true);
+                    }
+                    catch (Exception) { }
                 }
             }
             catch (Exception)

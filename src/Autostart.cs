@@ -385,6 +385,8 @@ namespace PiWebTray
             try
             {
                 string full = Path.GetFullPath(executablePath);
+                if (PathSafety.ContainsReparsePoint(full)) return true;
+
                 string directory = Path.GetDirectoryName(full);
                 if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory)) return true;
 
@@ -392,6 +394,10 @@ namespace PiWebTray
                     .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
                 if (IsOwnedByStandardUser(directorySecurity)) return true;
                 if (HasWriteAccess(directorySecurity)) return true;
+
+                // A protected leaf directory is still replaceable when a standard user
+                // can rename or delete one of its ancestors, or delete children there.
+                if (HasUnsafeAncestor(directory)) return true;
 
                 if (File.Exists(full))
                 {
@@ -436,6 +442,27 @@ namespace PiWebTray
             {
                 message = L.T("auto.repairAlreadySafe");
                 return true;
+            }
+
+            // Never rewrite the ACL of a drive root; install there is not supported.
+            string pathRoot = Path.GetPathRoot(directory);
+            if (!string.IsNullOrEmpty(pathRoot)
+                && string.Equals(
+                    directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    pathRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                message = L.T("auto.repairParentUnsafe");
+                return false;
+            }
+
+            // Repairing the leaf ACL cannot protect a path whose parent can be
+            // renamed/replaced. Do not change the user's files in that case; the
+            // administrator task would still be hijackable.
+            if (PathSafety.ContainsReparsePoint(executablePath) || HasUnsafeAncestor(directory))
+            {
+                message = L.T("auto.repairParentUnsafe");
+                return false;
             }
 
             int exitCode;
@@ -570,7 +597,8 @@ namespace PiWebTray
 
                 SecurityIdentifier administrators = new SecurityIdentifier(
                     WellKnownSidType.BuiltinAdministratorsSid, null);
-                // An Administrators-owned directory is protected by the UAC boundary.
+                // Administrators ownership is safe only when the path's ancestors are
+                // protected too; the caller checks those separately.
                 if (owner.Equals(administrators)) return false;
 
                 // These owners are writable by standard users even if the token
@@ -635,43 +663,72 @@ namespace PiWebTray
             return false;
         }
 
+        private const FileSystemRights WriteRights = FileSystemRights.WriteData
+            | FileSystemRights.AppendData
+            | FileSystemRights.WriteExtendedAttributes
+            | FileSystemRights.Delete
+            | FileSystemRights.DeleteSubdirectoriesAndFiles
+            | FileSystemRights.ChangePermissions
+            | FileSystemRights.TakeOwnership;
+
+        // Rights that let a standard user rename/delete an ancestor directory or
+        // change its permissions. AppendData/WriteData alone only create new entries;
+        // they do not replace an existing protected child.
+        private const FileSystemRights DangerousAncestorRights = FileSystemRights.Delete
+            | FileSystemRights.DeleteSubdirectoriesAndFiles
+            | FileSystemRights.ChangePermissions
+            | FileSystemRights.TakeOwnership;
+
         private static bool HasWriteAccess(FileSystemSecurity security)
         {
-            List<SecurityIdentifier> identities = new List<SecurityIdentifier>();
-            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            return HasAccess(security, WriteRights);
+        }
+
+        private static bool HasUnsafeAncestor(string directory)
+        {
+            try
             {
-                if (identity.User == null) return true;
-                identities.Add(identity.User);
-                SecurityIdentifier administrators = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinAdministratorsSid, null);
-                if (identity.Groups != null)
+                string current = Path.GetFullPath(directory);
+                while (!string.IsNullOrEmpty(current))
                 {
-                    foreach (IdentityReference group in identity.Groups)
+                    string parent = Path.GetDirectoryName(current);
+                    if (string.IsNullOrEmpty(parent)
+                        || string.Equals(parent, current, StringComparison.OrdinalIgnoreCase))
                     {
-                        SecurityIdentifier sid = group as SecurityIdentifier;
-                        if (sid == null || sid.Equals(administrators)) continue;
-                        identities.Add(sid);
+                        return false;
                     }
+
+                    DirectoryInfo info = new DirectoryInfo(parent);
+                    if (!info.Exists) return true;
+                    DirectorySecurity security = info.GetAccessControl(
+                        AccessControlSections.Access | AccessControlSections.Owner);
+
+                    if (IsOwnedByStandardUser(security)) return true;
+                    if (HasAccess(security, DangerousAncestorRights)) return true;
+                    // This right on the parent allows deleting or renaming its child.
+                    if (HasAccess(security, FileSystemRights.DeleteSubdirectoriesAndFiles)) return true;
+
+                    current = parent;
                 }
             }
-            identities.Add(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null));
-            identities.Add(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null));
-            identities.Add(new SecurityIdentifier(WellKnownSidType.WorldSid, null));
+            catch (Exception)
+            {
+                return true;
+            }
+            return false;
+        }
 
-            const FileSystemRights writeMask = FileSystemRights.WriteData
-                | FileSystemRights.AppendData
-                | FileSystemRights.WriteExtendedAttributes
-                | FileSystemRights.Delete
-                | FileSystemRights.DeleteSubdirectoriesAndFiles
-                | FileSystemRights.ChangePermissions
-                | FileSystemRights.TakeOwnership;
+        private static bool HasAccess(FileSystemSecurity security, FileSystemRights mask)
+        {
+            List<SecurityIdentifier> identities = CurrentStandardIdentities();
+            if (identities == null) return true;
 
-            bool allow = false;
-            bool deny = false;
             AuthorizationRuleCollection rules = security.GetAccessRules(
                 true, true, typeof(SecurityIdentifier));
             if (rules == null || rules.Count == 0) return true;
 
+            bool allow = false;
+            bool deny = false;
             foreach (FileSystemAccessRule rule in rules)
             {
                 SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
@@ -682,13 +739,49 @@ namespace PiWebTray
                     if (sid.Equals(identity)) { interested = true; break; }
                 }
                 if (!interested) continue;
-                if ((rule.FileSystemRights & writeMask) == 0) continue;
+                // Inherit-only ACEs apply to children, not to this object. Ignoring
+                // this flag would treat C:\'s child-only Authenticated Users ACE as
+                // write access to C:\ itself and reject Program Files.
+                if ((rule.PropagationFlags & PropagationFlags.InheritOnly) != 0) continue;
+                if ((rule.FileSystemRights & mask) == 0) continue;
 
                 if (rule.AccessControlType == AccessControlType.Deny) deny = true;
                 else allow = true;
             }
 
             return allow && !deny;
+        }
+
+        private static List<SecurityIdentifier> CurrentStandardIdentities()
+        {
+            try
+            {
+                List<SecurityIdentifier> identities = new List<SecurityIdentifier>();
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    if (identity.User == null) return null;
+                    identities.Add(identity.User);
+                    SecurityIdentifier administrators = new SecurityIdentifier(
+                        WellKnownSidType.BuiltinAdministratorsSid, null);
+                    if (identity.Groups != null)
+                    {
+                        foreach (IdentityReference group in identity.Groups)
+                        {
+                            SecurityIdentifier sid = group as SecurityIdentifier;
+                            if (sid == null || sid.Equals(administrators)) continue;
+                            identities.Add(sid);
+                        }
+                    }
+                }
+                identities.Add(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null));
+                identities.Add(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null));
+                identities.Add(new SecurityIdentifier(WellKnownSidType.WorldSid, null));
+                return identities;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         internal static bool CreateTask(bool elevated, string executablePath)

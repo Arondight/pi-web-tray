@@ -173,6 +173,11 @@ namespace PiWebTray
             {
             }
 
+            // Let a running `pi-web stop` worker release the package directory before
+            // the process exits. The CLI install path waits on the stop lock; exiting
+            // early would let it start npm while the stop child is still alive.
+            WaitForStopWorker(5000);
+
             // Normal exit means "stop the service". If the wrapper is still alive
             // while the port is already closed (a hung start or a detached child),
             // kill it here so it cannot become an orphan holding the npm package
@@ -210,9 +215,20 @@ namespace PiWebTray
             lock (_updateLock) cancellation = _updateCancellation;
             if (cancellation != null) cancellation.Cancel();
 
+            WaitForStopWorker(5000);
             TrayState.Delete();
             Cleanup();
             ExitThread();
+        }
+
+        private void WaitForStopWorker(int timeoutMs)
+        {
+            DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
+            while (_stopWorkerRunning && DateTime.Now < deadline)
+            {
+                Thread.Sleep(100);
+                try { Application.DoEvents(); } catch (Exception) { }
+            }
         }
 
         protected override void Dispose(bool disposing)

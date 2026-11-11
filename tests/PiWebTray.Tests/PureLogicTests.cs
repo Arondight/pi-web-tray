@@ -78,6 +78,7 @@ namespace PiWebTray
             ServiceRestoreTests();
             UpdateCancellationTests();
             UpdateCopyTests();
+            UpdateCleanupTests();
             UpdateRollbackTests();
             UpdateTargetTests();
             StaleBackupTests();
@@ -873,6 +874,39 @@ namespace PiWebTray
             Check("operation lock is not re-entrant across threads", blocked);
             using (OperationLock after = OperationLock.TryAcquire(name))
                 Check("operation lock is released", after != null);
+
+            // The stop lock is acquired by the UI thread and released by the stop
+            // worker. A Mutex would reject that release; the cross-thread lock must not.
+            string crossName = @"Local\PiWebTray.SelfTestCross." + Guid.NewGuid().ToString("N");
+            OperationLock cross = OperationLock.TryAcquireCrossThread(crossName);
+            Check("cross-thread lock can be acquired", cross != null);
+            if (cross != null)
+            {
+                bool blockedCross = false;
+                Thread probe = new Thread(delegate ()
+                {
+                    using (OperationLock second = OperationLock.TryAcquireCrossThread(crossName))
+                        blockedCross = second == null;
+                });
+                probe.IsBackground = true;
+                probe.Start();
+                if (!probe.Join(5000)) blockedCross = false;
+                Check("cross-thread lock is exclusive", blockedCross);
+
+                bool released = false;
+                Thread releaser = new Thread(delegate ()
+                {
+                    try { cross.Dispose(); released = true; } catch (Exception) { }
+                });
+                releaser.IsBackground = true;
+                releaser.Start();
+                if (!releaser.Join(5000)) released = false;
+                Check("cross-thread lock releases from another thread", released);
+
+                using (OperationLock after = OperationLock.TryAcquireCrossThread(crossName))
+                    Check("cross-thread lock is released", after != null);
+                if (!released) cross.Dispose();
+            }
 
             CheckEqual("update lock name is stable",
                 OperationLock.UpdateName(@"C:\Apps\PiWebTray"),
@@ -1788,6 +1822,36 @@ namespace PiWebTray
                     Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
                 Check("update removes the incomplete marker",
                     !File.Exists(copy.Backup + ".incomplete"));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateCleanupTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-cleanup-" + Guid.NewGuid().ToString("N"));
+            string oldWork = Path.Combine(root, "old-work");
+            string activeWork = Path.Combine(root, "active-work");
+            try
+            {
+                Directory.CreateDirectory(oldWork);
+                Directory.CreateDirectory(activeWork);
+                File.WriteAllText(Path.Combine(activeWork, "partial.zip"), "partial");
+                File.WriteAllText(Path.Combine(activeWork, "staging-marker"), "partial");
+                Directory.SetLastWriteTimeUtc(oldWork, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(activeWork, DateTime.UtcNow);
+
+                MethodInfo cleanup = typeof(Updater).GetMethod("CleanupOld",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Check("cleanup method is available", cleanup != null);
+                if (cleanup != null) cleanup.Invoke(null, new object[] { root });
+
+                Check("old update work is removed", !Directory.Exists(oldWork));
+                Check("active update work is kept", Directory.Exists(activeWork)
+                    && File.Exists(Path.Combine(activeWork, "partial.zip")));
             }
             finally
             {
