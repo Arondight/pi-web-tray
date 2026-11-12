@@ -162,11 +162,16 @@ namespace PiWebTray
                     || _phase == Phase.Stopping || _phase == Phase.Checking
                     || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps)
                 {
+                    _openWhenResolved = false;
                     return;
                 }
+                Phase previousPhase = _phase;
                 _phase = PhaseFromOwner(owner);
+                bool openResolved = _openWhenResolved;
+                _openWhenResolved = false;
                 if (_phase == Phase.Running)
                 {
+                    ClearUserStopMarkerOnObservedRun(previousPhase);
                     _runningSince = DateTime.Now;
                     _autoRestartAt = DateTime.MinValue;
                 }
@@ -177,6 +182,7 @@ namespace PiWebTray
                     KillTrackedServer();
                 }
                 UpdateUi();
+                if (_phase == Phase.Running && openResolved) OpenBrowser();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
             }
@@ -210,10 +216,16 @@ namespace PiWebTray
 
         // ResolveServicePhase() without blocking the UI thread: the phase is applied when
         // the background owner check finishes (DispatchOwnerCheck).
-        private void RequestResolveServicePhase()
+        private void RequestResolveServicePhase(bool openWhenRunning = false)
         {
+            // Preserve an earlier explicit open request. A routine background check
+            // must not cancel the intent of a normal double-click while the owner
+            // check is still in flight. Explicit stop/start/install actions clear it
+            // through ClearPendingOwnerActions().
+            if (openWhenRunning) _openWhenResolved = true;
             if (!Net.IsPortOpen(_port, 200))
             {
+                _openWhenResolved = false;
                 InvalidateOwnerCheck();
                 _phase = Phase.Stopped;
                 return;
@@ -296,6 +308,7 @@ namespace PiWebTray
         {
             if (!ExternalUpdateBusy()) return false;
             _openWhenReady = false;
+            _openWhenResolved = false;
             _pendingRestart = false;
             _pendingOpenBrowser = false;
             NotifyWarningOnce("external-update", L.T("notify.installBusyTitle"),
@@ -312,6 +325,7 @@ namespace PiWebTray
             _startAfterOwnerCheckOpen = false;
             _stopAfterOwnerCheck = false;
             _resolveAfterOwnerCheck = false;
+            _openWhenResolved = false;
             if (keepInstall) return;
 
             _installAfterOwnerCheck = false;
@@ -587,6 +601,7 @@ namespace PiWebTray
             {
                 ServiceProbe.Invalidate();
                 InvalidateOwnerCheck();
+                _openWhenResolved = false;
                 if (_phase == Phase.Running)
                 {
                     // The listener is gone. The wrapper (cmd) or a detached node
@@ -649,9 +664,13 @@ namespace PiWebTray
                     return;
                 }
                 _lastOwnerCheck = DateTime.Now;
+                Phase previousPhase = _phase;
                 _phase = PhaseFromOwner(current);
+                bool openResolved = _openWhenResolved;
+                _openWhenResolved = false;
                 if (_phase == Phase.Running)
                 {
+                    ClearUserStopMarkerOnObservedRun(previousPhase);
                     _lastNotified = "";
                     _autoRestartAt = DateTime.MinValue;
                     _runningSince = DateTime.Now;
@@ -662,6 +681,7 @@ namespace PiWebTray
                     KillTrackedServer();
                 }
                 UpdateUi();
+                if (_phase == Phase.Running && openResolved) OpenBrowser();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
             }
@@ -718,13 +738,18 @@ namespace PiWebTray
             if (IsOurPiWeb(owner)
                 || ((owner.IsUnknown || owner.IsPiWeb) && TrayOwnsPort(owner)))
             {
+                Phase previousPhase = _phase;
                 _phase = Phase.Running;
+                ClearUserStopMarkerOnObservedRun(previousPhase);
+                bool openResolved = _openWhenResolved;
+                _openWhenResolved = false;
                 _lastNotified = "";
                 _lastOwnerCheck = DateTime.Now;
                 _autoRestartAt = DateTime.MinValue;
                 _runningSince = DateTime.Now;
                 _restartAfterUpdate = false;
                 UpdateUi();
+                if (openResolved) OpenBrowser();
             }
             else if (owner.IsUnknown || owner.IsPiWeb)
             {
@@ -743,9 +768,24 @@ namespace PiWebTray
             }
         }
 
+        private void ClearUserStopMarkerOnObservedRun(Phase previousPhase)
+        {
+            // A user stop that failed leaves the phase Failed/PortConflict; keep the
+            // intent in that case. Once the state machine has observed a stopped or
+            // dependency-missing state and a listener later appears, the old stop
+            // marker is stale and must not make an update leave the running service down.
+            if (previousPhase == Phase.Stopped || previousPhase == Phase.Checking
+                || previousPhase == Phase.NeedsDeps || previousPhase == Phase.NeedsNode
+                || previousPhase == Phase.PortConflict
+                || previousPhase == Phase.RunningUnverified)
+            {
+                _serviceStoppedByUser = false;
+            }
+        }
+
         private bool TrayOwnsPort(PortOwnerInfo owner)
         {
-            if (_server == null) return false;
+            if (owner == null || _server == null) return false;
             try
             {
                 if (_server.HasExited) return false;
@@ -784,14 +824,20 @@ namespace PiWebTray
         // to NeedsDeps/NeedsNode: that would disable Stop and turn Open into an
         // install action. Keep Running and let the owner check decide whether the
         // listener is still ours.
-        private bool KeepRunningWhenListening()
+        private bool KeepRunningWhenListening(bool openBrowser)
         {
             // A probe can report missing Node/Pi while a service started earlier is
             // still listening. Do not downgrade that live service to Failed/Needs*
             // just because this check did not run in the Running phase.
-            if (!Net.IsPortOpen(_port, 200)) return false;
+            if (!Net.IsPortOpen(_port, 200))
+            {
+                _openWhenResolved = false;
+                return false;
+            }
 
-            RequestResolveServicePhase();
+            // RequestResolveServicePhase owns the pending-open flag until the
+            // background owner check proves that the listener is ours.
+            RequestResolveServicePhase(openBrowser);
             UpdateUi();
             if (_phase == Phase.PortConflict) NotifyPortConflict();
             return true;
@@ -817,7 +863,7 @@ namespace PiWebTray
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
 
-            if (KeepRunningWhenListening()) return;
+            if (KeepRunningWhenListening(false)) return;
 
             if (result.NeedsNode)
             {

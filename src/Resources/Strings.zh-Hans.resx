@@ -28,13 +28,13 @@
     <value>安装中 {0} · {1}</value>
   </data>
   <data name="status.starting" xml:space="preserve">
-    <value>启动中… {0}</value>
+    <value>启动中… 端口 {0}</value>
   </data>
   <data name="status.running" xml:space="preserve">
     <value>运行中 · 127.0.0.1:{0}</value>
   </data>
   <data name="status.stopping" xml:space="preserve">
-    <value>停止中… {0}</value>
+    <value>停止中… 端口 {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
     <value>错误 · 点击重试</value>
@@ -362,7 +362,7 @@
     <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>请使用菜单更新服务。</value>
+    <value>请使用菜单安装或更新服务。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>无法启动 Pi Web</value>
@@ -457,13 +457,13 @@
     <value>Pi 尚未安装</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>请使用菜单更新服务。</value>
+    <value>请使用菜单安装或更新服务。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安装</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>请使用菜单更新服务。</value>
+    <value>请使用菜单安装或更新服务。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>无法安装：缺少 Node.js</value>
@@ -864,13 +864,13 @@
     <value>GitHub 返回了意外的响应。</value>
   </data>
   <data name="update.error.noAsset" xml:space="preserve">
-    <value>最新 release 中没有 Windows 压缩包。</value>
+    <value>最新发布版本中没有 Windows 压缩包。</value>
   </data>
   <data name="update.error.noChecksum" xml:space="preserve">
-    <value>最新 release 中没有 SHA-256 校验文件。</value>
+    <value>最新发布版本中没有 SHA-256 校验文件。</value>
   </data>
   <data name="update.error.untrustedUrl" xml:space="preserve">
-    <value>release 中包含不受信任的下载地址。</value>
+    <value>发布版本中包含不受信任的下载地址。</value>
   </data>
   <data name="update.error.badChecksum" xml:space="preserve">
     <value>校验文件格式无效。</value>
@@ -920,7 +920,7 @@
     <value>目标目录不是有效的安装目录。</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>更新已应用，但新版本无法启动。</value>
+    <value>新版本无法启动；已尽可能恢复旧文件。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
     <value>Pi Web 仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
@@ -1085,7 +1085,7 @@
     <value>选择 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>服务端口修改需要先停止服务。语言、服务工作目录和 Node.js 路径修改在重启后生效。</value>
+    <value>修改服务端口需要先停止 Pi Web。语言、服务工作目录和 Node.js 路径的修改在重启后生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>保存</value>
@@ -1247,7 +1247,7 @@
     <value>安装/更新服务</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>现在安装或更新服务吗？即使已安装，也会重新安装两个包。如果服务正在运行，会先停止它；这可能需要几分钟。</value>
+    <value>现在安装或更新服务吗？即使已安装，也会重新安装所有启用的包。如果服务正在运行，会先停止它；这可能需要几分钟。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>服务运行日志</value>
@@ -1271,7 +1271,7 @@
     <value>GitHub 请求频率受限，请稍后再试。</value>
   </data>
   <data name="update.error.notFound" xml:space="preserve">
-    <value>GitHub 上没有找到可用 release。</value>
+    <value>GitHub 上没有找到可用的发布版本。</value>
   </data>
   <data name="update.error.server" xml:space="preserve">
     <value>GitHub 暂时不可用，请稍后再试。</value>
@@ -1344,6 +1344,9 @@
   </data>
   <data name="auto.enabledAdminRunLeft" xml:space="preserve">
     <value>管理员自启动已启用，但无法删除旧的 Run 注册表值。请手动删除，以免登录时启动两次。</value>
+  </data>
+  <data name="auto.enabledAdminLegacyLeft" xml:space="preserve">
+    <value>管理员自启动已启用，但无法删除旧的 PiWebTray 计划任务。请在任务计划程序中手动删除，以免登录时启动两次。</value>
   </data>
   <data name="notify.stoppingTitle" xml:space="preserve">
     <value>服务正在停止</value>

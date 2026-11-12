@@ -1040,6 +1040,16 @@ namespace PiWebTray
             CheckEqual("task XML arguments", "--autostart",
                 document.GetElementsByTagName("Arguments", "*")[0].InnerText);
             Check("generated task XML is enabled", Autostart.IsTaskXmlEnabled(document));
+            Check("empty task arguments still start the service",
+                Autostart.TaskArgumentsStartService(""));
+            Check("autostart arguments start the service",
+                Autostart.TaskArgumentsStartService("--autostart"));
+            Check("start-no-open arguments start the service",
+                Autostart.TaskArgumentsStartService("--start-no-open"));
+            Check("tray-only arguments do not satisfy start-at-login",
+                !Autostart.TaskArgumentsStartService("--tray-only"));
+            Check("mixed unsafe arguments are rejected",
+                !Autostart.TaskArgumentsStartService("--autostart --tray-only"));
 
             // A task disabled in Task Scheduler has Settings/Enabled=false while the
             // logon trigger can still be true. The parser must not pick the trigger's
@@ -1218,6 +1228,14 @@ namespace PiWebTray
                     withoutOverride.ConfiguredPort, withoutOverride.Port);
                 Check("no port override is recorded without the variable",
                     !withoutOverride.PortFromEnvironment);
+
+                // A temporary UI-language override must not become the value that
+                // Settings persists when the ini has no Language key.
+                File.WriteAllText(iniPath, "Port=30211" + Environment.NewLine);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", "zh");
+                Config languageOverride = Config.Load(false);
+                CheckEqual("environment language is not persisted as configured",
+                    L.Auto, languageOverride.ConfiguredLanguage);
             }
             finally
             {
@@ -1240,25 +1258,33 @@ namespace PiWebTray
                 "pi-web-tray-backups-" + Guid.NewGuid().ToString("N"));
             string oldBackup = Path.Combine(target, ".pi-web-tray-backup-old");
             string newBackup = Path.Combine(target, ".pi-web-tray-backup-new");
-            string incompleteBackup = Path.Combine(target, ".pi-web-tray-backup-incomplete");
+            string protectedBackup = Path.Combine(target, ".pi-web-tray-backup-protected");
+            string staleCopyBackup = Path.Combine(target, ".pi-web-tray-backup-stale-copy");
             string staleStage = Path.Combine(target, ".pi-web-tray-stage-old");
             try
             {
                 Directory.CreateDirectory(oldBackup);
                 Directory.CreateDirectory(newBackup);
-                Directory.CreateDirectory(incompleteBackup);
+                Directory.CreateDirectory(protectedBackup);
+                Directory.CreateDirectory(staleCopyBackup);
                 Directory.CreateDirectory(staleStage);
-                File.WriteAllText(incompleteBackup + ".incomplete", "");
+                // A failed rollback is protected by .keep; a successful update whose
+                // directory delete failed leaves only .incomplete and must be retried.
+                File.WriteAllText(protectedBackup + ".keep", "");
+                File.WriteAllText(staleCopyBackup + ".incomplete", "");
                 Directory.SetLastWriteTimeUtc(oldBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(newBackup, DateTime.UtcNow);
-                Directory.SetLastWriteTimeUtc(incompleteBackup, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(protectedBackup, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(staleCopyBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(staleStage, DateTime.UtcNow.AddHours(-2));
 
                 Updater.DeleteStaleBackups(target, TimeSpan.FromMinutes(30));
                 Check("stale update backup is removed", !Directory.Exists(oldBackup));
                 Check("recent update backup is kept", Directory.Exists(newBackup));
-                Check("incomplete backup is never removed automatically",
-                    Directory.Exists(incompleteBackup));
+                Check("rollback-protected backup is never removed automatically",
+                    Directory.Exists(protectedBackup));
+                Check("stale backup with only the copy marker is retried",
+                    !Directory.Exists(staleCopyBackup));
 
                 Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
                 Check("stale staging snapshot is removed", !Directory.Exists(staleStage));

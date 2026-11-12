@@ -15,7 +15,7 @@ Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 Harness 解决方案，提供�
 
 | 组件           | 要求                                            |
 | -------------- | ----------------------------------------------- |
-| 64 位 Windows  | 7 SP1 至 11                                     |
+| 64 位 Windows  | 7 SP1、8.1、10 或 11                            |
 | .NET Framework | 4.8 — 必需；Windows 10 20H2+ 和 11 也支持 4.8.1 |
 | Node.js        | 22.19 或更新版本，含 npm                        |
 
@@ -82,7 +82,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 - **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web（`InstallPi=1` 时也更新 Pi），并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为 Pi Web Tray 的服务。其他会话或安装会报告 **端口冲突**，Pi Web Tray 不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
-- Pi Web 意外退出会通知。`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
+- Pi Web 意外退出会通知。`AutoRestart=1` 时最多连续快速重启 3 次（间隔 5/15/30 秒）；服务稳定运行 60 秒后重试计数会重置。`AutoCheckUpdates=1` 会在启动后检查新版本。
 
 ## 配置
 
@@ -137,7 +137,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 .\pi-web-tray.exe --quit            停止服务并退出。
 .\pi-web-tray.exe --check           检查环境（0 = 就绪，1 = 缺少组件）。
 .\pi-web-tray.exe --install         安装依赖，不启动 Pi Web Tray 托盘。
-.\pi-web-tray.exe --dry-run         与 --install 配合，仅打印 npm 命令。
+.\pi-web-tray.exe --dry-run         与 --install 配合，打印 npm 命令但不执行安装。
 .\pi-web-tray.exe --diag            将诊断快照写入 diag.txt。
 .\pi-web-tray.exe --lang-check      检查所有受支持语言的界面字符串是否完整。
 .\pi-web-tray.exe --make-ico        生成程序图标（构建工具）。
@@ -161,7 +161,7 @@ cd .\pi-web-tray
 
 ## 安全与限制
 
-- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权。无遥测；托盘自身不开放持久监听（Pi Web 在 loopback 上监听）。SOCKS5 更新代理会打开一个仅当前托盘进程可用的临时 loopback 监听。
+- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权。无遥测；托盘自身不开放持久监听（Pi Web 在 loopback 上监听）。SOCKS5 更新代理会打开一个仅当前托盘进程可用的、进程级生命周期的 loopback 监听；代理设置变化或进程退出时关闭。
 - 管理员模式要求托盘安装目录及提权进程会加载的所有文件（可执行文件、`.config`、卫星资源）都受保护。安装目录可被标准用户修改时，手动提权、管理员权限依赖安装和管理员权限自更新都会被拒绝。从用户可写安装目录提权启动时，会在读取 ini 和加载卫星资源之前拒绝启动。该检查**不保护**用户可写配置和用户安装的 Node/npm、Pi Web、Pi 包；管理员模式仍会以提权令牌执行它们。不要在存在不可信同用户进程的机器上启用。
 - 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验。更新助手会把已验证的压缩包复制到目标快照，重新计算哈希并解压，再用解压结果替换文件；不会信任用户可写的暂存目录。安装目录受保护时该快照也受保护。发布包未签名，首次运行可能触发 SmartScreen；该校验和不能替代代码签名。
 - 管理员自启动要求当前 Windows 账户属于 Administrators 组，并为当前用户创建登录任务。标准用户通过其他管理员凭据的 UAC，以及手动提权，都会被拒绝。资格检查会覆盖提权托盘加载的文件，而不仅是 `pi-web-tray.exe`。任务名包含用户 SID 和命名实例后缀，不会覆盖其他用户的任务。旧版 `PiWebTray` 任务会被报告。下次修改自启动设置时会被移除。

@@ -153,6 +153,9 @@ namespace PiWebTray
 
         // service control
         private bool _openWhenReady;
+        // An explicit open request that is waiting for the background port-owner
+        // check to prove that the existing listener belongs to this installation.
+        private bool _openWhenResolved;
         private bool _pendingRestart;
         private bool _pendingOpenBrowser;
         private bool _serviceStoppedByUser;

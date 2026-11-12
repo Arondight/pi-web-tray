@@ -15,7 +15,7 @@ Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides r
 
 | Component      | Requirement                                                        |
 | -------------- | ------------------------------------------------------------------ |
-| 64-bit Windows | 7 SP1 to 11                                                        |
+| 64-bit Windows | 7 SP1, 8.1, 10 or 11                                               |
 | .NET Framework | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
 | Node.js        | 22.19 or later, with npm                                           |
 
@@ -82,7 +82,7 @@ Exit and stop service
 
 - **Update service** stops Pi Web first, reinstalls or updates Pi Web (and Pi when `InstallPi=1`), and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
 - A listener is treated as Pi Web Tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so Pi Web Tray neither opens nor stops it. Change `Port` in **Settings** if needed.
-- If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically; with `AutoCheckUpdates=1` it checks for a new release after startup.
+- If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically for up to three consecutive rapid failures (5/15/30 s delays); a service that stays up for 60 s resets the retry counter. With `AutoCheckUpdates=1` it checks for a new release after startup.
 
 ## Configuration
 
@@ -137,7 +137,7 @@ Named instances also use separate start-at-login names so they cannot overwrite 
 .\pi-web-tray.exe --quit            Stop the service and exit.
 .\pi-web-tray.exe --check           Check the environment (0 = ready, 1 = missing).
 .\pi-web-tray.exe --install         Install dependencies without starting Pi Web Tray.
-.\pi-web-tray.exe --dry-run         With --install, print the npm commands only.
+.\pi-web-tray.exe --dry-run         With --install, print the npm commands without installing.
 .\pi-web-tray.exe --diag            Write a diagnostic snapshot to diag.txt.
 .\pi-web-tray.exe --lang-check      Verify that every UI string is complete for all supported languages.
 .\pi-web-tray.exe --make-ico        Generate the application icon (build tool).
@@ -161,7 +161,7 @@ cd .\pi-web-tray
 
 ## Security and limitations
 
-- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry; the tray itself opens no persistent listener (Pi Web listens on loopback). A SOCKS5 update proxy opens a temporary loopback listener that only the current tray process may use.
+- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry; the tray itself opens no persistent listener (Pi Web listens on loopback). A SOCKS5 update proxy opens a process-scoped loopback listener that only the current tray process may use; it is closed when the proxy setting changes or the process exits.
 - Administrator mode requires the tray installation directory and every file the elevated process loads (executable, `.config`, satellite resources) to be protected. Manual elevation, elevated dependency installs, and elevated self-updates are refused when the installation directory is writable by standard users. An elevated start from a user-writable installation is refused before the ini and satellite resources are loaded. This check does **not** protect user-writable configuration or user-installed Node/npm and Pi packages; admin mode still executes those with the elevated token. Do not enable it on a machine where the same account's non-elevated processes are untrusted.
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. The verified archive is copied into a target snapshot, re-hashed against that published checksum, extracted there, and used for the file replacement; the user-writable staging tree is not trusted. The snapshot is protected when the installation directory is protected. Releases are unsigned, so SmartScreen may warn on first run; this checksum is not a substitute for code signing.
 - Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user. Standard-user over-the-shoulder UAC and manual elevation are refused. The eligibility check includes files the elevated tray loads, not only `pi-web-tray.exe`. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported. It is removed when autostart is next changed.

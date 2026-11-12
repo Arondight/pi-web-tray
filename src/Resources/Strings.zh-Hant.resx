@@ -28,13 +28,13 @@
     <value>安裝中 {0} · {1}</value>
   </data>
   <data name="status.starting" xml:space="preserve">
-    <value>啟動中… {0}</value>
+    <value>啟動中… 連接埠 {0}</value>
   </data>
   <data name="status.running" xml:space="preserve">
     <value>執行中 · 127.0.0.1:{0}</value>
   </data>
   <data name="status.stopping" xml:space="preserve">
-    <value>停止中… {0}</value>
+    <value>停止中… 連接埠 {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
     <value>錯誤 · 點擊重試</value>
@@ -362,7 +362,7 @@
     <value>未找到 Pi Web</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>請使用功能表更新服務。</value>
+    <value>請使用功能表安裝或更新服務。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>無法啟動 Pi Web</value>
@@ -457,13 +457,13 @@
     <value>Pi 尚未安裝</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>請使用功能表更新服務。</value>
+    <value>請使用功能表安裝或更新服務。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web 尚未安裝</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>請使用功能表更新服務。</value>
+    <value>請使用功能表安裝或更新服務。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>無法安裝：缺少 Node.js</value>
@@ -604,7 +604,7 @@
     <value>由具備系統管理員權限的執行個體佔用</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
-    <value>由其他程式占用</value>
+    <value>由其他程式佔用</value>
   </data>
   <data name="diag.probeFailed" xml:space="preserve">
     <value>環境偵測失敗：{0}</value>
@@ -864,13 +864,13 @@
     <value>GitHub 傳回了非預期的回應。</value>
   </data>
   <data name="update.error.noAsset" xml:space="preserve">
-    <value>最新 release 中沒有 Windows 壓縮檔。</value>
+    <value>最新發行版本中沒有 Windows 壓縮檔。</value>
   </data>
   <data name="update.error.noChecksum" xml:space="preserve">
-    <value>最新 release 中沒有 SHA-256 校驗檔。</value>
+    <value>最新發行版本中沒有 SHA-256 校驗檔。</value>
   </data>
   <data name="update.error.untrustedUrl" xml:space="preserve">
-    <value>release 中包含不受信任的下載網址。</value>
+    <value>發行版本中包含不受信任的下載網址。</value>
   </data>
   <data name="update.error.badChecksum" xml:space="preserve">
     <value>校驗檔格式無效。</value>
@@ -920,10 +920,10 @@
     <value>目標目錄不是有效的安裝目錄。</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>更新已套用，但新版本無法啟動。</value>
+    <value>新版本無法啟動；已盡可能還原舊檔案。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
-    <value>Pi Web 仍占用連接埠 {0}，更新未套用；請停止服務後重試。</value>
+    <value>Pi Web 仍佔用連接埠 {0}，更新未套用；請停止服務後重試。</value>
   </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>未能完整還原舊檔案。備份保留在：{0}</value>
@@ -968,7 +968,7 @@
     <value>軟體更新記錄</value>
   </data>
   <data name="status.portConflict" xml:space="preserve">
-    <value>連接埠 {0} 被其他程式占用</value>
+    <value>連接埠 {0} 被其他程式佔用</value>
   </data>
   <data name="menu.portConflict" xml:space="preserve">
     <value>連接埠衝突</value>
@@ -977,7 +977,7 @@
     <value>連接埠衝突</value>
   </data>
   <data name="notify.portConflictBody" xml:space="preserve">
-    <value>連接埠 {0} 已被其他程式占用。請停止該程式或在設定中修改連接埠。</value>
+    <value>連接埠 {0} 已被其他程式佔用。請停止該程式或在設定中修改連接埠。</value>
   </data>
   <data name="notify.ownerCheckFailedTitle" xml:space="preserve">
     <value>無法確認連接埠佔用者</value>
@@ -1019,7 +1019,7 @@
     <value>連接埠擁有者</value>
   </data>
   <data name="prog.portConflictStop" xml:space="preserve">
-    <value>連接埠 {0} 被其他程式占用，未執行停止操作。</value>
+    <value>連接埠 {0} 被其他程式佔用，未執行停止操作。</value>
   </data>
   <data name="settings.title" xml:space="preserve">
     <value>設定</value>
@@ -1085,7 +1085,7 @@
     <value>選擇 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>服務連接埠修改需要先停止服務。語言、服務工作目錄和 Node.js 路徑修改在重新啟動後生效。</value>
+    <value>修改服務連接埠需要先停止 Pi Web。語言、服務工作目錄和 Node.js 路徑的修改在重新啟動後生效。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>儲存</value>
@@ -1109,13 +1109,13 @@
     <value>npm 標籤或版本包含無效字元。</value>
   </data>
   <data name="settings.portInUseTitle" xml:space="preserve">
-    <value>連接埠已被占用</value>
+    <value>連接埠已被佔用</value>
   </data>
   <data name="settings.portRequiresStopped" xml:space="preserve">
     <value>請先停止 Pi Web 再修改連接埠。</value>
   </data>
   <data name="settings.portInUseBody" xml:space="preserve">
-    <value>連接埠 {0} 已被其他程式占用。仍要儲存嗎？</value>
+    <value>連接埠 {0} 已被其他程式佔用。仍要儲存嗎？</value>
   </data>
   <data name="settings.saveFailed" xml:space="preserve">
     <value>無法儲存設定檔。</value>
@@ -1247,7 +1247,7 @@
     <value>安裝/更新服務</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>現在安裝或更新服務嗎？即使已安裝，也會重新安裝兩個套件。如果服務正在執行，會先停止它；這可能需要幾分鐘。</value>
+    <value>現在安裝或更新服務嗎？即使已安裝，也會重新安裝所有啟用的套件。如果服務正在執行，會先停止它；這可能需要幾分鐘。</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>服務執行記錄</value>
@@ -1271,7 +1271,7 @@
     <value>GitHub 要求頻率受限，請稍後再試。</value>
   </data>
   <data name="update.error.notFound" xml:space="preserve">
-    <value>GitHub 上找不到可用的 release。</value>
+    <value>GitHub 上找不到可用的發行版本。</value>
   </data>
   <data name="update.error.server" xml:space="preserve">
     <value>GitHub 暫時無法使用，請稍後再試。</value>
@@ -1344,6 +1344,9 @@
   </data>
   <data name="auto.enabledAdminRunLeft" xml:space="preserve">
     <value>系統管理員自啟動已啟用，但無法刪除舊的 Run 登錄值。請手動刪除，以免登入時啟動兩次。</value>
+  </data>
+  <data name="auto.enabledAdminLegacyLeft" xml:space="preserve">
+    <value>系統管理員自啟動已啟用，但無法刪除舊的 PiWebTray 排程工作。請在工作排程器中手動刪除，以免登入時啟動兩次。</value>
   </data>
   <data name="notify.stoppingTitle" xml:space="preserve">
     <value>服務正在停止</value>

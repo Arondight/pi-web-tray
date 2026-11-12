@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -28,11 +29,14 @@ namespace PiWebTray
             return Run(fileName, arguments, workingDir, timeoutMs, onLine, environment, null);
         }
 
-        // onStarted receives the pid right after the child is created, so callers can kill it on exit
+        // onStarted receives the pid right after the child is created, so callers can kill it on exit.
+        // outputEncoding defaults to UTF-8 (Node/npm); system tools that write their console
+        // code page (schtasks) must pass OemEncoding() explicitly.
         internal static ProcessResult Run(string fileName, string arguments, string workingDir, int timeoutMs,
             Action<string> onLine, IDictionary<string, string> environment, Action<int> onStarted,
-            int outputLimit = 256 * 1024)
+            int outputLimit = 256 * 1024, Encoding outputEncoding = null)
         {
+            Encoding encoding = outputEncoding ?? Encoding.UTF8;
             ProcessResult result = new ProcessResult();
             StringBuilder output = new StringBuilder();
             if (outputLimit <= 0) outputLimit = 256 * 1024;
@@ -48,8 +52,8 @@ namespace PiWebTray
                 psi.RedirectStandardInput = true;
                 psi.RedirectStandardOutput = true;
                 psi.RedirectStandardError = true;
-                psi.StandardOutputEncoding = Encoding.UTF8;
-                psi.StandardErrorEncoding = Encoding.UTF8;
+                psi.StandardOutputEncoding = encoding;
+                psi.StandardErrorEncoding = encoding;
 
                 // Elevated node/npm children must not inherit user-controlled
                 // loader/injection variables such as NODE_OPTIONS or npm_config_*.
@@ -166,6 +170,21 @@ namespace PiWebTray
             }
             catch (Exception)
             {
+            }
+        }
+
+        // Console programs such as schtasks write their output using the console/OEM
+        // code page, even when stdout is redirected. UTF-8 decoding corrupts non-ASCII
+        // task names, executable paths and arguments on localized Windows.
+        internal static Encoding OemEncoding()
+        {
+            try
+            {
+                return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage);
+            }
+            catch (Exception)
+            {
+                return Encoding.Default;
             }
         }
 

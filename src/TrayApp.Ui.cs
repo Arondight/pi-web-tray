@@ -138,7 +138,12 @@ namespace PiWebTray
             // Settings. Keep the menu consistent with CanStartServiceFromProbe and
             // with the thenStart path in ApplyCheckResult.
             bool canRun = CanStartServiceFromProbe(_probe, File.Exists);
-            bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps;
+            // A stopped tray can still have a probe that reports missing Pi Web or
+            // Node.js. The Open action then installs/checks instead of starting, so
+            // the label must reflect that instead of saying "Start service".
+            bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
+                || (!running && _probe != null
+                    && (_probe.NeedsNode || _probe.NeedsPiWeb));
             bool trackedAlive = TrackedServerAlive();
             bool trackedStopAvailable = trackedAlive
                 && (_phase == Phase.Stopped || _phase == Phase.Failed

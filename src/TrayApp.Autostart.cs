@@ -18,9 +18,13 @@ namespace PiWebTray
         private int _adminAutostartRefusals;
         private DateTime _lastAdminAutostartRefusal = DateTime.MinValue;
         private bool _existingAdminTaskAuditDone;
+        private string _auditTaskName = "";
+        private string _auditTaskTarget = "";
         private bool _legacyTaskCache;
         private bool _legacyTaskEnabledCache;
         private bool _taskEnabledCache;
+        private string _taskCommandCache = "";
+        private string _legacyTaskCommandCache = "";
         private DateTime _legacyTaskCacheAt = DateTime.MinValue;
 
         private bool IsRunKeyEnabled()
@@ -168,13 +172,15 @@ namespace PiWebTray
                 false);
         }
 
-        private bool ShowAdminAutostartWarning(string title, string body, bool existingTask)
+        private bool ShowAdminAutostartWarning(string title, string body,
+            bool existingTask, string repairExecutable = null)
         {
             bool repaired = false;
             BeginModal();
             try
             {
-                using (AdminAutostartWarningForm form = new AdminAutostartWarningForm(title, body))
+                using (AdminAutostartWarningForm form = new AdminAutostartWarningForm(
+                    title, body, repairExecutable))
                 {
                     form.ShowDialog();
                     repaired = form.RepairSucceeded;
@@ -200,12 +206,55 @@ namespace PiWebTray
         private void AuditExistingAdminTask()
         {
             if (_existingAdminTaskAuditDone || AutostartBusy()) return;
-            if (!TaskExists(false) && !LegacyTaskExists(false)) return;
-            if (!Autostart.IsUserWritableInstall(Application.ExecutablePath)) return;
+
+            bool currentExists = TaskExists(false);
+            bool legacyExists = LegacyTaskExists(false);
+            if (!currentExists && !legacyExists) return;
+
+            string currentCommand;
+            string legacyCommand;
+            lock (_taskCacheLock)
+            {
+                currentCommand = _taskCommandCache;
+                legacyCommand = _legacyTaskCommandCache;
+            }
+
+            // Audit the path the task actually launches, not merely the directory of
+            // the currently running executable. This catches a legacy task left in an
+            // old user-writable location and avoids repairing the wrong directory.
+            string taskName = "";
+            string target = "";
+            if (legacyExists && !string.IsNullOrEmpty(legacyCommand)
+                && Autostart.IsUserWritableInstall(legacyCommand))
+            {
+                taskName = Autostart.LegacyTaskName;
+                target = legacyCommand;
+            }
+            else if (currentExists && !string.IsNullOrEmpty(currentCommand)
+                && Autostart.IsUserWritableInstall(currentCommand))
+            {
+                taskName = Autostart.TaskName;
+                target = currentCommand;
+            }
+            else if ((currentExists || legacyExists)
+                && string.IsNullOrEmpty(currentCommand)
+                && string.IsNullOrEmpty(legacyCommand)
+                && Autostart.IsUserWritableInstall(Application.ExecutablePath))
+            {
+                // XML parsing was unavailable; preserve the old conservative warning
+                // for the currently running installation.
+                taskName = legacyExists ? Autostart.LegacyTaskName : Autostart.TaskName;
+                target = Application.ExecutablePath;
+            }
+            else
+            {
+                return;
+            }
 
             _existingAdminTaskAuditDone = true;
-            string directory = Path.GetDirectoryName(Application.ExecutablePath)
-                ?? Application.ExecutablePath;
+            _auditTaskName = taskName;
+            _auditTaskTarget = target;
+            string directory = Path.GetDirectoryName(target) ?? target;
             try
             {
                 Updater.AppendLog(_config.UpdateLogFile,
@@ -222,15 +271,15 @@ namespace PiWebTray
 
         private void ShowExistingAdminTaskDetails()
         {
-            string directory = Path.GetDirectoryName(Application.ExecutablePath)
-                ?? Application.ExecutablePath;
-            string taskName = LegacyTaskExists(false)
-                ? Autostart.LegacyTaskName
-                : Autostart.TaskName;
+            string taskName = string.IsNullOrEmpty(_auditTaskName)
+                ? Autostart.TaskName : _auditTaskName;
+            string target = string.IsNullOrEmpty(_auditTaskTarget)
+                ? Application.ExecutablePath : _auditTaskTarget;
+            string directory = Path.GetDirectoryName(target) ?? target;
             ShowAdminAutostartWarning(
                 L.T("auto.adminWritableExistingTitle"),
                 L.T("auto.adminWritableExistingDetails", taskName, directory),
-                true);
+                true, target);
         }
 
         private void BeginAutostartOp(bool enable, bool admin)
@@ -378,6 +427,10 @@ namespace PiWebTray
             {
                 if (_taskRefreshRunning) return;
                 _taskRefreshRunning = true;
+                // Do not let a completion from the previous refresh be consumed after
+                // an autostart operation: PollTaskRefresh could otherwise use the old
+                // task cache to delete a Run value that was just written.
+                _taskRefreshDone = false;
             }
 
             Thread worker = new Thread(delegate ()
@@ -388,24 +441,30 @@ namespace PiWebTray
                 bool legacy = false;
                 bool legacyEnabled = false;
                 bool legacyMatches = false;
+                string taskCommand = "";
+                string legacyCommand = "";
                 try
                 {
-                    task = Autostart.QueryTaskState(out enabled, out matchesExecutable);
+                    task = Autostart.QueryTaskDetails(out enabled, out matchesExecutable,
+                        out taskCommand);
                 }
                 catch (Exception)
                 {
                 }
                 try
                 {
-                    legacy = Autostart.QueryLegacyTaskState(out legacyEnabled, out legacyMatches);
+                    legacy = Autostart.QueryLegacyTaskDetails(out legacyEnabled,
+                        out legacyMatches, out legacyCommand);
                 }
                 catch (Exception) { }
                 lock (_taskCacheLock)
                 {
                     _taskCache = task;
                     _taskEnabledCache = task && enabled && matchesExecutable;
+                    _taskCommandCache = taskCommand;
                     _legacyTaskCache = legacy;
                     _legacyTaskEnabledCache = legacy && legacyEnabled && legacyMatches;
+                    _legacyTaskCommandCache = legacyCommand;
                     _taskCacheAt = DateTime.Now;
                     _legacyTaskCacheAt = DateTime.Now;
                     _taskRefreshRunning = false;
@@ -428,7 +487,11 @@ namespace PiWebTray
                 lock (_taskCacheLock)
                 {
                     _taskRefreshRunning = false;
-                    _taskRefreshDone = true;
+                    // Do not publish a result from the old cache. Wait for the next
+                    // scheduled refresh instead of acting on stale task state.
+                    _taskRefreshDone = false;
+                    _taskCacheAt = DateTime.Now;
+                    _legacyTaskCacheAt = DateTime.Now;
                 }
             }
         }

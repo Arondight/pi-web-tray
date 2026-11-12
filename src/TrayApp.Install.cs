@@ -103,7 +103,14 @@ namespace PiWebTray
             if (packages.Count == 0)
             {
                 ReleaseInstallUpdateLock();
-                BeginEnvironmentCheck(thenStart, thenOpen);
+                // This can be reached after a stop-for-install if another process
+                // installed the package in the meantime. Do not leave the install
+                // restart intent behind for a later, unrelated failure/cancel.
+                bool restore = _installRestartService;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                BeginEnvironmentCheck(thenStart || restore, thenOpen);
                 return;
             }
 
@@ -198,7 +205,11 @@ namespace PiWebTray
             if (packages.Count == 0)
             {
                 ReleaseInstallUpdateLock();
-                BeginEnvironmentCheck(thenStart, thenOpen);
+                bool restore = _installRestartService;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                BeginEnvironmentCheck(thenStart || restore, thenOpen);
                 return;
             }
 

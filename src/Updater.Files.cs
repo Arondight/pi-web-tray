@@ -25,6 +25,16 @@ namespace PiWebTray
             return backupRoot + ".incomplete";
         }
 
+        // This marker is written only when Rollback cannot fully restore the previous
+        // installation. Such a backup may be the only recoverable copy and must never
+        // be removed by automatic cleanup. The .incomplete marker alone is not enough:
+        // it is written for every backup (including successful updates) so a failed
+        // directory delete can be retried later.
+        private static string KeepMarker(string backupRoot)
+        {
+            return backupRoot + ".keep";
+        }
+
         internal static UpdateCopyResult CopyFiles(string staging, string target, string logPath)
         {
             string backupRoot = Path.Combine(target, ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
@@ -114,6 +124,10 @@ namespace PiWebTray
                 }
                 else
                 {
+                    // This backup may be the only recoverable copy. Mark it so
+                    // automatic cleanup does not remove it after it becomes old.
+                    try { File.WriteAllText(KeepMarker(backupRoot), "", new UTF8Encoding(false)); }
+                    catch (Exception) { }
                     AppendLog(logPath, "copy rollback incomplete; backup kept: " + backupRoot);
                 }
                 throw;
@@ -224,9 +238,12 @@ namespace PiWebTray
                 directoryGone = false;
             }
             // Keep the incomplete marker while the backup still exists. It prevents
-            // a later cleanup from deleting the only recoverable copy of the release.
+            // a later cleanup from deleting a backup that is still being written.
+            // The .keep marker, created only by a failed Rollback, is the marker that
+            // makes automatic cleanup permanent.
             if (!directoryGone) return;
             try { if (File.Exists(IncompleteMarker(backupRoot))) File.Delete(IncompleteMarker(backupRoot)); } catch (Exception) { }
+            try { if (File.Exists(KeepMarker(backupRoot))) File.Delete(KeepMarker(backupRoot)); } catch (Exception) { }
         }
 
         internal static void DeleteOldBackups(string target)
@@ -235,10 +252,10 @@ namespace PiWebTray
             {
                 foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
                 {
-                    // A backup with an incomplete marker may be the only copy of the
+                    // A backup with a keep marker may be the only copy of the
                     // previous release after a failed/partial rollback. Never remove it
                     // automatically; the user was told to keep it.
-                    if (File.Exists(IncompleteMarker(old))) continue;
+                    if (File.Exists(KeepMarker(old))) continue;
                     DeleteBackup(old);
                 }
             }
@@ -259,7 +276,7 @@ namespace PiWebTray
                 {
                     try
                     {
-                        if (File.Exists(IncompleteMarker(old))) continue;
+                        if (File.Exists(KeepMarker(old))) continue;
                         if (Directory.GetLastWriteTimeUtc(old) >= cutoff) continue;
                         DeleteBackup(old);
                     }
@@ -388,6 +405,10 @@ namespace PiWebTray
                     return true;
                 }
 
+                // This backup may be the only recoverable copy; mark it so automatic
+                // cleanup never removes it, even after it becomes old.
+                try { File.WriteAllText(KeepMarker(backupRoot), "", new UTF8Encoding(false)); }
+                catch (Exception) { }
                 AppendLog(logPath, "rollback incomplete; backup kept: " + backupRoot);
                 return false;
             }

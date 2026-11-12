@@ -453,7 +453,7 @@ namespace PiWebTray
                 // A failed probe is not evidence that a live service broke. Keep the
                 // running service and let the phase poll verify its owner instead of
                 // flashing a red error and disabling Stop.
-                if (KeepRunningWhenListening())
+                if (KeepRunningWhenListening(openBrowser))
                 {
                     NotifyWarningOnce("env-check-failed",
                         L.T("notify.envCheckFailed"), L.T("notify.envCheckFailedBody"));
@@ -478,7 +478,7 @@ namespace PiWebTray
             // A background probe must not downgrade a service that is still
             // listening. Pi is install-time only, and Node.js removal while a
             // service runs is reported separately by the presence watcher.
-            if (KeepRunningWhenListening()) return;
+            if (KeepRunningWhenListening(openBrowser)) return;
 
             if (result.NeedsNode)
             {

@@ -317,6 +317,9 @@ namespace PiWebTray
                         AppendLog(logPath, "parent exited without confirming the update gate");
                         MessageBox.Show(L.T("update.error.notConfirmed"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        // ExitApp has already stopped the service and exited. Without
+                        // this recovery the user would be left with no tray at all.
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
 

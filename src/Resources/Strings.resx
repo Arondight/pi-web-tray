@@ -362,7 +362,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Pi Web was not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the menu to update the service.</value>
+    <value>Use the menu to install or update the service.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start Pi Web</value>
@@ -457,13 +457,13 @@ Exit anyway?</value>
     <value>Pi is not installed</value>
   </data>
   <data name="notify.needsPiCliBody" xml:space="preserve">
-    <value>Use the menu to update the service.</value>
+    <value>Use the menu to install or update the service.</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
     <value>Pi Web is not installed</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
-    <value>Use the menu to update the service.</value>
+    <value>Use the menu to install or update the service.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -920,7 +920,7 @@ See {1} for details.</value>
     <value>The target directory is not a valid installation.</value>
   </data>
   <data name="update.error.restart" xml:space="preserve">
-    <value>The update was applied, but the new version could not start.</value>
+    <value>The new version could not start. The previous files were restored when possible.</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
     <value>Pi Web is still using port {0}. The update was not applied; stop the service and try again.</value>
@@ -1085,7 +1085,7 @@ See {1} for details.</value>
     <value>Select node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>Service port changes need the service stopped. Restart to apply language, working directory and Node.js path changes.</value>
+    <value>Changing the service port requires stopping Pi Web. Language, working directory and Node.js path changes take effect after a restart.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>Save</value>
@@ -1247,7 +1247,7 @@ See {1} for details.</value>
     <value>Install/update service</value>
   </data>
   <data name="install.confirmBody" xml:space="preserve">
-    <value>Install or update the service now? Both packages are reinstalled even if they are already installed. The service will be stopped if it is running. This can take several minutes.</value>
+    <value>Install or update the service now? All enabled packages are reinstalled even if they are already installed. The service will be stopped if it is running. This can take several minutes.</value>
   </data>
   <data name="log.serverTitle" xml:space="preserve">
     <value>Service runtime log</value>
@@ -1344,6 +1344,9 @@ See {1} for details.</value>
   </data>
   <data name="auto.enabledAdminRunLeft" xml:space="preserve">
     <value>Administrator start-at-login is enabled, but the old standard-user Run value could not be removed. Remove it manually to avoid two starts at login.</value>
+  </data>
+  <data name="auto.enabledAdminLegacyLeft" xml:space="preserve">
+    <value>Administrator start-at-login is enabled, but the legacy PiWebTray task could not be removed. Remove it in Task Scheduler to avoid two starts at login.</value>
   </data>
   <data name="notify.stoppingTitle" xml:space="preserve">
     <value>Service is stopping</value>

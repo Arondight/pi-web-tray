@@ -216,6 +216,12 @@ namespace PiWebTray
             string envLanguage = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
             L.Use(string.IsNullOrEmpty(envLanguage) ? config.Language : envLanguage);
 
+            // ConfiguredLanguage is the value Settings will write back. A temporary
+            // PI_WEB_TRAY_LANG override must not be persisted just because the ini
+            // has no Language key; an absent key means the documented default, auto.
+            if (string.IsNullOrEmpty(config.ConfiguredLanguage))
+                config.ConfiguredLanguage = L.Auto;
+
             if (!string.IsNullOrEmpty(config.NodePath) && !File.Exists(config.NodePath))
                 config.NodePathInvalid = true;
 

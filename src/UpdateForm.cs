@@ -43,11 +43,12 @@ namespace PiWebTray
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(14);
             root.ColumnCount = 1;
-            root.RowCount = 4;
+            root.RowCount = 3;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            // The button row follows the progress bar directly. The old fourth
+            // Percent row had no control and left an empty gap inside the dialog.
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _root = root;
 
@@ -80,7 +81,7 @@ namespace PiWebTray
 
             root.Controls.Add(_status, 0, 0);
             root.Controls.Add(_progress, 0, 1);
-            root.Controls.Add(buttons, 0, 3);
+            root.Controls.Add(buttons, 0, 2);
             Controls.Add(root);
 
             ResumeLayout(false);

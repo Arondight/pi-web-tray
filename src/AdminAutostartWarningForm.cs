@@ -19,13 +19,22 @@ namespace PiWebTray
         private readonly Label _status;
         private readonly Button _fix;
         private readonly Button _close;
+        private readonly string _repairExecutablePath;
         private Icon _formIcon;
         private bool _busy;
 
         internal bool RepairSucceeded { get; private set; }
 
         internal AdminAutostartWarningForm(string title, string body)
+            : this(title, body, null)
         {
+        }
+
+        internal AdminAutostartWarningForm(string title, string body,
+            string repairExecutablePath)
+        {
+            _repairExecutablePath = string.IsNullOrEmpty(repairExecutablePath)
+                ? Application.ExecutablePath : repairExecutablePath;
             SuspendLayout();
             Text = title;
             StartPosition = FormStartPosition.CenterScreen;
@@ -181,7 +190,7 @@ namespace PiWebTray
                 try
                 {
                     repaired = Autostart.SecureInstallDirectory(
-                        Application.ExecutablePath, out message);
+                        _repairExecutablePath, out message);
                 }
                 catch (Exception ex)
                 {

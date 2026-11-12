@@ -242,75 +242,186 @@ namespace PiWebTray
         // value. Existence alone is not enough for the menu/startup decision.
         internal static bool QueryLegacyTaskState(out bool enabled, out bool matchesExecutable)
         {
+            return QueryLegacyTaskDetails(out enabled, out matchesExecutable, out _);
+        }
+
+        internal static bool QueryLegacyTaskDetails(out bool enabled,
+            out bool matchesExecutable, out string commandPath)
+        {
             enabled = false;
             matchesExecutable = false;
+            commandPath = "";
             if (Instance.Suffix.Length != 0) return false;
-            return QueryTaskState(LegacyTaskName, out enabled, out matchesExecutable);
+            return QueryTaskDetails(LegacyTaskName, out enabled, out matchesExecutable,
+                out commandPath);
         }
 
         // Existence plus the state that the menu needs: a task can exist but be
-        // disabled or point at an older installation. QueryTask itself remains
-        // existence-only because delete/replace operations must still find it.
+        // disabled, point at an older installation, or use arguments that do not
+        // start the service. QueryTask itself remains existence-only because
+        // delete/replace operations must still find it.
         internal static bool QueryTaskState(out bool enabled, out bool matchesExecutable)
         {
-            return QueryTaskState(TaskName, out enabled, out matchesExecutable);
+            return QueryTaskDetails(out enabled, out matchesExecutable, out _);
         }
 
-        private static bool QueryTaskState(string name, out bool enabled,
-            out bool matchesExecutable)
+        internal static bool QueryTaskDetails(out bool enabled,
+            out bool matchesExecutable, out string commandPath)
+        {
+            return QueryTaskDetails(TaskName, out enabled, out matchesExecutable,
+                out commandPath);
+        }
+
+        // schtasks writes its XML using the console/OEM code page even though the
+        // embedded declaration may claim UTF-16. Try the encodings that Windows
+        // actually uses before falling back to an existence check. The first
+        // successful match wins; for an ASCII-only task this is a single process.
+        private static bool QueryTaskDetails(string name, out bool enabled,
+            out bool matchesExecutable, out string commandPath)
         {
             enabled = false;
             // Do not claim an unknown task belongs to this installation. A false
             // positive can make PollTaskRefresh remove a working Run value.
             matchesExecutable = false;
-            try
+            commandPath = "";
+
+            bool parsed = false;
+            bool parsedEnabled = false;
+            string parsedCommand = "";
+            foreach (Encoding encoding in TaskXmlEncodings())
             {
                 ProcessResult run = ProcessRunner.Run(
                     Sys.SystemExecutable("schtasks.exe"),
                     "/query /tn " + Shell.Quote(name) + " /xml",
-                    Sys.SystemDirectory, 5000, null, null);
+                    Sys.SystemDirectory, 5000, null, null, null,
+                    256 * 1024, encoding);
                 if (!run.Started || run.TimedOut || run.ExitCode != 0) return false;
 
                 string xml = run.Output.TrimStart('\uFEFF');
                 int xmlStart = xml.IndexOf('<');
                 if (xmlStart > 0) xml = xml.Substring(xmlStart);
-                XmlDocument document = new XmlDocument();
-                document.LoadXml(xml);
+                // A replacement character means this encoding is wrong; try the next.
+                if (xml.IndexOf('\uFFFD') >= 0) continue;
 
-                enabled = IsTaskXmlEnabled(document);
-
-                XmlNodeList commandNodes = document.GetElementsByTagName("Command", "*");
-                if (commandNodes.Count > 0 && commandNodes[0] != null)
+                XmlDocument document;
+                try
                 {
-                    string command = commandNodes[0].InnerText.Trim().Trim('"');
-                    if (command.Length > 0)
+                    document = new XmlDocument();
+                    document.LoadXml(xml);
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                parsed = true;
+                parsedEnabled = IsTaskXmlEnabled(document);
+                string command = ReadTaskElement(document, "Command");
+                string arguments = ReadTaskElement(document, "Arguments");
+                string expandedCommand = ExpandTaskCommand(command);
+                parsedCommand = command.Length > 0 ? expandedCommand : parsedCommand;
+
+                bool pathMatches = false;
+                if (expandedCommand.Length > 0)
+                {
+                    try
                     {
-                        try
-                        {
-                            matchesExecutable = string.Equals(
-                                Path.GetFullPath(Environment.ExpandEnvironmentVariables(command)),
-                                Path.GetFullPath(Application.ExecutablePath),
-                                StringComparison.OrdinalIgnoreCase);
-                        }
-                        catch (Exception)
-                        {
-                            matchesExecutable = false;
-                        }
+                        pathMatches = string.Equals(
+                            Path.GetFullPath(expandedCommand),
+                            Path.GetFullPath(Application.ExecutablePath),
+                            StringComparison.OrdinalIgnoreCase);
+                    }
+                    catch (Exception)
+                    {
                     }
                 }
+
+                if (pathMatches && TaskArgumentsStartService(arguments))
+                {
+                    enabled = parsedEnabled;
+                    matchesExecutable = true;
+                    commandPath = expandedCommand;
+                    return true;
+                }
+
+                // ASCII data is unaffected by the code page. No other encoding can
+                // turn a genuine path/argument mismatch into a match.
+                if (IsAscii(command) && IsAscii(arguments))
+                {
+                    enabled = parsedEnabled;
+                    commandPath = expandedCommand;
+                    return true;
+                }
+
+                if (command.Length == 0) break;
+            }
+
+            if (parsed)
+            {
+                enabled = parsedEnabled;
+                commandPath = parsedCommand;
                 return true;
             }
-            catch (Exception)
+
+            // XML output can be unavailable on unusual systems. Fall back to
+            // the old existence check, but do not claim that the task points at
+            // this executable: treating another installation's task as enabled
+            // would allow PollTaskRefresh to remove the current Run value.
+            bool exists = QueryTask(name);
+            enabled = exists;
+            return exists;
+        }
+
+        private static List<Encoding> TaskXmlEncodings()
+        {
+            List<Encoding> encodings = new List<Encoding>();
+            HashSet<int> seen = new HashSet<int>();
+            AddEncoding(encodings, seen, ProcessRunner.OemEncoding());
+            AddEncoding(encodings, seen, Encoding.Default);
+            AddEncoding(encodings, seen, Encoding.UTF8);
+            AddEncoding(encodings, seen, Encoding.Unicode);
+            return encodings;
+        }
+
+        private static void AddEncoding(List<Encoding> encodings, HashSet<int> seen,
+            Encoding encoding)
+        {
+            if (encoding == null || !seen.Add(encoding.CodePage)) return;
+            encodings.Add(encoding);
+        }
+
+        private static string ReadTaskElement(XmlDocument document, string name)
+        {
+            XmlNodeList nodes = document.GetElementsByTagName(name, "*");
+            if (nodes.Count == 0 || nodes[0] == null) return "";
+            return nodes[0].InnerText.Trim().Trim('"');
+        }
+
+        private static string ExpandTaskCommand(string command)
+        {
+            if (string.IsNullOrEmpty(command)) return "";
+            try { return Environment.ExpandEnvironmentVariables(command); }
+            catch (Exception) { return command; }
+        }
+
+        private static bool IsAscii(string value)
+        {
+            foreach (char c in value ?? "")
             {
-                // XML output can be unavailable on unusual systems. Fall back to
-                // the old existence check, but do not claim that the task points at
-                // this executable: treating another installation's task as enabled
-                // would allow PollTaskRefresh to remove the current Run value.
-                bool exists = QueryTask(name);
-                enabled = exists;
-                matchesExecutable = false;
-                return exists;
+                if (c > 0x7F) return false;
             }
+            return true;
+        }
+
+        // A task with no arguments performs a normal start and therefore starts the
+        // service. --autostart and --start-no-open are the explicit service-start
+        // modes. Anything else (notably --tray-only) does not satisfy start-at-login.
+        internal static bool TaskArgumentsStartService(string arguments)
+        {
+            string text = (arguments ?? "").Trim();
+            if (text.Length == 0) return true;
+            return string.Equals(text, "--autostart", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(text, "--start-no-open", StringComparison.OrdinalIgnoreCase);
         }
 
         // Exposed to the test suite so the task-settings/trigger distinction is
@@ -862,12 +973,14 @@ namespace PiWebTray
             }
         }
 
-        internal static bool CreateTask(bool elevated, string executablePath)
+        internal static bool CreateTask(bool elevated, string executablePath,
+            out bool legacyRemovalFailed)
         {
-            // Remove the legacy machine-wide task first so login cannot start both.
-            // Named instances must leave the default installation's legacy task alone.
-            if (Instance.Suffix.Length == 0
-                && QueryTask(LegacyTaskName) && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
+            legacyRemovalFailed = false;
+            // Remove the legacy machine-wide task only after the replacement has
+            // been created. Removing it first would leave the user with no autostart
+            // entry if the second UAC prompt is cancelled.
+            bool legacyExisted = Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
 
             string principal = CurrentUserPrincipal();
             if (string.IsNullOrEmpty(principal)) return false;
@@ -927,9 +1040,10 @@ namespace PiWebTray
 
                     bool enabled;
                     bool matchesExecutable;
-                    if (QueryTaskState(TaskName, out enabled, out matchesExecutable)
+                    if (QueryTaskDetails(TaskName, out enabled, out matchesExecutable, out _)
                         && enabled && matchesExecutable)
                     {
+                        FinishTaskCreation(elevated, legacyExisted, out legacyRemovalFailed);
                         return true;
                     }
 
@@ -937,7 +1051,11 @@ namespace PiWebTray
                     // XML parsing is unavailable (for example on an unusual Windows
                     // installation). A pre-existing task is never accepted on
                     // existence alone.
-                    if (!existedBefore) return true;
+                    if (!existedBefore)
+                    {
+                        FinishTaskCreation(elevated, legacyExisted, out legacyRemovalFailed);
+                        return true;
+                    }
                     if (++verificationAttempts >= 4) return false;
                 }
                 return false;
@@ -958,6 +1076,14 @@ namespace PiWebTray
                 }
                 try { if (File.Exists(xmlPath)) File.Delete(xmlPath); } catch (Exception) { }
             }
+        }
+
+        private static void FinishTaskCreation(bool elevated, bool legacyExisted,
+            out bool legacyRemovalFailed)
+        {
+            legacyRemovalFailed = false;
+            if (!legacyExisted || !QueryTask(LegacyTaskName)) return;
+            legacyRemovalFailed = !DeleteTaskByName(elevated, LegacyTaskName);
         }
 
         private static bool BytesEqual(byte[] left, byte[] right)
@@ -1126,14 +1252,17 @@ namespace PiWebTray
 
                 // Create the task before removing the old Run value. If UAC is cancelled, the
                 // previous normal-permission autostart must keep working instead of vanishing.
-                if (CreateTask(elevated, executablePath))
+                bool legacyRemovalFailed;
+                if (CreateTask(elevated, executablePath, out legacyRemovalFailed))
                 {
                     if (!ClearRunValue())
                     {
                         message = L.T("auto.enabledAdminRunLeft");
                         return true;
                     }
-                    message = L.T("auto.enabledAdmin");
+                    message = legacyRemovalFailed
+                        ? L.T("auto.enabledAdminLegacyLeft")
+                        : L.T("auto.enabledAdmin");
                     return true;
                 }
                 message = L.T("auto.taskFailed");
