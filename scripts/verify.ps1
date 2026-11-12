@@ -14,6 +14,47 @@ if (-not (Test-Path $ExePath)) {
 }
 $exe = (Resolve-Path $ExePath).Path
 
+# GitHub Actions runs Windows tests with an elevated token. The tray refuses an
+# elevated start from a user-writable directory, so run the smoke tests from a
+# protected copy instead of weakening that check. The copy keeps the artifact and
+# the packaged zip path usable from any directory.
+$verifyRoot = $null
+$principal = New-Object Security.Principal.WindowsPrincipal(
+    [Security.Principal.WindowsIdentity]::GetCurrent())
+if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $programFiles = [Environment]::GetFolderPath('ProgramFiles')
+    if ([string]::IsNullOrEmpty($programFiles)) {
+        throw "Program Files is not available for an elevated smoke test."
+    }
+    $verifyRoot = Join-Path $programFiles ("PiWebTrayVerify-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $verifyRoot -Force | Out-Null
+    $sourceDir = Split-Path -Parent $exe
+    Copy-Item $exe (Join-Path $verifyRoot "pi-web-tray.exe") -Force
+    $config = Join-Path $sourceDir "pi-web-tray.exe.config"
+    if (Test-Path $config) { Copy-Item $config (Join-Path $verifyRoot "pi-web-tray.exe.config") -Force }
+    foreach ($culture in @("zh-Hans", "zh-Hant")) {
+        $cultureDir = Join-Path $sourceDir $culture
+        if (Test-Path $cultureDir) {
+            Copy-Item $cultureDir (Join-Path $verifyRoot $culture) -Recurse -Force
+        }
+    }
+
+    # Match the production ACL repair: elevated tests must be owner-protected too.
+    $systemSid = "S-1-5-18"
+    $administratorsSid = "S-1-5-32-544"
+    $usersSid = "S-1-5-32-545"
+    & icacls $verifyRoot /setowner "*$administratorsSid" /t /l | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not set the smoke-test directory owner." }
+    & icacls $verifyRoot /reset | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not reset the smoke-test directory ACL." }
+    & icacls $verifyRoot /inheritance:r /grant:r `
+        "*${systemSid}:(OI)(CI)F" "*${administratorsSid}:(OI)(CI)F" "*${usersSid}:(OI)(CI)RX" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not protect the smoke-test directory ACL." }
+    & icacls (Join-Path $verifyRoot "*") /reset /t /l | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Could not protect the smoke-test files." }
+    $exe = Join-Path $verifyRoot "pi-web-tray.exe"
+}
+
 # The tray is a WinExe, so PowerShell does not wait for it and $LASTEXITCODE stays unset.
 # Start-Process -Wait gives us a reliable exit code and captured output.
 function Invoke-Exe {
@@ -113,4 +154,7 @@ finally {
     if ($null -eq $originalPort) { Remove-Item Env:\PI_WEB_TRAY_PORT -ErrorAction SilentlyContinue }
     else { $env:PI_WEB_TRAY_PORT = $originalPort }
     Remove-Item $testHome -Recurse -Force -ErrorAction SilentlyContinue
+    if ($verifyRoot) {
+        Remove-Item $verifyRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }

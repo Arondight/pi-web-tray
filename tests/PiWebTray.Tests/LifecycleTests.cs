@@ -25,8 +25,13 @@ namespace PiWebTray
         [TestMethod]
         public void TrayLifecycleHandlesDuplicateRestartAndQuit()
         {
-            string app = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pi-web-tray.exe");
-            Assert.IsTrue(File.Exists(app), "The test output must contain pi-web-tray.exe.");
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+            string installRoot = CreateProtectedInstallRoot(source, "lifecycle");
+            string app = installRoot != null
+                ? Path.Combine(installRoot, "pi-web-tray.exe")
+                : sourceExe;
 
             string home = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-lifecycle-" + Guid.NewGuid().ToString("N"));
@@ -87,6 +92,7 @@ namespace PiWebTray
                         Thread.Sleep(100);
                     }
                 }
+                DeleteTestInstallRoot(installRoot);
             }
         }
 
@@ -99,7 +105,8 @@ namespace PiWebTray
 
             string root = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-zip-update-" + Guid.NewGuid().ToString("N"));
-            string target = Path.Combine(root, "target");
+            string installRoot = CreateProtectedInstallRoot(source, "zip-update");
+            string target = installRoot ?? Path.Combine(root, "target");
             string home = Path.Combine(root, "data");
             string instance = "ZipUpdate" + Guid.NewGuid().ToString("N").Substring(0, 10);
             string dataDir = Path.Combine(home, "pi-web-tray." + instance);
@@ -143,10 +150,10 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The zip update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The zip update helper failed.");
+                RepairTestInstall(target);
                 Assert.AreEqual("zip",
                     File.ReadAllText(Path.Combine(target, "update-marker.txt")),
                     "The helper installed staging instead of the verified zip.");
-
                 updatedPid = WaitForState(dataDir, 0, 15000);
                 Assert.IsTrue(updatedPid > 0, "The updated tray did not write its state file.");
                 updatedTray = Process.GetProcessById(updatedPid);
@@ -182,6 +189,7 @@ namespace PiWebTray
                     try { helper.Dispose(); } catch (Exception) { }
                 }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+                DeleteTestInstallRoot(installRoot);
             }
         }
 
@@ -194,7 +202,8 @@ namespace PiWebTray
 
             string root = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-update-lifecycle-" + Guid.NewGuid().ToString("N"));
-            string target = Path.Combine(root, "target");
+            string installRoot = CreateProtectedInstallRoot(source, "update");
+            string target = installRoot ?? Path.Combine(root, "target");
             string home = Path.Combine(root, "data");
             string instance = "Update" + Guid.NewGuid().ToString("N").Substring(0, 10);
             string dataDir = Path.Combine(home, "pi-web-tray." + instance);
@@ -225,6 +234,7 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The update helper failed.");
+                RepairTestInstall(target);
                 Assert.IsTrue(File.Exists(Path.Combine(target, "update-marker.txt")),
                     "The staged file was not copied.");
 
@@ -267,6 +277,61 @@ namespace PiWebTray
                     try { if (File.Exists(gatePath)) File.Delete(gatePath); } catch (Exception) { }
                 }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+                DeleteTestInstallRoot(installRoot);
+            }
+        }
+
+        // GitHub Actions runs its Windows tests with an elevated token. The tray
+        // deliberately refuses an elevated start from a user-writable directory, so
+        // create a protected test install when needed instead of weakening that check.
+        private static string CreateProtectedInstallRoot(string source, string prefix)
+        {
+            if (!Elevation.IsElevated()) return null;
+
+            string programFiles = Environment.GetFolderPath(
+                Environment.SpecialFolder.ProgramFiles);
+            Assert.IsFalse(string.IsNullOrEmpty(programFiles),
+                "Program Files is not available for an elevated lifecycle test.");
+            string root = Path.Combine(programFiles,
+                "PiWebTrayTest-" + prefix + "-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(root);
+            CopyReleaseFiles(source, root);
+            string app = Path.Combine(root, "pi-web-tray.exe");
+            string message;
+            Assert.IsTrue(Autostart.SecureInstallDirectory(app, out message),
+                "Could not protect the test installation: " + message);
+            Assert.IsFalse(Autostart.IsUserWritableInstall(app),
+                "The elevated test installation is still user-writable.");
+            return root;
+        }
+
+        private static void RepairTestInstall(string target)
+        {
+            if (!Elevation.IsElevated()) return;
+
+            // GitHub Actions runs elevated. Files created by the elevated update
+            // helper can be owned by the caller, so restore the protected test
+            // installation before checking CLI behavior.
+            string message;
+            Assert.IsTrue(Autostart.SecureInstallDirectory(
+                    Path.Combine(target, "pi-web-tray.exe"), out message),
+                "Could not restore the protected test installation: " + message);
+        }
+
+        private static void DeleteTestInstallRoot(string root)
+        {
+            if (root == null) return;
+            for (int attempt = 0; attempt < 10; attempt++)
+            {
+                try
+                {
+                    if (Directory.Exists(root)) Directory.Delete(root, true);
+                    return;
+                }
+                catch (Exception)
+                {
+                    Thread.Sleep(100);
+                }
             }
         }
 
@@ -312,8 +377,13 @@ namespace PiWebTray
         [TestMethod]
         public void StopWithoutTrayReturnsZeroForAClosedPort()
         {
-            string app = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pi-web-tray.exe");
-            Assert.IsTrue(File.Exists(app), "The test output must contain pi-web-tray.exe.");
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+            string installRoot = CreateProtectedInstallRoot(source, "stop");
+            string app = installRoot != null
+                ? Path.Combine(installRoot, "pi-web-tray.exe")
+                : sourceExe;
 
             string home = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-stop-" + Guid.NewGuid().ToString("N"));
@@ -336,6 +406,7 @@ namespace PiWebTray
                     try { command.Dispose(); } catch (Exception) { }
                 }
                 try { Directory.Delete(home, true); } catch (Exception) { }
+                DeleteTestInstallRoot(installRoot);
             }
         }
 
