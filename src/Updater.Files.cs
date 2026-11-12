@@ -214,7 +214,18 @@ namespace PiWebTray
         internal static void DeleteBackup(string backupRoot)
         {
             if (string.IsNullOrEmpty(backupRoot)) return;
-            try { if (Directory.Exists(backupRoot)) Directory.Delete(backupRoot, true); } catch (Exception) { }
+            bool directoryGone = true;
+            try
+            {
+                if (Directory.Exists(backupRoot)) Directory.Delete(backupRoot, true);
+            }
+            catch (Exception)
+            {
+                directoryGone = false;
+            }
+            // Keep the incomplete marker while the backup still exists. It prevents
+            // a later cleanup from deleting the only recoverable copy of the release.
+            if (!directoryGone) return;
             try { if (File.Exists(IncompleteMarker(backupRoot))) File.Delete(IncompleteMarker(backupRoot)); } catch (Exception) { }
         }
 

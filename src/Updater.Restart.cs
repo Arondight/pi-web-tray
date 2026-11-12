@@ -270,6 +270,7 @@ namespace PiWebTray
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             string path = Path.Combine(dataDir, "state.ini");
+            if (PathSafety.ContainsReparsePoint(path)) return 0;
 
             while (DateTime.Now < deadline)
             {

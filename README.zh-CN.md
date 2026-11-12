@@ -2,47 +2,28 @@
 
 [English](README.md) | **简体中文**
 
-Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 通用 Harness 解决方案，在 Pi Web Tray 中完成运行环境检测、依赖安装与更新、服务托管和自更新。
+Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 Harness 解决方案，提供运行环境检测、依赖安装与更新、服务托管和自更新。
 
 - **一键使用** — 安装并管理 Pi Web，一键启停。
 - **状态可见** — 彩色托盘图标、通知，以及实时日志。
 - **开机自启动** — 使用普通 Run 键或管理员计划任务设置开机自启动。
 - **端口安全** — 用原生 API 识别监听进程，不误杀无关程序。
 - **自更新** — 检测并更新软件、清理旧版本文件。
-- **绿色便携** — 无需安装，无第三方运行时依赖。
+- **绿色便携** — 无需安装，不捆绑运行时。
 
 ## 运行要求
 
-| 组件           | 要求                                                         |
-| -------------- | ------------------------------------------------------------ |
-| 64 位 Windows  | 7 SP1、8、8.1、10 或 11                                      |
-| .NET Framework | 4.8 — Windows 7 SP1/8/8.1 使用 4.8；Windows 10/11 可用 4.8.1 |
-| Node.js        | 22.19 或更新版本，含 npm                                     |
+| 组件           | 要求                                            |
+| -------------- | ----------------------------------------------- |
+| 64 位 Windows  | 7 SP1 至 11                                     |
+| .NET Framework | 4.8 — 必需；Windows 10 20H2+ 和 11 也支持 4.8.1 |
+| Node.js        | 22.19 或更新版本，含 npm                        |
 
-Windows 7 和 Windows 8 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Pi Web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上 Pi Web 可以运行，但终端功能可能异常。
+Windows 7 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Pi Web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上 Pi Web 可以运行，但终端功能可能异常。
 
 ### 旧版本 Windows 运行库
 
-Windows 7 SP1、Windows 8 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) 而非 4.8.1。如果 Windows 7 下检查更新无法访问 GitHub，请安装 [TLS 1.2 更新补丁](https://support.microsoft.com/help/3140245)
-
-## 推荐安装的软件
-
-本软件不依赖 Python 3 和 PowerShell，但是安装它们可以增强 Pi 的能力。
-
-### Python 3
-
-Windows 10 / 11：使用[官方下载页](https://www.python.org/downloads/)，安装时勾选 **Add python.exe to PATH**：
-
-旧版 Windows 已不再获得当前 Python 版本的安装包，以下是最新仍提供安装包的版本：
-
-| 系统           | 最新仍提供安装包的版本                                                   |
-| -------------- | ------------------------------------------------------------------------ |
-| Windows 7 和 8 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8.1    | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
-
-### PowerShell
-
-Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](https://github.com/PowerShell/PowerShell/releases)下载。Windows 7 SP1 需要安装 [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) 以获得 Windows PowerShell 5.1。Windows 8 无法升级 PowerShell，只能使用系统自带的 3.0 版本。
+Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) 而非 4.8.1。如果 Windows 7 下检查更新无法访问 GitHub，请安装 [TLS 1.2 更新补丁](https://support.microsoft.com/help/3140245)。
 
 ## 快速开始
 
@@ -62,7 +43,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | 🟢 绿色 | 运行中                                  |
 | ⚪ 灰色 | 已停止                                  |
 | 🟠 橙色 | 忙：检查、安装、启动/停止服务或应用更新 |
-| 🔵 蓝色 | 缺少依赖（Node.js / Pi / Pi Web）       |
+| 🔵 蓝色 | 缺少依赖（Node.js / Pi Web）            |
 | 🔴 红色 | 错误或端口冲突                          |
 
 菜单内容与当前状态一致：
@@ -99,7 +80,7 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 退出并停止服务
 ```
 
-- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web，并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
+- **更新服务** 会先停止 Pi Web，重新安装或更新 Pi Web（`InstallPi=1` 时也更新 Pi），并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为 Pi Web Tray 的服务。其他会话或安装会报告 **端口冲突**，Pi Web Tray 不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
 - Pi Web 意外退出会通知。`AutoRestart=1` 时自动重启，`AutoCheckUpdates=1` 会在启动后检查新版本。
 
@@ -112,21 +93,19 @@ Windows 8.1、10、11 可以安装最新的 PowerShell，从[官方发布页](ht
 | 键                 | 默认值          | 说明                                                               |
 | ------------------ | --------------- | ------------------------------------------------------------------ |
 | `Port`             | `30141`         | Pi Web 监听端口。                                                  |
-| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录，也是 Pi 的默认项目目录。                             |
+| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录。                                                     |
 | `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                           |
-| `InstallPi`        | `1`             | 随 Pi Web 一并安装/更新 Pi。                                       |
+| `InstallPi`        | `1`             | 随 Pi Web 一并安装/更新 Pi；设为 `0` 可跳过。                      |
 | `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                        |
 | `AutoCheckUpdates` | `0`             | 启动后检查 Pi Web Tray 更新。                                      |
-| `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。具体版本号/范围不适用于 Pi。   |
+| `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。                               |
 | `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。               |
 | `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。 |
 | `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                    |
 | `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                           |
 | `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                               |
 
-Pi 不是 Pi Web 的必需依赖。设置 `InstallPi=1` 时，Pi 会随 Pi Web 一起安装或更新；设为 `0` 时不会改动已安装的 Pi。
-
-值支持 `%ENV%` 展开。含 `;` 或 `#` 的值可加引号。注释符号前需有空白。
+值支持 `%ENV%` 展开。含 `;` 或 `#` 的值可加引号。注释符号前需有空白。相对的 `WorkingDir` 和 `NodePath` 值会相对于可执行文件目录解析。
 
 当 Pi Web Tray 安装目录、路径中的任一父目录、或提权进程会加载的任一文件可被标准用户修改或重命名时，开启管理员自启动会被拒绝，且不会改变当前设置。安全警告窗口提供 **修复** 按钮；只有在路径其余部分受保护时，才会通过 UAC 修复目录 ACL。对于便携版或用户配置目录中的安装，修复操作会提示将程序移到 Program Files 等受保护位置；可被标准用户替换的父目录无法安全修复。如果管理员偏好不可用，而用户从主菜单开启自启动，Pi Web Tray 会清除该偏好并改用标准用户自启动。
 
@@ -143,7 +122,7 @@ Pi 不是 Pi Web 的必需依赖。设置 `InstallPi=1` 时，Pi 会随 Pi Web �
 | `PI_WEB_TRAY_PORTABLE` | 设为 `1` 时 ini 和日志放在可执行文件旁。                                                                                     |
 | `PI_WEB_TRAY_NO_NODE`  | 测试钩子：模拟 Node.js 缺失。                                                                                                |
 | `PI_WEB_TRAY_NO_PIWEB` | 测试钩子：模拟 Pi Web 包缺失。                                                                                               |
-| `PI_WEB_TRAY_NO_PICLI` | 测试钩子：模拟 Pi CLI 包缺失。                                                                                               |
+| `PI_WEB_TRAY_NO_PICLI` | 测试钩子：模拟 Pi 包缺失。                                                                                                   |
 
 命名实例也会使用独立的开机自启动名称，避免覆盖默认安装的条目。但 Run 值或计划任务不会保留启动时的环境变量，因此开机自启动只应从默认实例使用。
 
@@ -168,6 +147,8 @@ Pi 不是 Pi Web 的必需依赖。设置 `InstallPi=1` 时，Pi 会随 Pi Web �
 
 未知参数返回退出码 2。
 
+`--install` 会在 npm 运行前停止正在运行的服务，并仅在托盘正在运行时重新启动它；没有托盘时服务会保持停止。若托盘以管理员权限运行，也请从管理员命令行执行 `--install`。
+
 ## 从源码构建
 
 需要 Windows 10 或 11，并安装 Visual Studio 2022/2026 的 **.NET 桌面开发** 工作负载，或安装 .NET SDK 8.0+ 和 .NET Framework 4.8 targeting pack。
@@ -180,8 +161,8 @@ cd .\pi-web-tray
 
 ## 安全与限制
 
-- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权。无遥测、无持久网络监听。SOCKS5 更新代理会打开一个仅当前托盘进程可用的临时 loopback 监听。
-- 管理员模式要求托盘安装目录及提权进程会加载的所有文件（可执行文件、`.config`、卫星资源）都受保护。安装目录可被标准用户修改时，手动提权、管理员权限依赖安装和管理员权限自更新都会被拒绝。该检查**不保护**用户可写配置和用户安装的 Node/npm/Pi/Pi Web 包；管理员模式仍会以提权令牌执行它们。不要在存在不可信同用户进程的机器上启用。
+- 默认以当前用户令牌运行（`asInvoker`），仅在用户请求时提权。无遥测；托盘自身不开放持久监听（Pi Web 在 loopback 上监听）。SOCKS5 更新代理会打开一个仅当前托盘进程可用的临时 loopback 监听。
+- 管理员模式要求托盘安装目录及提权进程会加载的所有文件（可执行文件、`.config`、卫星资源）都受保护。安装目录可被标准用户修改时，手动提权、管理员权限依赖安装和管理员权限自更新都会被拒绝。从用户可写安装目录提权启动时，会在读取 ini 和加载卫星资源之前拒绝启动。该检查**不保护**用户可写配置和用户安装的 Node/npm、Pi Web、Pi 包；管理员模式仍会以提权令牌执行它们。不要在存在不可信同用户进程的机器上启用。
 - 更新通过 HTTPS 从 GitHub 下载，并用 release 发布的 SHA-256 校验。更新助手会把已验证的压缩包复制到目标快照，重新计算哈希并解压，再用解压结果替换文件；不会信任用户可写的暂存目录。安装目录受保护时该快照也受保护。发布包未签名，首次运行可能触发 SmartScreen；该校验和不能替代代码签名。
 - 管理员自启动要求当前 Windows 账户属于 Administrators 组，并为当前用户创建登录任务。标准用户通过其他管理员凭据的 UAC，以及手动提权，都会被拒绝。资格检查会覆盖提权托盘加载的文件，而不仅是 `pi-web-tray.exe`。任务名包含用户 SID 和命名实例后缀，不会覆盖其他用户的任务。旧版 `PiWebTray` 任务会被报告。下次修改自启动设置时会被移除。
 - `server.log`、`install.log` 和 `update.log` 在 4 MB 时轮转。托盘以管理员运行时，`--stop` / `--quit` 需在管理员命令行执行。托盘菜单始终可用。若日志宿主子进程无法创建，服务输出会回退到未经脱敏、不会轮转的 `1>>` 路径，详见 [SECURITY.md](SECURITY.md)；若配置的日志路径是重解析点，服务输出会被丢弃而不是跟随它。
@@ -189,7 +170,7 @@ cd .\pi-web-tray
 
 ## 相关项目
 
-Pi Web Tray 只负责安装和启动 [Pi Web](https://github.com/agegr/pi-web)与 [Pi](https://github.com/earendil-works/pi)，不包含也不修改它们。相关问题请提交到各自仓库。
+Pi Web Tray 负责安装和启动 [Pi Web](https://github.com/agegr/pi-web)；`InstallPi=1` 时也会安装或更新 Pi。它不包含也不修改这两个项目，相关问题请提交到各自仓库。
 
 ## 参与贡献
 

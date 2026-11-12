@@ -227,6 +227,8 @@ namespace PiWebTray
         private string _updateStaging;
         private string _updateError;
         private UpdateCancellation _updateCancellation;
+        private string _updateHelperGatePath;
+        private bool _updateHelperGateSignaled;
         private bool _restartAfterUpdate;
         private bool _updateStartedWithServiceRunning;
         private volatile int _updatePercent = -1;

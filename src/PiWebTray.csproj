@@ -17,10 +17,10 @@
     <WarningLevel>4</WarningLevel>
 
     <AssemblyTitle>Pi Web Tray</AssemblyTitle>
-    <Description>A Windows 7 to 11 harness for Pi and Pi Web</Description>
+    <Description>A Windows 7 to 11 Harness solution based on Pi Web</Description>
     <Product>Pi Web Tray</Product>
     <Company>Pi Web Tray contributors</Company>
-    <Copyright>Copyright (c) 2026 Pi Web Tray contributors</Copyright>
+    <Copyright>Copyright (c) 2026 秦凡东</Copyright>
     <Version>0.4.1</Version>
     <AssemblyVersion>0.4.1.0</AssemblyVersion>
     <FileVersion>0.4.1.0</FileVersion>

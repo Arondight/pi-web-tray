@@ -45,18 +45,25 @@ namespace PiWebTray
         private readonly TextBox _proxy;
         private readonly Button _testProxy;
         private readonly TextBox _nodePath;
+        private readonly bool _elevated;
 
         internal SettingsForm(Config config)
-            : this(config, true)
+            : this(config, true, false)
         {
         }
 
         internal bool RestartRequested { get; private set; }
 
         internal SettingsForm(Config config, bool allowPortChange)
+            : this(config, allowPortChange, false)
+        {
+        }
+
+        internal SettingsForm(Config config, bool allowPortChange, bool elevated)
         {
             SuspendLayout();
             _config = config;
+            _elevated = elevated;
 
             Text = L.T("settings.title");
             StartPosition = FormStartPosition.CenterScreen;
@@ -116,7 +123,7 @@ namespace PiWebTray
                 : (config.WorkingDir ?? "");
             _initialWorkingDir = _workingDir.Text;
             AddBrowseRow(root, 1, L.T("settings.workingDir"), _workingDir,
-                L.T("settings.browse"), delegate { BrowseFolder(_workingDir); });
+                L.T("settings.browse"), delegate { BrowseFolder(_workingDir); }, !_elevated);
 
             _language = new ComboBox();
             _language.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -124,7 +131,9 @@ namespace PiWebTray
             _language.AutoSize = false;
             _language.MinimumSize = new Size(220, 0);
             _language.Anchor = AnchorStyles.Left;
-            AddLanguageItems(config.Language);
+            AddLanguageItems(string.IsNullOrEmpty(config.ConfiguredLanguage)
+                ? (string.IsNullOrEmpty(config.Language) ? L.Auto : config.Language)
+                : config.ConfiguredLanguage);
             AddRow(root, 2, L.T("settings.language"), _language);
 
             _autoInstall = new CheckBox();
@@ -152,20 +161,25 @@ namespace PiWebTray
             AddRow(root, 6, "", _installPi);
 
             _installTag = new TextBox();
-            _installTag.Text = config.InstallTag ?? "latest";
+            _installTag.Text = string.IsNullOrEmpty(config.ConfiguredInstallTag)
+                ? (string.IsNullOrEmpty(config.InstallTag) ? "latest" : config.InstallTag)
+                : config.ConfiguredInstallTag;
             AddRow(root, 7, L.T("settings.installTag"), _installTag);
 
             _npmRegistry = new TextBox();
-            _npmRegistry.Text = config.NpmRegistry ?? "";
+            _npmRegistry.Text = string.IsNullOrEmpty(config.ConfiguredNpmRegistry)
+                ? (config.NpmRegistry ?? "") : config.ConfiguredNpmRegistry;
             AddRow(root, 8, L.T("settings.npmRegistry"), _npmRegistry);
 
             _nodePath = new TextBox();
-            _nodePath.Text = config.NodePath ?? "";
+            _nodePath.Text = string.IsNullOrEmpty(config.ConfiguredNodePath)
+                ? (config.NodePath ?? "") : config.ConfiguredNodePath;
             AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
-                L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|Executables (*.exe)|*.exe"); });
+                L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|Executables (*.exe)|*.exe"); }, !_elevated);
 
             _proxy = new TextBox();
-            _proxy.Text = config.Proxy ?? "";
+            _proxy.Text = string.IsNullOrEmpty(config.ConfiguredProxy)
+                ? (config.Proxy ?? "") : config.ConfiguredProxy;
             _testProxy = new Button();
             _testProxy.Text = L.T("settings.testProxy");
             _testProxy.AutoSize = true;
@@ -432,7 +446,7 @@ namespace PiWebTray
         }
 
         private static void AddBrowseRow(TableLayoutPanel root, int row, string labelText,
-            TextBox textBox, string buttonText, EventHandler browse)
+            TextBox textBox, string buttonText, EventHandler browse, bool allowBrowse)
         {
             TableLayoutPanel line = new TableLayoutPanel();
             line.Dock = DockStyle.Fill;
@@ -453,6 +467,7 @@ namespace PiWebTray
             button.MinimumSize = new Size(88, 0);
             button.Anchor = AnchorStyles.Left;
             button.Margin = new Padding(6, 0, 0, 0);
+            button.Enabled = allowBrowse;
             button.Click += browse;
             line.Controls.Add(button, 1, 0);
 
@@ -461,6 +476,8 @@ namespace PiWebTray
 
         private void BrowseFolder(TextBox target)
         {
+            // The picker loads shell extensions. Never do that with an elevated token.
+            if (_elevated) return;
             using (FolderBrowserDialog dialog = new FolderBrowserDialog())
             {
                 dialog.Description = L.T("settings.workingDir");
@@ -473,6 +490,8 @@ namespace PiWebTray
 
         private void BrowseFile(TextBox target, string title, string filter)
         {
+            // The picker loads shell extensions. Never do that with an elevated token.
+            if (_elevated) return;
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Title = title;
@@ -539,6 +558,8 @@ namespace PiWebTray
             string workingDir = workingDirRaw.Length == 0
                 ? (_config.WorkingDir ?? "")
                 : Environment.ExpandEnvironmentVariables(workingDirRaw);
+            if (workingDir.Length > 0)
+                workingDir = Config.ResolvePath(_config.BaseDir, workingDir);
             if (workingDir.Length == 0 || !Directory.Exists(workingDir))
             {
                 ShowError(L.T("settings.invalidWorkingDir"));
@@ -560,6 +581,8 @@ namespace PiWebTray
 
             string nodePathRaw = (_nodePath.Text ?? "").Trim();
             string nodePath = Environment.ExpandEnvironmentVariables(nodePathRaw);
+            if (nodePath.Length > 0)
+                nodePath = Config.ResolvePath(_config.BaseDir, nodePath);
             if (nodePath.Length > 0 && !File.Exists(nodePath))
             {
                 ShowError(L.T("settings.invalidNodePath"));
@@ -594,8 +617,9 @@ namespace PiWebTray
                 }
             }
 
-            string tag = (_installTag.Text ?? "").Trim();
-            if (tag.Length == 0) tag = "latest";
+            string tagRaw = (_installTag.Text ?? "").Trim();
+            if (tagRaw.Length == 0) tagRaw = "latest";
+            string tag = Environment.ExpandEnvironmentVariables(tagRaw);
             if (!string.Equals(Installer.SafeTag(tag), tag, StringComparison.Ordinal))
             {
                 ShowError(L.T("settings.invalidTag"));
@@ -622,18 +646,19 @@ namespace PiWebTray
             }
 
             LanguageOption language = _language.SelectedItem as LanguageOption;
-            string languageValue = language == null ? L.Auto : language.Value;
+            string languageRaw = language == null ? L.Auto : language.Value;
+            string languageValue = Environment.ExpandEnvironmentVariables(languageRaw);
 
             string oldProxy = _config.Proxy ?? "";
             List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
             values.Add(new KeyValuePair<string, string>("Port", port.ToString(CultureInfo.InvariantCulture)));
             values.Add(new KeyValuePair<string, string>("WorkingDir", workingDirValue));
-            values.Add(new KeyValuePair<string, string>("Language", languageValue));
+            values.Add(new KeyValuePair<string, string>("Language", languageRaw));
             values.Add(new KeyValuePair<string, string>("AutoInstall", _autoInstall.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallPi", _installPi.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoRestart", _autoRestart.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("AutoCheckUpdates", _autoCheckUpdates.Checked ? "1" : "0"));
-            values.Add(new KeyValuePair<string, string>("InstallTag", tag));
+            values.Add(new KeyValuePair<string, string>("InstallTag", tagRaw));
             // Persist the raw values so a deliberate %ENV% template survives; the
             // expanded values below are what the current process can use immediately.
             values.Add(new KeyValuePair<string, string>("NpmRegistry", registryRaw));
@@ -653,16 +678,21 @@ namespace PiWebTray
             _config.WorkingDir = workingDir;
             _config.ConfiguredWorkingDir = workingDirValue;
             _config.Language = languageValue;
+            _config.ConfiguredLanguage = languageRaw;
             _config.AutoInstall = _autoInstall.Checked;
             _config.InstallPi = _installPi.Checked;
             _config.AutoRestart = _autoRestart.Checked;
             _config.AutoCheckUpdates = _autoCheckUpdates.Checked;
             _config.InstallTag = tag;
+            _config.ConfiguredInstallTag = tagRaw;
             _config.NpmRegistry = registry;
+            _config.ConfiguredNpmRegistry = registryRaw;
             _config.Proxy = proxy;
+            _config.ConfiguredProxy = proxyRaw;
             if (!string.Equals(oldProxy, proxy, StringComparison.Ordinal))
                 ProxyTransport.Reset();
             _config.NodePath = nodePath;
+            _config.ConfiguredNodePath = nodePathRaw;
 
             RestartRequested = restart;
             DialogResult = DialogResult.OK;

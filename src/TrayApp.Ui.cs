@@ -360,6 +360,11 @@ namespace PiWebTray
         {
             try
             {
+                if (PathSafety.ContainsReparsePoint(path))
+                {
+                    NotifyError(L.T("notify.openLogFailed"), L.T("update.error.unsafePath"));
+                    return;
+                }
                 using (LogForm form = new LogForm(path, title))
                 {
                     BeginModal();
@@ -413,7 +418,7 @@ namespace PiWebTray
                 && _phase != Phase.RunningUnverified && _phase != Phase.Starting
                 && _phase != Phase.Stopping && _phase != Phase.Installing
                 && _phase != Phase.Checking;
-            using (SettingsForm form = new SettingsForm(_config, allowPortChange))
+            using (SettingsForm form = new SettingsForm(_config, allowPortChange, _elevated))
             {
                 DialogResult result;
                 BeginModal();

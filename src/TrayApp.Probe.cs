@@ -439,6 +439,16 @@ namespace PiWebTray
 
             if (result == null)
             {
+                // A failed probe cannot satisfy a queued install. Clear the request;
+                // otherwise PollEnvironmentCheck would start another probe forever
+                // while _probe stays null.
+                lock (_checkLock)
+                {
+                    _installAfterCheck = false;
+                    _installAfterCheckForce = false;
+                    _installAfterCheckStart = false;
+                    _installAfterCheckOpen = false;
+                }
                 _nodePresenceNotified = false;
                 // A failed probe is not evidence that a live service broke. Keep the
                 // running service and let the phase poll verify its owner instead of
@@ -466,7 +476,7 @@ namespace PiWebTray
             if (!result.NeedsNode) _nodePresenceNotified = false;
 
             // A background probe must not downgrade a service that is still
-            // listening. Pi CLI is install-time only, and Node.js removal while a
+            // listening. Pi is install-time only, and Node.js removal while a
             // service runs is reported separately by the presence watcher.
             if (KeepRunningWhenListening()) return;
 
@@ -546,10 +556,10 @@ namespace PiWebTray
                         openBrowser || queuedOpen);
                     return;
                 }
-                // pi-web can run without the separately-installed Pi CLI. If the
+                // pi-web can run without the separately-installed Pi. If the
                 // caller explicitly asked to start (or is restoring a service after
                 // a cancelled install), do not strand a runnable service in
-                // NeedsDeps just because Pi CLI is absent.
+                // NeedsDeps just because Pi is absent.
                 bool installQueued;
                 lock (_checkLock) installQueued = _installAfterCheck;
                 if (thenStart && !result.NeedsPiWeb && !installQueued

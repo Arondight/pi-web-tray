@@ -2,47 +2,28 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Pi Web Tray is a universal Windows 7 to 11 harness for Pi Web. It provides runtime detection, dependency installation and updates, service hosting and self-update.
+Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides runtime detection, dependency installation and updates, service hosting and self-update.
 
 - **One click** — installs and manages Pi Web; start or stop the service with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
 - **Start at login** — uses the standard Run key or an administrator scheduled task.
 - **Port safe** — native process APIs identify the listener; unrelated programs are never killed.
 - **Self-update** — checks for updates, updates the app and removes files from older releases.
-- **Portable** — no installer, no third-party runtime dependencies.
+- **Portable** — no installer and no bundled runtime.
 
 ## Requirements
 
 | Component      | Requirement                                                        |
 | -------------- | ------------------------------------------------------------------ |
-| 64-bit Windows | 7 SP1, 8, 8.1, 10 or 11                                            |
-| .NET Framework | 4.8 — Windows 7 SP1/8/8.1 require 4.8; Windows 10/11 can use 4.8.1 |
+| 64-bit Windows | 7 SP1 to 11                                                        |
+| .NET Framework | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
 | Node.js        | 22.19 or later, with npm                                           |
 
-Windows 7 and Windows 8 have no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so Pi Web can run on legacy systems, but terminal functionality may be impaired.
+Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so Pi Web can run on legacy systems, but terminal functionality may be impaired.
 
 ### Older Windows runtime
 
-Windows 7 SP1, Windows 8 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
-
-## Recommended software
-
-Pi Web Tray does not require Python 3 or PowerShell, but installing them extends what Pi can do.
-
-### Python 3
-
-Windows 10 and 11: use the [official download page](https://www.python.org/downloads/). Tick **Add python.exe to PATH**:
-
-Older Windows releases no longer receive current Python installers. The newest releases that still ship one:
-
-| System          | Newest release with an installer                                         |
-| --------------- | ------------------------------------------------------------------------ |
-| Windows 7 and 8 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
-| Windows 8.1     | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
-
-### PowerShell
-
-Windows 8.1, 10 and 11 can install the latest PowerShell from the [official releases page](https://github.com/PowerShell/PowerShell/releases). Windows 7 SP1 needs [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) to get Windows PowerShell 5.1. Windows 8 cannot update PowerShell, only the built-in 3.0 is available.
+Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
 ## Quick start
 
@@ -62,7 +43,7 @@ The icon colour shows the state at a glance:
 | 🟢 Green  | Running                                                                          |
 | ⚪ Grey   | Stopped                                                                          |
 | 🟠 Orange | Busy: checking, installing, starting/stopping the service, or applying an update |
-| 🔵 Blue   | Missing prerequisites (Node.js / Pi / Pi Web)                                    |
+| 🔵 Blue   | Missing prerequisites (Node.js / Pi Web)                                         |
 | 🔴 Red    | Error or port conflict                                                           |
 
 The menu follows the service state:
@@ -99,7 +80,7 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops Pi Web first, reinstalls or updates Pi Web, and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
+- **Update service** stops Pi Web first, reinstalls or updates Pi Web (and Pi when `InstallPi=1`), and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
 - A listener is treated as Pi Web Tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so Pi Web Tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically; with `AutoCheckUpdates=1` it checks for a new release after startup.
 
@@ -112,21 +93,19 @@ Exit and stop service
 | Key                | Default         | Description                                                                             |
 | ------------------ | --------------- | --------------------------------------------------------------------------------------- |
 | `Port`             | `30141`         | Pi Web listening port.                                                                  |
-| `WorkingDir`       | `%USERPROFILE%` | Service working directory and Pi's default project root.                                |
+| `WorkingDir`       | `%USERPROFILE%` | Service working directory.                                                              |
 | `AutoInstall`      | `1`             | Install missing dependencies at startup.                                                |
-| `InstallPi`        | `1`             | Also install/update Pi with Pi Web.                                                     |
+| `InstallPi`        | `1`             | Also install/update Pi with Pi Web; set `0` to skip.                                    |
 | `AutoRestart`      | `0`             | Restart Pi Web after an unexpected stop.                                                |
 | `AutoCheckUpdates` | `0`             | Check for a Pi Web Tray update after startup.                                           |
-| `InstallTag`       | `latest`        | Pi Web npm distribution tag or exact version. Exact versions/ranges do not apply to Pi. |
+| `InstallTag`       | `latest`        | Pi Web npm distribution tag or exact version.                                           |
 | `NpmRegistry`      | empty           | Custom registry, e.g. `https://registry.npmmirror.com`.                                 |
 | `Proxy`            | empty           | Optional HTTP or SOCKS5 proxy for update checks/downloads; empty uses the system proxy. |
 | `NodePath`         | empty           | Explicit `node.exe`; empty enables auto-detection.                                      |
 | `Language`         | `auto`          | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                           |
 | `AutostartAdmin`   | `0`             | Admin rights for start at login (menu-managed).                                         |
 
-Pi is not a required dependency of Pi Web. When `InstallPi=1`, Pi is installed or updated together with Pi Web; when `0`, an existing Pi installation is left alone.
-
-Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker.
+Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker. Relative `WorkingDir` and `NodePath` values are resolved against the executable directory.
 
 When the Pi Web Tray installation directory, any folder in its path, or any file the elevated process loads can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation, the Fix action reports that the program must be moved to a protected location such as Program Files; a user-writable parent cannot be repaired safely. If the administrator preference is unavailable and the user enables start-at-login from the main menu, Pi Web Tray clears that preference and uses standard-user start-at-login instead.
 
@@ -143,7 +122,7 @@ The data directory is per user. Pi Web Tray redacts URL user info and token quer
 | `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable.                                                                                                        |
 | `PI_WEB_TRAY_NO_NODE`  | Test hook: simulate a missing Node.js installation.                                                                                                      |
 | `PI_WEB_TRAY_NO_PIWEB` | Test hook: simulate a missing Pi Web package.                                                                                                            |
-| `PI_WEB_TRAY_NO_PICLI` | Test hook: simulate a missing Pi CLI package.                                                                                                            |
+| `PI_WEB_TRAY_NO_PICLI` | Test hook: simulate a missing Pi package.                                                                                                                |
 
 Named instances also use separate start-at-login names so they cannot overwrite the default installation's entries. A Run value or scheduled task does not preserve the launching environment, so use start-at-login from the default instance.
 
@@ -168,6 +147,8 @@ Named instances also use separate start-at-login names so they cannot overwrite 
 
 Unknown arguments return exit code 2.
 
+`--install` stops a running service before npm runs and restarts it only when a tray is running. Without a tray the service remains stopped. If the tray is elevated, run `--install` from an elevated console as well.
+
 ## Build from source
 
 Requires Windows 10 or 11 with either Visual Studio 2022/2026 and the **.NET desktop development** workload, or the .NET SDK 8.0+ with the .NET Framework 4.8 targeting pack.
@@ -180,8 +161,8 @@ cd .\pi-web-tray
 
 ## Security and limitations
 
-- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry and no persistent network listener. A SOCKS5 update proxy opens a temporary loopback listener that only the current tray process may use.
-- Administrator mode requires the tray installation directory and every file the elevated process loads (executable, `.config`, satellite resources) to be protected. Manual elevation, elevated dependency installs, and elevated self-updates are refused when the installation directory is writable by standard users. This check does **not** protect user-writable configuration or user-installed Node/npm/Pi/Pi Web packages; admin mode still executes those with the elevated token. Do not enable it on a machine where the same account's non-elevated processes are untrusted.
+- Runs with the current user token (`asInvoker`); elevation only on request. No telemetry; the tray itself opens no persistent listener (Pi Web listens on loopback). A SOCKS5 update proxy opens a temporary loopback listener that only the current tray process may use.
+- Administrator mode requires the tray installation directory and every file the elevated process loads (executable, `.config`, satellite resources) to be protected. Manual elevation, elevated dependency installs, and elevated self-updates are refused when the installation directory is writable by standard users. An elevated start from a user-writable installation is refused before the ini and satellite resources are loaded. This check does **not** protect user-writable configuration or user-installed Node/npm and Pi packages; admin mode still executes those with the elevated token. Do not enable it on a machine where the same account's non-elevated processes are untrusted.
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. The verified archive is copied into a target snapshot, re-hashed against that published checksum, extracted there, and used for the file replacement; the user-writable staging tree is not trusted. The snapshot is protected when the installation directory is protected. Releases are unsigned, so SmartScreen may warn on first run; this checksum is not a substitute for code signing.
 - Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user. Standard-user over-the-shoulder UAC and manual elevation are refused. The eligibility check includes files the elevated tray loads, not only `pi-web-tray.exe`. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported. It is removed when autostart is next changed.
 - `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`. The tray menu always works. If the log-host child cannot be created, service output falls back to the unredacted, non-rotating `1>>` path described in [SECURITY.md](SECURITY.md); if the configured log path is a reparse point, service output is discarded instead of following it.
@@ -189,7 +170,7 @@ cd .\pi-web-tray
 
 ## Related projects
 
-Pi Web Tray only installs and launches [Pi Web](https://github.com/agegr/pi-web) and [Pi](https://github.com/earendil-works/pi). It does not bundle or modify them. Report their issues to their own repositories.
+Pi Web Tray installs and launches [Pi Web](https://github.com/agegr/pi-web); when `InstallPi=1`, it also installs or updates Pi. It does not bundle or modify either project; report their issues to their own repositories.
 
 ## Contributing
 

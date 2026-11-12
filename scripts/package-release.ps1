@@ -14,6 +14,16 @@ if (-not (Test-Path $exe)) { throw "Missing $exe. Run .\build.cmd first." }
 $version = (Get-Item $exe).VersionInfo.ProductVersion
 if ([string]::IsNullOrWhiteSpace($version)) { $version = "dev" }
 
+# Refuse to package a stale artifact after a version-only source bump.
+$projectText = Get-Content "src\PiWebTray.csproj" -Raw
+$projectVersion = [regex]::Match($projectText, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
+if ([string]::IsNullOrWhiteSpace($projectVersion)) {
+    throw "Could not read <Version> from src\PiWebTray.csproj."
+}
+if ($version -ne $projectVersion) {
+    throw "Artifact version '$version' does not match source version '$projectVersion'. Run .uild.cmd first."
+}
+
 foreach ($culture in @("zh-Hans", "zh-Hant")) {
     $resource = Join-Path $ArtifactDir "$culture\pi-web-tray.resources.dll"
     if (-not (Test-Path $resource)) { throw "Missing culture resource: $resource" }

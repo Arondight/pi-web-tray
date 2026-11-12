@@ -25,6 +25,23 @@ namespace PiWebTray
         [STAThread]
         private static int Main(string[] args)
         {
+            // This check must run before Config.Load/resource lookup. A user-writable
+            // installation can be replaced by a same-user process, including its
+            // satellite resource DLLs. Refuse an elevated start instead of loading
+            // untrusted code into the administrator token.
+            if (Elevation.IsElevated()
+                && Autostart.IsUserWritableInstall(Application.ExecutablePath))
+            {
+                const string unsafeElevated =
+                    "Pi Web Tray refuses to run as administrator from a directory that "
+                    + "standard users can modify. Move the program to a protected location "
+                    + "such as Program Files and try again.";
+                if (ConsoleHost.TryAttach()) ConsoleHost.WriteError(unsafeElevated);
+                else MessageBox.Show(unsafeElevated, AppName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+
             // The language must be known before any text appears: read ini / env first
             Config config = null;
 
@@ -108,7 +125,10 @@ namespace PiWebTray
                 return LogHost.Run(args);
             }
 
-            config = Config.Load(true);
+            // Read configuration for language/validation without creating files.
+            // Unknown arguments and an invalid --dry-run must not leave a default ini
+            // behind; only a valid interactive/CLI command materialises defaults.
+            config = Config.Load(false);
 
             string unknown = FindUnknownArgument(args);
             if (unknown != null)
@@ -123,6 +143,8 @@ namespace PiWebTray
                 ConsoleHost.WriteError(L.T("prog.dryRunOnly"));
                 return 2;
             }
+
+            config = Config.Load(true);
 
             if (Has(args, "--make-ico"))
             {
@@ -760,11 +782,26 @@ namespace PiWebTray
         {
             stopped = false;
             int port = EffectivePort(config);
+            bool trayRunning = TrayRunning();
+
+            // Always tell a running tray to stop, even when the port is currently
+            // closed. The tray may be Starting, or may have an AutoRestart timer
+            // armed; either could otherwise bring the service back while npm runs.
+            // RunInstall already holds UpdateName, which StartServer now honours.
+            if (!dryRun && trayRunning)
+            {
+                if (!SendSignal(Instance.StopSignalName))
+                {
+                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
+                    return false;
+                }
+            }
+
             if (!Net.IsPortOpen(port, 300))
             {
                 // A tray may have closed the port for a prior stop while its
                 // `pi-web stop` child is still releasing the package directory.
-                if (!dryRun && TrayRunning() && !WaitForStopWorker(25000))
+                if (!dryRun && trayRunning && !WaitForStopWorker(25000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -791,15 +828,10 @@ namespace PiWebTray
             if (dryRun) return true;
 
             ConsoleHost.WriteLine(L.T("install.stopFirst"));
-            if (TrayRunning())
+            if (trayRunning)
             {
-                // Ask the running tray: it owns the process tree, and its explicit stop
-                // path keeps the service down (auto-restart only covers unexpected stops).
-                if (!SendSignal(Instance.StopSignalName))
-                {
-                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
-                    return false;
-                }
+                // The stop signal was sent above. The tray owns the process tree and
+                // keeps the service down (auto-restart only covers unexpected stops).
                 if (!Net.WaitPortClosed(port, 30000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
@@ -889,10 +921,7 @@ namespace PiWebTray
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
             while (DateTime.Now < deadline)
             {
-                using (OperationLock stopLock = OperationLock.TryAcquireCrossThread(OperationLock.StopName))
-                {
-                    if (stopLock != null) return true;
-                }
+                if (OperationLock.IsAvailable(OperationLock.StopName)) return true;
                 Thread.Sleep(100);
             }
             return false;
@@ -959,22 +988,29 @@ namespace PiWebTray
                 sb.Append(probe.Summary());
             }
 
-            bool task = Autostart.QueryTask();
-            bool legacyTask = Autostart.QueryLegacyTask();
+            bool taskEnabled;
+            bool taskMatches;
+            bool legacyTaskEnabled;
+            bool legacyTaskMatches;
+            bool task = Autostart.QueryTaskState(out taskEnabled, out taskMatches);
+            bool legacyTask = Autostart.QueryLegacyTaskState(
+                out legacyTaskEnabled, out legacyTaskMatches);
             bool run = Autostart.RunValueExists();
+            bool taskStartsAtLogin = (task && taskEnabled && taskMatches)
+                || (legacyTask && legacyTaskEnabled && legacyTaskMatches);
             sb.AppendLine();
             sb.AppendLine(L.T("diag.autostartSection"));
             sb.AppendLine(L.T("diag.task") + " : " + (task ? L.T("diag.exists") : L.T("diag.absent")));
             sb.AppendLine(L.T("diag.legacyTask") + " : " + (legacyTask ? L.T("diag.exists") : L.T("diag.absent")));
             sb.AppendLine(L.T("diag.runKey") + " : " + (run ? L.T("diag.exists") : L.T("diag.absent")));
-            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(task || legacyTask, run)));
+            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(taskStartsAtLogin, run)));
             sb.AppendLine(L.T("diag.menuAdmin") + " : " + L.T("menu.adminAutostart", config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no")));
 
             string state = L.T("diag.none");
             try
             {
                 string statePath = TrayState.StatePath();
-                if (File.Exists(statePath))
+                if (File.Exists(statePath) && !PathSafety.ContainsReparsePoint(statePath))
                     state = File.ReadAllText(statePath).Replace("\r", "").Replace("\n", "  ");
             }
             catch (Exception)

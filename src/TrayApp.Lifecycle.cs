@@ -184,6 +184,12 @@ namespace PiWebTray
             // directory or a port. Wait only on the final exit path.
             KillTrackedServer(true);
 
+            // The helper waits for this process to exit and, when a gate is present,
+            // for this explicit confirmation. Signal it only after all exit guards
+            // and the service stop have succeeded. A blocked ExitApp never reaches
+            // this point, so a later normal exit cannot apply the cancelled update.
+            if (_exitForUpdateApply) SignalUpdateHelperGate();
+
             TrayState.Delete();
             Cleanup();
             ExitThread();
@@ -264,6 +270,7 @@ namespace PiWebTray
             _currentNotification = null;
             CloseInstallForm();
             CloseUpdateForm();
+            ReleaseUpdateHelperGate();
             ReleaseInstallUpdateLock();
             ReleaseStopWorkerLock();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }

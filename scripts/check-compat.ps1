@@ -1,6 +1,7 @@
 # Verify that the build still targets .NET Framework 4.8 and produces an x64
-# IL-only executable for Windows 7 SP1 through Windows 11.
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1
+# IL-only executable for Windows 7 to 11.
+# Usage: pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1
+# PowerShell 7+ is required for the PE/CLR header check.
 param(
     [string]$ArtifactDir = "artifacts",
     [string]$ProjectPath = "src/PiWebTray.csproj",
@@ -45,7 +46,6 @@ Assert-Compatibility ($prefer32Bit -eq "false") `
 $manifest = Get-Content $ManifestPath -Raw
 $supportedOs = @{
     "Windows 7"     = "35138b9a-5d96-4fbd-8e2d-a2440225f93a"
-    "Windows 8"     = "4a2f28e3-53b9-4441-ba9c-d69d4a4a6e38"
     "Windows 8.1"   = "1f676c76-80e1-4239-95bb-83d0f6d0da78"
     "Windows 10/11" = "8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a"
 }
@@ -108,11 +108,11 @@ if ($PSVersionTable.PSEdition -eq "Core") {
     }
 }
 else {
-    Write-Host "[i] PE header check skipped: PowerShell 7 or later is required."
+    throw "PowerShell 7 or later is required to verify the PE/CLR header. Run this script with pwsh."
 }
 
 Write-Host "[ok] target framework net48"
 Write-Host "[ok] x64 IL-only executable"
-Write-Host "[ok] Windows 7 through Windows 11 manifest"
+Write-Host "[ok] Windows 7 to 11 manifest"
 Write-Host "[ok] .NET Framework 4.8 runtime configuration"
 Write-Host "[ok] zh-Hans and zh-Hant satellite resources"

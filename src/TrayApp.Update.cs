@@ -8,6 +8,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -328,8 +329,62 @@ namespace PiWebTray
             BeginUpdateApply(release, staging);
         }
 
+        private void ReleaseUpdateHelperGate()
+        {
+            string path = _updateHelperGatePath;
+            bool signaled = _updateHelperGateSignaled;
+            _updateHelperGatePath = null;
+            _updateHelperGateSignaled = false;
+            if (string.IsNullOrEmpty(path) || signaled) return;
+            try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+        }
+
+        private bool SignalUpdateHelperGate()
+        {
+            string path = _updateHelperGatePath;
+            if (string.IsNullOrEmpty(path)) return false;
+            try
+            {
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                if (PathSafety.ContainsReparsePoint(path)) return false;
+                // The file is created only after every ExitApp guard has passed.
+                // It persists even if this process exits before the helper opens it.
+                File.WriteAllText(path, "confirmed", new UTF8Encoding(false));
+                _updateHelperGateSignaled = true;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "could not confirm update gate: " + ex.Message);
+                return false;
+            }
+        }
+
         private void BeginUpdateApply(ReleaseInfo release, string staging)
         {
+            ReleaseUpdateHelperGate();
+            string gatePath = "";
+            try
+            {
+                string work = Path.GetDirectoryName(staging);
+                if (!string.IsNullOrEmpty(work))
+                    gatePath = Path.Combine(work, "gate-" + Guid.NewGuid().ToString("N"));
+            }
+            catch (Exception)
+            {
+            }
+            if (string.IsNullOrEmpty(gatePath))
+            {
+                Updater.AppendLog(_config.UpdateLogFile, "could not prepare update gate");
+                EndUpdate();
+                ShowUpdateError(L.T("update.error.notConfirmed"),
+                    L.T("update.applyFailedBody", L.T("update.error.unsafePath"),
+                        _config.UpdateLogFile));
+                return;
+            }
+            _updateHelperGatePath = gatePath;
+
             int generation;
             lock (_updateLock)
             {
@@ -349,7 +404,6 @@ namespace PiWebTray
             bool elevated = _elevated;
             bool stoppedByUser = _serviceStoppedByUser;
             bool startedRunning = _updateStartedWithServiceRunning;
-            bool autoRestart = _config.AutoRestart;
             Thread worker = new Thread(delegate ()
             {
                 // The apply mode depends on the port owner, and probing it (netstat child
@@ -363,7 +417,7 @@ namespace PiWebTray
                     PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                     bool listenerIsOurs = IsOurPiWeb(owner) || TrayOwnsPort(owner);
                     bool serviceSilent = (!stoppedByUser && listenerIsOurs)
-                        || ShouldRestartServiceAfterUpdate(startedRunning, autoRestart,
+                        || ShouldRestartServiceAfterUpdate(startedRunning,
                             stoppedByUser, _restartAfterUpdate);
                     ApplyStartMode mode = serviceSilent
                         ? ApplyStartMode.ServiceSilent
@@ -379,7 +433,7 @@ namespace PiWebTray
                         ? ""
                         : Path.Combine(work, release.ZipName);
                     ok = Updater.StartHelper(_config, staging, zipPath, release.ZipChecksum,
-                        mode, elevated, waitForService, out error);
+                        mode, elevated, waitForService, gatePath, out error);
                 }
                 catch (Exception ex)
                 {
@@ -454,6 +508,7 @@ namespace PiWebTray
         private void EndUpdate()
         {
             UpdateCancellation cancellation;
+            ReleaseUpdateHelperGate();
             CloseUpdateForm();
             lock (_updateLock)
             {
@@ -473,8 +528,8 @@ namespace PiWebTray
             UpdateUi();
 
             bool restartAfterUpdate = ShouldRestartServiceAfterUpdate(
-                _updateStartedWithServiceRunning, _config.AutoRestart,
-                _serviceStoppedByUser, _restartAfterUpdate);
+                _updateStartedWithServiceRunning, _serviceStoppedByUser,
+                _restartAfterUpdate);
             _restartAfterUpdate = false;
             _updateStartedWithServiceRunning = false;
             if (restartAfterUpdate && _config.AutoRestart

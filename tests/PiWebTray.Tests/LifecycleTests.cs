@@ -133,9 +133,11 @@ namespace PiWebTray
 
                 string zipHash = Updater.ComputeSha256(zipPath);
                 string stagingHash = Updater.ComputeStagingHash(staging);
+                string gatePath = Path.Combine(work, "gate-test");
+                File.WriteAllText(gatePath, "confirmed", new UTF8Encoding(false));
                 string arguments = Updater.BuildApplyArguments(staging, target, 0,
                     ApplyStartMode.TrayOnly, false, log, "en", dataDir, stagingHash, 0,
-                    zipPath, zipHash);
+                    zipPath, zipHash, gatePath);
 
                 helper = StartIsolated(Path.Combine(target, "pi-web-tray.exe"), arguments,
                     home, instance, port);
@@ -201,6 +203,7 @@ namespace PiWebTray
             int port = FreePort();
             Process helper = null;
             Process updatedTray = null;
+            string gatePath = null;
             int updatedPid = 0;
 
             try
@@ -213,8 +216,10 @@ namespace PiWebTray
                     new UTF8Encoding(false));
 
                 string hash = Updater.ComputeStagingHash(staging);
+                gatePath = Path.Combine(Path.GetDirectoryName(staging), "gate-test");
+                File.WriteAllText(gatePath, "confirmed", new UTF8Encoding(false));
                 string arguments = Updater.BuildApplyArguments(staging, target, 0,
-                    ApplyStartMode.TrayOnly, false, log, "en", dataDir, hash, 0);
+                    ApplyStartMode.TrayOnly, false, log, "en", dataDir, hash, 0, "", "", gatePath);
 
                 helper = StartIsolated(Path.Combine(target, "pi-web-tray.exe"), arguments,
                     home, instance, port);
@@ -256,6 +261,10 @@ namespace PiWebTray
                 {
                     try { if (!helper.HasExited) helper.Kill(); } catch (Exception) { }
                     try { helper.Dispose(); } catch (Exception) { }
+                }
+                if (gatePath != null)
+                {
+                    try { if (File.Exists(gatePath)) File.Delete(gatePath); } catch (Exception) { }
                 }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }

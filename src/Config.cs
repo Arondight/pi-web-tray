@@ -24,7 +24,7 @@ namespace PiWebTray
         internal bool PortFromEnvironment;
         internal bool AutostartAdmin;
         internal bool AutoInstall = true;
-        // Pi Web runs without the separately installed Pi CLI. When this is off,
+        // Pi Web runs without the separately installed Pi. When this is off,
         // the tray neither installs nor updates Pi, and a missing Pi is optional.
         internal bool InstallPi = true;
         internal bool AutoRestart;
@@ -34,9 +34,14 @@ namespace PiWebTray
         internal string NpmRegistry = "";
         internal string Proxy = "";
         internal string WorkingDir;
-        // Raw ini value (before %ENV% expansion). Settings writes this back so the
-        // default %USERPROFILE% template is not silently replaced by a literal path.
+        // Raw ini values (before %ENV% expansion). Settings writes these back so a
+        // deliberate template is not silently replaced by the expanded value.
         internal string ConfiguredWorkingDir = "";
+        internal string ConfiguredNodePath = "";
+        internal string ConfiguredInstallTag = "";
+        internal string ConfiguredNpmRegistry = "";
+        internal string ConfiguredProxy = "";
+        internal string ConfiguredLanguage = "";
         internal string NodePath;
         // Diagnostics for the tray notification: a configured path that was invalid
         // must not disappear silently.
@@ -145,12 +150,16 @@ namespace PiWebTray
                             case "workingdir":
                                 if (value.Length > 0)
                                 {
-                                    config.WorkingDir = value;
+                                    config.WorkingDir = ResolvePath(config.BaseDir, value);
                                     config.ConfiguredWorkingDir = rawValue;
                                 }
                                 break;
                             case "nodepath":
-                                if (value.Length > 0) config.NodePath = value;
+                                if (value.Length > 0)
+                                {
+                                    config.NodePath = ResolvePath(config.BaseDir, value);
+                                    config.ConfiguredNodePath = rawValue;
+                                }
                                 break;
                             case "autoinstall":
                                 config.AutoInstall = IsTruthy(value, true);
@@ -165,16 +174,32 @@ namespace PiWebTray
                                 config.AutoCheckUpdates = IsTruthy(value, false);
                                 break;
                             case "installtag":
-                                if (value.Length > 0) config.InstallTag = value;
+                                if (value.Length > 0)
+                                {
+                                    config.InstallTag = value;
+                                    config.ConfiguredInstallTag = rawValue;
+                                }
                                 break;
                             case "npmregistry":
-                                if (value.Length > 0) config.NpmRegistry = value;
+                                if (value.Length > 0)
+                                {
+                                    config.NpmRegistry = value;
+                                    config.ConfiguredNpmRegistry = rawValue;
+                                }
                                 break;
                             case "proxy":
-                                if (value.Length > 0) config.Proxy = value;
+                                if (value.Length > 0)
+                                {
+                                    config.Proxy = value;
+                                    config.ConfiguredProxy = rawValue;
+                                }
                                 break;
                             case "language":
-                                if (value.Length > 0) config.Language = value;
+                                if (value.Length > 0)
+                                {
+                                    config.Language = value;
+                                    config.ConfiguredLanguage = rawValue;
+                                }
                                 break;
                             case "autostartadmin":
                                 config.AutostartAdmin = IsTruthy(value, false);
@@ -200,6 +225,20 @@ namespace PiWebTray
                 config.WorkingDir = Shell.Home();
             }
 
+            // Manual Config objects (tests/extensions) and old callers may set only
+            // the effective fields. Fill the raw display slots with those defaults
+            // without overwriting a real ini value.
+            if (string.IsNullOrEmpty(config.ConfiguredNodePath))
+                config.ConfiguredNodePath = config.NodePath ?? "";
+            if (string.IsNullOrEmpty(config.ConfiguredInstallTag))
+                config.ConfiguredInstallTag = config.InstallTag ?? "latest";
+            if (string.IsNullOrEmpty(config.ConfiguredNpmRegistry))
+                config.ConfiguredNpmRegistry = config.NpmRegistry ?? "";
+            if (string.IsNullOrEmpty(config.ConfiguredProxy))
+                config.ConfiguredProxy = config.Proxy ?? "";
+            if (string.IsNullOrEmpty(config.ConfiguredLanguage))
+                config.ConfiguredLanguage = config.Language ?? L.Auto;
+
             config.ConfiguredPort = config.Port;
 
             // The port can be overridden by an env var, so test instances need no ini change.
@@ -213,6 +252,26 @@ namespace PiWebTray
             }
 
             return config;
+        }
+
+        // Relative config paths are resolved against the executable directory, not
+        // the shell's current directory. The service later starts with WorkingDir,
+        // so letting these two use different roots could execute a different file.
+        internal static string ResolvePath(string baseDir, string value)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(value)) return value;
+                if (Path.IsPathRooted(value)) return Path.GetFullPath(value);
+                string root = string.IsNullOrEmpty(baseDir) ? null : baseDir;
+                return string.IsNullOrEmpty(root)
+                    ? Path.GetFullPath(value)
+                    : Path.GetFullPath(Path.Combine(root, value));
+            }
+            catch (Exception)
+            {
+                return value;
+            }
         }
 
         internal static bool IsEnabled(string value)

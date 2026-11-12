@@ -1,6 +1,6 @@
 // Pi Web Tray — notifications
 //
-// Tray balloons (supported on Windows 7/8/10/11). They never steal focus and do not depend on
+// Tray balloons (supported on Windows 7/8.1/10/11). They never steal focus and do not depend on
 // Windows 10 toast packaging, which suits background events like "install started/finished/ready".
 //
 // NotifyIcon limits: title <= 63 chars, body <= 255 chars; longer values throw.

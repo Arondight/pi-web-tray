@@ -5,8 +5,8 @@
 //   2. Run it streaming in the background: log to install.log, publish the last line/step to the tray
 //   3. Re-probe afterwards; only a verified install counts as success
 //
-// pi-web and the pi CLI need different script policies: pi-web's postinstall and node-pty's build
-// scripts are required, while the pi CLI is installed with --ignore-scripts as its own docs recommend.
+// pi-web and pi need different script policies: pi-web's postinstall and node-pty's build
+// scripts are required, while pi is installed with --ignore-scripts as its own docs recommend.
 // npm 12 blocks dependency scripts by default, so the pi-web step opts in with a one-off
 // --allow-scripts allowlist. We never write the user's global npm config.
 
@@ -134,10 +134,10 @@ namespace PiWebTray
             return trimmed;
         }
 
-        // Pi Web and the Pi CLI are independent packages with independent versions.
+        // Pi Web and Pi are independent packages with independent versions.
         // A single exact version/range cannot be valid for both, so only simple dist
-        // tags (latest, next, beta, ...) are reused for the CLI. An exact Pi Web pin
-        // keeps the CLI on latest instead of failing the whole update.
+        // tags (latest, next, beta, ...) are reused for Pi. An exact Pi Web pin
+        // keeps Pi on latest instead of failing the whole update.
         internal static string PiCliTag(Config config)
         {
             string tag = SafeTag(config == null ? "latest" : config.InstallTag);
@@ -178,10 +178,10 @@ namespace PiWebTray
             return packages;
         }
 
-        // pi-web and the pi CLI must be installed separately: pi-web needs its lifecycle scripts,
-        // while the pi CLI is documented to be installed with --ignore-scripts. Combining them in
+        // pi-web and pi must be installed separately: pi-web needs its lifecycle scripts,
+        // while pi is documented to be installed with --ignore-scripts. Combining them in
         // one npm command cannot express that difference. Installing Pi is optional: Pi Web runs
-        // without it, so InstallPi=0 skips the CLI step entirely.
+        // without it, so InstallPi=0 skips the Pi step entirely.
         internal static List<InstallStep> StepsToInstall(ProbeResult probe, Config config, bool force)
         {
             List<InstallStep> steps = new List<InstallStep>();
@@ -196,9 +196,9 @@ namespace PiWebTray
                 steps.Add(web);
             }
 
-            // When pi-web is being installed, also update the pi CLI even if an older
+            // When pi-web is being installed, also update pi even if an older
             // version is already present. First-run auto-install must not leave pi stale.
-            // Exact Pi Web versions/ranges are not applied to the independent CLI package.
+            // Exact Pi Web versions/ranges are not applied to the independent Pi package.
             if (config.InstallPi && (force || !probe.PiWebFound || !probe.PiCliFound))
             {
                 InstallStep cli = new InstallStep();
@@ -434,7 +434,16 @@ namespace PiWebTray
                 {
                     string npmPrefix = probe.NpmPrefix;
                     if (!string.IsNullOrEmpty(npmPrefix) && Directory.Exists(npmPrefix))
-                        env["PATH"] = nodeDir + ";" + npmPrefix + ";" + (Environment.GetEnvironmentVariable("PATH") ?? "");
+                    {
+                        string prefix = ProcessRunner.PathPrefix(npmPrefix);
+                        if (prefix.Length > 0)
+                        {
+                            string current = env.ContainsKey("PATH")
+                                ? env["PATH"]
+                                : (Environment.GetEnvironmentVariable("PATH") ?? "");
+                            env["PATH"] = prefix + ";" + current;
+                        }
+                    }
                 }
                 catch (Exception)
                 {
@@ -594,19 +603,24 @@ namespace PiWebTray
             if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase))
                 text = text.Substring(1);
             if (text.Length == 0) return false;
-            bool dot = false;
+
+            // npm treats one- or two-component versions ("1" / "1.2") as ranges,
+            // so only a full major.minor.patch triple can be verified exactly.
+            int parts = 0;
             bool digit = false;
             foreach (char c in text)
             {
                 if (c == '.')
                 {
-                    dot = true;
+                    if (!digit) return false;
+                    parts++;
+                    digit = false;
                     continue;
                 }
                 if (c < '0' || c > '9') return false;
                 digit = true;
             }
-            return dot && digit;
+            return digit && parts == 2;
         }
 
         internal static bool VersionMatchesTag(string installed, string tag)
@@ -621,7 +635,7 @@ namespace PiWebTray
             return VersionUtil.Compare(installed, tag) == 0;
         }
 
-        // True when this step only installs the pi CLI. A failure there usually means a
+        // True when this step only installs pi. A failure there usually means a
         // running pi process still holds the package files.
         internal static bool IsPiCliStep(InstallStep step, Config config)
         {

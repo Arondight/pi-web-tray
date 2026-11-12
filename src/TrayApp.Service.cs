@@ -269,6 +269,41 @@ namespace PiWebTray
             catch (Exception) { return true; }
         }
 
+        // The CLI install path holds UpdateName for the whole stop/npm sequence.
+        // Starting a service then would make npm race the package directory and
+        // could also resurrect a service the CLI deliberately stopped.
+        private bool ExternalUpdateBusy()
+        {
+            // This tray's own install holds the same lock on the UI thread. Do not
+            // start a service while npm is still rewriting the global package tree.
+            if (_installUpdateLock != null) return true;
+            try
+            {
+                using (OperationLock probe = OperationLock.TryAcquire(
+                    OperationLock.UpdateName(_config.BaseDir)))
+                {
+                    return probe == null;
+                }
+            }
+            catch (Exception)
+            {
+                // An inaccessible lock is busy, not permission to start a competing process.
+                return true;
+            }
+        }
+
+        private bool RefuseStartForExternalUpdate()
+        {
+            if (!ExternalUpdateBusy()) return false;
+            _openWhenReady = false;
+            _pendingRestart = false;
+            _pendingOpenBrowser = false;
+            NotifyWarningOnce("external-update", L.T("notify.installBusyTitle"),
+                L.T("install.busyBody"));
+            UpdateUi();
+            return true;
+        }
+
         // Drop requests that belong to an older user action. Stop-for-install preserves
         // the queued install continuation; every other explicit action owns the state now.
         private void ClearPendingOwnerActions(bool keepInstall)
@@ -744,7 +779,7 @@ namespace PiWebTray
                 delegate { ShowSettings(); });
         }
 
-        // A probe can report missing Pi CLI (or even missing Node.js) while the
+        // A probe can report missing Pi (or even missing Node.js) while the
         // already loaded service keeps listening. Do not downgrade a live service
         // to NeedsDeps/NeedsNode: that would disable Stop and turn Open into an
         // install action. Keep Running and let the owner check decide whether the
@@ -791,7 +826,7 @@ namespace PiWebTray
             else
             {
                 _nodePresenceNotified = false;
-                // Keep this in sync with ApplyCheckResult: a missing Pi CLI is an
+                // Keep this in sync with ApplyCheckResult: a missing Pi is an
                 // environment problem too, not only a missing Pi Web package.
                 if (result.NeedsPiWeb || result.NeedsPiCli) _phase = Phase.NeedsDeps;
                 else RequestResolveServicePhase();
@@ -908,6 +943,7 @@ namespace PiWebTray
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
             if (_updateStage == UpdateStage.Applying) return;
+            if (RefuseStartForExternalUpdate()) return;
             if (ElevatedInstallUnsafe())
             {
                 NotifyWarningOnce("elevated-writable-install",
@@ -1010,6 +1046,8 @@ namespace PiWebTray
         {
             // The phase may have changed while the owner check ran
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+            // An install can acquire the lock while the owner probe is in flight.
+            if (RefuseStartForExternalUpdate()) return;
             // Re-check at the last moment: the installation ACL can change while the
             // background owner probe is running.
             if (ElevatedInstallUnsafe())
@@ -1205,13 +1243,17 @@ namespace PiWebTray
             string path = Environment.GetEnvironmentVariable("PATH") ?? "";
             string nodeDir = "";
             try { nodeDir = Path.GetDirectoryName(node); } catch (Exception) { }
-            if (!string.IsNullOrEmpty(nodeDir) && Directory.Exists(nodeDir))
-                path = nodeDir.TrimEnd('\\') + ";" + path;
+            string nodePrefix = ProcessRunner.PathPrefix(nodeDir);
+            if (nodePrefix.Length > 0)
+                path = nodePrefix + ";" + path;
 
             // npm's global prefix also contains npm-installed command shims.
             if (_probe != null && !string.IsNullOrEmpty(_probe.NpmPrefix)
                 && Directory.Exists(_probe.NpmPrefix))
-                path = _probe.NpmPrefix.TrimEnd('\\') + ";" + path;
+            {
+                string npmPrefix = ProcessRunner.PathPrefix(_probe.NpmPrefix);
+                if (npmPrefix.Length > 0) path = npmPrefix + ";" + path;
+            }
             return path;
         }
 
@@ -1452,7 +1494,7 @@ namespace PiWebTray
         // when AutoRestart is off; AutoRestart only governs crash recovery, not the
         // deliberate stop performed by the updater itself.
         internal static bool ShouldRestartServiceAfterUpdate(bool startedWithServiceRunning,
-            bool autoRestart, bool stoppedByUser, bool restartAfterUpdate)
+            bool stoppedByUser, bool restartAfterUpdate)
         {
             if (stoppedByUser) return false;
             return restartAfterUpdate || startedWithServiceRunning;

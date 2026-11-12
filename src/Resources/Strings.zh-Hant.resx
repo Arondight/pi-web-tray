@@ -91,10 +91,10 @@
     <value>下載 Node.js</value>
   </data>
   <data name="node.communityTitle" xml:space="preserve">
-    <value>Windows 7/8 的 Node.js</value>
+    <value>Windows 7 的 Node.js</value>
   </data>
   <data name="node.communityBody" xml:space="preserve">
-    <value>Windows 7 和 Windows 8 沒有官方的 Node.js 22 建置。下載頁面將開啟一個未簽章的社群建置，本專案無法驗證其安全性。
+    <value>Windows 7 沒有官方的 Node.js 22 建置。下載頁面將開啟一個未簽章的社群建置，本專案無法驗證其安全性。
 是否開啟下載頁面？</value>
   </data>
   <data name="node.download" xml:space="preserve">
@@ -119,7 +119,7 @@
 托盤將保持執行，安裝 Node.js 後重試。</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
-    <value>Windows 7/8 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
+    <value>Windows 7 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>環境檢查</value>
@@ -293,7 +293,7 @@
     <value>npm 報告成功，但未找到 Pi。請檢查全域 npm 目錄。記錄檔：{0}</value>
   </data>
   <data name="install.piLockedBody" xml:space="preserve">
-    <value>無法更新 Pi。如果 Pi 正在執行，請先結束，然後重試「更新服務」。詳見 {0}。</value>
+    <value>無法更新 Pi。如果它正在執行，請先結束，然後重試「更新服務」。詳見 {0}。</value>
   </data>
   <data name="install.failedBody" xml:space="preserve">
     <value>安裝失敗（npm 結束代碼 {0}）。記錄檔：{1}</value>
@@ -710,13 +710,13 @@
     <value>; Pi Web 連接埠，預設 30141</value>
   </data>
   <data name="ini.workdirC" xml:space="preserve">
-    <value>; 服務工作目錄（Pi 的預設專案目錄）</value>
+    <value>; 服務工作目錄（安裝 Pi 時也是其預設專案目錄）</value>
   </data>
   <data name="ini.autoInstallC" xml:space="preserve">
     <value>; 啟動時自動安裝缺少的相依套件（首次約需 10~20 分鐘）</value>
   </data>
   <data name="ini.installPiC" xml:space="preserve">
-    <value>; 隨 Pi Web 一併安裝 Pi（1 = 啟用，0 = 停用）；Pi 不是必需依賴</value>
+    <value>; 可選：隨 Pi Web 一併安裝 Pi（1 = 啟用，0 = 停用）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
     <value>; 安裝的 npm 版本標籤，可改成具體版本號</value>
@@ -898,6 +898,9 @@
   <data name="update.error.parentTimeout" xml:space="preserve">
     <value>目前程序未及時結束，更新未套用。</value>
   </data>
+  <data name="update.error.notConfirmed" xml:space="preserve">
+    <value>托盤未確認可以結束，更新未套用。</value>
+  </data>
   <data name="update.error.exitBlocked" xml:space="preserve">
     <value>更新程式正在等待，但托盤無法結束。請關閉目前對話方塊後重試。</value>
   </data>
@@ -932,7 +935,7 @@
     <value>關於</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>基於 Pi 和 Pi Web 的 Windows 7 至 11 通用 Harness 解決方案。</value>
+    <value>基於 Pi Web 的 Windows 7 至 11 Harness 解決方案。</value>
   </data>
   <data name="about.itemVersion" xml:space="preserve">
     <value>版本</value>

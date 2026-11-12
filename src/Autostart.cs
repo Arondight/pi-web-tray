@@ -872,6 +872,10 @@ namespace PiWebTray
             string principal = CurrentUserPrincipal();
             if (string.IsNullOrEmpty(principal)) return false;
 
+            // A stale task with the same name must not make a failed /create look
+            // successful merely because QueryTask() still finds it.
+            bool existedBefore = QueryTask();
+
             // schtasks /create /sc onlogon creates an "any user" trigger and leaves
             // the default battery policy in place (do not start on batteries, stop
             // when switching to batteries). Build a user-scoped XML definition
@@ -915,12 +919,28 @@ namespace PiWebTray
                     + " /xml " + Shell.Quote(xmlPath);
                 if (!Launch(elevated, args)) return false;
 
+                int verificationAttempts = 0;
                 for (int i = 0; i < 40; i++)
                 {
                     Thread.Sleep(250);
-                    if (QueryTask()) return true;
+                    if (!QueryTask()) continue;
+
+                    bool enabled;
+                    bool matchesExecutable;
+                    if (QueryTaskState(TaskName, out enabled, out matchesExecutable)
+                        && enabled && matchesExecutable)
+                    {
+                        return true;
+                    }
+
+                    // If no task existed before, observing one now is enough when
+                    // XML parsing is unavailable (for example on an unusual Windows
+                    // installation). A pre-existing task is never accepted on
+                    // existence alone.
+                    if (!existedBefore) return true;
+                    if (++verificationAttempts >= 4) return false;
                 }
-                return QueryTask();
+                return false;
             }
             catch (Exception)
             {

@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using System.Threading;
 
@@ -184,13 +185,35 @@ namespace PiWebTray
             return false;
         }
 
-        // Prepend a directory to PATH so npm's child processes find node
+        // Prepend a directory to PATH so npm's child processes find node. Never put
+        // an empty or relative entry in PATH: Windows treats an empty entry as the
+        // current directory and a relative entry may resolve differently in the
+        // service's WorkingDir.
+        internal static string PathPrefix(string directory)
+        {
+            if (string.IsNullOrEmpty(directory)) return "";
+            try
+            {
+                string full = Path.GetFullPath(directory);
+                if (!Path.IsPathRooted(full)) return "";
+                string prefix = full.TrimEnd('\\', '/');
+                if (prefix.Length == 0) return full;
+                if (prefix.Length == 2 && prefix[1] == ':') prefix += "\\";
+                return prefix;
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
         internal static IDictionary<string, string> WithPathPrefix(string directory)
         {
             Dictionary<string, string> env = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            string prefix = PathPrefix(directory);
+            if (prefix.Length == 0) return env;
             string current = Environment.GetEnvironmentVariable("PATH") ?? "";
-            if (string.IsNullOrEmpty(directory)) return env;
-            env["PATH"] = directory.TrimEnd('\\') + ";" + current;
+            env["PATH"] = prefix + ";" + current;
             return env;
         }
     }

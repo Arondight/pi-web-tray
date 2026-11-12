@@ -185,7 +185,20 @@ namespace PiWebTray
                 {
                     try
                     {
-                        if (Directory.GetLastWriteTimeUtc(directory) >= cutoff) continue;
+                        // A slow download keeps the directory timestamp unchanged
+                        // while the zip grows. Include file timestamps so a session
+                        // that is still receiving data is not deleted as stale.
+                        DateTime lastWrite = Directory.GetLastWriteTimeUtc(directory);
+                        foreach (string file in Directory.GetFiles(directory))
+                        {
+                            try
+                            {
+                                DateTime fileWrite = File.GetLastWriteTimeUtc(file);
+                                if (fileWrite > lastWrite) lastWrite = fileWrite;
+                            }
+                            catch (Exception) { }
+                        }
+                        if (lastWrite >= cutoff) continue;
                         if (PathSafety.ContainsReparsePoint(directory)) continue;
                         Directory.Delete(directory, true);
                     }

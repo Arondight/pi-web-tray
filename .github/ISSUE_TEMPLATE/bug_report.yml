@@ -44,8 +44,8 @@ body:
   - type: input
     id: node
     attributes:
-      label: Node.js / npm / pi-web versions
-      description: Output of `node --version`, `npm --version`, and the pi-web version
+      label: Node.js / npm / Pi Web versions
+      description: Output of `node --version`, `npm --version`, and the installed Pi Web version
       placeholder: "v22.19.0 / 10.x / 0.x"
     validations:
       required: false

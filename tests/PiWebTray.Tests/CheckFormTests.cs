@@ -109,7 +109,7 @@ namespace PiWebTray
                     if (label.Tag is string && !string.IsNullOrEmpty((string)label.Tag))
                         links.Add(label);
                 }
-                Assert.AreEqual(2, links.Count, "About should link Pi and Pi Web in the description.");
+                Assert.AreEqual(1, links.Count, "About should link Pi Web in the description.");
 
                 List<string> urls = new List<string>();
                 foreach (Label link in links)
@@ -122,8 +122,6 @@ namespace PiWebTray
                 }
                 Assert.IsTrue(urls.Contains("https://github.com/agegr/pi-web"),
                     "The description should link Pi Web.");
-                Assert.IsTrue(urls.Contains("https://github.com/earendil-works/pi"),
-                    "The description should link Pi.");
                 List<DataGridView> tables = FindControls<DataGridView>(form);
                 Assert.AreEqual(1, tables.Count, "About should contain the information table.");
                 Assert.AreEqual(5, tables[0].Rows.Count, "About table should have five rows.");
@@ -222,6 +220,26 @@ namespace PiWebTray
                 Assert.IsTrue(save, "Settings must expose Save.");
                 Assert.IsTrue(cancel, "Settings must expose Cancel.");
                 Assert.IsTrue(saveAndRestart, "Settings must expose the save-and-restart action.");
+            }
+        }
+
+        [TestMethod]
+        public void SettingsFormDisablesShellBrowsersWhenElevated()
+        {
+            Config config = new Config();
+            config.Port = 30141;
+            config.WorkingDir = Path.GetTempPath();
+            config.Language = L.Auto;
+            config.InstallTag = "latest";
+
+            using (SettingsForm form = new SettingsForm(config, true, true))
+            {
+                List<Button> browse = FindControls<Button>(form).FindAll(
+                    delegate (Button button) { return button.Text == L.T("settings.browse"); });
+                Assert.AreEqual(2, browse.Count, "Settings should have two Browse buttons.");
+                foreach (Button button in browse)
+                    Assert.IsFalse(button.Enabled,
+                        "Elevated Settings must not open shell file pickers.");
             }
         }
 

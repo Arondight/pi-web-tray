@@ -8,6 +8,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Forms;
 
@@ -23,19 +24,46 @@ namespace PiWebTray
             {
                 string raw = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
                 if (string.IsNullOrEmpty(raw)) return "";
-                StringBuilder sb = new StringBuilder();
-                foreach (char c in raw.Trim())
-                {
-                    if (char.IsLetterOrDigit(c) || c == '-' || c == '_') sb.Append(c);
-                }
+
                 // Filesystem directories, HKCU Run values and Task Scheduler names
                 // are case-insensitive. Normalize so Dev/dev cannot share a data
                 // directory or autostart entry while getting separate mutex/signal
                 // objects.
-                string clean = sb.ToString().ToLowerInvariant();
-                if (clean.Length == 0) return "";
-                if (clean.Length > 32) clean = clean.Substring(0, 32);
+                string normalized = raw.Trim().ToLowerInvariant();
+                StringBuilder sb = new StringBuilder();
+                foreach (char c in normalized)
+                {
+                    if (char.IsLetterOrDigit(c) || c == '-' || c == '_') sb.Append(c);
+                }
+                string clean = sb.ToString();
+                bool changed = !string.Equals(clean, normalized, StringComparison.Ordinal);
+                if (clean.Length > 32)
+                {
+                    clean = clean.Substring(0, 32);
+                    changed = true;
+                }
+                if (clean.Length == 0)
+                {
+                    clean = "i";
+                    changed = true;
+                }
+                // If sanitising or truncating lost information, append a short hash
+                // of the original name. Without it "a b" and "ab" would silently
+                // become the same instance and could stop each other's service.
+                if (changed) clean += "-" + ShortHash(normalized);
                 return "." + clean;
+            }
+        }
+
+        private static string ShortHash(string value)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? ""));
+                StringBuilder text = new StringBuilder(8);
+                for (int i = 0; i < 4 && i < hash.Length; i++)
+                    text.Append(hash[i].ToString("x2"));
+                return text.ToString();
             }
         }
 
@@ -260,7 +288,7 @@ namespace PiWebTray
             try
             {
                 string path = StatePath();
-                if (!File.Exists(path)) return "";
+                if (!File.Exists(path) || PathSafety.ContainsReparsePoint(path)) return "";
                 foreach (string rawLine in File.ReadAllLines(path))
                 {
                     string line = rawLine.Trim();

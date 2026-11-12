@@ -638,7 +638,7 @@ namespace PiWebTray
     internal static class WindowsVersion
     {
         // Environment.OSVersion can be affected by the application manifest. RtlGetVersion
-        // reports the real kernel version, which also keeps Windows 8.1 (6.3) distinct from 8 (6.2).
+        // reports the real kernel version, which also keeps Windows 8.1 (6.3) distinct from older 6.x versions.
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         private struct OsVersionInfoEx
         {

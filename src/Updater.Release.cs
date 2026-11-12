@@ -183,6 +183,13 @@ namespace PiWebTray
                 string name = line.Substring(end).Trim();
                 if (name.StartsWith("*", StringComparison.Ordinal))
                     name = name.Substring(1).Trim();
+                if (!string.IsNullOrEmpty(expectedFileName) && name.Length == 0)
+                {
+                    // A caller that selected a specific archive requires the
+                    // checksum line to name that archive. A bare hash is too
+                    // ambiguous when the server returns several lines.
+                    continue;
+                }
                 if (!string.IsNullOrEmpty(expectedFileName) && name.Length > 0
                     && !string.Equals(Path.GetFileName(name), expectedFileName,
                         StringComparison.OrdinalIgnoreCase))

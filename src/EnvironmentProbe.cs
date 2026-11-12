@@ -11,7 +11,7 @@
 // Test hooks for offline automation:
 //   PI_WEB_TRAY_NO_NODE=1    pretend Node.js is missing
 //   PI_WEB_TRAY_NO_PIWEB=1   pretend pi-web is missing
-//   PI_WEB_TRAY_NO_PICLI=1   pretend the pi CLI is missing
+//   PI_WEB_TRAY_NO_PICLI=1   pretend pi is missing
 
 using System;
 using System.Collections.Generic;
@@ -42,7 +42,7 @@ namespace PiWebTray
         internal bool PiCliFound;
         internal string PiCliPath = "";
         internal string PiCliVersion = "";
-        // False when InstallPi=0. Pi Web runs without the separate Pi CLI, so a
+        // False when InstallPi=0. Pi Web runs without the separate Pi, so a
         // missing Pi must not keep the environment from being ready in that mode.
         internal bool PiCliRequired = true;
 
@@ -183,7 +183,9 @@ namespace PiWebTray
             string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             if (!string.IsNullOrEmpty(programFiles)) candidates.Add(Path.Combine(programFiles, @"nodejs\node.exe"));
             if (!string.IsNullOrEmpty(programFilesX86)) candidates.Add(Path.Combine(programFilesX86, @"nodejs\node.exe"));
-            candidates.Add(Path.Combine(Shell.LocalAppData(), @"Programs\nodejs\node.exe"));
+            string localAppData = Shell.LocalAppData();
+            if (!string.IsNullOrEmpty(localAppData))
+                candidates.Add(Path.Combine(localAppData, @"Programs\nodejs\node.exe"));
 
             // nvm-windows keeps the active version behind NVM_SYMLINK; NVM_HOME is the store
             string nvmSymlink = Environment.GetEnvironmentVariable("NVM_SYMLINK");
@@ -343,7 +345,9 @@ namespace PiWebTray
             {
                 candidates.Add(Path.Combine(nodeDir, @"node_modules\npm\bin\npm-cli.js"));
             }
-            candidates.Add(Path.Combine(Shell.AppDataRoaming(), @"npm\node_modules\npm\bin\npm-cli.js"));
+            string roaming = Shell.AppDataRoaming();
+            if (!string.IsNullOrEmpty(roaming))
+                candidates.Add(Path.Combine(roaming, @"npm\node_modules\npm\bin\npm-cli.js"));
             if (!string.IsNullOrEmpty(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)))
                 candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), @"nodejs\node_modules\npm\bin\npm-cli.js"));
 
@@ -499,7 +503,8 @@ namespace PiWebTray
         {
             List<string> roots = new List<string>();
             if (!string.IsNullOrEmpty(result.NpmPrefix)) roots.Add(result.NpmPrefix);
-            roots.Add(Path.Combine(Shell.AppDataRoaming(), "npm"));
+            string roaming = Shell.AppDataRoaming();
+            if (!string.IsNullOrEmpty(roaming)) roots.Add(Path.Combine(roaming, "npm"));
 
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             if (!string.IsNullOrEmpty(programFiles))
@@ -547,7 +552,7 @@ namespace PiWebTray
                 }
                 try
                 {
-                    if (Directory.Exists(line)) return line;
+                    if (Directory.Exists(line)) return Path.GetFullPath(line);
                 }
                 catch (Exception)
                 {
@@ -566,6 +571,10 @@ namespace PiWebTray
             {
                 try
                 {
+                    // A relative PATH entry changes meaning between the tray and
+                    // the service working directory; do not trust it for detection
+                    // or execution.
+                    if (!Path.IsPathRooted(dir)) continue;
                     string candidate = Path.Combine(dir, fileName);
                     if (File.Exists(candidate)) return candidate;
                 }

@@ -502,8 +502,10 @@ namespace PiWebTray
             upload.Start();
             download.Start();
             // The download direction determines when the TLS/HTTP response is done.
-            // Waiting on upload first would truncate large updates after a fixed timeout.
-            download.Join(10 * 60 * 1000);
+            // Wait for it without a fixed total deadline: a slow but progressing
+            // update must not be truncated at ten minutes. The read timeout and
+            // HttpWebRequest cancellation still bound idle/stuck transfers.
+            download.Join();
             TryClose(client);
             TryClose(remoteClient);
             upload.Join(5000);

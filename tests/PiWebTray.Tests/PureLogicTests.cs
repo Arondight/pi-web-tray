@@ -582,10 +582,8 @@ namespace PiWebTray
 
         private static void NodeDownloadTests()
         {
-            CheckEqual("Windows 7 Node.js download", NodeDownloads.Windows7Or8Url,
+            CheckEqual("Windows 7 Node.js download", NodeDownloads.Windows7Url,
                 NodeDownloads.UrlFor(new Version(6, 1, 7601)));
-            CheckEqual("Windows 8 Node.js download", NodeDownloads.Windows7Or8Url,
-                NodeDownloads.UrlFor(new Version(6, 2, 9200)));
             CheckEqual("Windows 8.1 Node.js download", NodeDownloads.Windows81Url,
                 NodeDownloads.UrlFor(new Version(6, 3, 9600)));
             CheckEqual("newer Windows Node.js download", NodeDownloads.DefaultUrl,
@@ -594,13 +592,11 @@ namespace PiWebTray
                 NodeDownloads.UrlFor(null));
             Check("current Windows version is readable", WindowsVersion.Current.Major >= 6);
             Check("legacy download uses the pinned version",
-                NodeDownloads.Windows7Or8Url.Contains(NodeDownloads.PinnedVersion));
+                NodeDownloads.Windows7Url.Contains(NodeDownloads.PinnedVersion));
             Check("8.1 download uses the pinned version",
                 NodeDownloads.Windows81Url.Contains(NodeDownloads.PinnedVersion));
             Check("Windows 7 uses the community build",
                 NodeDownloads.UsesCommunityBuild(new Version(6, 1, 7601)));
-            Check("Windows 8 uses the community build",
-                NodeDownloads.UsesCommunityBuild(new Version(6, 2, 9200)));
             Check("Windows 8.1 does not use the community build",
                 !NodeDownloads.UsesCommunityBuild(new Version(6, 3, 9600)));
             Check("Windows 10 does not use the community build",
@@ -611,8 +607,8 @@ namespace PiWebTray
             // The console hint shown by --install must carry the same link as the tray menu.
             L.Use("en");
             Check("console hint carries the download url",
-                L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Windows7Or8Url)
-                    .Contains(NodeDownloads.Windows7Or8Url));
+                L.T("install.installNode", ProbeResult.NodeMinimum, NodeDownloads.Windows7Url)
+                    .Contains(NodeDownloads.Windows7Url));
 
             string missingBody = L.T("node.missingBody", "Node.js was not found",
                 ProbeResult.NodeMinimum, NodeDownloads.DefaultUrl);
@@ -704,6 +700,14 @@ namespace PiWebTray
             CheckEqual("quote arg null", "\"\"", Shell.QuoteArg(null));
             CheckEqual("cmd quote escapes percent", "\"C:\\x^%PATH^%\"",
                 Shell.CmdQuote("C:\\x%PATH%"));
+            CheckEqual("path prefix trims trailing separators", @"C:\Dir",
+                ProcessRunner.PathPrefix(@"C:\Dir\"));
+            CheckEqual("path prefix preserves a drive root", @"C:\",
+                ProcessRunner.PathPrefix(@"C:\"));
+            CheckEqual("path prefix ignores an empty directory", "",
+                ProcessRunner.PathPrefix(""));
+            Check("empty path prefix does not create an empty PATH entry",
+                !ProcessRunner.WithPathPrefix("").ContainsKey("PATH"));
         }
 
         private static void IniReadTests()
@@ -788,13 +792,24 @@ namespace PiWebTray
                 Check("mutex suffixed", Instance.MutexName.EndsWith(".dev", StringComparison.Ordinal));
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "a b/c\\d");
-                CheckEqual("suffix sanitised", ".abcd", Instance.Suffix);
+                string sanitisedSuffix = Instance.Suffix;
+                Check("suffix sanitised has a stable prefix",
+                    sanitisedSuffix.StartsWith(".abcd-", StringComparison.Ordinal));
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "abcd");
+                Check("sanitised names cannot collide with a literal name",
+                    !string.Equals(sanitisedSuffix, Instance.Suffix, StringComparison.Ordinal));
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "Dev");
                 CheckEqual("suffix is case-normalized", ".dev", Instance.Suffix);
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", new string('x', 80));
-                CheckEqual("suffix truncated", 33, Instance.Suffix.Length);
+                CheckEqual("suffix truncated with a collision-resistant hash", 42,
+                    Instance.Suffix.Length);
+
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "@@@");
+                Check("an invalid instance does not become the default instance",
+                    Instance.Suffix.Length > 1 && Instance.Suffix != ".i");
             }
             finally
             {
@@ -884,6 +899,8 @@ namespace PiWebTray
             Check("cross-thread lock can be acquired", cross != null);
             if (cross != null)
             {
+                Check("a held cross-thread lock is not reported available",
+                    !OperationLock.IsAvailable(crossName));
                 bool blockedCross = false;
                 Thread probe = new Thread(delegate ()
                 {
@@ -908,6 +925,8 @@ namespace PiWebTray
                 using (OperationLock after = OperationLock.TryAcquireCrossThread(crossName))
                     Check("cross-thread lock is released", after != null);
                 if (!released) cross.Dispose();
+                Check("a released cross-thread lock is reported available",
+                    OperationLock.IsAvailable(crossName));
             }
 
             CheckEqual("update lock name is stable",
@@ -1053,17 +1072,17 @@ namespace PiWebTray
         private static void UpdateRestartPolicyTests()
         {
             Check("update restarts after an unexpected stop",
-                TrayApp.ShouldRestartServiceAfterUpdate(true, true, false, true));
+                TrayApp.ShouldRestartServiceAfterUpdate(true, false, true));
             Check("update restarts a service that was running",
-                TrayApp.ShouldRestartServiceAfterUpdate(true, true, false, false));
+                TrayApp.ShouldRestartServiceAfterUpdate(true, false, false));
             Check("update does not restart a service that was stopped",
-                !TrayApp.ShouldRestartServiceAfterUpdate(false, true, false, false));
+                !TrayApp.ShouldRestartServiceAfterUpdate(false, false, false));
             Check("update restores a running service with AutoRestart off",
-                TrayApp.ShouldRestartServiceAfterUpdate(true, false, false, false));
+                TrayApp.ShouldRestartServiceAfterUpdate(true, false, false));
             Check("an explicit stop wins over AutoRestart",
-                !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true, true));
+                !TrayApp.ShouldRestartServiceAfterUpdate(true, true, true));
             Check("a crash still restarts with AutoRestart off only when explicitly marked",
-                TrayApp.ShouldRestartServiceAfterUpdate(false, false, false, true));
+                TrayApp.ShouldRestartServiceAfterUpdate(false, false, true));
 
             Check("helper waits when the update starts a silent service",
                 TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false));
@@ -1102,14 +1121,26 @@ namespace PiWebTray
             string originalPort = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORT");
             string originalLang = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
             string originalPortable = Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE");
+            string originalNode = Environment.GetEnvironmentVariable("NODE_TEST");
+            string originalRegistry = Environment.GetEnvironmentVariable("REG_TEST");
+            string originalProxy = Environment.GetEnvironmentVariable("PROXY_TEST");
+            string originalTag = Environment.GetEnvironmentVariable("TAG_TEST");
             string temp = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-config-" + Guid.NewGuid().ToString("N"));
             try
             {
                 Directory.CreateDirectory(temp);
+                CheckEqual("relative config paths resolve against the installation directory",
+                    Path.Combine(temp, "node.exe"), Config.ResolvePath(temp, "node.exe"));
                 string iniPath = Path.Combine(temp, "pi-web-tray.ini");
+                Environment.SetEnvironmentVariable("NODE_TEST", System.Windows.Forms.Application.ExecutablePath);
+                Environment.SetEnvironmentVariable("REG_TEST", "https://registry.example.test");
+                Environment.SetEnvironmentVariable("PROXY_TEST", "http://127.0.0.1:1");
+                Environment.SetEnvironmentVariable("TAG_TEST", "latest");
                 File.WriteAllText(iniPath,
-                    "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\nInstallPi=0\n",
+                    "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\nInstallPi=0\n"
+                    + "NodePath=%NODE_TEST%\nNpmRegistry=%REG_TEST%\n"
+                    + "Proxy=%PROXY_TEST%\nInstallTag=%TAG_TEST%\n",
                     new UTF8Encoding(false));
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
@@ -1124,6 +1155,21 @@ namespace PiWebTray
                 Check("port override is recorded", config.PortFromEnvironment);
                 CheckEqual("working directory keeps its raw ini value",
                     "%USERPROFILE%", config.ConfiguredWorkingDir);
+                CheckEqual("node path keeps its raw ini value",
+                    "%NODE_TEST%", config.ConfiguredNodePath);
+                CheckEqual("node path is expanded for use",
+                    System.Windows.Forms.Application.ExecutablePath, config.NodePath);
+                CheckEqual("registry keeps its raw ini value",
+                    "%REG_TEST%", config.ConfiguredNpmRegistry);
+                CheckEqual("registry is expanded for use",
+                    "https://registry.example.test", config.NpmRegistry);
+                CheckEqual("proxy keeps its raw ini value",
+                    "%PROXY_TEST%", config.ConfiguredProxy);
+                CheckEqual("proxy is expanded for use",
+                    "http://127.0.0.1:1", config.Proxy);
+                CheckEqual("tag keeps its raw ini value",
+                    "%TAG_TEST%", config.ConfiguredInstallTag);
+                CheckEqual("tag is expanded for use", "latest", config.InstallTag);
                 Check("install Pi can be disabled from the ini", !config.InstallPi);
                 Check("working directory is expanded for use",
                     Directory.Exists(config.WorkingDir));
@@ -1148,6 +1194,14 @@ namespace PiWebTray
                     saved.Contains("InstallPi=0"));
                 Check("settings preserves the %USERPROFILE% template",
                     saved.Contains("WorkingDir=%USERPROFILE%"));
+                Check("settings preserves the node path template",
+                    saved.Contains("NodePath=%NODE_TEST%"));
+                Check("settings preserves the registry template",
+                    saved.Contains("NpmRegistry=%REG_TEST%"));
+                Check("settings preserves the proxy template",
+                    saved.Contains("Proxy=%PROXY_TEST%"));
+                Check("settings preserves the tag template",
+                    saved.Contains("InstallTag=%TAG_TEST%"));
                 CheckEqual("environment port is still effective after save", 30222, config.Port);
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", "1");
@@ -1172,6 +1226,10 @@ namespace PiWebTray
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORT", originalPort);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_LANG", originalLang);
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_PORTABLE", originalPortable);
+                Environment.SetEnvironmentVariable("NODE_TEST", originalNode);
+                Environment.SetEnvironmentVariable("REG_TEST", originalRegistry);
+                Environment.SetEnvironmentVariable("PROXY_TEST", originalProxy);
+                Environment.SetEnvironmentVariable("TAG_TEST", originalTag);
                 try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch (Exception) { }
             }
         }
@@ -1312,8 +1370,8 @@ namespace PiWebTray
             Check("npm 11 has no allow-scripts flag", !web11.Contains("--allow-scripts"));
 
             string cliArgs = Installer.BuildArguments(config, path, cli, "12.2.1", true, "");
-            Check("pi cli installs with --ignore-scripts", cliArgs.Contains(" --ignore-scripts"));
-            Check("pi cli never allows scripts", !cliArgs.Contains("--allow-scripts"));
+            Check("pi installs with --ignore-scripts", cliArgs.Contains(" --ignore-scripts"));
+            Check("pi never allows scripts", !cliArgs.Contains("--allow-scripts"));
 
             CheckEqual("npm major 12", 12, Installer.NpmMajor("12.2.1"));
             CheckEqual("npm major 11", 11, Installer.NpmMajor("11.6.0"));
@@ -1333,15 +1391,15 @@ namespace PiWebTray
             CheckEqual("missing deps need two npm runs", 2, steps.Count);
             Check("pi-web runs first", steps[0].Packages.Contains("@agegr/pi-web@latest"));
             Check("pi-web step allows scripts", steps[0].AllowScripts && !steps[0].IgnoreScripts);
-            Check("pi cli runs second", steps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
-            Check("pi cli step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
-            Check("pi-web step is not the pi cli step", !Installer.IsPiCliStep(steps[0], config));
-            Check("pi cli step is recognised", Installer.IsPiCliStep(steps[1], config));
+            Check("pi runs second", steps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
+            Check("pi step ignores scripts", steps[1].IgnoreScripts && !steps[1].AllowScripts);
+            Check("pi-web step is not the pi step", !Installer.IsPiCliStep(steps[0], config));
+            Check("pi step is recognised", Installer.IsPiCliStep(steps[1], config));
 
             Config webOnlyConfig = new Config();
             webOnlyConfig.InstallPi = false;
             List<InstallStep> webOnly = Installer.StepsToInstall(new ProbeResult(), webOnlyConfig, false);
-            CheckEqual("InstallPi=0 skips the pi cli step", 1, webOnly.Count);
+            CheckEqual("InstallPi=0 skips the pi step", 1, webOnly.Count);
             Check("InstallPi=0 still installs pi-web",
                 webOnly[0].Packages.Contains("@agegr/pi-web@latest"));
             CheckEqual("InstallPi=0 force only installs pi-web", 1,
@@ -1360,6 +1418,10 @@ namespace PiWebTray
 
             Check("exact version tag is recognised", Installer.IsExactVersionTag("1.2.3"));
             Check("leading v is an exact version tag", Installer.IsExactVersionTag("v1.2.3"));
+            Check("a two-component version is a range, not exact",
+                !Installer.IsExactVersionTag("1.2"));
+            Check("a four-component value is not an npm exact version",
+                !Installer.IsExactVersionTag("1.2.3.4"));
             Check("latest is not an exact version tag", !Installer.IsExactVersionTag("latest"));
             Check("range is not an exact version tag", !Installer.IsExactVersionTag("^1.2.3"));
             Check("exact version matches installed package",
@@ -1372,6 +1434,8 @@ namespace PiWebTray
                 !Installer.VersionMatchesTag("1.2.3-beta", "1.2.3"));
             Check("dist tag cannot be version-verified",
                 Installer.VersionMatchesTag("0.9.0", "latest"));
+            Check("a two-component range falls back to presence verification",
+                Installer.VersionMatchesTag("1.2.7", "1.2"));
             Check("missing installed version is a mismatch for an exact tag",
                 !Installer.VersionMatchesTag("", "1.2.3"));
             Check("missing installed version is fine for a dist tag",
@@ -1384,14 +1448,14 @@ namespace PiWebTray
             List<InstallStep> exactSteps = Installer.StepsToInstall(new ProbeResult(), exactConfig, false);
             Check("exact tag is used for pi-web",
                 exactSteps[0].Packages.Contains("@agegr/pi-web@1.2.3"));
-            Check("exact tag is not used for pi cli",
+            Check("exact tag is not used for pi",
                 exactSteps[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
-            Check("exact tag pi cli step is recognised",
+            Check("exact tag pi step is recognised",
                 Installer.IsPiCliStep(exactSteps[1], exactConfig));
 
             Config nextConfig = new Config();
             nextConfig.InstallTag = "next";
-            CheckEqual("dist tag is shared with the pi cli", "next",
+            CheckEqual("dist tag is shared with the pi", "next",
                 Installer.PiCliTag(nextConfig));
 
             CheckEqual("npm warning is not the npm version", "12.2.1",
@@ -1403,8 +1467,8 @@ namespace PiWebTray
             webMissingCliPresent.PiCliFound = true;
             webMissingCliPresent.PiCliVersion = "1.0.0";
             List<InstallStep> firstRun = Installer.StepsToInstall(webMissingCliPresent, config, false);
-            CheckEqual("first-run install updates an existing pi cli", 2, firstRun.Count);
-            Check("first-run install includes the pi cli",
+            CheckEqual("first-run install updates an existing pi", 2, firstRun.Count);
+            Check("first-run install includes the pi",
                 firstRun[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
 
             ProbeResult installed = new ProbeResult();
@@ -1454,6 +1518,8 @@ namespace PiWebTray
             CheckEqual("checksum rejects another file", "",
                 Updater.ParseChecksum(hash + "  other.zip\r\n",
                     "pi-web-tray-0.2.0-win.zip"));
+            CheckEqual("checksum requires a filename when one is requested", "",
+                Updater.ParseChecksum(hash + "\r\n", "pi-web-tray-0.2.0-win.zip"));
             CheckEqual("checksum star format", hash, Updater.ParseChecksum(hash + " *file.zip"));
             CheckEqual("checksum rejects short", "", Updater.ParseChecksum("abc  file.zip"));
             CheckEqual("checksum rejects junk", "",
@@ -1469,6 +1535,9 @@ namespace PiWebTray
             int parsedPort;
             ApplyStartMode mode;
             bool originalElevated;
+            string parsedZip;
+            string parsedChecksum;
+            string parsedGate;
             string stagingHashArg = new string('a', 64);
             bool parsed = Updater.TryParseApplyArgs(
                 new string[]
@@ -1532,6 +1601,25 @@ namespace PiWebTray
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash,
                 out parsedPort);
             Check("helper args accept zero wait port", noWaitParsed && parsedPort == 0);
+
+            string gateName = @"C:\data\update\gate-test";
+            bool gateParsed = Updater.TryParseApplyArgs(
+                new string[]
+                {
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\data\\update.log", "en", "C:\\data",
+                    stagingHashArg, "0", gateName
+                },
+                out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out parsedPort, out parsedZip, out parsedChecksum, out parsedGate);
+            Check("helper args parse the update gate",
+                gateParsed && parsedGate == gateName && parsedZip.Length == 0);
+            Check("helper argument builder carries the update gate",
+                Updater.BuildApplyArguments("C:\\data\\update\\stage", "C:\\target", 1234,
+                    ApplyStartMode.TrayOnly, false, "C:\\data\\update.log", "en",
+                    "C:\\data", stagingHashArg, 0, "C:\\data\\update\\x.zip",
+                    stagingHashArg, gateName).Contains(gateName));
 
             Check("helper args reject missing values", !Updater.TryParseApplyArgs(
                 new string[] { "--apply-update", "C:\\stage" },
@@ -1714,10 +1802,10 @@ namespace PiWebTray
             probe.NodeVersion = ProbeResult.NodeMinimum;
             probe.PiWebFound = true;
             probe.PiWebScript = @"C:\pi-web\pi-web.js";
-            // Pi CLI is intentionally missing: pi-web itself can still run.
+            // Pi is intentionally missing: pi-web itself can still run.
             probe.PiCliFound = false;
 
-            Check("restore can start pi-web without Pi CLI",
+            Check("restore can start pi-web without Pi",
                 TrayApp.CanStartServiceFromProbe(probe, delegate (string path) { return true; }));
             Check("restore rejects a missing script",
                 !TrayApp.CanStartServiceFromProbe(probe, delegate (string path) { return false; }));

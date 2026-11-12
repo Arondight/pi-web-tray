@@ -41,11 +41,19 @@ namespace PiWebTray
         internal static bool StartHelper(Config config, string staging, ApplyStartMode mode, bool elevated,
             bool waitForService, out string error)
         {
-            return StartHelper(config, staging, "", "", mode, elevated, waitForService, out error);
+            return StartHelper(config, staging, "", "", mode, elevated, waitForService, "", out error);
         }
 
         internal static bool StartHelper(Config config, string staging, string zipPath, string zipChecksum,
             ApplyStartMode mode, bool elevated, bool waitForService, out string error)
+        {
+            return StartHelper(config, staging, zipPath, zipChecksum, mode, elevated,
+                waitForService, "", out error);
+        }
+
+        internal static bool StartHelper(Config config, string staging, string zipPath, string zipChecksum,
+            ApplyStartMode mode, bool elevated, bool waitForService, string gateEventName,
+            out string error)
         {
             error = "";
             string logPath = SafeFullPath(config.UpdateLogFile);
@@ -67,11 +75,18 @@ namespace PiWebTray
                 string target = SafeFullPath(config.BaseDir);
                 string dataDir = SafeFullPath(config.DataDir);
 
-                // A helper started by an elevated tray inherits that token. If the
-                // installation directory is writable by standard users, the helper
-                // itself, its config, or its resources could have been replaced. Refuse
-                // to expand the elevated attack surface; restart the tray normally first.
-                if (elevated && Autostart.IsUserWritableInstall(target))
+                // Decide before launching anything whether this helper will run with an
+                // elevated token. A user-writable installation must never be elevated,
+                // even if the write probe below fails transiently (ACL, antivirus or
+                // Controlled Folder Access). The same check is repeated in Apply().
+                bool needsElevation = false;
+                if (!elevated)
+                {
+                    try { needsElevation = RequiresElevation(config.BaseDir); }
+                    catch (Exception) { needsElevation = true; }
+                }
+                if ((elevated || needsElevation)
+                    && Autostart.IsUserWritableInstall(target))
                 {
                     error = L.T("update.error.writableInstall");
                     AppendLog(logPath, "elevated update refused for a user-writable installation: " + target);
@@ -116,7 +131,7 @@ namespace PiWebTray
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
                     mode, elevated, logPath, L.Current, dataDir, stagingHash,
-                    waitForService ? config.Port : 0, zipPath, zipChecksum);
+                    waitForService ? config.Port : 0, zipPath, zipChecksum, gateEventName);
 
                 AppendLog(logPath, "launch helper: " + helper);
                 if (!useZip) AppendLog(logPath, "staging hash : " + stagingHash);
@@ -127,7 +142,7 @@ namespace PiWebTray
                 }
                 AppendLog(logPath, "helper args : " + arguments);
 
-                if (!elevated && RequiresElevation(config.BaseDir))
+                if (needsElevation)
                 {
                     AppendLog(logPath, "install directory needs administrator rights");
                     if (!Sys.RunElevated(helper, arguments, false, Sys.SystemDirectory))
@@ -167,7 +182,8 @@ namespace PiWebTray
 
         internal static string BuildApplyArguments(string staging, string target, int parentPid,
             ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
-            string stagingHash, int port, string zipPath, string zipChecksum)
+            string stagingHash, int port, string zipPath, string zipChecksum,
+            string gateEventName = null)
         {
             string arguments = "--apply-update "
                 + Shell.QuoteArg(staging) + " "
@@ -186,6 +202,8 @@ namespace PiWebTray
                 arguments += " " + Shell.QuoteArg(zipPath)
                     + " " + Shell.QuoteArg(zipChecksum);
             }
+            if (!string.IsNullOrEmpty(gateEventName))
+                arguments += " " + Shell.QuoteArg(gateEventName);
             return arguments;
         }
 
@@ -206,6 +224,7 @@ namespace PiWebTray
             string stagingHash;
             string zipPath;
             string zipChecksum;
+            string gateEventName;
             int port;
             int parentPid;
             ApplyStartMode mode;
@@ -213,7 +232,8 @@ namespace PiWebTray
 
             if (!TryParseApplyArgs(args, out staging, out target, out parentPid,
                 out mode, out originalElevated, out logPath, out language,
-                out dataDir, out stagingHash, out port, out zipPath, out zipChecksum))
+                out dataDir, out stagingHash, out port, out zipPath, out zipChecksum,
+                out gateEventName))
             {
                 Application.EnableVisualStyles();
                 MessageBox.Show(L.T("update.error.badArgs"), L.T("update.applyFailedTitle"),
@@ -241,6 +261,16 @@ namespace PiWebTray
             if (!Directory.Exists(target))
             {
                 MessageBox.Show(L.T("update.error.targetMissing"), L.T("update.applyFailedTitle"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+
+            // Defense in depth: Apply can also be invoked directly. Never let an
+            // elevated helper replace files in a directory writable by standard users.
+            if (Elevation.IsElevated() && Autostart.IsUserWritableInstall(target))
+            {
+                AppendLog(logPath, "elevated apply refused for a user-writable installation: " + target);
+                MessageBox.Show(L.T("update.error.writableInstall"), L.T("update.applyFailedTitle"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
@@ -277,6 +307,15 @@ namespace PiWebTray
                     {
                         AppendLog(logPath, "parent did not exit");
                         MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
+                    if (!string.IsNullOrEmpty(gateEventName)
+                        && !File.Exists(gateEventName))
+                    {
+                        AppendLog(logPath, "parent exited without confirming the update gate");
+                        MessageBox.Show(L.T("update.error.notConfirmed"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return 1;
                     }
@@ -721,6 +760,17 @@ namespace PiWebTray
             out string logPath, out string language, out string dataDir, out string stagingHash,
             out int port, out string zipPath, out string zipChecksum)
         {
+            string gateEventName;
+            return TryParseApplyArgs(args, out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out port, out zipPath, out zipChecksum, out gateEventName);
+        }
+
+        internal static bool TryParseApplyArgs(string[] args, out string staging, out string target,
+            out int parentPid, out ApplyStartMode mode, out bool originalElevated,
+            out string logPath, out string language, out string dataDir, out string stagingHash,
+            out int port, out string zipPath, out string zipChecksum, out string gateEventName)
+        {
             staging = "";
             target = "";
             logPath = "";
@@ -729,6 +779,7 @@ namespace PiWebTray
             stagingHash = "";
             zipPath = "";
             zipChecksum = "";
+            gateEventName = "";
             port = 0;
             parentPid = 0;
             mode = ApplyStartMode.Tray;
@@ -745,13 +796,15 @@ namespace PiWebTray
             }
             if (index < 0) return false;
 
-            // The staging hash is mandatory. The port was added after the hash, and
-            // the verified zip path/checksum were added after the port. Older helper
-            // calls (with or without a port) remain valid for compatibility.
+            // The staging hash is mandatory. The port was added after the hash, the
+            // verified zip path/checksum after the port, and the optional exit gate
+            // after those. Older helper calls remain valid for compatibility.
             int tail = args.Length - index - 1;
-            bool hasPort = tail == 10 || tail == 12;
-            bool hasZip = tail == 12;
-            if (tail != 9 && tail != 10 && tail != 12) return false;
+            bool hasPort = tail == 10 || tail == 11 || tail == 12 || tail == 13;
+            bool hasZip = tail == 12 || tail == 13;
+            bool hasGate = tail == 11 || tail == 13;
+            if (tail != 9 && tail != 10 && tail != 11 && tail != 12 && tail != 13)
+                return false;
 
             staging = args[index + 1];
             target = args[index + 2];
@@ -790,6 +843,11 @@ namespace PiWebTray
                     return false;
                 }
             }
+            if (hasGate)
+            {
+                gateEventName = args[index + (hasZip ? 13 : 11)];
+                if (gateEventName.Length == 0) return false;
+            }
 
             // The helper is elevated. Keep its log and staging inside the installation's
             // data/target roots so forged arguments cannot turn AppendLog into an
@@ -821,6 +879,13 @@ namespace PiWebTray
             // reparse-point paths that could redirect an elevated write.
             string updateRoot = SafeFullPath(Path.Combine(dataDir, "update"));
             if (!IsPathUnder(staging, updateRoot)) return false;
+            if (gateEventName.Length > 0)
+            {
+                gateEventName = SafeFullPath(gateEventName);
+                if (gateEventName.Length == 0 || !IsPathUnder(gateEventName, updateRoot))
+                    return false;
+                if (PathSafety.ContainsReparsePoint(gateEventName)) return false;
+            }
             if (zipPath.Length > 0)
             {
                 zipPath = SafeFullPath(zipPath);

@@ -1,10 +1,10 @@
 # Contributing to Pi Web Tray
 
-Thanks for taking the time to contribute. This project is a Windows tray application with no third-party runtime dependencies; the goal is to keep it easy to build, easy to audit and compatible with **Windows 7 SP1, 8, 8.1, 10 and 11** (with .NET Framework 4.8 installed).
+Thanks for taking the time to contribute. This project is a Windows tray application with no bundled third-party runtime libraries; the goal is to keep it easy to build, easy to audit and compatible with **Windows 7 to 11** (with .NET Framework 4.8 installed).
 
 ## Before you start
 
-- Read [README.md](README.md) and the source comments; the hardware/OS constraints are listed there.
+- Read [README.md](README.md) and the source comments; the OS and runtime constraints are listed there.
 - For a bug, open an issue with the output of `.\pi-web-tray.exe --diag` (redact user names, paths and tokens) and the relevant tail of `server.log` / `install.log`.
 - For a security issue, **do not open a public issue**; follow [SECURITY.md](SECURITY.md).
 
@@ -12,7 +12,7 @@ Thanks for taking the time to contribute. This project is a Windows tray applica
 
 | Tool           | Requirement                                                                         |
 | -------------- | ----------------------------------------------------------------------------------- |
-| Windows        | 10 or 11 for development (the product targets Windows 7 SP1+)                       |
+| Windows        | 10 or 11 for development (the product targets Windows 7 to 11)                      |
 | Visual Studio  | 2022 or 2026, **.NET desktop development** workload                                 |
 | .NET Framework | 4.8 targeting pack                                                                  |
 | .NET SDK       | Optional alternative to VS; 8.0 or newer plus the .NET Framework 4.8 targeting pack |
@@ -30,6 +30,8 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 ## Tests
 
 Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI:
+
+Run the lifecycle tests from a **non-elevated** shell. The tray intentionally refuses an elevated start from a user-writable directory, including the test output folder.
 
 ```powershell
 .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe
@@ -58,8 +60,8 @@ Before a release, manually check:
 - tray self-update while Pi Web is stopped (the tray restarts; the service stays stopped);
 - dependency update while Pi Web is running (service must stop before npm runs);
 - dependency update while Pi Web is stopped (the service must stay stopped);
-- Pi CLI version changes after a forced dependency update;
-- Node.js download link on Windows 7/8 (confirmation) and 8.1/10;
+- Pi version changes after a forced dependency update;
+- Node.js download link on Windows 7 (confirmation) and 8.1/10;
 - desktop shortcut creation, including removal of the old "Pi Web.lnk";
 - stale-file cleanup from a release manifest;
 - Windows 7 SP1 + .NET Framework 4.8 when changing OS-facing code.
