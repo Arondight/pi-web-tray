@@ -151,7 +151,12 @@ Unknown arguments return exit code 2.
 
 ## Build from source
 
-Building requires Windows 10 or 11 and the .NET Framework 4.8 targeting pack. Use either the .NET SDK 8.0+ (recommended for command-line builds) or MSBuild from Visual Studio 2022+ or the Visual Studio Build Tools. Visual Studio itself is optional; `build.cmd` falls back to MSBuild when the .NET SDK is not installed.
+Building needs two separate things:
+
+- **Build tool:** .NET SDK 8.0+ for command-line builds, or MSBuild from Visual Studio 2022+/Build Tools.
+- **Reference assemblies:** the .NET Framework 4.8 targeting pack.
+
+The `8.0` refers to the .NET SDK used to build; the application still targets **.NET Framework 4.8**. Visual Studio is optional. End users need only .NET Framework 4.8 (or 4.8.1 where supported); they do not need the SDK or Visual Studio.
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git

@@ -4,6 +4,7 @@ rem  Pi Web Tray - build script
 rem
 rem  Requires either the .NET SDK 8.0+ with the .NET Framework 4.8
 rem  targeting pack, or MSBuild from Visual Studio 2022+ / Build Tools.
+rem  The 8.0+ version is the SDK build tool; the app target is 4.8.
 rem  An IDE is not required. The project targets .NET Framework 4.8,
 rem  so the resulting exe runs on Windows 7 SP1 and newer (with the
 rem  .NET Framework 4.8 runtime installed).
