@@ -81,9 +81,11 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _nodeItem;
         private readonly ToolStripMenuItem _checkItem;
         private readonly ToolStripMenuItem _settingsItem;
+        private readonly ToolStripMenuItem _logsItem;
         private readonly ToolStripMenuItem _installLogItem;
         private readonly ToolStripMenuItem _updateLogItem;
         private readonly ToolStripMenuItem _copyUrlItem;
+        private readonly ToolStripMenuItem _shortcutItem;
         private readonly ToolStripMenuItem _restartAdminItem;
         private readonly ToolStripMenuItem _autostartItem;
         private readonly ToolStripMenuItem _adminAutostartItem;
@@ -158,6 +160,11 @@ namespace PiWebTray
         private bool _openWhenResolved;
         private bool _pendingRestart;
         private bool _pendingOpenBrowser;
+        // A start request can arrive while the service is still stopping or while a
+        // dependency install is running. Keep it until the action reaches a stable
+        // phase instead of consuming and dropping the signal.
+        private bool _pendingStart;
+        private bool _pendingStartOpen;
         private bool _serviceStoppedByUser;
         private bool _exiting;
         // Set only for the ExitApp call made by the updater after its helper has
@@ -186,6 +193,7 @@ namespace PiWebTray
         private DateTime _lastSignalHandled = DateTime.MinValue;
         private DateTime _stopEscalatedAt = DateTime.MinValue;
         private volatile bool _stopWorkerRunning;
+        private volatile int _stopWorkerGeneration;
         // Held while the background pi-web stop command runs. The CLI install path
         // waits for this lock after the port closes before starting npm.
         private OperationLock _stopWorkerLock;
@@ -354,10 +362,10 @@ namespace PiWebTray
             _updateLogItem = new ToolStripMenuItem(L.T("menu.updateLog"));
             _updateLogItem.Click += delegate { ShowLog(_config.UpdateLogFile, L.T("log.updateTitle")); };
 
-            ToolStripMenuItem logsItem = new ToolStripMenuItem(L.T("menu.logs"));
-            logsItem.DropDownItems.Add(logItem);
-            logsItem.DropDownItems.Add(_installLogItem);
-            logsItem.DropDownItems.Add(_updateLogItem);
+            _logsItem = new ToolStripMenuItem(L.T("menu.logs"));
+            _logsItem.DropDownItems.Add(logItem);
+            _logsItem.DropDownItems.Add(_installLogItem);
+            _logsItem.DropDownItems.Add(_updateLogItem);
 
             ToolStripMenuItem folderItem = new ToolStripMenuItem(L.T("menu.folder"));
             folderItem.Click += delegate { OpenFolder(_config.BaseDir); };
@@ -371,8 +379,8 @@ namespace PiWebTray
             _copyUrlItem = new ToolStripMenuItem(L.T("menu.copyUrl"));
             _copyUrlItem.Click += delegate { CopyUrl(); };
 
-            ToolStripMenuItem shortcutItem = new ToolStripMenuItem(L.T("menu.shortcut"));
-            shortcutItem.Click += delegate { CreateDesktopShortcut(); };
+            _shortcutItem = new ToolStripMenuItem(L.T("menu.shortcut"));
+            _shortcutItem.Click += delegate { CreateDesktopShortcut(); };
 
             _autostartItem = new ToolStripMenuItem(L.T("menu.autostart", L.T("auto.off")));
             _autostartItem.Click += delegate { ToggleAutostart(); };
@@ -404,12 +412,12 @@ namespace PiWebTray
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_checkItem);
             _menu.Items.Add(_settingsItem);
-            _menu.Items.Add(logsItem);
+            _menu.Items.Add(_logsItem);
             _menu.Items.Add(dataFolderItem);
             _menu.Items.Add(folderItem);
             _menu.Items.Add(configItem);
             _menu.Items.Add(_copyUrlItem);
-            _menu.Items.Add(shortcutItem);
+            _menu.Items.Add(_shortcutItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_autostartItem);
             _menu.Items.Add(_adminAutostartItem);

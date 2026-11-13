@@ -117,6 +117,88 @@ namespace PiWebTray
             return Path.Combine(Folder, "state.ini");
         }
 
+        // A user stop can arrive while the update helper is already waiting to
+        // restart the tray. state.ini is deleted on exit, so this marker must live
+        // independently until a service is started again or an update helper reads
+        // it. It is a user-intent marker, not security-sensitive state.
+        internal const string ServiceStopRequestName = "service.stop.requested";
+
+        internal static string ServiceStopRequestPath()
+        {
+            return ServiceStopRequestPath(Folder);
+        }
+
+        internal static string ServiceStopRequestPath(string folder)
+        {
+            return Path.Combine(folder ?? Folder, ServiceStopRequestName);
+        }
+
+        internal static void RequestServiceStop()
+        {
+            RequestServiceStop(Folder);
+        }
+
+        internal static void RequestServiceStop(string folder)
+        {
+            try
+            {
+                Directory.CreateDirectory(folder);
+                string path = ServiceStopRequestPath(folder);
+                // The marker is one-shot: if it already exists the stop intent is
+                // already recorded. Never delete and recreate it, which would leave a
+                // window in which an update helper could miss the marker.
+                if (File.Exists(path)) return;
+                if (PathSafety.ContainsReparsePoint(path)) return;
+                // CreateNew cannot follow a reparse point planted at the marker name
+                // between the check and the write. The marker is user intent, but an
+                // elevated tray must not turn it into an arbitrary file write.
+                using (FileStream stream = new FileStream(path, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None))
+                {
+                    byte[] data = new UTF8Encoding(false).GetBytes("1");
+                    stream.Write(data, 0, data.Length);
+                }
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        internal static void ClearServiceStopRequest()
+        {
+            ClearServiceStopRequest(Folder);
+        }
+
+        internal static void ClearServiceStopRequest(string folder)
+        {
+            try
+            {
+                string path = ServiceStopRequestPath(folder);
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        internal static bool ServiceStopRequested()
+        {
+            return ServiceStopRequested(Folder);
+        }
+
+        internal static bool ServiceStopRequested(string folder)
+        {
+            try
+            {
+                string path = ServiceStopRequestPath(folder);
+                return File.Exists(path) && !PathSafety.ContainsReparsePoint(path);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         internal static void Save(int pid, bool elevated, int port)
         {
             string path = StatePath();

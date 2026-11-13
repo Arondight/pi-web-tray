@@ -25,9 +25,23 @@ namespace PiWebTray
         // not mistaken for a successful update before the backup is deleted.
         private const int StableTrayMilliseconds = 5000;
 
+        // A --stop/--quit that arrives after the tray has handed control to the
+        // helper cannot update the already-fixed start mode. Honour the persistent
+        // user-stop marker at the last moment instead of resurrecting the service.
+        private static ApplyStartMode HonorServiceStopRequest(ApplyStartMode mode,
+            string dataDir, string logPath)
+        {
+            if (mode == ApplyStartMode.TrayOnly
+                || !TrayState.ServiceStopRequested(dataDir))
+                return mode;
+            AppendLog(logPath, "service stop requested during update; restarting tray-only");
+            return ApplyStartMode.TrayOnly;
+        }
+
         private static bool Restart(string target, ApplyStartMode mode, bool originalElevated,
             int parentPid, string logPath, string dataDir)
         {
+            mode = HonorServiceStopRequest(mode, dataDir, logPath);
             string exe = Path.Combine(target, "pi-web-tray.exe");
             string arguments = mode == ApplyStartMode.TrayOnly ? "--tray-only"
                 : mode == ApplyStartMode.ServiceSilent ? "--start-no-open" : "";
@@ -232,9 +246,10 @@ namespace PiWebTray
         // elevated here. Resolve the absolute path instead, mirroring Sys.SystemExecutable.
         private static string ExplorerExe()
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-                "explorer.exe");
+            string path = Sys.ExplorerExecutable();
+            if (string.IsNullOrEmpty(path))
+                throw new InvalidOperationException("Windows directory is unavailable");
+            return path;
         }
 
         private static bool HasCustomEnvironment()

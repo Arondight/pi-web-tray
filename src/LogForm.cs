@@ -25,6 +25,7 @@ namespace PiWebTray
         private long _lastLength = -1;
         private DateTime _lastWriteUtc = DateTime.MinValue;
         private bool _paused;
+        private bool _initialScrollDone;
 
         internal LogForm(string path, string title)
         {
@@ -147,6 +148,17 @@ namespace PiWebTray
             FormLayout.FitToWorkingArea(this);
         }
 
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            // RefreshLog runs in the constructor before the TextBox has a window
+            // handle, so ScrollToCaret there does not reliably position the view.
+            // Scroll once after the control is visible, then let the timer follow.
+            if (_initialScrollDone) return;
+            _initialScrollDone = true;
+            ScrollToBottom();
+        }
+
         private void TogglePause()
         {
             _paused = !_paused;
@@ -216,8 +228,7 @@ namespace PiWebTray
                 _text.Text = text;
                 if (atBottom)
                 {
-                    _text.SelectionStart = _text.TextLength;
-                    _text.ScrollToCaret();
+                    ScrollToBottom();
                 }
                 else
                 {
@@ -252,12 +263,31 @@ namespace PiWebTray
                 int lastChar = _text.TextLength - 1;
                 int y = Math.Max(1, _text.ClientSize.Height - 2);
                 int lastVisible = _text.GetCharIndexFromPosition(new Point(1, y));
-                return lastVisible >= lastChar - 1;
+                // GetCharIndexFromPosition returns the character at the start of the
+                // last visible line, not the last character of the document. Compare
+                // line numbers instead; comparing character indexes reported "not at
+                // bottom" even when the final line was fully visible.
+                int lastVisibleLine = _text.GetLineFromCharIndex(lastVisible);
+                int lastLine = _text.GetLineFromCharIndex(lastChar);
+                return IsLastLineVisible(lastVisibleLine, lastLine);
             }
             catch (Exception)
             {
                 return _text.SelectionStart >= Math.Max(0, _text.TextLength - 2);
             }
+        }
+
+        internal static bool IsLastLineVisible(int lastVisibleLine, int lastLine)
+        {
+            return lastVisibleLine >= lastLine;
+        }
+
+        private void ScrollToBottom()
+        {
+            if (_text.IsDisposed) return;
+            _text.SelectionStart = _text.TextLength;
+            _text.SelectionLength = 0;
+            _text.ScrollToCaret();
         }
 
         internal static string NormalizeLineEndings(string text)

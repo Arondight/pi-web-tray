@@ -198,6 +198,8 @@ namespace PiWebTray
             label.AutoSize = true;
             label.Margin = Padding.Empty;
             label.UseCompatibleTextRendering = false;
+            // Error text can contain paths with '&'; do not treat it as a mnemonic.
+            label.UseMnemonic = false;
             return label;
         }
 

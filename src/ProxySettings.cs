@@ -80,7 +80,13 @@ namespace PiWebTray
 
             settings.Host = uri.Host;
             settings.Port = uri.Port;
-            if (settings.Port <= 0 || settings.Port > 65535)
+            if (settings.Port == 0)
+            {
+                // An explicitly written :0 is a typo, not the scheme default.
+                error = L.T("settings.invalidProxy");
+                return false;
+            }
+            if (settings.Port < 0)
             {
                 settings.Port = settings.Kind == ProxyKind.Socks5 ? 1080 : 80;
             }

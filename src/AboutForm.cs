@@ -187,6 +187,7 @@ namespace PiWebTray
             label.AutoSize = true;
             label.Margin = Padding.Empty;
             label.UseCompatibleTextRendering = false;
+            label.UseMnemonic = false;
             return label;
         }
 

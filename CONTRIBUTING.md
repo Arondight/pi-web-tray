@@ -31,7 +31,7 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 
 Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI:
 
-Run the lifecycle tests from a **non-elevated** shell. The tray intentionally refuses an elevated start from a user-writable directory, including the test output folder.
+The unit tests can run from any shell. Run the CLI smoke script from a **non-elevated** shell: the tray intentionally refuses an elevated start from a user-writable directory, including the test output folder.
 
 ```powershell
 .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe

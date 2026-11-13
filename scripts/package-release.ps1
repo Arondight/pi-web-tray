@@ -21,7 +21,7 @@ if ([string]::IsNullOrWhiteSpace($projectVersion)) {
     throw "Could not read <Version> from src\PiWebTray.csproj."
 }
 if ($version -ne $projectVersion) {
-    throw "Artifact version '$version' does not match source version '$projectVersion'. Run .uild.cmd first."
+    throw "Artifact version '$version' does not match source version '$projectVersion'. Run .\build.cmd first."
 }
 
 foreach ($culture in @("zh-Hans", "zh-Hant")) {

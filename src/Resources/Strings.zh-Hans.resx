@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -189,6 +189,9 @@
   </data>
   <data name="auto.failed" xml:space="preserve">
     <value>无法更新开机自启动设置。</value>
+  </data>
+  <data name="auto.namedInstance" xml:space="preserve">
+    <value>开机自启动仅支持默认实例。请改用默认实例。</value>
   </data>
   <data name="probe.notInstalled" xml:space="preserve">
     <value>（未安装）</value>

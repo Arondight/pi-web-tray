@@ -281,6 +281,8 @@ namespace PiWebTray
             label.AutoSize = true;
             label.Margin = Padding.Empty;
             label.UseCompatibleTextRendering = false;
+            // The message includes an installation path that may contain '&'.
+            label.UseMnemonic = false;
             return label;
         }
 

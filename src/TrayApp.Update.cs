@@ -347,15 +347,27 @@ namespace PiWebTray
             {
                 string directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+                // Remove a gate planted before the parent confirmation. If an attacker
+                // recreates it between this delete and CreateNew, CreateNew fails and
+                // the helper will reject the confirmation instead of applying the update.
+                if (File.Exists(path)) File.Delete(path);
                 if (PathSafety.ContainsReparsePoint(path)) return false;
                 // The file is created only after every ExitApp guard has passed.
                 // It persists even if this process exits before the helper opens it.
-                File.WriteAllText(path, "confirmed", new UTF8Encoding(false));
+                // CreateNew never follows a pre-created reparse point at the gate name.
+                using (FileStream stream = new FileStream(path, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None))
+                {
+                    byte[] data = new UTF8Encoding(false).GetBytes("confirmed");
+                    stream.Write(data, 0, data.Length);
+                }
                 _updateHelperGateSignaled = true;
                 return true;
             }
             catch (Exception ex)
             {
+                // Do not leave a pre-created or partial gate for the helper to trust.
+                try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
                 Updater.AppendLog(_config.UpdateLogFile, "could not confirm update gate: " + ex.Message);
                 return false;
             }

@@ -7,8 +7,10 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
+using Microsoft.Win32.SafeHandles;
 
 namespace PiWebTray
 {
@@ -40,6 +42,10 @@ namespace PiWebTray
                 }
             }
 
+            // Do not pretend to host a log that cannot be opened. The tray's
+            // --log-host-check already probes this, but a direct invocation must
+            // fail visibly instead of silently discarding service output.
+            if (!CanOpenForAppend(path)) return 2;
             try
             {
                 using (Stream input = Console.OpenStandardInput())
@@ -135,17 +141,69 @@ namespace PiWebTray
             }
         }
 
+        // The log path can be swapped for a reparse point after the initial check
+        // (or between rotations). Revalidate every open so an elevated log host never
+        // follows a link planted in the user-writable data directory.
+        internal static bool CanOpenForAppend(string path)
+        {
+            using (FileStream stream = Open(path))
+            {
+                return stream != null;
+            }
+        }
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandle(SafeFileHandle file,
+            StringBuilder path, uint pathLength, uint flags);
+
         private static FileStream Open(string path)
         {
+            FileStream stream = null;
             try
             {
+                if (!IsExpectedLogPath(path)) return null;
                 string directory = Path.GetDirectoryName(path);
                 if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-                return new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                // The path can be replaced by a reparse point between the check above
+                // and CreateFile. Ask the opened handle for its final path: a handle
+                // cannot be redirected afterwards, and an elevated log host must not
+                // append to a target outside the expected user log directory.
+                if (!HandleMatchesExpectedPath(stream, path))
+                {
+                    stream.Dispose();
+                    return null;
+                }
+                return stream;
             }
             catch (Exception)
             {
+                try { if (stream != null) stream.Dispose(); } catch (Exception) { }
                 return null;
+            }
+        }
+
+        private static bool HandleMatchesExpectedPath(FileStream stream, string expected)
+        {
+            try
+            {
+                StringBuilder buffer = new StringBuilder(32768);
+                uint length = GetFinalPathNameByHandle(stream.SafeFileHandle, buffer,
+                    (uint)buffer.Capacity, 0);
+                if (length == 0 || length >= buffer.Capacity) return false;
+                string final = buffer.ToString();
+                if (final.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+                    final = @"\\" + final.Substring(8);
+                else if (final.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
+                    final = final.Substring(4);
+                final = Path.GetFullPath(final);
+                expected = Path.GetFullPath(expected);
+                return string.Equals(final, expected, StringComparison.OrdinalIgnoreCase)
+                    && !PathSafety.ContainsReparsePoint(final);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 

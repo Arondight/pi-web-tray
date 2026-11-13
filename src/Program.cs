@@ -113,8 +113,13 @@ namespace PiWebTray
                     if (string.Equals(args[i], "--log-host-check",
                             StringComparison.OrdinalIgnoreCase))
                     {
-                        if (i + 1 < args.Length && !LogHost.IsExpectedLogPath(args[i + 1]))
-                            return 2;
+                        if (i + 1 >= args.Length) return 2;
+                        if (!LogHost.IsExpectedLogPath(args[i + 1])) return 2;
+                        // A syntactically valid path can still be a directory, be
+                        // read-only, or be locked by another process. The check must
+                        // prove the log host can actually open its output, otherwise
+                        // the service would run with silently discarded output.
+                        if (!LogHost.CanOpenForAppend(args[i + 1])) return 2;
                         break;
                     }
                 }
@@ -148,8 +153,7 @@ namespace PiWebTray
 
             if (Has(args, "--make-ico"))
             {
-                ExportIconFile(config.BaseDir);
-                return 0;
+                return ExportIconFile(config.BaseDir) ? 0 : 1;
             }
 
             bool elevated = Elevation.IsElevated();
@@ -234,8 +238,13 @@ namespace PiWebTray
                 if (TryAcquireMutex(0, out autoMutex, out autoDenied))
                 {
                     RunTray(config, elevated, !isTrayOnly, autoMutex, false);
+                    return 0;
                 }
-                return 0;
+                // A tray can already be running (for example a user-started
+                // --tray-only instance). Login autostart must still start the
+                // service without opening a browser.
+                if (isTrayOnly) return 0;
+                return SendSignal(Instance.StartSignalName) ? 0 : 1;
             }
 
             Mutex mutex;
@@ -280,7 +289,9 @@ namespace PiWebTray
                 // A closed port only proves that the service stopped, not that the
                 // tray itself exited. Wait for the single-instance mutex so a
                 // following command sees a genuinely free instance.
-                if (!WaitForTrayExit(30000)) return 1;
+                // ExitApp may spend up to 8 seconds stopping the listener and
+                // another 25 seconds waiting for a `pi-web stop` worker.
+                if (!WaitForTrayExit(45000)) return 1;
                 // The tray may have exited while a privileged or foreign listener
                 // survived the stop. Do not report success in that case.
                 return Net.WaitPortClosed(servicePort, 5000) ? 0 : 1;
@@ -302,6 +313,11 @@ namespace PiWebTray
                     return 1;
                 }
 
+                // Let the elevated tray start/open the service and show its own
+                // conflict/update state. Directly opening the URL only works while
+                // the service is already running; when it is stopped the old code
+                // told the user "already running as admin" and did nothing.
+                if (SendSignal(Instance.OpenSignalName)) return 0;
                 if (portOpen)
                 {
                     PortOwnerInfo owner = ServiceProbe.Inspect(servicePort, ExpectedPiWebScript(config));
@@ -338,14 +354,18 @@ namespace PiWebTray
             }
 
             // An already-elevated tray keeps handling the flags itself. Do not replace
-            // it just because a no-browser start was requested.
+            // it just because the service is currently stopped: a plain launch should
+            // ask the existing tray to start/open, not tear it down. This also avoids
+            // aborting an install/update that happens to have closed the port.
             if (existingElevated)
             {
                 if (isTrayOnly) return 0;
                 if (noBrowser)
                     return SendSignal(Instance.StartSignalName) ? 0 : 1;
-
-                // A plain elevated start with the service running just opens the browser.
+                if (SendSignal(Instance.OpenSignalName)) return 0;
+                // Fall back to opening the verified listener directly when the
+                // notification event is unavailable; keep the old behavior for a
+                // running service, but do not pretend to start a stopped one.
                 if (portOpen)
                 {
                     PortOwnerInfo owner = ServiceProbe.Inspect(servicePort, ExpectedPiWebScript(config));
@@ -354,6 +374,8 @@ namespace PiWebTray
                     else Inform(L.T("notify.portConflictTitle"), L.T("notify.portConflictBody", servicePort));
                     return 0;
                 }
+                Inform(L.T("prog.adminAlreadyTitle"), L.T("prog.adminAlreadyBody"));
+                return 1;
             }
 
             // Elevated takeover: this must also run for --tray-only and --start-no-open
@@ -366,7 +388,9 @@ namespace PiWebTray
                 SendSignal(Instance.QuitSignalName);
             Mutex taken;
             bool denied;
-            if (TryAcquireMutex(15000, out taken, out denied))
+            // Leave enough time for the old tray to finish a `pi-web stop` worker
+            // before starting the replacement (ExitWithout waits up to 25 seconds).
+            if (TryAcquireMutex(40000, out taken, out denied))
             {
                 // --tray-only explicitly says "do not start or manage the service".
                 // Killing the listener here would contradict that flag, especially
@@ -599,10 +623,13 @@ namespace PiWebTray
                 return false;
             }
 
-            if (!string.IsNullOrEmpty(script) && File.Exists(script))
+            if (!string.IsNullOrEmpty(script) && File.Exists(script)
+                && !string.IsNullOrEmpty(probe.NodePath) && File.Exists(probe.NodePath))
             {
-                string node = string.IsNullOrEmpty(probe.NodePath) ? "node.exe" : probe.NodePath;
-                ProcessRunner.Run(node, Shell.Quote(script) + " stop --port " + config.Port,
+                // A bare "node.exe" fallback would let CreateProcess resolve a binary
+                // from the current directory or PATH. If Node.js is gone, use the
+                // identified listener PID below instead of attempting the CLI stop.
+                ProcessRunner.Run(probe.NodePath, Shell.Quote(script) + " stop --port " + config.Port,
                     config.WorkingDir, 20000, null, null);
             }
 
@@ -765,9 +792,21 @@ namespace PiWebTray
                 }
 
                 // Restore what was stopped: a tray path restarts the service it stopped for an
-                // install; the CLI path asks a running tray to start it again.
+                // install; the CLI path asks a running tray to start it again. The tray's
+                // StartServer deliberately refuses to run while UpdateName is held, so the
+                // CLI must release it before sending the start signal. Otherwise the tray
+                // consumes the signal, the restart times out, and a successfully installed
+                // service is left stopped.
                 bool restored = true;
-                if (stopped && !dryRun) restored = RestartServiceAfterConsoleInstall(config);
+                if (stopped && !dryRun)
+                {
+                    if (updateLock != null)
+                    {
+                        updateLock.Dispose();
+                        updateLock = null;
+                    }
+                    restored = RestartServiceAfterConsoleInstall(config);
+                }
                 return code == 0 && !restored ? 1 : code;
             }
             finally
@@ -783,6 +822,9 @@ namespace PiWebTray
             stopped = false;
             int port = EffectivePort(config);
             bool trayRunning = TrayRunning();
+            // Capture this before sending the stop signal: a service that was open
+            // and is now closed was stopped for the install and must be restored.
+            bool serviceWasRunning = Net.IsPortOpen(port, 300);
 
             // Always tell a running tray to stop, even when the port is currently
             // closed. The tray may be Starting, or may have an AutoRestart timer
@@ -806,6 +848,10 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
                 }
+                // If the port was open before the stop signal, this install stopped
+                // a live service even though the port is now closed. Restore it after
+                // npm finishes; a service that was already stopped stays stopped.
+                if (!dryRun && trayRunning && serviceWasRunning) stopped = true;
                 return true;
             }
 
@@ -863,13 +909,26 @@ namespace PiWebTray
                 return true;
             }
 
+            // The stop worker releases StopName just before the tray timer observes the
+            // Stopped phase. A short settle window avoids sending the one-shot start
+            // signal while StartServer still sees Stopping; if it is still stopping,
+            // StartServer now queues the request instead of discarding it.
+            Thread.Sleep(750);
+            if (!TrayRunning())
+            {
+                ConsoleHost.WriteLine(L.T("install.stoppedNoTray"));
+                return true;
+            }
+
             // Start without opening a browser: --install must not turn into "open pi-web".
             if (!SendSignal(Instance.StartSignalName))
             {
                 ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                 return false;
             }
-            if (!Net.WaitPortOpen(port, 30000))
+            // Match the tray's own start timeout: a cold Next.js start can take longer
+            // than the old 30 second CLI window.
+            if (!Net.WaitPortOpen(port, 180000))
             {
                 ConsoleHost.WriteError(L.T("install.restartFailed", port));
                 return false;
@@ -1132,16 +1191,18 @@ namespace PiWebTray
             }
         }
 
-        private static void ExportIconFile(string baseDir)
+        private static bool ExportIconFile(string baseDir)
         {
             try
             {
                 File.WriteAllBytes(
                     Path.Combine(baseDir, "pi-web-tray.ico"),
                     Icons.BuildIco(Icons.RunningColor, new int[] { 16, 20, 24, 32, 40, 48, 64, 256 }));
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
     }

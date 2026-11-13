@@ -174,9 +174,10 @@ namespace PiWebTray
             }
 
             // Let a running `pi-web stop` worker release the package directory before
-            // the process exits. The CLI install path waits on the stop lock; exiting
-            // early would let it start npm while the stop child is still alive.
-            WaitForStopWorker(5000);
+            // the process exits. ProcessRunner allows the stop child up to 20 seconds,
+            // so a 5 second wait can release the stop lock while the child still owns
+            // the global package directory.
+            WaitForStopWorker(25000);
 
             // Normal exit means "stop the service". If the wrapper is still alive
             // while the port is already closed (a hung start or a detached child),
@@ -201,6 +202,14 @@ namespace PiWebTray
         private void ExitWithoutStoppingService(bool stopTrackedService)
         {
             if (_exiting) return;
+            // An elevated --tray-only takeover is not allowed to abandon a running
+            // update helper. ExitApp has the same guard; this path previously bypassed
+            // it and could leave the helper waiting for a gate that never arrives.
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying)
+            {
+                NotifyWarning(L.T("update.busyTitle"), L.T("update.exitDuringApplyBody"));
+                return;
+            }
             _exiting = true;
             try { _timer.Stop(); } catch (Exception) { }
 
@@ -221,7 +230,7 @@ namespace PiWebTray
             lock (_updateLock) cancellation = _updateCancellation;
             if (cancellation != null) cancellation.Cancel();
 
-            WaitForStopWorker(5000);
+            WaitForStopWorker(25000);
             TrayState.Delete();
             Cleanup();
             ExitThread();
@@ -272,7 +281,10 @@ namespace PiWebTray
             CloseUpdateForm();
             ReleaseUpdateHelperGate();
             ReleaseInstallUpdateLock();
-            ReleaseStopWorkerLock();
+            // A still-running stop worker owns StopName. Closing it here would let a
+            // waiting CLI install start npm before the `pi-web stop` child has
+            // released the package directory. The worker releases the lock itself.
+            if (!_stopWorkerRunning) ReleaseStopWorkerLock();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
             try { _menu.Dispose(); } catch (Exception) { }
             try { _openSignal.Close(); } catch (Exception) { }

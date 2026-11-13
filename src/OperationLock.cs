@@ -107,28 +107,47 @@ namespace PiWebTray
         internal static bool IsAvailable(string name)
         {
             if (string.IsNullOrEmpty(name)) return false;
-            Mutex mutex = null;
-            try
+            // Mutex ownership is recursive for the owning thread. Testing WaitOne(0)
+            // directly on the caller's thread would report a lock held by that same
+            // thread as available. Probe from a separate thread so the answer means
+            // "another thread/process can acquire it now".
+            bool acquired = false;
+            Thread probe = new Thread(delegate ()
             {
-                mutex = new Mutex(false, name);
+                Mutex mutex = null;
                 try
                 {
-                    if (!mutex.WaitOne(0)) return false;
+                    mutex = new Mutex(false, name);
+                    try
+                    {
+                        if (!mutex.WaitOne(0)) return;
+                    }
+                    catch (AbandonedMutexException)
+                    {
+                        // Ownership was transferred to this thread.
+                    }
+                    acquired = true;
+                    try { mutex.ReleaseMutex(); } catch (Exception) { }
                 }
-                catch (AbandonedMutexException)
+                catch (Exception)
                 {
-                    // Ownership was transferred to this thread.
                 }
-                try { mutex.ReleaseMutex(); } catch (Exception) { }
-                return true;
+                finally
+                {
+                    try { if (mutex != null) mutex.Close(); } catch (Exception) { }
+                }
+            });
+            probe.IsBackground = true;
+            probe.Name = "pi-web-tray lock availability";
+            try
+            {
+                probe.Start();
+                if (!probe.Join(2000)) return false;
+                return acquired;
             }
             catch (Exception)
             {
                 return false;
-            }
-            finally
-            {
-                try { if (mutex != null) mutex.Close(); } catch (Exception) { }
             }
         }
 

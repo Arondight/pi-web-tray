@@ -312,7 +312,7 @@ namespace PiWebTray
                     }
 
                     if (!string.IsNullOrEmpty(gateEventName)
-                        && !File.Exists(gateEventName))
+                        && !GateConfirmed(gateEventName))
                     {
                         AppendLog(logPath, "parent exited without confirming the update gate");
                         MessageBox.Show(L.T("update.error.notConfirmed"), L.T("update.applyFailedTitle"),
@@ -322,6 +322,10 @@ namespace PiWebTray
                         OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
+                    // The gate has served its purpose. Remove it so a later update
+                    // cannot mistake a stale file for a fresh confirmation.
+                    try { if (File.Exists(gateEventName)) File.Delete(gateEventName); }
+                    catch (Exception) { }
 
                     if (!Directory.Exists(target))
                     {
@@ -651,6 +655,7 @@ namespace PiWebTray
         private static void OfferStartAfterFailure(string target, ApplyStartMode mode, string logPath,
             bool originalElevated, string dataDir)
         {
+            mode = HonorServiceStopRequest(mode, dataDir, logPath);
             try
             {
                 string exe = Path.Combine(target, "pi-web-tray.exe");
@@ -926,6 +931,24 @@ namespace PiWebTray
                     .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                     + Path.DirectorySeparatorChar;
                 return fullPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        internal static bool GateConfirmed(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)
+                    || PathSafety.ContainsReparsePoint(path))
+                    return false;
+                FileInfo info = new FileInfo(path);
+                if (!info.Exists || info.Length > 64) return false;
+                return string.Equals(File.ReadAllText(path).Trim(),
+                    "confirmed", StringComparison.Ordinal);
             }
             catch (Exception)
             {

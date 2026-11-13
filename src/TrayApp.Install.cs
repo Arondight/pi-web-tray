@@ -273,6 +273,7 @@ namespace PiWebTray
             }
 
             Installer.ResetAbort();
+            Installer.ResetProgress();
             _phase = Phase.Installing;
             _installStartedAt = DateTime.Now;
             _installTicks = 0;
@@ -337,9 +338,13 @@ namespace PiWebTray
             bool restartService = _installRestartService;
             bool startAfter = _installStartAfter;
             bool openAfter = _installOpenAfter;
+            bool pendingStart = _pendingStart;
+            bool pendingStartOpen = _pendingStartOpen;
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
+            _pendingStart = false;
+            _pendingStartOpen = false;
             // npm has finished; the follow-up probe only reads state and may start the
             // service, so the installation lock can be released now.
             ReleaseInstallUpdateLock();
@@ -354,7 +359,8 @@ namespace PiWebTray
                 UpdateUi();
                 if (cancelled)
                     NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
-                if (restartService) RestoreServiceAfterInstall();
+                if (restartService || pendingStart)
+                    RestoreServiceAfterInstall(pendingStart && pendingStartOpen);
                 return;
             }
 
@@ -369,7 +375,8 @@ namespace PiWebTray
                 // auto-install again from this follow-up: npm reported success; if a
                 // package is still missing the user needs the explicit menu action, not
                 // an endless install loop.
-                BeginEnvironmentCheck(startAfter, openAfter, 0, true);
+                BeginEnvironmentCheck(startAfter || pendingStart,
+                    openAfter || pendingStartOpen, 0, true);
             }
             else if (cancelled)
             {
@@ -377,7 +384,8 @@ namespace PiWebTray
                 _phase = depsMissing ? Phase.NeedsDeps : Phase.Stopped;
                 UpdateUi();
                 NotifyWarning(L.T("install.cancelledTitle"), L.T("install.cancelledBody"));
-                if (restartService) RestoreServiceAfterInstall();
+                if (restartService || pendingStart)
+                    RestoreServiceAfterInstall(pendingStart && pendingStartOpen);
             }
             else
             {
@@ -385,7 +393,8 @@ namespace PiWebTray
                 UpdateUi();
                 NotifyError(L.T("install.failedTitle"), result.Message,
                     delegate { ShowLog(_config.InstallLogFile, L.T("log.installTitle")); });
-                if (restartService) RestoreServiceAfterInstall();
+                if (restartService || pendingStart)
+                    RestoreServiceAfterInstall(pendingStart && pendingStartOpen);
             }
         }
 
@@ -460,13 +469,13 @@ namespace PiWebTray
             catch (Exception) { return false; }
         }
 
-        private void RestoreServiceAfterInstall()
+        private void RestoreServiceAfterInstall(bool openBrowser = false)
         {
             // The probe predates the install. A failed or cancelled npm run can have
             // left a half-written package, so never use that stale result to start the
             // service. Re-probe first; suppress auto-install so this recovery cannot
             // turn into an endless install loop.
-            BeginEnvironmentCheck(true, false, 0, true);
+            BeginEnvironmentCheck(true, openBrowser, 0, true);
         }
 
         private void ShowInstallForm()

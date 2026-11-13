@@ -190,6 +190,9 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="auto.failed" xml:space="preserve">
     <value>The start-at-login settings could not be updated.</value>
   </data>
+  <data name="auto.namedInstance" xml:space="preserve">
+    <value>Start at login is only supported for the default instance. Use the default instance instead.</value>
+  </data>
   <data name="probe.notInstalled" xml:space="preserve">
     <value>(not installed)</value>
   </data>

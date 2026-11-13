@@ -165,13 +165,13 @@ namespace PiWebTray
                 ? L.T("menu.installAuto")
                 : L.T("menu.installDeps");
             _updateItem.Enabled = !busy;
-            _updateItem.Text = updateBusy
+            _updateItem.Text = (updateBusy
                 ? (_updateStage == UpdateStage.Checking
                     ? L.T("update.status.checking")
                     : L.T("menu.checkUpdatesBusy"))
                 : (_availableRelease != null
                     ? L.T("menu.updateAvailable", _availableRelease.Version)
-                    : L.T("menu.checkUpdates"));
+                    : L.T("menu.checkUpdates"))).Replace("&", "&&");
 
             if (_updateForm != null && updateBusy)
             {
@@ -180,14 +180,18 @@ namespace PiWebTray
                 bool canCancel = _updateStage == UpdateStage.Checking || _updateStage == UpdateStage.Downloading;
                 _updateForm.SetState(label, formPercent, canCancel);
             }
-            // The Node.js item is only a link to the official download page; unlike
-            // service/update actions it is safe to use at any time.
-            _nodeItem.Enabled = true;
+            // These actions can open a modal dialog. While the update helper is
+            // replacing files, a modal loop would hold up PollUpdate and the tray's
+            // confirmation to exit, leaving the helper waiting indefinitely.
+            _nodeItem.Enabled = !applying;
+            _aboutItem.Enabled = !applying;
             _checkItem.Enabled = !busy && !_selfCheckRunning;
             _settingsItem.Enabled = !busy;
-            _installLogItem.Enabled = File.Exists(_config.InstallLogFile);
-            _updateLogItem.Enabled = File.Exists(_config.UpdateLogFile);
+            _logsItem.Enabled = !applying;
+            _installLogItem.Enabled = !applying && File.Exists(_config.InstallLogFile);
+            _updateLogItem.Enabled = !applying && File.Exists(_config.UpdateLogFile);
             _copyUrlItem.Enabled = running;
+            _shortcutItem.Enabled = !applying;
             _restartAdminItem.Enabled = !_elevated && !busy;
             // Applying replaces this executable and starts a helper that cannot be
             // cancelled safely. Exiting at that point would leave the update and the
@@ -213,6 +217,12 @@ namespace PiWebTray
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;
+            // This is an explicit user request. It overrides an earlier stop even
+            // when the click only opens an already-running service or shows a
+            // conflict; otherwise a stale marker could make a later update leave the
+            // service down.
+            _serviceStoppedByUser = false;
+            TrayState.ClearServiceStopRequest();
             if (UpdateBusy() && (_phase == Phase.NeedsDeps || _phase == Phase.PortConflict))
             {
                 NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
@@ -270,7 +280,13 @@ namespace PiWebTray
                 BeginInstall(false, true, true);
                 return;
             }
-            if (_phase == Phase.Installing) return;
+            if (_phase == Phase.Installing)
+            {
+                // Remember the open request until npm releases the package
+                // directory instead of silently dropping a user launch.
+                StartServer(true);
+                return;
+            }
             if (_phase == Phase.Checking)
             {
                 // A click while the first probe is running should not be lost. Queue
@@ -290,7 +306,9 @@ namespace PiWebTray
             }
             if (_phase == Phase.Stopping)
             {
-                NotifyWarning(L.T("notify.stoppingTitle"), L.T("notify.stoppingBody"));
+                // Queue the request behind the stop. StartServer also handles a
+                // stop-for-install, where the install's restore path owns the start.
+                StartServer(true);
                 return;
             }
             if (_phase == Phase.NeedsNode)

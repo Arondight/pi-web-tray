@@ -117,9 +117,17 @@ namespace PiWebTray
                 config.IniPath = dataIni;
             }
 
-            // Resolve the language before writing the default ini, so the template comments match it
+            // Resolve the language before writing the default ini, so the template comments match it.
+            // Read-only commands run with writeDefaults=false and therefore do not copy the
+            // template ini into the data directory. Fall back to the program-directory ini for
+            // the language value, without writing anything, so --help/--lang-check honour it
+            // on the first run.
+            string languageIni = config.IniPath;
+            if (!writeDefaults && useDataDir && !File.Exists(config.IniPath)
+                && File.Exists(localIni))
+                languageIni = localIni;
             string language = Environment.GetEnvironmentVariable("PI_WEB_TRAY_LANG");
-            if (string.IsNullOrEmpty(language)) language = ReadIniValue(config.IniPath, "language");
+            if (string.IsNullOrEmpty(language)) language = ReadIniValue(languageIni, "language");
             if (string.IsNullOrEmpty(language)) language = L.Auto;
             config.Language = language;
             L.Use(language);
@@ -319,8 +327,28 @@ namespace PiWebTray
             if (value.Length >= 2 && (value[0] == '"' || value[0] == '\''))
             {
                 char quote = value[0];
-                int close = value.IndexOf(quote, 1);
-                if (close > 0) value = value.Substring(1, close - 1);
+                StringBuilder quoted = new StringBuilder();
+                bool closed = false;
+                for (int i = 1; i < value.Length; i++)
+                {
+                    char c = value[i];
+                    if (c == quote)
+                    {
+                        // A doubled quote represents one literal quote. This lets
+                        // IniValue write credentials/paths containing quotes without
+                        // silently truncating them at the first inner quote.
+                        if (i + 1 < value.Length && value[i + 1] == quote)
+                        {
+                            quoted.Append(quote);
+                            i++;
+                            continue;
+                        }
+                        closed = true;
+                        break;
+                    }
+                    quoted.Append(c);
+                }
+                if (closed) value = quoted.ToString();
                 return true;
             }
 
@@ -426,9 +454,15 @@ namespace PiWebTray
         private static string IniValue(string value)
         {
             if (value == null) return "";
-            if (value.IndexOf(';') < 0 && value.IndexOf('#') < 0
-                && value.Length == value.Trim().Length) return value;
-            return "\"" + value + "\"";
+            bool quote = value.IndexOf(';') >= 0 || value.IndexOf('#') >= 0
+                || value.Length != value.Trim().Length
+                || value.IndexOf('"') >= 0
+                || (value.Length > 0 && value[0] == '\'');
+            if (!quote) return value;
+            // The parser recognizes a doubled quote inside a quoted value. This keeps
+            // values such as proxy passwords and registry URLs containing quotes
+            // intact instead of truncating them on the next read.
+            return "\"" + value.Replace("\"", "\"\"") + "\"";
         }
 
         // Write several keys in one pass so a settings dialog cannot leave the file

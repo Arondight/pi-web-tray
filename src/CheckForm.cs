@@ -73,6 +73,7 @@ namespace PiWebTray
 
             _summary = new Label();
             _summary.AutoSize = true;
+            _summary.UseMnemonic = false;
             _summary.MaximumSize = new Size(880, 0);
             _summary.Padding = new Padding(0, 0, 0, 8);
             // A report opened with refreshOnShown performs its own probe. Do not show

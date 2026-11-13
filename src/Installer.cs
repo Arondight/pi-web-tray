@@ -90,6 +90,14 @@ namespace PiWebTray
             if (pid > 0) Sys.KillTree(pid);
         }
 
+        // The install form lives longer than a single attempt in the tray process.
+        // Clear the last step/output so a new attempt never starts by rendering the
+        // previous run's progress and npm output.
+        internal static void ResetProgress()
+        {
+            lock (Sync) _progress = new InstallProgress();
+        }
+
         internal static InstallProgress Snapshot()
         {
             lock (Sync)
@@ -382,6 +390,7 @@ namespace PiWebTray
         // Synchronous install; the caller runs it on a background thread
         internal static InstallResult Install(Config config, ProbeResult probe, bool force, Action<string> onLine)
         {
+            ResetProgress();
             InstallResult result = new InstallResult();
             result.LogPath = config.InstallLogFile;
             DateTime started = DateTime.Now;

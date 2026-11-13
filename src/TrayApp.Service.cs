@@ -509,7 +509,18 @@ namespace PiWebTray
                 UpdateUi();
                 if (_installAfterStop)
                 {
+                    // StartServer during the stop-for-install recorded the explicit
+                    // request in the install flags, so PollInstall can start the
+                    // service after npm has released the package directory.
                     ContinueInstallAfterStop();
+                    return;
+                }
+                if (_pendingStart)
+                {
+                    _pendingStart = false;
+                    bool open = _pendingStartOpen;
+                    _pendingStartOpen = false;
+                    StartServer(open);
                     return;
                 }
                 if (_pendingRestart)
@@ -780,6 +791,7 @@ namespace PiWebTray
                 || previousPhase == Phase.RunningUnverified)
             {
                 _serviceStoppedByUser = false;
+                TrayState.ClearServiceStopRequest();
             }
         }
 
@@ -989,6 +1001,39 @@ namespace PiWebTray
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
             if (_updateStage == UpdateStage.Applying) return;
+
+            // Queue a start request before the external-update guard: an own install
+            // holds _installUpdateLock while it stops the service, and the user's
+            // explicit start must survive that stop. A request arriving during a CLI
+            // install is queued too; the CLI sends another signal after releasing the
+            // lock, and PollStopping retries once the phase is stable.
+            if (_phase == Phase.Stopping)
+            {
+                _serviceStoppedByUser = false;
+                TrayState.ClearServiceStopRequest();
+                _pendingStart = true;
+                _pendingStartOpen = _pendingStartOpen || openBrowser;
+                // A stop-for-install is already in progress. Let that install restore
+                // the service instead of starting it while npm still owns the package
+                // directory.
+                if (_installAfterStop)
+                {
+                    _installStartAfter = true;
+                    _installOpenAfter = _installOpenAfter || openBrowser;
+                }
+                UpdateUi();
+                return;
+            }
+            if (_phase == Phase.Installing)
+            {
+                _serviceStoppedByUser = false;
+                TrayState.ClearServiceStopRequest();
+                _pendingStart = true;
+                _pendingStartOpen = _pendingStartOpen || openBrowser;
+                UpdateUi();
+                return;
+            }
+
             if (RefuseStartForExternalUpdate()) return;
             if (ElevatedInstallUnsafe())
             {
@@ -1021,6 +1066,7 @@ namespace PiWebTray
                 // flight. It must override a previous deliberate stop; otherwise a
                 // later update could think the user still wants the service down.
                 _serviceStoppedByUser = false;
+                TrayState.ClearServiceStopRequest();
                 bool deferred = false;
                 lock (_checkLock)
                 {
@@ -1036,11 +1082,13 @@ namespace PiWebTray
                 return;
             }
 
-            // A request that cannot be executed yet must not mutate the current user
-            // intent or discard another pending action. In particular, a start signal
-            // during Stopping used to clear _serviceStoppedByUser even though the start
-            // itself was dropped, which later confused the update restart decision.
-            if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+            if (_phase == Phase.Starting)
+            {
+                _serviceStoppedByUser = false;
+                TrayState.ClearServiceStopRequest();
+                if (openBrowser) _openWhenReady = true;
+                return;
+            }
 
             ClearPendingOwnerActions(false);
             InvalidateOwnerCheck();
@@ -1049,6 +1097,7 @@ namespace PiWebTray
             // when an update is still downloading: a user stop must not be undone by
             // the update's auto-restart logic, while a later explicit start should be.
             _serviceStoppedByUser = false;
+            TrayState.ClearServiceStopRequest();
 
             // The fingerprint watcher can see node.exe disappear while a running service
             // is still using the already-loaded image. Re-probe before creating the next
@@ -1126,6 +1175,7 @@ namespace PiWebTray
             {
                 if (IsOurPiWeb(owner))
                 {
+                    TrayState.ClearServiceStopRequest();
                     _phase = Phase.Running;
                     _lastNotified = "";
                     _lastOwnerCheck = DateTime.Now;
@@ -1140,6 +1190,7 @@ namespace PiWebTray
                 {
                     if (TrayOwnsPort(owner))
                     {
+                        TrayState.ClearServiceStopRequest();
                         _phase = Phase.Running;
                         _lastNotified = "";
                         _lastOwnerCheck = DateTime.Now;
@@ -1176,12 +1227,21 @@ namespace PiWebTray
             }
 
             string node = EffectiveNodePath();
-            if (string.IsNullOrEmpty(node)) node = "node.exe";
+            if (string.IsNullOrEmpty(node) || !File.Exists(node))
+            {
+                // Never fall back to a bare node.exe: CreateProcess/cmd would search the
+                // current directory and PATH, which can execute an unrelated binary when
+                // the tray is elevated. Re-probe instead and let the normal NeedsNode path
+                // report the problem.
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
 
             // A symlink at server.log must not redirect elevated service output. If the
             // configured log path is unsafe, run the service without a log instead of
             // following the link.
-            bool safeLog = !PathSafety.ContainsReparsePoint(_config.LogFile);
+            bool safeLog = !PathSafety.ContainsReparsePoint(_config.LogFile)
+                && LogHost.CanOpenForAppend(_config.LogFile);
             if (safeLog)
             {
                 RotateLog();
@@ -1200,19 +1260,30 @@ namespace PiWebTray
                 // Pipe the output through a separate log-host process. cmd cannot rotate a
                 // file it redirects itself, while the host owns its log and can rotate it at
                 // any time. Neither the tray nor the pipe has to stay alive for the service.
+                // Put user-controlled paths in the child environment and expand them
+                // with %NAME% in cmd. Unlike embedding `^%` in the command text, a
+                // percent sign inside the environment value is not re-expanded by cmd,
+                // so installations under paths such as `C:\100%\...` work correctly.
+                const string cmdNode = "PI_WEB_TRAY_CMD_NODE";
+                const string cmdScript = "PI_WEB_TRAY_CMD_SCRIPT";
+                const string cmdLog = "PI_WEB_TRAY_CMD_LOG";
+                const string cmdLogHost = "PI_WEB_TRAY_CMD_LOG_HOST";
+                string nodeArg = "\"%" + cmdNode + "%\"";
+                string scriptArg = "\"%" + cmdScript + "%\"";
+                string logArg = "\"%" + cmdLog + "%\"";
                 string command;
                 if (!safeLog)
                 {
-                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
+                    command = nodeArg + " " + scriptArg
                         + " --no-open -p " + _port
                         + " >NUL 2>&1";
                 }
                 else if (LogHostAvailableCached())
                 {
-                    string logHost = Shell.CmdQuote(Application.ExecutablePath)
-                        + " --log-host " + Shell.CmdQuote(_config.LogFile) + " "
+                    string logHost = "\"%" + cmdLogHost + "%\""
+                        + " --log-host " + logArg + " "
                         + MaxLogBytes.ToString(CultureInfo.InvariantCulture);
-                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
+                    command = nodeArg + " " + scriptArg
                         + " --no-open -p " + _port
                         + " 2>&1 | " + logHost;
                 }
@@ -1222,9 +1293,9 @@ namespace PiWebTray
                     // the log-host's redaction (npm credential forms would land in server.log
                     // as-is), but keeps the service startable when the log-host child cannot
                     // be launched. SECURITY.md documents this residual risk.
-                    command = Shell.CmdQuote(node) + " " + Shell.CmdQuote(script)
+                    command = nodeArg + " " + scriptArg
                         + " --no-open -p " + _port
-                        + " 1>>" + Shell.CmdQuote(_config.LogFile) + " 2>&1";
+                        + " 1>>" + logArg + " 2>&1";
                 }
 
                 ProcessStartInfo psi = new ProcessStartInfo();
@@ -1242,6 +1313,14 @@ namespace PiWebTray
                 // this process's environment. Make the detected Node/npm directories
                 // visible to the service and its child processes.
                 psi.EnvironmentVariables["PATH"] = ServicePath(node);
+                psi.EnvironmentVariables[cmdNode] = node;
+                psi.EnvironmentVariables[cmdScript] = script;
+                psi.EnvironmentVariables[cmdLog] = _config.LogFile;
+                psi.EnvironmentVariables[cmdLogHost] = Application.ExecutablePath;
+                // Pi Web reads PI_WEB_HOSTNAME from the environment and would otherwise
+                // let a user-controlled value bind the service outside loopback. Pin the
+                // documented address; the tray readiness checks also use 127.0.0.1.
+                psi.EnvironmentVariables["PI_WEB_HOSTNAME"] = "127.0.0.1";
 
                 // The Proxy setting is deliberately not exported here: it applies only to
                 // Pi Web Tray update traffic. Do not change the Node/pi-web environment.
@@ -1257,6 +1336,7 @@ namespace PiWebTray
                 catch (Exception)
                 {
                 }
+                TrayState.ClearServiceStopRequest();
                 _server = Process.Start(psi);
                 ServiceProbe.Invalidate();
 
@@ -1310,6 +1390,10 @@ namespace PiWebTray
             // but the install's restore/start intent must be cancelled so the
             // service does not come back after the install finishes.
             _serviceStoppedByUser = true;
+            // Persist the stop intent across the tray exit that an update helper may
+            // perform. The helper reads this marker before choosing whether to start
+            // the service again.
+            TrayState.RequestServiceStop();
             // A stop that arrives while a restart is already in Stopping must
             // cancel the queued start; otherwise PollStopping brings the service
             // back after the user explicitly asked for it to stay down.
@@ -1318,6 +1402,8 @@ namespace PiWebTray
             _restartAfterUpdate = false;
             _autoRestartAt = DateTime.MinValue;
             _autoRestartAttempts = 0;
+            _pendingStart = false;
+            _pendingStartOpen = false;
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
@@ -1466,22 +1552,42 @@ namespace PiWebTray
             // not execute the configured NodePath; kill the already-identified listener.
             bool unsafeStop = ElevatedInstallUnsafe();
             string script = ExpectedPiWebScript();
+            string node = EffectiveNodePath();
+            bool canStopWithCli = !unsafeStop
+                && !string.IsNullOrEmpty(script) && File.Exists(script)
+                && !string.IsNullOrEmpty(node) && File.Exists(node);
 
-            if (!unsafeStop && !string.IsNullOrEmpty(script) && File.Exists(script))
+            if (canStopWithCli)
             {
                 // Hold a cross-process lock before publishing _stopWorkerRunning. The
                 // CLI install path waits on this lock after the port closes, so it cannot
                 // start npm while `pi-web stop` still holds the package directory.
                 ReleaseStopWorkerLock();
                 _stopWorkerLock = OperationLock.TryAcquireCrossThread(OperationLock.StopName);
+                if (_stopWorkerLock == null)
+                {
+                    // Running an unguarded stop worker would make the CLI's wait
+                    // meaningless. Never execute it without the lock; kill the already
+                    // identified listener instead.
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "stop lock unavailable; killing the identified listener directly");
+                    if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                    ServiceProbe.Invalidate();
+                    return;
+                }
                 OperationLock stopLock = _stopWorkerLock;
+                int generation = ++_stopWorkerGeneration;
                 _stopWorkerRunning = true;
                 Thread worker = new Thread(delegate ()
                 {
-                    try { StopWithCli(script); }
+                    try { StopWithCli(script, node); }
                     finally
                     {
-                        _stopWorkerRunning = false;
+                        // Do not clear the flag when a newer worker has already replaced
+                        // this one; that would make exit/poll logic think the new stop
+                        // finished while it is still holding npm's package directory.
+                        if (generation == _stopWorkerGeneration)
+                            _stopWorkerRunning = false;
                         // Release only the lock this worker owns. A later stop worker
                         // may already hold a new lock in _stopWorkerLock.
                         ReleaseStopWorkerLock(stopLock);
@@ -1494,8 +1600,11 @@ namespace PiWebTray
                 }
                 catch (Exception)
                 {
-                    _stopWorkerRunning = false;
+                    if (generation == _stopWorkerGeneration)
+                        _stopWorkerRunning = false;
                     ReleaseStopWorkerLock(stopLock);
+                    if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                    ServiceProbe.Invalidate();
                 }
             }
             else
@@ -1505,12 +1614,10 @@ namespace PiWebTray
             }
         }
 
-        private void StopWithCli(string script)
+        private void StopWithCli(string script, string node)
         {
             try
             {
-                string node = EffectiveNodePath();
-                if (string.IsNullOrEmpty(node)) node = "node.exe";
                 ProcessRunner.Run(node, Shell.Quote(script) + " stop --port " + _port,
                     _config.WorkingDir, 20000, null, null);
             }

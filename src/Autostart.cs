@@ -279,14 +279,43 @@ namespace PiWebTray
         private static bool QueryTaskDetails(string name, out bool enabled,
             out bool matchesExecutable, out string commandPath)
         {
+            bool userMatches;
+            bool xmlParsed;
+            return QueryTaskDetails(name, out enabled, out matchesExecutable,
+                out commandPath, out userMatches, out xmlParsed);
+        }
+
+        // Ownership is separate from the executable/argument match: DeleteTask must
+        // be able to remove a stale current-user task without ever deleting another
+        // user's legacy task.
+        internal static bool QueryTaskUserBelongsToCurrentUser(string name, out bool parsed)
+        {
+            bool enabled;
+            bool matches;
+            string command;
+            bool userMatches;
+            bool xmlParsed;
+            bool queried = QueryTaskDetails(name, out enabled, out matches,
+                out command, out userMatches, out xmlParsed);
+            parsed = queried && xmlParsed;
+            return parsed && userMatches;
+        }
+
+        private static bool QueryTaskDetails(string name, out bool enabled,
+            out bool matchesExecutable, out string commandPath,
+            out bool userMatches, out bool xmlParsed)
+        {
             enabled = false;
             // Do not claim an unknown task belongs to this installation. A false
             // positive can make PollTaskRefresh remove a working Run value.
             matchesExecutable = false;
             commandPath = "";
+            userMatches = false;
+            xmlParsed = false;
 
             bool parsed = false;
             bool parsedEnabled = false;
+            bool parsedUserMatches = false;
             string parsedCommand = "";
             foreach (Encoding encoding in TaskXmlEncodings())
             {
@@ -315,7 +344,10 @@ namespace PiWebTray
                 }
 
                 parsed = true;
+                xmlParsed = true;
                 parsedEnabled = IsTaskXmlEnabled(document);
+                parsedUserMatches = TaskXmlUserMatchesCurrentUser(document);
+                userMatches = parsedUserMatches;
                 string command = ReadTaskElement(document, "Command");
                 string arguments = ReadTaskElement(document, "Arguments");
                 string expandedCommand = ExpandTaskCommand(command);
@@ -336,7 +368,7 @@ namespace PiWebTray
                     }
                 }
 
-                if (pathMatches && TaskArgumentsStartService(arguments))
+                if (pathMatches && TaskArgumentsStartService(arguments) && userMatches)
                 {
                     enabled = parsedEnabled;
                     matchesExecutable = true;
@@ -360,6 +392,8 @@ namespace PiWebTray
             {
                 enabled = parsedEnabled;
                 commandPath = parsedCommand;
+                userMatches = parsedUserMatches;
+                xmlParsed = true;
                 return true;
             }
 
@@ -369,7 +403,64 @@ namespace PiWebTray
             // would allow PollTaskRefresh to remove the current Run value.
             bool exists = QueryTask(name);
             enabled = exists;
+            userMatches = false;
+            xmlParsed = false;
             return exists;
+        }
+
+        internal static bool TaskXmlUserMatchesCurrentUser(XmlDocument document)
+        {
+            if (document == null) return false;
+
+            // A task with no explicit user is the legacy any-user task and applies
+            // to the current logon. An explicit different user must never be treated
+            // as this user's autostart entry: doing so lets a legacy task belonging
+            // to another user suppress the current user's Run value or be deleted.
+            foreach (XmlNode node in document.SelectNodes(
+                "//*[local-name()='Principal']/*[local-name()='UserId']"))
+            {
+                if (!TaskUserIdMatchesCurrentUser(node.InnerText)) return false;
+            }
+            foreach (XmlNode node in document.SelectNodes(
+                "//*[local-name()='LogonTrigger']/*[local-name()='UserId']"))
+            {
+                if (!TaskUserIdMatchesCurrentUser(node.InnerText)) return false;
+            }
+            return true;
+        }
+
+        internal static bool TaskUserIdMatchesCurrentUser(string userId)
+        {
+            string value = (userId ?? "").Trim();
+            if (value.Length == 0) return true;
+
+            string sid = CurrentUserPrincipal();
+            if (!string.IsNullOrEmpty(sid)
+                && string.Equals(value, sid, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            string identityName = "";
+            try
+            {
+                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+                {
+                    identityName = identity.Name ?? "";
+                }
+            }
+            catch (Exception)
+            {
+            }
+            if (identityName.Length > 0
+                && string.Equals(value, identityName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            string domain = Environment.UserDomainName ?? "";
+            string user = Environment.UserName ?? "";
+            if (domain.Length > 0 && user.Length > 0
+                && string.Equals(value, domain + "\\" + user, StringComparison.OrdinalIgnoreCase))
+                return true;
+            return value.IndexOf('\\') < 0 && user.Length > 0
+                && string.Equals(value, user, StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<Encoding> TaskXmlEncodings()
@@ -455,7 +546,10 @@ namespace PiWebTray
             return enabled;
         }
 
-        private static bool QueryTask(string name)
+        // null means "could not determine"; false means schtasks completed and
+        // reported that the task does not exist. Mutation paths must fail closed
+        // on null instead of creating a second autostart mechanism.
+        private static bool? QueryTaskOrUnknown(string name)
         {
             try
             {
@@ -469,17 +563,22 @@ namespace PiWebTray
                 psi.RedirectStandardError = true;
                 using (Process p = Process.Start(psi))
                 {
-                    if (p == null) return false;
+                    if (p == null) return null;
                     p.BeginOutputReadLine();
                     p.BeginErrorReadLine();
-                    p.WaitForExit(5000);
+                    if (!p.WaitForExit(5000)) return null;
                     return p.HasExited && p.ExitCode == 0;
                 }
             }
             catch (Exception)
             {
-                return false;
+                return null;
             }
+        }
+
+        private static bool QueryTask(string name)
+        {
+            return QueryTaskOrUnknown(name) == true;
         }
 
         internal static void SetRunValue(string executablePath)
@@ -618,7 +717,16 @@ namespace PiWebTray
             }
 
             int exitCode;
-            string command = BuildSecureDirectoryCommand(directory);
+            string command;
+            try
+            {
+                command = BuildSecureDirectoryCommand(directory);
+            }
+            catch (Exception ex)
+            {
+                message = L.T("auto.repairFailed", ex.Message);
+                return false;
+            }
             if (!RunRepairCommand(command, out exitCode))
             {
                 if (exitCode == -2)
@@ -1083,7 +1191,9 @@ namespace PiWebTray
         {
             legacyRemovalFailed = false;
             if (!legacyExisted || !QueryTask(LegacyTaskName)) return;
-            legacyRemovalFailed = !DeleteTaskByName(elevated, LegacyTaskName);
+            // Never delete another user's machine-wide legacy task just because
+            // it has the historical name.
+            legacyRemovalFailed = !DeleteTaskIfOwned(elevated, LegacyTaskName);
         }
 
         private static bool BytesEqual(byte[] left, byte[] right)
@@ -1172,26 +1282,46 @@ namespace PiWebTray
 
         internal static bool DeleteTask(bool elevated)
         {
-            bool current = QueryTask();
-            bool legacy = Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
-            if (!current && !legacy) return true;
+            bool? current = QueryTaskOrUnknown(TaskName);
+            bool? legacy = Instance.Suffix.Length == 0
+                ? QueryTaskOrUnknown(LegacyTaskName) : (bool?)false;
+            if (current == null || legacy == null) return false;
+            if (current == false && legacy == false) return true;
 
-            if (current && !DeleteTaskByName(elevated, TaskName)) return false;
-            if (legacy && !DeleteTaskByName(elevated, LegacyTaskName)) return false;
+            if (current == true && !DeleteTaskIfOwned(elevated, TaskName)) return false;
+            if (legacy == true && !DeleteTaskIfOwned(elevated, LegacyTaskName)) return false;
             return true;
+        }
+
+        // Delete only a task that belongs to this user. A legacy "PiWebTray" task
+        // is machine-wide and may belong to another account; deleting it merely
+        // because the name exists would remove that account's startup entry.
+        private static bool DeleteTaskIfOwned(bool elevated, string name)
+        {
+            bool? exists = QueryTaskOrUnknown(name);
+            if (exists == false) return true;
+            if (exists == null) return false;
+            bool parsed;
+            bool owned = QueryTaskUserBelongsToCurrentUser(name, out parsed);
+            if (!parsed) return false;
+            if (!owned) return true;
+            return DeleteTaskByName(elevated, name);
         }
 
         private static bool DeleteTaskByName(bool elevated, string name)
         {
-            if (!QueryTask(name)) return true;
+            bool? exists = QueryTaskOrUnknown(name);
+            if (exists == false) return true;
+            if (exists == null) return false;
             if (!Launch(elevated, "/delete /f /tn " + Shell.Quote(name))) return false;
 
             for (int i = 0; i < 40; i++)
             {
                 Thread.Sleep(200);
-                if (!QueryTask(name)) return true;
+                bool? after = QueryTaskOrUnknown(name);
+                if (after == false) return true;
             }
-            return !QueryTask(name);
+            return QueryTaskOrUnknown(name) == false;
         }
 
         // Run directly when already elevated; otherwise go through runas (one UAC prompt)
@@ -1219,6 +1349,16 @@ namespace PiWebTray
         // Returns true on success; message is shown to the user either way
         internal static bool Apply(bool enable, bool admin, bool elevated, string executablePath, out string message)
         {
+            // A Run value or scheduled task cannot carry PI_WEB_TRAY_INSTANCE (and the
+            // user may have HOME/PORTABLE overrides too). Launching it would start the
+            // default instance instead of the named one. Refuse instead of installing
+            // a misleading, wrong-instance autostart entry.
+            if (enable && Instance.Suffix.Length != 0)
+            {
+                message = L.T("auto.namedInstance");
+                return false;
+            }
+
             if (!enable)
             {
                 // Remove the scheduled task first: if UAC is cancelled, the existing Run value

@@ -29,6 +29,84 @@ namespace PiWebTray
         {
             Assert.AreEqual(0, SelfTest.Run(), "Pure-logic checks failed. See test output.");
         }
+
+        [TestMethod]
+        public void CmdQuoteSurvivesPercentAndSpaces()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-cmdquote-" + Guid.NewGuid().ToString("N"));
+            string directory = Path.Combine(root, "100% a b");
+            string file = Path.Combine(directory, "payload.txt");
+            try
+            {
+                Directory.CreateDirectory(directory);
+                File.WriteAllText(file, "quoted-ok", new UTF8Encoding(false));
+                string command = "type " + Shell.CmdQuote(file);
+                ProcessResult run = ProcessRunner.Run(
+                    Sys.SystemExecutable("cmd.exe"), Shell.CmdLine(command),
+                    root, 10000, null, null);
+                Assert.IsTrue(run.Started, "cmd.exe did not start.");
+                Assert.IsFalse(run.TimedOut, "cmd.exe timed out.");
+                Assert.AreEqual(0, run.ExitCode, "cmd.exe could not read the quoted path.");
+                StringAssert.Contains(run.Output, "quoted-ok");
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        [TestMethod]
+        public void UpdateGateRequiresConfirmedContent()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-gate-" + Guid.NewGuid().ToString("N"));
+            string gate = Path.Combine(root, "gate");
+            try
+            {
+                Directory.CreateDirectory(root);
+                Assert.IsFalse(Updater.GateConfirmed(gate), "A missing gate must not confirm.");
+                File.WriteAllText(gate, "wrong", new UTF8Encoding(false));
+                Assert.IsFalse(Updater.GateConfirmed(gate), "An arbitrary gate file must not confirm.");
+                File.WriteAllText(gate, "confirmed", new UTF8Encoding(false));
+                Assert.IsTrue(Updater.GateConfirmed(gate), "The parent confirmation was not recognized.");
+                File.Delete(gate);
+                Assert.IsFalse(Updater.GateConfirmed(gate), "A deleted gate must not confirm.");
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        [TestMethod]
+        public void TaskXmlOwnershipMatchesCurrentUser()
+        {
+            string sid;
+            using (System.Security.Principal.WindowsIdentity identity =
+                System.Security.Principal.WindowsIdentity.GetCurrent())
+            {
+                Assert.IsNotNull(identity.User, "The test process has no user SID.");
+                sid = identity.User.Value;
+            }
+
+            XmlDocument document = new XmlDocument();
+            document.LoadXml(
+                "<Task><Principals><Principal><UserId>" + sid + "</UserId></Principal></Principals>"
+                + "<Triggers><LogonTrigger><UserId>" + sid + "</UserId></LogonTrigger></Triggers></Task>");
+            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document),
+                "A current-user task was treated as foreign.");
+
+            document.LoadXml(
+                "<Task><Principals><Principal><UserId>S-1-5-21-1-2-3-4</UserId></Principal></Principals>"
+                + "<Triggers><LogonTrigger><UserId>S-1-5-21-1-2-3-4</UserId></LogonTrigger></Triggers></Task>");
+            Assert.IsFalse(Autostart.TaskXmlUserMatchesCurrentUser(document),
+                "Another user's task was treated as current.");
+
+            document.LoadXml("<Task />");
+            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document),
+                "A legacy any-user task was rejected.");
+        }
     }
 
     internal static class SelfTest
@@ -48,6 +126,7 @@ namespace PiWebTray
             ConfigSafetyTests();
             EnvironmentHardeningTests();
             PendingInstallTests();
+            InstallerProgressTests();
             ProxySettingsTests();
             ProxyConnectionTests();
             SocksBridgeTests();
@@ -279,6 +358,11 @@ namespace PiWebTray
                 !ProxySettings.TryParse("ftp://127.0.0.1:21", out proxy, out error));
             Check("proxy path rejected",
                 !ProxySettings.TryParse("http://127.0.0.1:8080/path", out proxy, out error));
+            Check("explicit proxy port zero is rejected",
+                !ProxySettings.TryParse("http://127.0.0.1:0", out proxy, out error));
+            Check("SOCKS5 proxy defaults to port 1080",
+                ProxySettings.TryParse("socks5://127.0.0.1", out proxy, out error)
+                && proxy.Port == 1080);
         }
 
         private static void ProxyConnectionTests()
@@ -580,6 +664,16 @@ namespace PiWebTray
             }
         }
 
+        private static void InstallerProgressTests()
+        {
+            Installer.ResetProgress();
+            InstallProgress progress = Installer.Snapshot();
+            Check("install progress resets step count", progress.StepCount == 0);
+            Check("install progress resets step", progress.Step == 0);
+            Check("install progress resets the last npm line",
+                string.IsNullOrEmpty(progress.LastLine));
+        }
+
         private static void NodeDownloadTests()
         {
             CheckEqual("Windows 7 Node.js download", NodeDownloads.Windows7Url,
@@ -698,8 +792,12 @@ namespace PiWebTray
             CheckEqual("quote arg trailing slash", "\"C:\\dir\\\\\"", Shell.QuoteArg("C:\\dir\\"));
             CheckEqual("quote arg embedded quote", "\"a\\\"b\"", Shell.QuoteArg("a\"b"));
             CheckEqual("quote arg null", "\"\"", Shell.QuoteArg(null));
-            CheckEqual("cmd quote escapes percent", "\"C:\\x^%PATH^%\"",
+            CheckEqual("cmd quote escapes percent", "\"C:\\x\"^%\"PATH\"^%\"\"",
                 Shell.CmdQuote("C:\\x%PATH%"));
+            bool controlRejected = false;
+            try { Shell.CmdQuote("a\nb"); }
+            catch (ArgumentException) { controlRejected = true; }
+            Check("cmd quote rejects control characters", controlRejected);
             CheckEqual("path prefix trims trailing separators", @"C:\Dir",
                 ProcessRunner.PathPrefix(@"C:\Dir\"));
             CheckEqual("path prefix preserves a drive root", @"C:\",
@@ -747,6 +845,7 @@ namespace PiWebTray
                     values.Add(new KeyValuePair<string, string>("Port", "30200"));
                     values.Add(new KeyValuePair<string, string>("WorkingDir", "C:/work;old"));
                     values.Add(new KeyValuePair<string, string>("NpmRegistry", "https://example.test/#frag"));
+                    values.Add(new KeyValuePair<string, string>("Proxy", "http://user:p\"ass;x@host:8080"));
                     values.Add(new KeyValuePair<string, string>("Language", "zh-Hant"));
                     Check("ini values written", writeConfig.SetValues(values));
                     string parsedKey;
@@ -754,9 +853,14 @@ namespace PiWebTray
                     CheckEqual("ini quoted semicolon parses", "C:/work;old",
                         Config.TryParseLine("WorkingDir=\"C:/work;old\"", out parsedKey, out parsedValue)
                             ? parsedValue : "parse-failed");
+                    CheckEqual("ini doubled quote parses", "a\"b;c",
+                        Config.TryParseLine("Proxy=\"a\"\"b;c\"", out parsedKey, out parsedValue)
+                            ? parsedValue : "parse-failed");
                     CheckEqual("ini written port", "30200", Config.ReadIniValue(writePath, "port"));
                     CheckEqual("ini written semicolon path", "C:/work;old", Config.ReadIniValue(writePath, "WorkingDir"));
                     CheckEqual("ini written hash URL", "https://example.test/#frag", Config.ReadIniValue(writePath, "npmregistry"));
+                    CheckEqual("ini written quoted value round-trips",
+                        "http://user:p\"ass;x@host:8080", Config.ReadIniValue(writePath, "proxy"));
                     CheckEqual("ini written language", "zh-Hant", Config.ReadIniValue(writePath, "language"));
 
                     File.WriteAllText(writePath, "Port=1\nPort=2\n", new UTF8Encoding(false));
@@ -875,6 +979,8 @@ namespace PiWebTray
             using (OperationLock first = OperationLock.TryAcquire(name))
             {
                 Check("operation lock can be acquired", first != null);
+                Check("a lock held by the current thread is not reported available",
+                    !OperationLock.IsAvailable(name));
                 if (first != null)
                 {
                     Thread other = new Thread(delegate ()
@@ -960,6 +1066,29 @@ namespace PiWebTray
                 Check("admin autostart is refused for a user-writable install",
                     !Autostart.Apply(true, true, false, exe, out message)
                     && !string.IsNullOrEmpty(message));
+
+                string originalInstance = Environment.GetEnvironmentVariable(
+                    "PI_WEB_TRAY_INSTANCE");
+                try
+                {
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "named-selftest");
+                    Check("named instance autostart is refused instead of starting the default instance",
+                        !Autostart.Apply(true, false, false, exe, out message)
+                        && !string.IsNullOrEmpty(message));
+                }
+                finally
+                {
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE",
+                        originalInstance);
+                }
+
+                CheckEqual("task user matches current SID", true,
+                    Autostart.TaskUserIdMatchesCurrentUser(
+                        System.Security.Principal.WindowsIdentity.GetCurrent().User.Value));
+                Check("task user rejects another SID",
+                    !Autostart.TaskUserIdMatchesCurrentUser("S-1-5-21-1-2-3-4"));
+                Check("task without UserId is the legacy any-user task",
+                    Autostart.TaskUserIdMatchesCurrentUser(""));
 
                 string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
                 if (!string.IsNullOrEmpty(programFiles))
@@ -1260,6 +1389,7 @@ namespace PiWebTray
             string newBackup = Path.Combine(target, ".pi-web-tray-backup-new");
             string protectedBackup = Path.Combine(target, ".pi-web-tray-backup-protected");
             string staleCopyBackup = Path.Combine(target, ".pi-web-tray-backup-stale-copy");
+            string completeBackup = Path.Combine(target, ".pi-web-tray-backup-complete");
             string staleStage = Path.Combine(target, ".pi-web-tray-stage-old");
             try
             {
@@ -1267,15 +1397,20 @@ namespace PiWebTray
                 Directory.CreateDirectory(newBackup);
                 Directory.CreateDirectory(protectedBackup);
                 Directory.CreateDirectory(staleCopyBackup);
+                Directory.CreateDirectory(completeBackup);
                 Directory.CreateDirectory(staleStage);
-                // A failed rollback is protected by .keep; a successful update whose
-                // directory delete failed leaves only .incomplete and must be retried.
+                // A failed rollback is protected by .keep; an interrupted backup has
+                // only .incomplete and must be preserved; a finished backup has both
+                // markers and can be retried after a failed directory delete.
                 File.WriteAllText(protectedBackup + ".keep", "");
                 File.WriteAllText(staleCopyBackup + ".incomplete", "");
+                File.WriteAllText(completeBackup + ".incomplete", "");
+                File.WriteAllText(completeBackup + ".complete", "");
                 Directory.SetLastWriteTimeUtc(oldBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(newBackup, DateTime.UtcNow);
                 Directory.SetLastWriteTimeUtc(protectedBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(staleCopyBackup, DateTime.UtcNow.AddHours(-2));
+                Directory.SetLastWriteTimeUtc(completeBackup, DateTime.UtcNow.AddHours(-2));
                 Directory.SetLastWriteTimeUtc(staleStage, DateTime.UtcNow.AddHours(-2));
 
                 Updater.DeleteStaleBackups(target, TimeSpan.FromMinutes(30));
@@ -1283,8 +1418,10 @@ namespace PiWebTray
                 Check("recent update backup is kept", Directory.Exists(newBackup));
                 Check("rollback-protected backup is never removed automatically",
                     Directory.Exists(protectedBackup));
-                Check("stale backup with only the copy marker is retried",
-                    !Directory.Exists(staleCopyBackup));
+                Check("interrupted backup without a complete marker is preserved",
+                    Directory.Exists(staleCopyBackup));
+                Check("finished backup is retried after a failed delete",
+                    !Directory.Exists(completeBackup));
 
                 Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
                 Check("stale staging snapshot is removed", !Directory.Exists(staleStage));
@@ -1939,6 +2076,8 @@ namespace PiWebTray
                 Check("update keeps a backup until restart", Directory.Exists(copy.Backup));
                 Check("update marks the backup as incomplete until restart",
                     File.Exists(copy.Backup + ".incomplete"));
+                Check("update marks a finished backup as complete",
+                    File.Exists(copy.Backup + ".complete"));
                 Check("update defers stale cleanup",
                     File.Exists(Path.Combine(target, "old.txt")));
 
@@ -1959,6 +2098,8 @@ namespace PiWebTray
                     Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length == 0);
                 Check("update removes the incomplete marker",
                     !File.Exists(copy.Backup + ".incomplete"));
+                Check("update removes the complete marker",
+                    !File.Exists(copy.Backup + ".complete"));
             }
             finally
             {
@@ -2076,8 +2217,16 @@ namespace PiWebTray
                     LogHost.IsExpectedLogPath(path));
                 Check("log host rejects an arbitrary file",
                     !LogHost.IsExpectedLogPath(Path.Combine(root, "evil.cmd")));
+                Directory.CreateDirectory(path);
+                Check("log host rejects a directory at the server.log path",
+                    !LogHost.CanOpenForAppend(path));
+                Directory.Delete(path);
                 CheckEqual("log host mode rejects an arbitrary file", 2,
                     LogHost.Run(new string[] { "--log-host", Path.Combine(root, "evil.cmd") }));
+                CheckEqual("log host mode rejects a missing path", 2,
+                    LogHost.Run(new string[] { "--log-host" }));
+                CheckEqual("log host mode rejects an invalid size", 2,
+                    LogHost.Run(new string[] { "--log-host", path, "1" }));
                 using (MemoryStream input = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 200))))
                 {
                     LogHost.Append(input, path, 100);
@@ -2133,6 +2282,10 @@ namespace PiWebTray
                 "a" + nl + "b" + nl + "c" + nl + "d",
                 LogForm.NormalizeLineEndings("a\r\nb\nc\rd"));
             CheckEqual("log view leaves empty text", "", LogForm.NormalizeLineEndings(""));
+            Check("log view recognizes the last line as visible",
+                LogForm.IsLastLineVisible(999, 999));
+            Check("log view does not treat an earlier visible line as the bottom",
+                !LogForm.IsLastLineVisible(998, 999));
         }
 
         private static void ServiceProbeTests()
@@ -2224,6 +2377,14 @@ namespace PiWebTray
                 TrayState.Save(0, true, 30141);
 
                 Check("state file created", File.Exists(TrayState.StatePath()));
+                TrayState.ClearServiceStopRequest();
+                Check("no service stop marker by default", !TrayState.ServiceStopRequested());
+                TrayState.RequestServiceStop();
+                Check("service stop marker is persisted", TrayState.ServiceStopRequested());
+                CheckEqual("service stop marker content", "1",
+                    File.ReadAllText(TrayState.ServiceStopRequestPath()).Trim());
+                TrayState.ClearServiceStopRequest();
+                Check("service stop marker can be cleared", !TrayState.ServiceStopRequested());
                 string content = File.ReadAllText(TrayState.StatePath());
                 Check("state has pid", content.Contains("Pid=0"));
                 Check("state has port", content.Contains("Port=30141"));

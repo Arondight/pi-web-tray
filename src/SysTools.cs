@@ -35,7 +35,15 @@ namespace PiWebTray
             // FIN_WAIT_1). GetActiveTcpListeners() and netstat filter on LISTEN, so they
             // miss a server that is actually accepting connections. The listener table
             // still carries the row and the owning PID, so ignore its state field.
-            if (TcpListenerTable.IsListening(port)) return true;
+            try
+            {
+                if (TcpListenerTable.IsListening(port)) return true;
+            }
+            catch (Exception)
+            {
+                // Fall back to the managed tables/connect below. A native table
+                // failure must not escape into the tray timer or CLI.
+            }
 
             try
             {
@@ -451,7 +459,10 @@ namespace PiWebTray
             catch (Exception)
             {
             }
-            return name;
+            // Never fall back to a bare executable name: CreateProcess would search
+            // the current directory and PATH. An empty path makes the caller fail
+            // closed instead of executing an unrelated file with the tray's token.
+            return "";
         }
 
         internal static void KillTree(int pid)
@@ -529,7 +540,9 @@ namespace PiWebTray
             catch (Exception)
             {
             }
-            return "explorer.exe";
+            // Do not let ShellExecute resolve a bare explorer.exe from the current
+            // directory or PATH, especially when the tray is elevated.
+            return "";
         }
 
         // An elevated process must not resolve a user-controlled URL/file association
@@ -701,15 +714,18 @@ namespace PiWebTray
             IntPtr token = IntPtr.Zero;
             try
             {
-                if (!OpenProcessToken(GetCurrentProcess(), 0x0008 /*TOKEN_QUERY*/, out token)) return false;
+                if (!OpenProcessToken(GetCurrentProcess(), 0x0008 /*TOKEN_QUERY*/, out token)) return true;
                 int elevation;
                 int size;
-                if (!GetTokenInformation(token, 20 /*TokenElevation*/, out elevation, 4, out size)) return false;
+                if (!GetTokenInformation(token, 20 /*TokenElevation*/, out elevation, 4, out size)) return true;
                 return elevation != 0;
             }
             catch (Exception)
             {
-                return false;
+                // Fail closed: callers use this to decide whether child-process
+                // environment hardening and elevated-install checks are required.
+                // Treating an unqueryable token as standard would skip both.
+                return true;
             }
             finally
             {
@@ -754,12 +770,25 @@ namespace PiWebTray
         }
 
         // Quote a path for a command line parsed by cmd.exe. A percent sign starts
-        // environment expansion even inside double quotes; ^% is the command-line
-        // escape that leaves a literal percent sign for the child process.
+        // environment expansion even inside double quotes, and ^% inside quotes is
+        // literal. Split the value around percent signs: each segment stays quoted
+        // (spaces and &|<> are safe) while ^% is emitted outside the quote, where
+        // cmd.exe turns it into a literal percent.
         internal static string CmdQuote(string value)
         {
             if (value == null) value = "";
-            return "\"" + value.Replace("%", "^%") + "\"";
+            if (value.IndexOf('\r') >= 0 || value.IndexOf('\n') >= 0 || value.IndexOf('\0') >= 0)
+                throw new ArgumentException("A cmd path cannot contain control characters.", "value");
+            if (value.IndexOf('%') < 0) return "\"" + value + "\"";
+
+            string[] parts = value.Split('%');
+            StringBuilder result = new StringBuilder();
+            for (int i = 0; i < parts.Length; i++)
+            {
+                if (i > 0) result.Append("^%");
+                result.Append('"').Append(parts[i]).Append('"');
+            }
+            return result.ToString();
         }
 
         // Quote one argument using the CommandLineToArgvW rules. Backslashes are literal
