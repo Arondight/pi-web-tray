@@ -2,10 +2,11 @@
 rem ============================================================
 rem  Pi Web Tray - build script
 rem
-rem  Requires Visual Studio 2022/2026 with the ".NET desktop
-rem  development" workload, or the .NET SDK. The project targets
-rem  .NET Framework 4.8, so the resulting exe runs on Windows 7
-rem  SP1 and newer (with .NET Framework 4.8 installed).
+rem  Requires either the .NET SDK 8.0+ with the .NET Framework 4.8
+rem  targeting pack, or MSBuild from Visual Studio 2022+ / Build Tools.
+rem  An IDE is not required. The project targets .NET Framework 4.8,
+rem  so the resulting exe runs on Windows 7 SP1 and newer (with the
+rem  .NET Framework 4.8 runtime installed).
 rem
 rem  Usage:
 rem    build.cmd              Release build, pauses at the end
@@ -92,8 +93,8 @@ goto done
 
 :no_toolchain
 echo [x] No build toolchain found.
-echo     Install Visual Studio 2022/2026 with the ".NET desktop development"
-echo     workload, or install the .NET SDK (https://dotnet.microsoft.com/).
+echo     Install the .NET SDK 8.0+ with the .NET Framework 4.8 targeting pack,
+echo     or Visual Studio/Build Tools 2022+ with MSBuild and the targeting pack.
 set "EXITCODE=1"
 goto done
 

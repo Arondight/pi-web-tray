@@ -151,7 +151,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 ## 从源码构建
 
-需要 Windows 10 或 11，并安装 Visual Studio 2022/2026 的 **.NET 桌面开发** 工作负载，或安装 .NET SDK 8.0+ 和 .NET Framework 4.8 targeting pack。
+从源码构建需要 Windows 10 或 11 和 .NET Framework 4.8 targeting pack。可使用 .NET SDK 8.0+（推荐命令行构建），或 Visual Studio 2022+ / Visual Studio Build Tools 中的 MSBuild。Visual Studio IDE 不是必需的；未安装 .NET SDK 时，`build.cmd` 会回退到 MSBuild。
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
