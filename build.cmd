@@ -2,11 +2,12 @@
 rem ============================================================
 rem  Pi Web Tray - build script
 rem
-rem  Requires either the .NET SDK 8.0+ with the .NET Framework 4.8
-rem  targeting pack, or MSBuild from Visual Studio 2022+ / Build Tools.
-rem  The 8.0+ version is the SDK build tool; the app target is 4.8.
-rem  An IDE is not required. The project targets .NET Framework 4.8,
-rem  so the resulting exe runs on Windows 7 SP1 and newer (with the
+rem  Build with either the .NET SDK 8.0+ or MSBuild from
+rem  Build Tools for Visual Studio 2022. Both require the
+rem  .NET Framework 4.8 Targeting Pack. An IDE is not required.
+rem  The 8.0+ version is the SDK build tool, not the app target.
+rem  The project targets .NET Framework 4.8, so the resulting exe
+rem  runs on Windows 7 SP1 and newer (with the
 rem  .NET Framework 4.8 runtime installed).
 rem
 rem  Usage:
@@ -94,8 +95,8 @@ goto done
 
 :no_toolchain
 echo [x] No build toolchain found.
-echo     Install the .NET SDK 8.0+ with the .NET Framework 4.8 targeting pack,
-echo     or Visual Studio/Build Tools 2022+ with MSBuild and the targeting pack.
+echo     Install the .NET SDK 8.0+ with the .NET Framework 4.8 Targeting Pack,
+echo     or Build Tools for Visual Studio 2022 and the Targeting Pack.
 set "EXITCODE=1"
 goto done
 

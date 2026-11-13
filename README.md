@@ -11,12 +11,12 @@ Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides r
 - **Self-update** — checks for updates, updates the app and removes files from older releases.
 - **Portable** — no installer and no bundled runtime.
 
-## Requirements
+## Runtime requirements
 
 | Component      | Requirement                                                        |
 | -------------- | ------------------------------------------------------------------ |
 | 64-bit Windows | 7 SP1, 8.1, 10 or 11                                               |
-| .NET Framework | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
+| .NET Framework Runtime | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
 | Node.js        | 22.19 or later, with npm                                           |
 
 Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so Pi Web can run on legacy systems, but terminal functionality may be impaired.
@@ -151,12 +151,14 @@ Unknown arguments return exit code 2.
 
 ## Build from source
 
-Building needs two separate things:
+Choose one build tool:
 
-- **Build tool:** .NET SDK 8.0+ for command-line builds, or MSBuild from Visual Studio 2022+/Build Tools.
-- **Reference assemblies:** the .NET Framework 4.8 targeting pack.
+- **.NET SDK 8.0 or later** (recommended for command-line builds), or
+- **Build Tools for Visual Studio 2022** (MSBuild only).
 
-The `8.0` refers to the .NET SDK used to build; the application still targets **.NET Framework 4.8**. Visual Studio is optional. End users need only .NET Framework 4.8 (or 4.8.1 where supported); they do not need the SDK or Visual Studio.
+Either tool requires the **.NET Framework 4.8 Targeting Pack**. The standalone **.NET Framework 4.8 Developer Pack** includes it.
+
+**Visual Studio 2022 or later** with the **.NET desktop development** workload is an optional IDE, not a separate requirement. The application targets **.NET Framework 4.8**, not .NET 8. End users only need the **.NET Framework 4.8 Runtime** (or 4.8.1 where supported).
 
 ```bat
 git clone https://github.com/Arondight/pi-web-tray.git
