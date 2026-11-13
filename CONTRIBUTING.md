@@ -10,13 +10,13 @@ Thanks for taking the time to contribute. This project is a Windows tray applica
 
 ## Development environment
 
-| Tool                     | Requirement                                                                 |
-| ------------------------ | --------------------------------------------------------------------------- |
-| Windows                  | 10 or 11 for development (the product targets Windows 7 to 11)              |
-| Build tool (choose one)  | .NET SDK 8.0 or later **or** Build Tools for Visual Studio 2022 (MSBuild)    |
+| Tool                       | Requirement                                                               |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Windows                    | 10 or 11 for development (the product targets Windows 7 to 11)            |
+| Build tool (choose one)    | .NET SDK 8.0 or later **or** Build Tools for Visual Studio 2022 (MSBuild) |
 | Build reference assemblies | .NET Framework 4.8 Targeting Pack (included in the Developer Pack)        |
-| Runtime target           | .NET Framework 4.8; 4.8.1 is compatible where supported                     |
-| IDE (optional)           | Visual Studio 2022 or later with the .NET desktop development workload      |
+| Runtime target             | .NET Framework 4.8; 4.8.1 is compatible where supported                   |
+| IDE (optional)             | Visual Studio 2022 or later with the .NET desktop development workload    |
 
 The application targets .NET Framework 4.8, not .NET 8. Visual Studio is optional. If you use it, open `PiWebTray.sln`; otherwise build from a terminal:
 
