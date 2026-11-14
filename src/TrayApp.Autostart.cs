@@ -26,6 +26,8 @@ namespace PiWebTray
         private string _taskCommandCache = "";
         private string _legacyTaskCommandCache = "";
         private DateTime _legacyTaskCacheAt = DateTime.MinValue;
+        private int _taskRefreshGeneration;
+        private bool _autostartSyncing;
 
         private bool IsRunKeyEnabled()
         {
@@ -46,7 +48,7 @@ namespace PiWebTray
             bool run = IsRunKeyEnabled()
                 && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
                 && Autostart.RunValueApproved();
-            bool busy = AutostartBusy() || UpdateBusy();
+            bool busy = AutostartBusy() || UpdateBusy() || _autostartSyncing;
 
             // A task that exists but is disabled or points at an older installation
             // does not make the current installation start at login.
@@ -353,7 +355,11 @@ namespace PiWebTray
                 _config.SetValue("AutostartAdmin", _config.AutostartAdmin ? "1" : "0");
             }
 
-            RefreshAutostartItems();
+            // The operation result may differ from the task cache captured before
+            // the operation. Keep the menu in "updating..." until a fresh task query
+            // completes instead of briefly showing the old state.
+            _autostartSyncing = true;
+            InvalidateAutostartCache();
             if (!string.IsNullOrEmpty(message))
             {
                 if (error) NotifyError(L.T("notify.autostartFailed"), message);
@@ -423,10 +429,12 @@ namespace PiWebTray
 
         private void BeginTaskRefresh()
         {
+            int generation;
             lock (_taskCacheLock)
             {
                 if (_taskRefreshRunning) return;
                 _taskRefreshRunning = true;
+                generation = ++_taskRefreshGeneration;
                 // Do not let a completion from the previous refresh be consumed after
                 // an autostart operation: PollTaskRefresh could otherwise use the old
                 // task cache to delete a Run value that was just written.
@@ -459,6 +467,7 @@ namespace PiWebTray
                 catch (Exception) { }
                 lock (_taskCacheLock)
                 {
+                    if (generation != _taskRefreshGeneration) return;
                     _taskCache = task;
                     _taskEnabledCache = task && enabled && matchesExecutable;
                     _taskCommandCache = taskCommand;
@@ -486,14 +495,31 @@ namespace PiWebTray
                 catch (Exception) { }
                 lock (_taskCacheLock)
                 {
+                    if (generation != _taskRefreshGeneration) return;
                     _taskRefreshRunning = false;
                     // Do not publish a result from the old cache. Wait for the next
                     // scheduled refresh instead of acting on stale task state.
                     _taskRefreshDone = false;
                     _taskCacheAt = DateTime.Now;
                     _legacyTaskCacheAt = DateTime.Now;
+                    _autostartSyncing = false;
                 }
             }
+        }
+
+        // Force a new task query even if an older worker is still running. The
+        // generation check above prevents that older result from being published.
+        private void InvalidateAutostartCache()
+        {
+            lock (_taskCacheLock)
+            {
+                _taskCacheAt = DateTime.MinValue;
+                _legacyTaskCacheAt = DateTime.MinValue;
+                _taskRefreshGeneration++;
+                _taskRefreshRunning = false;
+                _taskRefreshDone = false;
+            }
+            BeginTaskRefresh();
         }
 
         private void PollTaskRefresh()
@@ -506,6 +532,7 @@ namespace PiWebTray
             }
             if (done)
             {
+                _autostartSyncing = false;
                 // The two autostart modes are mutually exclusive. A stale Run value
                 // (for example left by an older release) would start a second tray at
                 // login. Remove it once the task state is known instead of letting

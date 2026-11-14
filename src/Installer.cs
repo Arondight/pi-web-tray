@@ -664,6 +664,14 @@ namespace PiWebTray
         // For --install: run synchronously in this console and print the progress
         internal static int RunInConsole(Config config, bool dryRun)
         {
+            return RunInConsole(config, dryRun, null);
+        }
+
+        // beforeInstall runs after the probe has proved that npm work is needed,
+        // but before npm starts. This lets the CLI stop a running service without
+        // relying on an earlier, possibly stale, probe.
+        internal static int RunInConsole(Config config, bool dryRun, Func<bool> beforeInstall)
+        {
             ResetAbort();
             ProbeResult probe = EnvironmentProbe.Detect(config);
             ConsoleHost.WriteLine(L.T("install.envHeader"));
@@ -688,6 +696,12 @@ namespace PiWebTray
                 ConsoleHost.WriteLine(L.T("install.none"));
                 return 0;
             }
+
+            // The service must be stopped only after this probe has established
+            // that npm will actually run. A failed or stale HasInstallWork probe
+            // must never make the caller skip this step.
+            if (!dryRun && beforeInstall != null && !beforeInstall())
+                return 1;
 
             ConsoleHost.WriteLine(L.T("install.willRun"));
             IDictionary<string, string> env = ProcessRunner.WithPathPrefix(Path.GetDirectoryName(probe.NodePath));

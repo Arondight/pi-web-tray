@@ -85,8 +85,12 @@ namespace PiWebTray
                     try { needsElevation = RequiresElevation(config.BaseDir); }
                     catch (Exception) { needsElevation = true; }
                 }
+                // IsUserWritableInstall expects an executable path, not a directory.
+                // Passing the installation directory would check its parent instead
+                // and skip the directory's own ACL and every file inside it.
+                string targetExecutable = Path.Combine(target, "pi-web-tray.exe");
                 if ((elevated || needsElevation)
-                    && Autostart.IsUserWritableInstall(target))
+                    && Autostart.IsUserWritableInstall(targetExecutable))
                 {
                     error = L.T("update.error.writableInstall");
                     AppendLog(logPath, "elevated update refused for a user-writable installation: " + target);
@@ -142,32 +146,115 @@ namespace PiWebTray
                 }
                 AppendLog(logPath, "helper args : " + arguments);
 
-                if (needsElevation)
+                // A named event is the helper-ready handshake. It is set after the
+                // helper has acquired the update lock and validated the target, but
+                // before it waits for this process to exit. A named object avoids
+                // letting an elevated helper create a file through a planted link.
+                string readyEventName = HelperReadyEventName(staging);
+                if (string.IsNullOrEmpty(readyEventName))
                 {
-                    AppendLog(logPath, "install directory needs administrator rights");
-                    if (!Sys.RunElevated(helper, arguments, false, Sys.SystemDirectory))
+                    error = L.T("update.error.unsafePath");
+                    AppendLog(logPath, "cannot derive helper ready event name");
+                    return false;
+                }
+                bool eventCreated;
+                using (EventWaitHandle readyEvent = new EventWaitHandle(false,
+                    EventResetMode.AutoReset, readyEventName, out eventCreated))
+                {
+                    if (!eventCreated)
                     {
-                        error = L.T("update.error.elevationCancelled");
-                        AppendLog(logPath, "elevation cancelled");
+                        error = L.T("update.error.startHelper");
+                        AppendLog(logPath, "helper ready event already exists");
+                        return false;
+                    }
+
+                    if (needsElevation)
+                    {
+                        AppendLog(logPath, "install directory needs administrator rights");
+                        if (!Sys.RunElevated(helper, arguments, false, Sys.SystemDirectory))
+                        {
+                            error = L.T("update.error.elevationCancelled");
+                            AppendLog(logPath, "elevation cancelled");
+                            return false;
+                        }
+                        if (!readyEvent.WaitOne(30000))
+                        {
+                            error = L.T("update.error.startHelper");
+                            AppendLog(logPath, "helper did not report ready after elevation");
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    using (Process helperProcess = Sys.StartHidden(helper, arguments, Sys.SystemDirectory))
+                    {
+                        if (helperProcess == null)
+                        {
+                            error = L.T("update.error.startHelper");
+                            return false;
+                        }
+                    }
+                    if (!readyEvent.WaitOne(30000))
+                    {
+                        error = L.T("update.error.startHelper");
+                        AppendLog(logPath, "helper did not report ready");
                         return false;
                     }
                     return true;
                 }
-
-                using (Process helperProcess = Sys.StartHidden(helper, arguments, Sys.SystemDirectory))
-                {
-                    if (helperProcess == null)
-                    {
-                        error = L.T("update.error.startHelper");
-                        return false;
-                    }
-                }
-                return true;
             }
             catch (Exception ex)
             {
                 error = ex.Message;
                 AppendLog(logPath, "start helper failed: " + ex);
+                return false;
+            }
+        }
+
+        // Derive the ready-event name from the per-update staging path. The parent
+        // creates the event before launching the helper; the helper opens it after
+        // validating the target. This is a coordination signal, not a security
+        // boundary, but it avoids an elevated helper creating a file through a
+        // reparse point planted in the user-writable update directory.
+        private static string HelperReadyEventName(string staging)
+        {
+            try
+            {
+                string full = Path.GetFullPath(staging).ToLowerInvariant();
+                using (SHA256 hash = SHA256.Create())
+                {
+                    byte[] bytes = hash.ComputeHash(Encoding.UTF8.GetBytes(full));
+                    StringBuilder name = new StringBuilder(@"Local\PiWebTrayHelperReady-");
+                    for (int i = 0; i < 16; i++)
+                        name.Append(bytes[i].ToString("x2", CultureInfo.InvariantCulture));
+                    return name.ToString();
+                }
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        private static bool SignalHelperReady(string staging, string logPath)
+        {
+            string eventName = HelperReadyEventName(staging);
+            if (string.IsNullOrEmpty(eventName))
+            {
+                AppendLog(logPath, "cannot derive helper ready event name");
+                return false;
+            }
+            try
+            {
+                using (EventWaitHandle readyEvent = EventWaitHandle.OpenExisting(eventName))
+                {
+                    readyEvent.Set();
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "cannot signal helper ready event: " + ex.Message);
                 return false;
             }
         }
@@ -267,7 +354,10 @@ namespace PiWebTray
 
             // Defense in depth: Apply can also be invoked directly. Never let an
             // elevated helper replace files in a directory writable by standard users.
-            if (Elevation.IsElevated() && Autostart.IsUserWritableInstall(target))
+            // Pass the executable path: IsUserWritableInstall would otherwise inspect
+            // the parent directory and skip the installation directory's own ACL.
+            string targetExecutable = Path.Combine(target, "pi-web-tray.exe");
+            if (Elevation.IsElevated() && Autostart.IsUserWritableInstall(targetExecutable))
             {
                 AppendLog(logPath, "elevated apply refused for a user-writable installation: " + target);
                 MessageBox.Show(L.T("update.error.writableInstall"), L.T("update.applyFailedTitle"),
@@ -303,11 +393,38 @@ namespace PiWebTray
 
                 try
                 {
+                    // Validate the target before this process asks the parent to exit.
+                    // The ready event below is the parent's signal that it is safe to
+                    // stop the service and exit.
+                    string readyReason;
+                    if (!EnsureTargetInstallation(target, logPath, out readyReason))
+                    {
+                        AppendLog(logPath, "target validation failed: " + readyReason);
+                        MessageBox.Show(Directory.Exists(target)
+                                ? L.T("update.error.notInstallation")
+                                : L.T("update.error.targetMissing"),
+                            L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+                    if (parentPid > 0 && !SignalHelperReady(staging, logPath))
+                    {
+                        MessageBox.Show(L.T("update.error.startHelper"),
+                            L.T("update.applyFailedTitle"),
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return 1;
+                    }
+
                     if (!WaitForParent(parentPid, 60000, Path.Combine(target, "pi-web-tray.exe")))
                     {
                         AppendLog(logPath, "parent did not exit");
                         MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        // The parent may have exited just after the timeout check.
+                        // Do not leave the user without a tray in that case; if it
+                        // is still alive, leave recovery to the running tray.
+                        if (!Sys.ProcessAlive(parentPid))
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
                         return 1;
                     }
 
@@ -427,9 +544,11 @@ namespace PiWebTray
                         }
 
                         CleanupStaleFiles(target, copy.Managed, logPath);
-                        DeleteBackup(copy.Backup);
-                        DeleteOldBackups(target);
-                        AppendLog(logPath, "restart requested");
+                        // Keep the verified backup until the new tray has reached a
+                        // stable Running service (or a deliberate tray-only Stopped
+                        // state). The helper can observe only process stability, not
+                        // HTTP/service health; the new tray removes old backups later.
+                        AppendLog(logPath, "restart requested; backup retained for recovery");
                         return 0;
                     }
                     finally
@@ -621,6 +740,26 @@ namespace PiWebTray
             catch (Exception ex)
             {
                 AppendLog(logPath, "backup recovery failed: " + ex.Message);
+            }
+            return false;
+        }
+
+        // Validate the target and recover only from the known interrupted-copy
+        // shape. Used before the parent is allowed to exit and again after the gate.
+        private static bool EnsureTargetInstallation(string target, string logPath, out string reason)
+        {
+            reason = "";
+            if (!Directory.Exists(target))
+            {
+                reason = "target directory missing";
+                return false;
+            }
+
+            if (IsPiWebTrayInstallation(target, out reason)) return true;
+            if (TryRecoverFromBackup(target, logPath))
+            {
+                AppendLog(logPath, "target recovered from a leftover backup");
+                if (IsPiWebTrayInstallation(target, out reason)) return true;
             }
             return false;
         }

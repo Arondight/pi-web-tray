@@ -25,6 +25,21 @@ namespace PiWebTray
         internal static void Append(string path, string line)
         {
             if (string.IsNullOrEmpty(path)) return;
+            try
+            {
+                AppendRaw(path, FormatLine(line) + Environment.NewLine);
+            }
+            catch (Exception)
+            {
+                // Logging must never take down the caller.
+            }
+        }
+
+        // Append text without adding a timestamp. Crash reporting uses this to keep
+        // its own header while sharing the path/handle/rotation checks.
+        internal static void AppendRaw(string path, string text)
+        {
+            if (string.IsNullOrEmpty(path)) return;
 
             lock (Sync)
             {
@@ -56,11 +71,17 @@ namespace PiWebTray
 
                     // FileShare.ReadWrite lets the tray and an elevated helper append
                     // concurrently without either side truncating the other's line.
+                    // Verify the opened handle's final path as well: a reparse point can
+                    // replace the path between the check above and FileStream's open.
                     using (FileStream stream = new FileStream(
                         path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
-                    using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
                     {
-                        writer.WriteLine(FormatLine(line));
+                        if (!LogHost.HandleMatchesExpectedPath(stream, path)) return;
+                        using (StreamWriter writer = new StreamWriter(
+                            stream, new UTF8Encoding(false)))
+                        {
+                            writer.Write(text ?? "");
+                        }
                     }
                 }
                 catch (Exception)

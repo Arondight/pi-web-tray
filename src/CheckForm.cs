@@ -201,6 +201,9 @@ namespace PiWebTray
             menu.Items.Add(copyAll);
             menu.Opening += delegate { copyRow.Enabled = grid.CurrentRow != null; };
             grid.ContextMenuStrip = menu;
+            // The grid does not own a ContextMenuStrip strongly enough for a form
+            // without a designer container; dispose it with the grid.
+            grid.Disposed += delegate { try { menu.Dispose(); } catch (Exception) { } };
             grid.CellMouseDown += delegate (object sender, DataGridViewCellMouseEventArgs e)
             {
                 if (e.Button != MouseButtons.Right || e.RowIndex < 0) return;

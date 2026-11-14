@@ -375,6 +375,20 @@ namespace PiWebTray
 
         private void BeginUpdateApply(ReleaseInfo release, string staging)
         {
+            // The executable is about to be replaced from this directory. Re-check
+            // the ACL at action time: an elevated tray must not launch a helper from
+            // a directory that standard users can modify, even if it was protected
+            // when the tray started.
+            if (ElevatedInstallUnsafe())
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "update refused: installation directory became user-writable");
+                EndUpdate();
+                ShowUpdateError(L.T("notify.elevatedWritableTitle"),
+                    L.T("notify.elevatedWritableBody"));
+                return;
+            }
+
             ReleaseUpdateHelperGate();
             string gatePath = "";
             try

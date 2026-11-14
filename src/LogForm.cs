@@ -18,6 +18,7 @@ namespace PiWebTray
 
         private readonly string _path;
         private readonly TextBox _text;
+        private Font _textFont;
         private readonly TextBox _filter;
         private readonly Button _pause;
         private readonly Label _state;
@@ -98,6 +99,7 @@ namespace PiWebTray
             _text.WordWrap = false;
             _text.BackColor = SystemColors.Window;
             _text.Font = new Font("Consolas", 9f);
+            _textFont = _text.Font;
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
             buttons.Dock = DockStyle.Fill;
@@ -209,6 +211,11 @@ namespace PiWebTray
                 string text;
                 using (FileStream stream = new FileStream(_path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
+                    if (!LogHost.HandleMatchesExpectedPath(stream, _path))
+                    {
+                        if (force) _text.Text = L.T("update.error.unsafePath");
+                        return;
+                    }
                     long start = Math.Max(0, stream.Length - TailBytes);
                     stream.Seek(start, SeekOrigin.Begin);
                     using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
@@ -318,6 +325,11 @@ namespace PiWebTray
             if (disposing)
             {
                 try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
+                if (_textFont != null)
+                {
+                    try { _textFont.Dispose(); } catch (Exception) { }
+                    _textFont = null;
+                }
             }
             base.Dispose(disposing);
         }

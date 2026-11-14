@@ -435,7 +435,21 @@ namespace PiWebTray
                 // Do not persist a temporary PI_WEB_TRAY_LANG override into the new file;
                 // the env var still wins for the current process.
                 sb.AppendLine("Language=" + L.Auto);
-                File.WriteAllText(IniPath, sb.ToString(), new UTF8Encoding(true));
+                // Do not open IniPath directly with FileMode.Create: a planted link
+                // could make the open truncate its target before the handle check.
+                // Write a unique sibling and rename it only when the destination was
+                // still absent.
+                string temp = IniPath + ".tmp-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    if (!WriteVerifiedText(temp, sb.ToString())) return;
+                    if (File.Exists(IniPath)) return;
+                    File.Move(temp, IniPath);
+                }
+                finally
+                {
+                    try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                }
             }
             catch (Exception)
             {
@@ -509,7 +523,7 @@ namespace PiWebTray
                 bool keepBackup = false;
                 try
                 {
-                    File.WriteAllLines(temp, lines.ToArray(), new UTF8Encoding(true));
+                    if (!WriteVerifiedLines(temp, lines)) return false;
                     ReplaceIniFile(temp, IniPath, backup);
                     return true;
                 }
@@ -530,6 +544,31 @@ namespace PiWebTray
             {
                 return false;
             }
+        }
+
+        // Write the complete file through a verified handle. The path check above
+        // prevents a normal symlink, but a same-user process can replace the path
+        // afterwards; checking the opened handle's final path closes that window.
+        private static bool WriteVerifiedLines(string path, IEnumerable<string> lines)
+        {
+            StringBuilder content = new StringBuilder();
+            foreach (string line in lines) content.AppendLine(line);
+            return WriteVerifiedText(path, content.ToString());
+        }
+
+        private static bool WriteVerifiedText(string path, string content)
+        {
+            using (FileStream stream = new FileStream(path, FileMode.Create,
+                FileAccess.Write, FileShare.None))
+            {
+                if (!LogHost.HandleMatchesExpectedPath(stream, path)) return false;
+                using (StreamWriter writer = new StreamWriter(
+                    stream, new UTF8Encoding(true)))
+                {
+                    writer.Write(content);
+                }
+            }
+            return true;
         }
 
         // File.Replace is the best choice on NTFS, but it is not supported on some

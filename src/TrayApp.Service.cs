@@ -304,17 +304,81 @@ namespace PiWebTray
             }
         }
 
-        private bool RefuseStartForExternalUpdate()
+        private bool RefuseStartForExternalUpdate(bool openBrowser)
         {
             if (!ExternalUpdateBusy()) return false;
             _openWhenReady = false;
             _openWhenResolved = false;
             _pendingRestart = false;
             _pendingOpenBrowser = false;
-            NotifyWarningOnce("external-update", L.T("notify.installBusyTitle"),
-                L.T("install.busyBody"));
+            // The update helper holds UpdateName while it starts the replacement
+            // tray. The CLI releases it before sending its start signal, but the
+            // updater does not signal the new tray again. Keep the explicit start
+            // request and retry once the helper has released the lock.
+            if (!_exiting)
+            {
+                _pendingStartAfterUpdate = true;
+                _pendingStartAfterUpdateOpen =
+                    _pendingStartAfterUpdateOpen || openBrowser;
+                if (_pendingStartAfterUpdateAt == DateTime.MinValue)
+                    _pendingStartAfterUpdateAt = DateTime.Now.AddSeconds(2);
+                if (_pendingStartAfterUpdateDeadline == DateTime.MinValue)
+                    _pendingStartAfterUpdateDeadline = DateTime.Now.AddSeconds(60);
+            }
+            NotifyWarningOnce("external-update-start", L.T("notify.startBlockedTitle"),
+                L.T("notify.startBlockedBody"));
             UpdateUi();
             return true;
+        }
+
+        private void ClearPendingStartAfterUpdate()
+        {
+            _pendingStartAfterUpdate = false;
+            _pendingStartAfterUpdateOpen = false;
+            _pendingStartAfterUpdateAt = DateTime.MinValue;
+            _pendingStartAfterUpdateDeadline = DateTime.MinValue;
+        }
+
+        private void RetryPendingStartAfterUpdate()
+        {
+            if (!_pendingStartAfterUpdate || _exiting) return;
+            if (_updateStage == UpdateStage.Applying) return;
+            if (DateTime.Now < _pendingStartAfterUpdateAt) return;
+
+            if (ExternalUpdateBusy())
+            {
+                if (DateTime.Now >= _pendingStartAfterUpdateDeadline)
+                {
+                    ClearPendingStartAfterUpdate();
+                    NotifyWarning(L.T("notify.startBlockedTitle"),
+                        L.T("notify.startBlockedTimeoutBody"));
+                }
+                else
+                {
+                    _pendingStartAfterUpdateAt = DateTime.Now.AddSeconds(2);
+                }
+                return;
+            }
+
+            bool open = _pendingStartAfterUpdateOpen;
+            bool phaseBusy = _phase == Phase.Checking || _phase == Phase.Starting
+                || _phase == Phase.Stopping || _phase == Phase.Installing;
+            if (phaseBusy)
+            {
+                // A service action owns the state now. Its normal completion path
+                // will either start the service or leave a stable phase where this
+                // retry can run next time.
+                _pendingStartAfterUpdateAt = DateTime.Now.AddSeconds(2);
+                return;
+            }
+
+            ClearPendingStartAfterUpdate();
+            if (_phase == Phase.Running)
+            {
+                if (open) OpenBrowser();
+                return;
+            }
+            StartServer(open);
         }
 
         // Drop requests that belong to an older user action. Stop-for-install preserves
@@ -353,6 +417,15 @@ namespace PiWebTray
 
             if (Net.IsPortOpen(_port, 200))
             {
+                // The start deadline applies even after the port opens: a hung
+                // process can accept TCP connections without ever answering HTTP.
+                // Without this check the tray could remain in Starting forever.
+                if (DateTime.Now > _startDeadline)
+                {
+                    FailStart(L.T("notify.startFailedTimeout", _port));
+                    return;
+                }
+
                 // Make sure the listener is actually our pi-web process before accepting
                 // the HTTP response. This prevents another program on the same port from
                 // being marked as a successful start. The check runs in the background;
@@ -875,6 +948,12 @@ namespace PiWebTray
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
 
+            // A successful self-check or settings refresh must clear stale
+            // NotifyWarningOnce keys, otherwise a later missing dependency with the
+            // same key is silently ignored.
+            if (!result.NeedsNode && !result.NeedsPiWeb && !result.NeedsPiCli)
+                _lastNotified = "";
+
             if (KeepRunningWhenListening(false)) return;
 
             if (result.NeedsNode)
@@ -1002,6 +1081,12 @@ namespace PiWebTray
             // not launch the old binary again during that window.
             if (_updateStage == UpdateStage.Applying) return;
 
+            // This call supersedes an earlier start request that was waiting for an
+            // update lock. RefuseStartForExternalUpdate records a fresh request if the
+            // lock is still held; otherwise the old "open when ready" flag must not
+            // survive a later explicit start.
+            ClearPendingStartAfterUpdate();
+
             // Queue a start request before the external-update guard: an own install
             // holds _installUpdateLock while it stops the service, and the user's
             // explicit start must survive that stop. A request arriving during a CLI
@@ -1034,7 +1119,7 @@ namespace PiWebTray
                 return;
             }
 
-            if (RefuseStartForExternalUpdate()) return;
+            if (RefuseStartForExternalUpdate(openBrowser)) return;
             if (ElevatedInstallUnsafe())
             {
                 NotifyWarningOnce("elevated-writable-install",
@@ -1142,7 +1227,7 @@ namespace PiWebTray
             // The phase may have changed while the owner check ran
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
             // An install can acquire the lock while the owner probe is in flight.
-            if (RefuseStartForExternalUpdate()) return;
+            if (RefuseStartForExternalUpdate(openBrowser)) return;
             // Re-check at the last moment: the installation ACL can change while the
             // background owner probe is running.
             if (ElevatedInstallUnsafe())
@@ -1383,6 +1468,22 @@ namespace PiWebTray
             return path;
         }
 
+        // A CLI dependency install stops the service before npm runs, but that is
+        // an operation-owned stop, not a user request to keep the service down. It
+        // deliberately does not write TrayState.ServiceStopRequest.
+        private void StopServerForInstallSignal()
+        {
+            _openWhenReady = false;
+            _pendingRestart = false;
+            _pendingOpenBrowser = false;
+            _pendingStart = false;
+            _pendingStartOpen = false;
+            _restartAfterUpdate = false;
+            _autoRestartAt = DateTime.MinValue;
+            ClearPendingStartAfterUpdate();
+            StopServer();
+        }
+
         private void StopServerFromUser()
         {
             // A user stop must survive an install that is already stopping or has
@@ -1404,6 +1505,7 @@ namespace PiWebTray
             _autoRestartAttempts = 0;
             _pendingStart = false;
             _pendingStartOpen = false;
+            ClearPendingStartAfterUpdate();
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;

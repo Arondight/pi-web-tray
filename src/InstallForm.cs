@@ -18,6 +18,7 @@ namespace PiWebTray
         private readonly ProgressBar _progress;
         private readonly TextBox _output;
         private readonly Button _cancel;
+        private Font _stepFont;
         private readonly DateTime _started;
         private string _lastLine = "";
         private bool _allowClose;
@@ -57,6 +58,7 @@ namespace PiWebTray
             _step = new Label();
             _step.AutoSize = true;
             _step.Font = new Font(Font, FontStyle.Bold);
+            _stepFont = _step.Font;
             _step.Margin = new Padding(0, 0, 0, 6);
 
             _elapsed = new Label();
@@ -181,6 +183,11 @@ namespace PiWebTray
             if (disposing)
             {
                 try { _timer.Stop(); _timer.Dispose(); } catch (Exception) { }
+                if (_stepFont != null)
+                {
+                    try { _stepFont.Dispose(); } catch (Exception) { }
+                    _stepFont = null;
+                }
             }
             base.Dispose(disposing);
         }

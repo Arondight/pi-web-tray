@@ -251,6 +251,13 @@ namespace PiWebTray
                     using (Stream input = response.GetResponseStream())
                     using (FileStream output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
                     {
+                        // Re-check the handle after opening; the path can be swapped
+                        // for a reparse point between the check above and CreateFile.
+                        if (!LogHost.HandleMatchesExpectedPath(output, path))
+                        {
+                            error = L.T("update.error.unsafePath");
+                            return false;
+                        }
                         long total = response.ContentLength > 0 ? response.ContentLength : expectedSize;
                         byte[] buffer = new byte[81920];
                         long received = 0;

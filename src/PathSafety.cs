@@ -19,10 +19,21 @@ namespace PiWebTray
                 string current = Path.GetFullPath(path);
                 while (!string.IsNullOrEmpty(current))
                 {
-                    if (Directory.Exists(current) || File.Exists(current))
+                    // Query attributes directly. File.Exists/Directory.Exists return
+                    // false for some dangling reparse points, which would skip the
+                    // link and let a later write follow it.
+                    try
                     {
                         FileAttributes attributes = File.GetAttributes(current);
                         if ((attributes & FileAttributes.ReparsePoint) != 0) return true;
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        // This component does not exist yet; check its parent.
+                    }
+                    catch (DirectoryNotFoundException)
+                    {
+                        // This component does not exist yet; check its parent.
                     }
 
                     string parent = Path.GetDirectoryName(current);

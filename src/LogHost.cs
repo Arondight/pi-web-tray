@@ -183,7 +183,7 @@ namespace PiWebTray
             }
         }
 
-        private static bool HandleMatchesExpectedPath(FileStream stream, string expected)
+        internal static bool HandleMatchesExpectedPath(FileStream stream, string expected)
         {
             try
             {

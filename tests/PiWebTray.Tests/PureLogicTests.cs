@@ -94,8 +94,11 @@ namespace PiWebTray
             document.LoadXml(
                 "<Task><Principals><Principal><UserId>" + sid + "</UserId></Principal></Principals>"
                 + "<Triggers><LogonTrigger><UserId>" + sid + "</UserId></LogonTrigger></Triggers></Task>");
-            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document),
+            bool explicitUser;
+            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document, out explicitUser),
                 "A current-user task was treated as foreign.");
+            Assert.IsTrue(explicitUser,
+                "A task with an explicit current-user principal was not marked explicit.");
 
             document.LoadXml(
                 "<Task><Principals><Principal><UserId>S-1-5-21-1-2-3-4</UserId></Principal></Principals>"
@@ -104,8 +107,10 @@ namespace PiWebTray
                 "Another user's task was treated as current.");
 
             document.LoadXml("<Task />");
-            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document),
+            Assert.IsTrue(Autostart.TaskXmlUserMatchesCurrentUser(document, out explicitUser),
                 "A legacy any-user task was rejected.");
+            Assert.IsFalse(explicitUser,
+                "A legacy any-user task was marked as explicitly owned.");
         }
     }
 
@@ -1191,6 +1196,11 @@ namespace PiWebTray
             disabled.LoadXml(disabledXml);
             Check("disabled task settings override an enabled trigger",
                 !Autostart.IsTaskXmlEnabled(disabled));
+
+            XmlDocument noTrigger = new XmlDocument();
+            noTrigger.LoadXml("<Task><Settings><Enabled>true</Enabled></Settings></Task>");
+            Check("a task without a logon trigger is not treated as an enabled login task",
+                !Autostart.IsTaskXmlEnabled(noTrigger));
         }
 
         private static void TrayClickTests()

@@ -294,16 +294,28 @@ namespace PiWebTray
             bool matches;
             string command;
             bool userMatches;
+            bool explicitUser;
             bool xmlParsed;
             bool queried = QueryTaskDetails(name, out enabled, out matches,
-                out command, out userMatches, out xmlParsed);
+                out command, out userMatches, out explicitUser, out xmlParsed);
             parsed = queried && xmlParsed;
-            return parsed && userMatches;
+            // A no-user task is a machine-wide legacy task. Leave it alone: it
+            // cannot be attributed to this account, and another user may rely on it.
+            return parsed && userMatches && explicitUser;
         }
 
         private static bool QueryTaskDetails(string name, out bool enabled,
             out bool matchesExecutable, out string commandPath,
             out bool userMatches, out bool xmlParsed)
+        {
+            bool explicitUser;
+            return QueryTaskDetails(name, out enabled, out matchesExecutable,
+                out commandPath, out userMatches, out explicitUser, out xmlParsed);
+        }
+
+        private static bool QueryTaskDetails(string name, out bool enabled,
+            out bool matchesExecutable, out string commandPath,
+            out bool userMatches, out bool explicitUser, out bool xmlParsed)
         {
             enabled = false;
             // Do not claim an unknown task belongs to this installation. A false
@@ -311,11 +323,13 @@ namespace PiWebTray
             matchesExecutable = false;
             commandPath = "";
             userMatches = false;
+            explicitUser = false;
             xmlParsed = false;
 
             bool parsed = false;
             bool parsedEnabled = false;
             bool parsedUserMatches = false;
+            bool parsedExplicitUser = false;
             string parsedCommand = "";
             foreach (Encoding encoding in TaskXmlEncodings())
             {
@@ -346,8 +360,10 @@ namespace PiWebTray
                 parsed = true;
                 xmlParsed = true;
                 parsedEnabled = IsTaskXmlEnabled(document);
-                parsedUserMatches = TaskXmlUserMatchesCurrentUser(document);
+                parsedUserMatches = TaskXmlUserMatchesCurrentUser(document,
+                    out parsedExplicitUser);
                 userMatches = parsedUserMatches;
+                explicitUser = parsedExplicitUser;
                 string command = ReadTaskElement(document, "Command");
                 string arguments = ReadTaskElement(document, "Arguments");
                 string expandedCommand = ExpandTaskCommand(command);
@@ -393,6 +409,7 @@ namespace PiWebTray
                 enabled = parsedEnabled;
                 commandPath = parsedCommand;
                 userMatches = parsedUserMatches;
+                explicitUser = parsedExplicitUser;
                 xmlParsed = true;
                 return true;
             }
@@ -404,12 +421,24 @@ namespace PiWebTray
             bool exists = QueryTask(name);
             enabled = exists;
             userMatches = false;
+            explicitUser = false;
             xmlParsed = false;
             return exists;
         }
 
         internal static bool TaskXmlUserMatchesCurrentUser(XmlDocument document)
         {
+            bool explicitUser;
+            return TaskXmlUserMatchesCurrentUser(document, out explicitUser);
+        }
+
+        // explicitUser distinguishes an actual Principal/LogonTrigger UserId from
+        // the legacy any-user task. The latter applies to every account and must
+        // not be treated as proof that this user owns the task for deletion.
+        internal static bool TaskXmlUserMatchesCurrentUser(XmlDocument document,
+            out bool explicitUser)
+        {
+            explicitUser = false;
             if (document == null) return false;
 
             // A task with no explicit user is the legacy any-user task and applies
@@ -419,11 +448,13 @@ namespace PiWebTray
             foreach (XmlNode node in document.SelectNodes(
                 "//*[local-name()='Principal']/*[local-name()='UserId']"))
             {
+                if (!string.IsNullOrEmpty((node.InnerText ?? "").Trim())) explicitUser = true;
                 if (!TaskUserIdMatchesCurrentUser(node.InnerText)) return false;
             }
             foreach (XmlNode node in document.SelectNodes(
                 "//*[local-name()='LogonTrigger']/*[local-name()='UserId']"))
             {
+                if (!string.IsNullOrEmpty((node.InnerText ?? "").Trim())) explicitUser = true;
                 if (!TaskUserIdMatchesCurrentUser(node.InnerText)) return false;
             }
             return true;
@@ -531,9 +562,13 @@ namespace PiWebTray
                 enabled = false;
             }
 
-            // A disabled logon trigger also prevents the task from starting.
+            // A disabled logon trigger also prevents the task from starting. A task
+            // with no logon trigger at all (for example a boot/daily task) is not the
+            // start-at-login entry this tray manages.
+            bool hasLogonTrigger = false;
             foreach (XmlNode trigger in document.GetElementsByTagName("LogonTrigger", "*"))
             {
+                hasLogonTrigger = true;
                 XmlNode triggerEnabled = trigger.SelectSingleNode("*[local-name()='Enabled']");
                 if (triggerEnabled != null && string.Equals(
                         triggerEnabled.InnerText.Trim(), "false",
@@ -543,6 +578,7 @@ namespace PiWebTray
                     break;
                 }
             }
+            if (!hasLogonTrigger) enabled = false;
             return enabled;
         }
 
@@ -566,7 +602,14 @@ namespace PiWebTray
                     if (p == null) return null;
                     p.BeginOutputReadLine();
                     p.BeginErrorReadLine();
-                    if (!p.WaitForExit(5000)) return null;
+                    if (!p.WaitForExit(5000))
+                    {
+                        // A stuck Task Scheduler could otherwise leave one child
+                        // behind after every menu refresh or autostart poll. Do not
+                        // kill a PID that has just exited and could have been reused.
+                        try { if (!p.HasExited) Sys.KillTree(p.Id); } catch (Exception) { }
+                        return null;
+                    }
                     return p.HasExited && p.ExitCode == 0;
                 }
             }
@@ -1148,18 +1191,22 @@ namespace PiWebTray
 
                     bool enabled;
                     bool matchesExecutable;
-                    if (QueryTaskDetails(TaskName, out enabled, out matchesExecutable, out _)
-                        && enabled && matchesExecutable)
+                    bool userMatches;
+                    bool explicitUser;
+                    bool xmlParsed;
+                    if (QueryTaskDetails(TaskName, out enabled, out matchesExecutable,
+                            out _, out userMatches, out explicitUser, out xmlParsed)
+                        && enabled && matchesExecutable && userMatches && explicitUser)
                     {
                         FinishTaskCreation(elevated, legacyExisted, out legacyRemovalFailed);
                         return true;
                     }
 
-                    // If no task existed before, observing one now is enough when
+                    // If no task existed before, observing one now is enough only when
                     // XML parsing is unavailable (for example on an unusual Windows
-                    // installation). A pre-existing task is never accepted on
-                    // existence alone.
-                    if (!existedBefore)
+                    // installation). If XML was parsed but points at another command,
+                    // another user, or has no logon trigger, do not call it success.
+                    if (!existedBefore && !xmlParsed)
                     {
                         FinishTaskCreation(elevated, legacyExisted, out legacyRemovalFailed);
                         return true;
@@ -1293,9 +1340,9 @@ namespace PiWebTray
             return true;
         }
 
-        // Delete only a task that belongs to this user. A legacy "PiWebTray" task
-        // is machine-wide and may belong to another account; deleting it merely
-        // because the name exists would remove that account's startup entry.
+        // Delete only a task that belongs to this user. A no-user legacy
+        // "PiWebTray" task is machine-wide and cannot be attributed to this
+        // account, so it is reported but left untouched.
         private static bool DeleteTaskIfOwned(bool elevated, string name)
         {
             bool? exists = QueryTaskOrUnknown(name);
@@ -1304,8 +1351,23 @@ namespace PiWebTray
             bool parsed;
             bool owned = QueryTaskUserBelongsToCurrentUser(name, out parsed);
             if (!parsed) return false;
-            if (!owned) return true;
+            if (!owned)
+            {
+                // A no-user task is not ours to delete. Report that it still exists
+                // when it targets this installation, so the caller does not claim a
+                // successful disable while the startup entry remains active.
+                return !QueryTaskMatchesCurrentExecutable(name);
+            }
             return DeleteTaskByName(elevated, name);
+        }
+
+        private static bool QueryTaskMatchesCurrentExecutable(string name)
+        {
+            bool enabled;
+            bool matchesExecutable;
+            string commandPath;
+            return QueryTaskDetails(name, out enabled, out matchesExecutable, out commandPath)
+                && matchesExecutable;
         }
 
         private static bool DeleteTaskByName(bool elevated, string name)

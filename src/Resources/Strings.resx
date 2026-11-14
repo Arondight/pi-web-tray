@@ -278,7 +278,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Installation did not take effect</value>
   </data>
   <data name="install.timeout" xml:space="preserve">
-    <value>The installation timed out after 45 minutes. Check the network connection and retry.</value>
+    <value>A single installation step timed out after 45 minutes. Check the network connection and retry.</value>
   </data>
   <data name="install.doneBody" xml:space="preserve">
     <value>Installed: Pi Web {0}{1}</value>
@@ -330,6 +330,12 @@ Keep the tray running and retry after Node.js is installed.</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
     <value>Pi Web was stopped for this install and was not restarted because no tray is running.</value>
+  </data>
+  <data name="install.stoppedByUser" xml:space="preserve">
+    <value>Pi Web was not restarted because a stop was requested during the install.</value>
+  </data>
+  <data name="install.stoppedLegacyTray" xml:space="preserve">
+    <value>Pi Web was stopped for this install but was not restarted automatically. Start it again from the tray menu.</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>Pi Web did not open port {0} after the install. Check the service log.</value>
@@ -383,6 +389,15 @@ Exit anyway?</value>
   </data>
   <data name="notify.installBusyBody" xml:space="preserve">
     <value>Wait for the installation to finish before stopping the service.</value>
+  </data>
+  <data name="notify.startBlockedTitle" xml:space="preserve">
+    <value>Service start is blocked</value>
+  </data>
+  <data name="notify.startBlockedBody" xml:space="preserve">
+    <value>Another install or update is still finishing. The start request will be retried automatically.</value>
+  </data>
+  <data name="notify.startBlockedTimeoutBody" xml:space="preserve">
+    <value>The service was not started because another install or update is still running. Try again from the tray menu.</value>
   </data>
   <data name="notify.autostartTitle" xml:space="preserve">
     <value>Start at login</value>
@@ -890,7 +905,7 @@ See {1} for details.</value>
     <value>The downloaded archive does not contain pi-web-tray.exe.</value>
   </data>
   <data name="update.error.startHelper" xml:space="preserve">
-    <value>The update helper could not be created.</value>
+    <value>The update helper could not be started.</value>
   </data>
   <data name="update.error.elevationCancelled" xml:space="preserve">
     <value>Administrator permission is required to update this installation.</value>
@@ -1340,7 +1355,7 @@ See {1} for details.</value>
     <value>Another installation is already in progress. Wait for it to finish and try again.</value>
   </data>
   <data name="update.error.busy" xml:space="preserve">
-    <value>Another update is already being applied to this installation.</value>
+    <value>Another update or installation is already being applied to this installation.</value>
   </data>
   <data name="auto.adminWritableDir" xml:space="preserve">
     <value>Administrator start-at-login was not enabled because standard users can modify the tray installation directory. Move Pi Web Tray to a protected folder or use standard-user start-at-login.</value>

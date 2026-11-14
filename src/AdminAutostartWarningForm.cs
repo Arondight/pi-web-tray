@@ -21,6 +21,7 @@ namespace PiWebTray
         private readonly Button _close;
         private readonly string _repairExecutablePath;
         private Icon _formIcon;
+        private Font _headingFont;
         private bool _busy;
 
         internal bool RepairSucceeded { get; private set; }
@@ -77,6 +78,7 @@ namespace PiWebTray
 
             Label heading = CreateLabel(title);
             heading.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
+            _headingFont = heading.Font;
             heading.Margin = new Padding(0, 0, 0, 16);
 
             Label message = CreateLabel(body);
@@ -167,6 +169,11 @@ namespace PiWebTray
             {
                 try { _formIcon.Dispose(); } catch (Exception) { }
                 _formIcon = null;
+            }
+            if (disposing && _headingFont != null)
+            {
+                try { _headingFont.Dispose(); } catch (Exception) { }
+                _headingFont = null;
             }
             base.Dispose(disposing);
         }

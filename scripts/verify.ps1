@@ -14,6 +14,14 @@ if (-not (Test-Path $ExePath)) {
 }
 $exe = (Resolve-Path $ExePath).Path
 
+# Refuse to smoke-test an old binary left in artifacts/ after a source bump.
+$projectText = [IO.File]::ReadAllText((Join-Path $root "src\PiWebTray.csproj"))
+$projectVersion = [regex]::Match($projectText, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
+$exeVersion = (Get-Item $exe).VersionInfo.ProductVersion.Trim()
+if ([string]::IsNullOrWhiteSpace($projectVersion) -or $exeVersion -ne $projectVersion) {
+    throw "Executable version '$exeVersion' does not match source version '$projectVersion'. Rebuild with .\build.cmd."
+}
+
 # GitHub Actions runs Windows tests with an elevated token. The tray refuses an
 # elevated start from a user-writable directory, so run the smoke tests from a
 # protected copy instead of weakening that check. The copy keeps the artifact and

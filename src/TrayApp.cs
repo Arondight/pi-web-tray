@@ -68,6 +68,7 @@ namespace PiWebTray
         private readonly EventWaitHandle _openSignal;
         private readonly EventWaitHandle _startSignal;
         private readonly EventWaitHandle _stopSignal;
+        private readonly EventWaitHandle _installStopSignal;
         private readonly EventWaitHandle _quitSignal;
         private readonly EventWaitHandle _quitKeepServiceSignal;
 
@@ -165,6 +166,14 @@ namespace PiWebTray
         // phase instead of consuming and dropping the signal.
         private bool _pendingStart;
         private bool _pendingStartOpen;
+        // A start requested while another process owns OperationLock.UpdateName.
+        // The CLI sends its own start signal after releasing the lock, but the
+        // update helper still holds it while it launches the replacement tray.
+        // Retry instead of dropping that start request (see RetryPendingStartAfterUpdate).
+        private bool _pendingStartAfterUpdate;
+        private bool _pendingStartAfterUpdateOpen;
+        private DateTime _pendingStartAfterUpdateAt = DateTime.MinValue;
+        private DateTime _pendingStartAfterUpdateDeadline = DateTime.MinValue;
         private bool _serviceStoppedByUser;
         private bool _exiting;
         // Set only for the ExitApp call made by the updater after its helper has
@@ -314,6 +323,7 @@ namespace PiWebTray
             _openSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.OpenSignalName, out created);
             _startSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StartSignalName, out created);
             _stopSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.StopSignalName, out created);
+            _installStopSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.InstallStopSignalName, out created);
             _quitSignal = new EventWaitHandle(false, EventResetMode.AutoReset, Instance.QuitSignalName, out created);
             _quitKeepServiceSignal = new EventWaitHandle(false, EventResetMode.AutoReset,
                 Instance.QuitKeepServiceSignalName, out created);
@@ -505,8 +515,8 @@ namespace PiWebTray
 
             // Write the state file only after the tray, menu and timer are initialized.
             // The update helper uses this file as its first sign that the new process
-            // reached a usable state. It is not a full health check, so the helper also
-            // waits for a short stability window before deleting its backup.
+            // reached a usable state. It is not a full health check, so a backup is
+            // cleaned up only after the service has reached Running (see OnTick).
             TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port);
             _updateBackupCleanupAt = DateTime.Now.AddSeconds(90);
         }
@@ -570,11 +580,13 @@ namespace PiWebTray
             bool openSignal = false;
             bool startSignal = false;
             bool stopSignal = false;
+            bool installStopSignal = false;
             bool quitSignal = false;
             bool quitKeepServiceSignal = false;
             try { openSignal = _openSignal.WaitOne(0); } catch (Exception) { }
             try { startSignal = _startSignal.WaitOne(0); } catch (Exception) { }
             try { stopSignal = _stopSignal.WaitOne(0); } catch (Exception) { }
+            try { installStopSignal = _installStopSignal.WaitOne(0); } catch (Exception) { }
             try { quitSignal = _quitSignal.WaitOne(0); } catch (Exception) { }
             try { quitKeepServiceSignal = _quitKeepServiceSignal.WaitOne(0); } catch (Exception) { }
 
@@ -590,6 +602,7 @@ namespace PiWebTray
                 return;
             }
             if (stopSignal) StopServerFromUser();
+            if (installStopSignal) StopServerForInstallSignal();
             if (startSignal) StartServer(false);
 
             PollAutostartOp();
@@ -604,11 +617,25 @@ namespace PiWebTray
             PollTaskRefresh();
             if (_exiting) return;
 
+            if (_modalDepth == 0) RetryPendingStartAfterUpdate();
+
             if (_updateBackupCleanupAt != DateTime.MinValue && DateTime.Now >= _updateBackupCleanupAt
                 && !_exiting)
             {
-                _updateBackupCleanupAt = DateTime.MinValue;
-                CleanupStaleUpdateBackups();
+                // The helper can observe only that the replacement tray stayed
+                // alive briefly. Keep the previous release until the new service is
+                // actually Running (or this is a deliberately tray-only start), then
+                // let the age-based cleanup remove the backup.
+                if (_phase == Phase.Running
+                    || (_phase == Phase.Stopped && !_serviceStoppedByUser))
+                {
+                    _updateBackupCleanupAt = DateTime.MinValue;
+                    CleanupStaleUpdateBackups();
+                }
+                else
+                {
+                    _updateBackupCleanupAt = DateTime.Now.AddSeconds(30);
+                }
             }
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt

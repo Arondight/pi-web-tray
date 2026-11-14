@@ -30,6 +30,7 @@ namespace PiWebTray
         }
 
         private Icon _formIcon;
+        private Font _titleFont;
         private readonly TableLayoutPanel _root;
         private readonly FlowLayoutPanel _content;
         private readonly FlowLayoutPanel _buttons;
@@ -81,6 +82,7 @@ namespace PiWebTray
 
             Label title = CreateTextLabel(Program.AppName);
             title.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
+            _titleFont = title.Font;
             title.Margin = new Padding(0, 0, 0, 16);
 
             FlowLayoutPanel description = CreateLine(14);
@@ -165,6 +167,11 @@ namespace PiWebTray
             {
                 try { _formIcon.Dispose(); } catch (Exception) { }
                 _formIcon = null;
+            }
+            if (disposing && _titleFont != null)
+            {
+                try { _titleFont.Dispose(); } catch (Exception) { }
+                _titleFont = null;
             }
             base.Dispose(disposing);
             if (disposing)

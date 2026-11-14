@@ -2,6 +2,7 @@
 # IL-only executable for Windows 7 to 11.
 # Usage: pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1
 # PowerShell 7+ is required for the PE/CLR header check.
+#requires -Version 7.0
 param(
     [string]$ArtifactDir = "artifacts",
     [string]$ProjectPath = "src/PiWebTray.csproj",
@@ -21,7 +22,7 @@ function Assert-Compatibility {
     if (-not $Condition) { throw $Message }
 }
 
-$project = [xml](Get-Content $ProjectPath -Raw)
+$project = [xml]([IO.File]::ReadAllText((Resolve-Path $ProjectPath).Path))
 function Get-ProjectProperty {
     param([string]$Name)
 
@@ -43,7 +44,7 @@ Assert-Compatibility ($platformTarget -eq "x64") `
 Assert-Compatibility ($prefer32Bit -eq "false") `
     "PiWebTray.csproj must set Prefer32Bit=false (found '$prefer32Bit')"
 
-$manifest = Get-Content $ManifestPath -Raw
+$manifest = [IO.File]::ReadAllText((Resolve-Path $ManifestPath).Path)
 $supportedOs = @{
     "Windows 7"     = "35138b9a-5d96-4fbd-8e2d-a2440225f93a"
     "Windows 8.1"   = "1f676c76-80e1-4239-95bb-83d0f6d0da78"
@@ -65,7 +66,7 @@ Assert-Compatibility (Test-Path $exe) "Missing $exe. Run .\build.cmd first."
 
 $configPath = Join-Path $ArtifactDir "pi-web-tray.exe.config"
 Assert-Compatibility (Test-Path $configPath) "Missing $configPath"
-$config = Get-Content $configPath -Raw
+$config = [IO.File]::ReadAllText((Resolve-Path $configPath).Path)
 Assert-Compatibility ($config -match 'sku="\.NETFramework,Version=v4\.8"') `
     "pi-web-tray.exe.config does not select .NET Framework 4.8"
 

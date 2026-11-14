@@ -206,7 +206,7 @@ namespace PiWebTray
             {
                 Mutex restartMutex;
                 bool restartDenied;
-                if (TryAcquireMutex(30000, out restartMutex, out restartDenied))
+                if (TryAcquireMutex(60000, out restartMutex, out restartDenied))
                 {
                     RunTray(config, elevated, !isTrayOnly, restartMutex,
                         !isTrayOnly && !isStartNoOpen);
@@ -280,7 +280,7 @@ namespace PiWebTray
                 // A closed port does not mean the tray's `pi-web stop` child has
                 // released the package directory. Wait so `--stop && --install` does
                 // not start npm too early.
-                return WaitForStopWorker(25000) ? 0 : 1;
+                return WaitForStopWorker(30000) ? 0 : 1;
             }
 
             if (isQuit)
@@ -290,8 +290,8 @@ namespace PiWebTray
                 // tray itself exited. Wait for the single-instance mutex so a
                 // following command sees a genuinely free instance.
                 // ExitApp may spend up to 8 seconds stopping the listener and
-                // another 25 seconds waiting for a `pi-web stop` worker.
-                if (!WaitForTrayExit(45000)) return 1;
+                // another 30 seconds waiting for a `pi-web stop` worker.
+                if (!WaitForTrayExit(60000)) return 1;
                 // The tray may have exited while a privileged or foreign listener
                 // survived the stop. Do not report success in that case.
                 return Net.WaitPortClosed(servicePort, 5000) ? 0 : 1;
@@ -389,8 +389,8 @@ namespace PiWebTray
             Mutex taken;
             bool denied;
             // Leave enough time for the old tray to finish a `pi-web stop` worker
-            // before starting the replacement (ExitWithout waits up to 25 seconds).
-            if (TryAcquireMutex(40000, out taken, out denied))
+            // before starting the replacement (ExitWithout waits up to 30 seconds).
+            if (TryAcquireMutex(60000, out taken, out denied))
             {
                 // --tray-only explicitly says "do not start or manage the service".
                 // Killing the listener here would contradict that flag, especially
@@ -563,6 +563,21 @@ namespace PiWebTray
                 using (EventWaitHandle signal = new EventWaitHandle(false, EventResetMode.AutoReset, name, out created))
                 {
                     signal.Set();
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool SignalExists(string name)
+        {
+            try
+            {
+                using (EventWaitHandle signal = EventWaitHandle.OpenExisting(name))
+                {
                     return true;
                 }
             }
@@ -747,9 +762,20 @@ namespace PiWebTray
 
             // npm cannot replace a globally installed package while its node process runs.
             // The tray's install path stops pi-web first (TrayApp.BeginInstall); the CLI
-            // path must do the same, or the install fails with a locked package directory.
-            bool hasWork = dryRun || Installer.HasInstallWork(config);
+            // path must do the same. The stop is performed from RunInConsole after its
+            // own probe proves that npm will run, so a failed HasInstallWork probe cannot
+            // let npm race a running service.
             bool stopped = false;
+            bool legacyStop = false;
+            Func<bool> beforeInstall = delegate
+            {
+                bool didStop;
+                bool didLegacyStop;
+                if (!StopServiceForConsoleInstall(config, false, out didStop, out didLegacyStop)) return false;
+                if (didStop) stopped = true;
+                if (didLegacyStop) legacyStop = true;
+                return true;
+            };
             // The CLI and an elevated update helper can otherwise touch the same
             // installation at the same time: an update could replace the executable
             // while npm is rewriting the global package tree. An update helper holds
@@ -768,20 +794,11 @@ namespace PiWebTray
                     }
                 }
 
-                try
-                {
-                    if (hasWork && !StopServiceForConsoleInstall(config, dryRun, out stopped)) return 1;
-                }
-                catch (Exception ex)
-                {
-                    ConsoleHost.WriteError(L.T("notify.selfCheckError", ex.Message));
-                    return 1;
-                }
-
                 int code;
                 try
                 {
-                    code = Installer.RunInConsole(config, dryRun);
+                    code = Installer.RunInConsole(config, dryRun,
+                        dryRun ? null : beforeInstall);
                 }
                 catch (Exception ex)
                 {
@@ -805,7 +822,7 @@ namespace PiWebTray
                         updateLock.Dispose();
                         updateLock = null;
                     }
-                    restored = RestartServiceAfterConsoleInstall(config);
+                    restored = RestartServiceAfterConsoleInstall(config, legacyStop);
                 }
                 return code == 0 && !restored ? 1 : code;
             }
@@ -817,9 +834,11 @@ namespace PiWebTray
 
         // Mirror TrayApp.ShouldStopServiceForInstall: only stop a listener that is really
         // ours (the expected script on its command line). Another user's pi-web is left alone.
-        private static bool StopServiceForConsoleInstall(Config config, bool dryRun, out bool stopped)
+        private static bool StopServiceForConsoleInstall(Config config, bool dryRun, out bool stopped,
+            out bool legacyStop)
         {
             stopped = false;
+            legacyStop = false;
             int port = EffectivePort(config);
             bool trayRunning = TrayRunning();
             // Capture this before sending the stop signal: a service that was open
@@ -829,13 +848,21 @@ namespace PiWebTray
             // Always tell a running tray to stop, even when the port is currently
             // closed. The tray may be Starting, or may have an AutoRestart timer
             // armed; either could otherwise bring the service back while npm runs.
-            // RunInstall already holds UpdateName, which StartServer now honours.
+            // New trays expose an install-specific signal so this operation-owned
+            // stop does not look like a user stop. An older tray only has Stop; use
+            // it as a compatibility fallback and do not auto-restart that tray later.
             if (!dryRun && trayRunning)
             {
-                if (!SendSignal(Instance.StopSignalName))
+                bool sentInstall = SignalExists(Instance.InstallStopSignalName)
+                    && SendSignal(Instance.InstallStopSignalName);
+                if (!sentInstall)
                 {
-                    ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
-                    return false;
+                    legacyStop = true;
+                    if (!SendSignal(Instance.StopSignalName))
+                    {
+                        ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
+                        return false;
+                    }
                 }
             }
 
@@ -843,7 +870,7 @@ namespace PiWebTray
             {
                 // A tray may have closed the port for a prior stop while its
                 // `pi-web stop` child is still releasing the package directory.
-                if (!dryRun && trayRunning && !WaitForStopWorker(25000))
+                if (!dryRun && trayRunning && !WaitForStopWorker(30000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -886,7 +913,7 @@ namespace PiWebTray
                 // The port can close while the tray's `pi-web stop` child is still
                 // finishing. Starting npm now can hit a locked package directory; wait
                 // for the same lock the tray holds until that child exits.
-                if (!WaitForStopWorker(25000))
+                if (!WaitForStopWorker(30000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -900,7 +927,7 @@ namespace PiWebTray
             return stopped;
         }
 
-        private static bool RestartServiceAfterConsoleInstall(Config config)
+        private static bool RestartServiceAfterConsoleInstall(Config config, bool legacyStop)
         {
             int port = EffectivePort(config);
             if (!TrayRunning())
@@ -920,7 +947,21 @@ namespace PiWebTray
                 return true;
             }
 
+            if (legacyStop)
+            {
+                // An older tray wrote its persistent user-stop marker when it received
+                // Stop. Starting it again would be ambiguous and could override a real
+                // user stop; leave the service stopped and tell the user.
+                ConsoleHost.WriteLine(L.T("install.stoppedLegacyTray"));
+                return true;
+            }
+
             // Start without opening a browser: --install must not turn into "open pi-web".
+            if (TrayState.ServiceStopRequested())
+            {
+                ConsoleHost.WriteLine(L.T("install.stoppedByUser"));
+                return true;
+            }
             if (!SendSignal(Instance.StartSignalName))
             {
                 ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
@@ -1054,7 +1095,9 @@ namespace PiWebTray
             bool task = Autostart.QueryTaskState(out taskEnabled, out taskMatches);
             bool legacyTask = Autostart.QueryLegacyTaskState(
                 out legacyTaskEnabled, out legacyTaskMatches);
-            bool run = Autostart.RunValueExists();
+            bool run = Autostart.RunValueExists()
+                && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
+                && Autostart.RunValueApproved();
             bool taskStartsAtLogin = (task && taskEnabled && taskMatches)
                 || (legacyTask && legacyTaskEnabled && legacyTaskMatches);
             sb.AppendLine();
@@ -1171,20 +1214,13 @@ namespace PiWebTray
             {
                 Directory.CreateDirectory(TrayState.Folder);
                 string path = Path.Combine(TrayState.Folder, "crash.log");
-                if (PathSafety.ContainsReparsePoint(path)) return;
-                FileInfo info = new FileInfo(path);
-                if (info.Exists && info.Length > 4 * 1024 * 1024)
-                {
-                    string backup = path + ".1";
-                    if (File.Exists(backup)) File.Delete(backup);
-                    File.Move(path, backup);
-                }
-                File.AppendAllText(
-                    path,
-                    "==== " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ====" + Environment.NewLine
+                // LogWriter verifies the opened handle and applies the same
+                // reparse-point/rotation rules as the other logs.
+                LogWriter.AppendRaw(path,
+                    "==== " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " ===="
+                        + Environment.NewLine
                         + Shell.RedactSecrets(exception == null ? "(unknown)" : exception.ToString())
-                        + Environment.NewLine + Environment.NewLine,
-                    new UTF8Encoding(true));
+                        + Environment.NewLine + Environment.NewLine);
             }
             catch (Exception)
             {

@@ -174,10 +174,9 @@ namespace PiWebTray
             }
 
             // Let a running `pi-web stop` worker release the package directory before
-            // the process exits. ProcessRunner allows the stop child up to 20 seconds,
-            // so a 5 second wait can release the stop lock while the child still owns
-            // the global package directory.
-            WaitForStopWorker(25000);
+            // the process exits. ProcessRunner allows the stop child up to 20 seconds
+            // plus its kill/flush grace, so the wait must cover the whole worker.
+            WaitForStopWorker(30000);
 
             // Normal exit means "stop the service". If the wrapper is still alive
             // while the port is already closed (a hung start or a detached child),
@@ -230,7 +229,7 @@ namespace PiWebTray
             lock (_updateLock) cancellation = _updateCancellation;
             if (cancellation != null) cancellation.Cancel();
 
-            WaitForStopWorker(25000);
+            WaitForStopWorker(30000);
             TrayState.Delete();
             Cleanup();
             ExitThread();
@@ -290,6 +289,7 @@ namespace PiWebTray
             try { _openSignal.Close(); } catch (Exception) { }
             try { _startSignal.Close(); } catch (Exception) { }
             try { _stopSignal.Close(); } catch (Exception) { }
+            try { _installStopSignal.Close(); } catch (Exception) { }
             try { _quitSignal.Close(); } catch (Exception) { }
             try { _quitKeepServiceSignal.Close(); } catch (Exception) { }
             try { Icons.DisposeCache(); } catch (Exception) { }

@@ -15,7 +15,7 @@ $version = (Get-Item $exe).VersionInfo.ProductVersion
 if ([string]::IsNullOrWhiteSpace($version)) { $version = "dev" }
 
 # Refuse to package a stale artifact after a version-only source bump.
-$projectText = Get-Content "src\PiWebTray.csproj" -Raw
+$projectText = [IO.File]::ReadAllText((Resolve-Path "src\PiWebTray.csproj").Path)
 $projectVersion = [regex]::Match($projectText, '<Version>([^<]+)</Version>').Groups[1].Value.Trim()
 if ([string]::IsNullOrWhiteSpace($projectVersion)) {
     throw "Could not read <Version> from src\PiWebTray.csproj."

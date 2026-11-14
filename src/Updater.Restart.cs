@@ -21,8 +21,8 @@ namespace PiWebTray
     internal static partial class Updater
     {
         // The state file is written very early in TrayApp's constructor. Observe the
-        // new process for long enough that an immediate crash in the new release is
-        // not mistaken for a successful update before the backup is deleted.
+        // new process long enough that an immediate crash in the new release is
+        // not mistaken for a successful update before the new tray's backup cleanup.
         private const int StableTrayMilliseconds = 5000;
 
         // A --stop/--quit that arrives after the tray has handed control to the

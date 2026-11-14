@@ -278,7 +278,7 @@
     <value>安裝未生效</value>
   </data>
   <data name="install.timeout" xml:space="preserve">
-    <value>安裝逾時（45 分鐘）。請檢查網路連線後重試。</value>
+    <value>單一安裝步驟在 45 分鐘後逾時。請檢查網路連線後重試。</value>
   </data>
   <data name="install.doneBody" xml:space="preserve">
     <value>安裝完成：Pi Web {0}{1}</value>
@@ -330,6 +330,12 @@
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
     <value>Pi Web 已為本次安裝停止，且未重新啟動，因為目前沒有執行中的托盤。</value>
+  </data>
+  <data name="install.stoppedByUser" xml:space="preserve">
+    <value>安裝期間收到了停止要求，因此未重新啟動 Pi Web。</value>
+  </data>
+  <data name="install.stoppedLegacyTray" xml:space="preserve">
+    <value>Pi Web 已為本次安裝停止，但未自動重新啟動。請從托盤功能表重新啟動。</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
     <value>安裝後 Pi Web 沒有開啟連接埠 {0}。請查看服務記錄。</value>
@@ -383,6 +389,15 @@
   </data>
   <data name="notify.installBusyBody" xml:space="preserve">
     <value>請等待安裝完成後再停止服務。</value>
+  </data>
+  <data name="notify.startBlockedTitle" xml:space="preserve">
+    <value>服務啟動已封鎖</value>
+  </data>
+  <data name="notify.startBlockedBody" xml:space="preserve">
+    <value>另一個安裝或更新仍在進行中。完成後會自動重試啟動要求。</value>
+  </data>
+  <data name="notify.startBlockedTimeoutBody" xml:space="preserve">
+    <value>由於另一個安裝或更新仍在進行，服務未啟動。請從托盤功能表重試。</value>
   </data>
   <data name="notify.autostartTitle" xml:space="preserve">
     <value>開機自動啟動</value>
@@ -559,7 +574,7 @@
     <value>時間</value>
   </data>
   <data name="diag.exe" xml:space="preserve">
-    <value>exe</value>
+    <value>執行檔</value>
   </data>
   <data name="diag.instance" xml:space="preserve">
     <value>執行個體後綴</value>
@@ -890,7 +905,7 @@
     <value>下載的壓縮檔中不包含 pi-web-tray.exe。</value>
   </data>
   <data name="update.error.startHelper" xml:space="preserve">
-    <value>無法建立更新程式。</value>
+    <value>無法啟動更新協助程式。</value>
   </data>
   <data name="update.error.elevationCancelled" xml:space="preserve">
     <value>更新此安裝需要系統管理員權限。</value>
@@ -1340,7 +1355,7 @@
     <value>已有安裝正在進行。請等待完成後再試。</value>
   </data>
   <data name="update.error.busy" xml:space="preserve">
-    <value>此安裝已有更新正在套用。</value>
+    <value>此安裝已有更新或安裝正在套用。</value>
   </data>
   <data name="auto.adminWritableDir" xml:space="preserve">
     <value>目前托盤安裝目錄可被標準使用者修改，未開啟管理員自啟動。請將 Pi Web Tray 移至受保護目錄，或使用標準使用者自啟動。</value>

@@ -71,6 +71,14 @@ namespace PiWebTray
         internal static string OpenSignalName { get { return @"Local\" + BaseName + ".Open" + Suffix; } }
         internal static string StartSignalName { get { return @"Local\" + BaseName + ".Start" + Suffix; } }
         internal static string StopSignalName { get { return @"Local\" + BaseName + ".Stop" + Suffix; } }
+        // A CLI dependency install asks the tray to stop the service without
+        // recording a user stop. The normal Stop signal deliberately writes the
+        // service.stop.requested marker; this one must not, because the install
+        // operation itself will restore the service afterwards.
+        internal static string InstallStopSignalName
+        {
+            get { return @"Local\" + BaseName + ".InstallStop" + Suffix; }
+        }
         internal static string QuitSignalName { get { return @"Local\" + BaseName + ".Quit" + Suffix; } }
         internal static string QuitKeepServiceSignalName
         {
@@ -224,7 +232,16 @@ namespace PiWebTray
                     || PathSafety.ContainsReparsePoint(backup)) return;
                 try
                 {
-                    File.WriteAllText(temp, sb.ToString(), new UTF8Encoding(true));
+                    using (FileStream stream = new FileStream(temp, FileMode.Create,
+                        FileAccess.Write, FileShare.None))
+                    {
+                        if (!LogHost.HandleMatchesExpectedPath(stream, temp)) return;
+                        using (StreamWriter writer = new StreamWriter(
+                            stream, new UTF8Encoding(true)))
+                        {
+                            writer.Write(sb.ToString());
+                        }
+                    }
                     if (File.Exists(path))
                     {
                         try { File.Replace(temp, path, backup, true); }
