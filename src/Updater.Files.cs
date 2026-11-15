@@ -266,10 +266,34 @@ namespace PiWebTray
 
         internal static void DeleteOldBackups(string target)
         {
+            DeleteOldBackupsExcept(target, null, null);
+        }
+
+        // Called by the already-elevated helper after a successful restart. The
+        // current backup is retained for recovery, but older complete backups can be
+        // removed even when the replacement tray will run as a standard user and
+        // cannot delete files in a protected installation directory itself.
+        internal static void DeleteOldBackupsExcept(string target, string currentBackup,
+            string logPath)
+        {
             try
             {
+                string keepPath = "";
+                if (!string.IsNullOrEmpty(currentBackup))
+                {
+                    try { keepPath = Path.GetFullPath(currentBackup); } catch (Exception) { }
+                }
+
                 foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
                 {
+                    if (keepPath.Length > 0)
+                    {
+                        string full;
+                        try { full = Path.GetFullPath(old); } catch (Exception) { full = old; }
+                        if (string.Equals(full, keepPath, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                    }
+
                     // A backup with a keep marker may be the only copy of the
                     // previous release after a failed/partial rollback. An incomplete
                     // marker without a complete marker means CopyFiles did not finish
@@ -278,10 +302,17 @@ namespace PiWebTray
                         || (File.Exists(IncompleteMarker(old))
                             && !File.Exists(CompleteMarker(old)))) continue;
                     DeleteBackup(old);
+                    if (!string.IsNullOrEmpty(logPath))
+                        AppendLog(logPath, "removed old update backup " + Path.GetFileName(old));
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                if (!string.IsNullOrEmpty(logPath))
+                {
+                    try { AppendLog(logPath, "cleanup of old update backups failed: " + ex.Message); }
+                    catch (Exception) { }
+                }
             }
         }
 
@@ -568,6 +599,8 @@ namespace PiWebTray
 
             string name = Path.GetFileName(relative);
             if (string.Equals(name, "state.ini", StringComparison.OrdinalIgnoreCase)) return true;
+            if (name.StartsWith("state.", StringComparison.OrdinalIgnoreCase)
+                && name.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)) return true;
             if (string.Equals(name, "diag.txt", StringComparison.OrdinalIgnoreCase)) return true;
             if (name.EndsWith(".log", StringComparison.OrdinalIgnoreCase)) return true;
             if (name.EndsWith(".log.1", StringComparison.OrdinalIgnoreCase)) return true;

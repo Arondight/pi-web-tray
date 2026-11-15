@@ -248,40 +248,59 @@ namespace PiWebTray
                         return false;
                     }
 
-                    using (Stream input = response.GetResponseStream())
-                    using (FileStream output = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+                    bool created = false;
+                    bool completed = false;
+                    try
                     {
-                        // Re-check the handle after opening; the path can be swapped
-                        // for a reparse point between the check above and CreateFile.
-                        if (!LogHost.HandleMatchesExpectedPath(output, path))
+                        using (Stream input = response.GetResponseStream())
+                        using (FileStream output = new FileStream(path, FileMode.CreateNew,
+                            FileAccess.Write, FileShare.None))
                         {
-                            error = L.T("update.error.unsafePath");
-                            return false;
-                        }
-                        long total = response.ContentLength > 0 ? response.ContentLength : expectedSize;
-                        byte[] buffer = new byte[81920];
-                        long received = 0;
-                        int lastReported = -2;
-                        int read;
-                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                        {
-                            received += read;
-                            if (received > limit)
+                            created = true;
+                            // Re-check the handle after opening; the path can be swapped
+                            // for a reparse point between the check above and CreateFile.
+                            // CreateNew prevents a swap from truncating an existing file.
+                            if (!LogHost.HandleMatchesExpectedPath(output, path))
                             {
-                                error = L.T("update.error.tooLarge");
+                                error = L.T("update.error.unsafePath");
                                 return false;
                             }
-                            output.Write(buffer, 0, read);
-
-                            int percent = total > 0 ? (int)(received * 100 / total) : -1;
-                            if (percent != lastReported)
+                            long total = response.ContentLength > 0 ? response.ContentLength : expectedSize;
+                            byte[] buffer = new byte[81920];
+                            long received = 0;
+                            int lastReported = -2;
+                            int read;
+                            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                             {
-                                lastReported = percent;
-                                if (progress != null)
+                                received += read;
+                                if (received > limit)
                                 {
-                                    try { progress(percent); } catch (Exception) { }
+                                    error = L.T("update.error.tooLarge");
+                                    return false;
+                                }
+                                output.Write(buffer, 0, read);
+
+                                int percent = total > 0 ? (int)(received * 100 / total) : -1;
+                                if (percent != lastReported)
+                                {
+                                    lastReported = percent;
+                                    if (progress != null)
+                                    {
+                                        try { progress(percent); } catch (Exception) { }
+                                    }
                                 }
                             }
+                        }
+                        completed = true;
+                    }
+                    finally
+                    {
+                        // Never leave a partial file behind, especially when a
+                        // path/mount-point swap redirected the create into a
+                        // protected directory.
+                        if (created && !completed)
+                        {
+                            try { File.Delete(path); } catch (Exception) { }
                         }
                     }
                 }
@@ -394,7 +413,7 @@ namespace PiWebTray
                     if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
 
                     using (Stream input = entry.Open())
-                    using (FileStream output = new FileStream(destination, FileMode.Create,
+                    using (FileStream output = new FileStream(destination, FileMode.CreateNew,
                         FileAccess.Write, FileShare.None))
                     {
                         byte[] buffer = new byte[81920];

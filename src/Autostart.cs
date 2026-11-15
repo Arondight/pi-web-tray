@@ -26,6 +26,19 @@ namespace PiWebTray
         internal const string BaseRunValueName = "PiWebTray";
         internal const string LegacyTaskName = "PiWebTray";
 
+        // Principals that may own or control installation files. Any other
+        // principal with write/delete/ACL rights is treated as untrusted, even
+        // when it is not the current user. An administrator task must not be
+        // hijackable by another local standard user with an explicit ACE.
+        private const string TrustedInstallerSidValue =
+            "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464";
+        private static readonly SecurityIdentifier LocalSystemSid =
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        private static readonly SecurityIdentifier AdministratorsSid =
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        private static readonly SecurityIdentifier TrustedInstallerSid =
+            new SecurityIdentifier(TrustedInstallerSidValue);
+
         // Named instances must not read, overwrite or delete the default installation's
         // start-at-login entries. Keep each instance's Run value and task names scoped by
         // the same suffix as its mutex and data directory.
@@ -669,7 +682,7 @@ namespace PiWebTray
 
                 DirectorySecurity directorySecurity = new DirectoryInfo(directory)
                     .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
-                if (IsOwnedByStandardUser(directorySecurity)) return true;
+                if (IsUntrustedOwner(directorySecurity)) return true;
                 if (HasWriteAccess(directorySecurity)) return true;
 
                 // A protected leaf directory is still replaceable when a standard user
@@ -687,7 +700,7 @@ namespace PiWebTray
 
                     FileSecurity fileSecurity = new FileInfo(full)
                         .GetAccessControl(AccessControlSections.Access | AccessControlSections.Owner);
-                    if (IsOwnedByStandardUser(fileSecurity)) return true;
+                    if (IsUntrustedOwner(fileSecurity)) return true;
                     if (HasWriteAccess(fileSecurity)) return true;
                 }
                 return false;
@@ -759,6 +772,15 @@ namespace PiWebTray
                 return false;
             }
 
+            // icacls /t also acts on the underlying file behind a hard link. The
+            // link is not a reparse point, so reject it explicitly before changing
+            // ownership or ACLs.
+            if (PathSafety.ContainsHardLinkInTree(directory))
+            {
+                message = L.T("auto.repairHardLinkUnsafe");
+                return false;
+            }
+
             int exitCode;
             string command;
             try
@@ -770,19 +792,45 @@ namespace PiWebTray
                 message = L.T("auto.repairFailed", ex.Message);
                 return false;
             }
+
+            List<AclSnapshotEntry> aclSnapshot;
+            try
+            {
+                aclSnapshot = CaptureAclSnapshot(directory);
+            }
+            catch (Exception ex)
+            {
+                message = L.T("auto.repairFailed", ex.Message);
+                return false;
+            }
+
+            // Re-check immediately before the elevated command. This does not make the
+            // operation atomic, but it shortens the window for a link added while the
+            // snapshot was being captured.
+            if (PathSafety.ContainsHardLinkInTree(directory))
+            {
+                message = L.T("auto.repairHardLinkUnsafe");
+                return false;
+            }
+
             if (!RunRepairCommand(command, out exitCode))
             {
-                if (exitCode == -2)
+                if (exitCode == -3)
+                {
+                    // The command ran but timed out; it may have changed part of
+                    // the tree. Put the original ACLs back.
+                    message = RepairFailure(L.T("auto.repairTimeout"), aclSnapshot);
+                }
+                else if (exitCode == -2)
                     message = L.T("auto.repairCancelled");
-                else if (exitCode == -3)
-                    message = L.T("auto.repairTimeout");
                 else
                     message = L.T("auto.repairFailed", L.T("auto.repairLaunchFailed"));
                 return false;
             }
             if (exitCode != 0)
             {
-                message = L.T("auto.repairFailed", L.T("auto.repairCommandFailed", exitCode));
+                message = RepairFailure(
+                    L.T("auto.repairCommandFailed", exitCode), aclSnapshot);
                 return false;
             }
 
@@ -798,8 +846,103 @@ namespace PiWebTray
                 Thread.Sleep(250);
             }
 
-            message = L.T("auto.repairFailed", L.T("auto.repairStillUnsafe"));
+            message = RepairFailure(L.T("auto.repairStillUnsafe"), aclSnapshot);
             return false;
+        }
+
+        private sealed class AclSnapshotEntry
+        {
+            internal string Path;
+            internal bool IsDirectory;
+            internal FileSystemSecurity Security;
+        }
+
+        private static List<AclSnapshotEntry> CaptureAclSnapshot(string directory)
+        {
+            List<AclSnapshotEntry> snapshot = new List<AclSnapshotEntry>();
+            Stack<string> pending = new Stack<string>();
+            pending.Push(Path.GetFullPath(directory));
+            while (pending.Count > 0)
+            {
+                string current = pending.Pop();
+                FileAttributes attributes = File.GetAttributes(current);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("repair path contains a reparse point");
+                if ((attributes & FileAttributes.Directory) != 0)
+                {
+                    DirectorySecurity security = new DirectoryInfo(current).GetAccessControl(
+                        AccessControlSections.Access | AccessControlSections.Owner);
+                    AclSnapshotEntry entry = new AclSnapshotEntry();
+                    entry.Path = current;
+                    entry.IsDirectory = true;
+                    entry.Security = security;
+                    snapshot.Add(entry);
+                    foreach (string child in Directory.GetFileSystemEntries(current))
+                    {
+                        FileAttributes childAttributes = File.GetAttributes(child);
+                        if ((childAttributes & FileAttributes.ReparsePoint) != 0)
+                            throw new InvalidOperationException("repair path contains a reparse point");
+                        if ((childAttributes & FileAttributes.Directory) != 0)
+                            pending.Push(child);
+                        else
+                        {
+                            FileSecurity childSecurity = new FileInfo(child).GetAccessControl(
+                                AccessControlSections.Access | AccessControlSections.Owner);
+                            AclSnapshotEntry childEntry = new AclSnapshotEntry();
+                            childEntry.Path = child;
+                            childEntry.IsDirectory = false;
+                            childEntry.Security = childSecurity;
+                            snapshot.Add(childEntry);
+                        }
+                    }
+                }
+            }
+            return snapshot;
+        }
+
+        private static bool RestoreAclSnapshot(List<AclSnapshotEntry> snapshot)
+        {
+            if (snapshot == null || snapshot.Count == 0) return false;
+            // Never restore through a link. If the tree gained a hard link after the
+            // repair check, changing the snapshot's ACLs could still affect a
+            // protected file through that link; leave the ACL repair for manual review.
+            if (PathSafety.ContainsHardLinkInTree(snapshot[0].Path)) return false;
+
+            bool restored = true;
+            // Restore children first, then the root that owns inheritance.
+            for (int i = snapshot.Count - 1; i >= 0; i--)
+            {
+                AclSnapshotEntry entry = snapshot[i];
+                try
+                {
+                    if (PathSafety.ContainsReparsePoint(entry.Path))
+                    {
+                        restored = false;
+                        continue;
+                    }
+                    if (entry.IsDirectory)
+                    {
+                        new DirectoryInfo(entry.Path).SetAccessControl(
+                            (DirectorySecurity)entry.Security);
+                    }
+                    else
+                    {
+                        new FileInfo(entry.Path).SetAccessControl((FileSecurity)entry.Security);
+                    }
+                }
+                catch (Exception)
+                {
+                    restored = false;
+                }
+            }
+            return restored;
+        }
+
+        private static string RepairFailure(string reason, List<AclSnapshotEntry> snapshot)
+        {
+            if (!RestoreAclSnapshot(snapshot))
+                reason += " " + L.T("auto.repairRollbackFailed");
+            return L.T("auto.repairFailed", reason);
         }
 
         internal static string BuildSecureDirectoryCommand(string directory)
@@ -890,50 +1033,28 @@ namespace PiWebTray
             }
         }
 
-        private static bool IsOwnedByStandardUser(FileSystemSecurity security)
+        internal static bool IsUntrustedOwner(FileSystemSecurity security)
         {
             try
             {
                 SecurityIdentifier owner = security.GetOwner(typeof(SecurityIdentifier))
                     as SecurityIdentifier;
                 if (owner == null) return true;
-
-                SecurityIdentifier administrators = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinAdministratorsSid, null);
-                // Administrators ownership is safe only when the path's ancestors are
-                // protected too; the caller checks those separately.
-                if (owner.Equals(administrators)) return false;
-
-                // These owners are writable by standard users even if the token
-                // groups below do not explicitly list them.
-                SecurityIdentifier users = new SecurityIdentifier(
-                    WellKnownSidType.BuiltinUsersSid, null);
-                SecurityIdentifier authenticated = new SecurityIdentifier(
-                    WellKnownSidType.AuthenticatedUserSid, null);
-                SecurityIdentifier world = new SecurityIdentifier(
-                    WellKnownSidType.WorldSid, null);
-                if (owner.Equals(users) || owner.Equals(authenticated) || owner.Equals(world))
-                    return true;
-
-                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
-                {
-                    if (identity.User != null && owner.Equals(identity.User)) return true;
-                    if (identity.Groups != null)
-                    {
-                        foreach (IdentityReference group in identity.Groups)
-                        {
-                            SecurityIdentifier sid = group as SecurityIdentifier;
-                            if (sid == null || sid.Equals(administrators)) continue;
-                            if (owner.Equals(sid)) return true;
-                        }
-                    }
-                }
+                return !IsTrustedPrincipal(owner);
             }
             catch (Exception)
             {
+                // An owner that cannot be inspected must not be trusted.
                 return true;
             }
-            return false;
+        }
+
+        private static bool IsTrustedPrincipal(SecurityIdentifier sid)
+        {
+            if (sid == null) return false;
+            return sid.Equals(LocalSystemSid)
+                || sid.Equals(AdministratorsSid)
+                || sid.Equals(TrustedInstallerSid);
         }
 
         // The account (not merely the current filtered token) must be a member of the
@@ -1009,7 +1130,7 @@ namespace PiWebTray
                                 AccessControlSections.Access | AccessControlSections.Owner)
                             : new FileInfo(entry).GetAccessControl(
                                 AccessControlSections.Access | AccessControlSections.Owner);
-                        if (IsOwnedByStandardUser(security)) return true;
+                        if (IsUntrustedOwner(security)) return true;
                         if (HasWriteAccess(security)) return true;
 
                         if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
@@ -1043,7 +1164,7 @@ namespace PiWebTray
                     DirectorySecurity security = info.GetAccessControl(
                         AccessControlSections.Access | AccessControlSections.Owner);
 
-                    if (IsOwnedByStandardUser(security)) return true;
+                    if (IsUntrustedOwner(security)) return true;
                     if (HasAccess(security, DangerousAncestorRights)) return true;
                     // This right on the parent allows deleting or renaming its child.
                     if (HasAccess(security, FileSystemRights.DeleteSubdirectoriesAndFiles)) return true;
@@ -1060,68 +1181,39 @@ namespace PiWebTray
 
         private static bool HasAccess(FileSystemSecurity security, FileSystemRights mask)
         {
-            List<SecurityIdentifier> identities = CurrentStandardIdentities();
-            if (identities == null) return true;
-
-            AuthorizationRuleCollection rules = security.GetAccessRules(
-                true, true, typeof(SecurityIdentifier));
-            if (rules == null || rules.Count == 0) return true;
-
-            bool allow = false;
-            bool deny = false;
-            foreach (FileSystemAccessRule rule in rules)
-            {
-                SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
-                if (sid == null) continue;
-                bool interested = false;
-                foreach (SecurityIdentifier identity in identities)
-                {
-                    if (sid.Equals(identity)) { interested = true; break; }
-                }
-                if (!interested) continue;
-                // Inherit-only ACEs apply to children, not to this object. Ignoring
-                // this flag would treat C:\'s child-only Authenticated Users ACE as
-                // write access to C:\ itself and reject Program Files.
-                if ((rule.PropagationFlags & PropagationFlags.InheritOnly) != 0) continue;
-                if ((rule.FileSystemRights & mask) == 0) continue;
-
-                if (rule.AccessControlType == AccessControlType.Deny) deny = true;
-                else allow = true;
-            }
-
-            return allow && !deny;
+            return HasUnsafeAccess(security, mask);
         }
 
-        private static List<SecurityIdentifier> CurrentStandardIdentities()
+        // Return true when any untrusted principal can perform an operation covered
+        // by mask. Checking only the current user's SID/groups missed an explicit ACE
+        // for another standard user who could replace the executable or a resource.
+        internal static bool HasUnsafeAccess(FileSystemSecurity security, FileSystemRights mask)
         {
+            if (security == null) return true;
+
+            AuthorizationRuleCollection rules;
             try
             {
-                List<SecurityIdentifier> identities = new List<SecurityIdentifier>();
-                using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
-                {
-                    if (identity.User == null) return null;
-                    identities.Add(identity.User);
-                    SecurityIdentifier administrators = new SecurityIdentifier(
-                        WellKnownSidType.BuiltinAdministratorsSid, null);
-                    if (identity.Groups != null)
-                    {
-                        foreach (IdentityReference group in identity.Groups)
-                        {
-                            SecurityIdentifier sid = group as SecurityIdentifier;
-                            if (sid == null || sid.Equals(administrators)) continue;
-                            identities.Add(sid);
-                        }
-                    }
-                }
-                identities.Add(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null));
-                identities.Add(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null));
-                identities.Add(new SecurityIdentifier(WellKnownSidType.WorldSid, null));
-                return identities;
+                rules = security.GetAccessRules(true, true, typeof(SecurityIdentifier));
             }
             catch (Exception)
             {
-                return null;
+                return true;
             }
+            if (rules == null || rules.Count == 0) return true;
+
+            foreach (FileSystemAccessRule rule in rules)
+            {
+                if (rule.AccessControlType != AccessControlType.Allow) continue;
+                // Inherit-only ACEs apply to children, not to this object.
+                if ((rule.PropagationFlags & PropagationFlags.InheritOnly) != 0) continue;
+                if ((rule.FileSystemRights & mask) == 0) continue;
+
+                SecurityIdentifier sid = rule.IdentityReference as SecurityIdentifier;
+                if (sid == null || !IsTrustedPrincipal(sid)) return true;
+            }
+
+            return false;
         }
 
         internal static bool CreateTask(bool elevated, string executablePath,

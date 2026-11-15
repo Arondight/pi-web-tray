@@ -266,7 +266,7 @@ namespace PiWebTray
             }
 
             // The running tray may have been started with PI_WEB_TRAY_PORT in a
-            // different shell. Prefer the port it recorded in state.ini so CLI
+            // different shell. Prefer the port it recorded in state.<session>.ini so CLI
             // install/stop/check commands target the service that actually exists.
             int servicePort = EffectivePort(config);
 
@@ -723,6 +723,7 @@ namespace PiWebTray
             {
                 int port = EffectivePort(config);
                 ProbeResult probe = EnvironmentProbe.Detect(config);
+                ServiceProbe.Invalidate();
                 PortOwnerInfo owner = ServiceProbe.Inspect(port, ExpectedPiWebScript(config, probe));
 
                 StringBuilder sb = new StringBuilder();
@@ -771,10 +772,14 @@ namespace PiWebTray
             {
                 bool didStop;
                 bool didLegacyStop;
-                if (!StopServiceForConsoleInstall(config, false, out didStop, out didLegacyStop)) return false;
+                bool ready = StopServiceForConsoleInstall(config, false,
+                    out didStop, out didLegacyStop);
+                // Capture the partial result even when the stop worker could not be
+                // awaited: the port may already be closed and the service must still
+                // be restored if the install aborts.
                 if (didStop) stopped = true;
                 if (didLegacyStop) legacyStop = true;
-                return true;
+                return ready;
             };
             // The CLI and an elevated update helper can otherwise touch the same
             // installation at the same time: an update could replace the executable
@@ -868,6 +873,10 @@ namespace PiWebTray
 
             if (!Net.IsPortOpen(port, 300))
             {
+                // If the port was open before the stop signal, this install stopped
+                // a live service even though the port is now closed. Record that
+                // before waiting for the worker so a failed wait can still restore it.
+                if (!dryRun && trayRunning && serviceWasRunning) stopped = true;
                 // A tray may have closed the port for a prior stop while its
                 // `pi-web stop` child is still releasing the package directory.
                 if (!dryRun && trayRunning && !WaitForStopWorker(30000))
@@ -875,10 +884,7 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
                 }
-                // If the port was open before the stop signal, this install stopped
-                // a live service even though the port is now closed. Restore it after
-                // npm finishes; a service that was already stopped stays stopped.
-                if (!dryRun && trayRunning && serviceWasRunning) stopped = true;
+                // A service that was already stopped stays stopped.
                 return true;
             }
 
@@ -910,6 +916,9 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
                 }
+                // The service is down now. Record that before waiting for the stop
+                // worker so a worker timeout does not leave it stopped after failure.
+                stopped = true;
                 // The port can close while the tray's `pi-web stop` child is still
                 // finishing. Starting npm now can hit a locked package directory; wait
                 // for the same lock the tray holds until that child exits.
@@ -918,7 +927,6 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
                 }
-                stopped = true;
                 return true;
             }
 
@@ -1028,7 +1036,7 @@ namespace PiWebTray
         }
 
         // A live tray in this session records its actual port (including a
-        // PI_WEB_TRAY_PORT override) in state.ini. CLI commands started from a
+        // PI_WEB_TRAY_PORT override) in the per-session state file. CLI commands started from a
         // different shell must use that value, not their own config.
         private static int EffectivePort(Config config)
         {
@@ -1060,6 +1068,7 @@ namespace PiWebTray
             sb.AppendLine(L.T("diag.time") + " : " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             sb.AppendLine(L.T("diag.exe") + " : " + Application.ExecutablePath);
             sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
+            ServiceProbe.Invalidate();
             PortOwnerInfo owner = ServiceProbe.Inspect(port, ExpectedPiWebScript(config));
             sb.AppendLine(L.T("sc.port", port, Net.IsPortOpen(port, 300) ? L.T("bool.yes") : L.T("bool.no")));
             sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
@@ -1126,7 +1135,7 @@ namespace PiWebTray
             {
                 Directory.CreateDirectory(config.OutputDir);
                 if (!PathSafety.ContainsReparsePoint(config.DiagFile))
-                    File.WriteAllText(config.DiagFile, sb.ToString(), new UTF8Encoding(true));
+                    WriteDiagFile(config.DiagFile, sb.ToString());
             }
             catch (Exception)
             {
@@ -1224,6 +1233,71 @@ namespace PiWebTray
             }
             catch (Exception)
             {
+            }
+        }
+
+        // Write the diagnostic with a new temporary file, verify the opened handle,
+        // and only then replace the fixed diag.txt name. A plain WriteAllText would
+        // truncate a path that was swapped for a link before the handle check.
+        internal static void WriteDiagFile(string path, string content)
+        {
+            string directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+            string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            string backup = path + "." + Guid.NewGuid().ToString("N") + ".bak";
+            bool keep = false;
+            try
+            {
+                if (PathSafety.ContainsReparsePoint(temp)
+                    || PathSafety.ContainsReparsePoint(backup)) return;
+                FileStream stream = null;
+                try
+                {
+                    stream = new FileStream(temp, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None);
+                    if (!LogHost.HandleMatchesExpectedPath(stream, temp))
+                    {
+                        stream.Dispose();
+                        stream = null;
+                        try { File.Delete(temp); } catch (Exception) { }
+                        return;
+                    }
+                    using (StreamWriter writer = new StreamWriter(
+                        stream, new UTF8Encoding(true)))
+                    {
+                        writer.Write(content);
+                    }
+                }
+                finally
+                {
+                    if (stream != null)
+                    {
+                        try { stream.Dispose(); } catch (Exception) { }
+                    }
+                }
+
+                if (File.Exists(path))
+                {
+                    try { File.Replace(temp, path, backup, true); }
+                    catch (Exception)
+                    {
+                        if (File.Exists(path)) File.Delete(path);
+                        File.Move(temp, path);
+                    }
+                }
+                else
+                {
+                    File.Move(temp, path);
+                }
+                keep = true;
+            }
+            finally
+            {
+                if (!keep)
+                {
+                    try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                }
+                try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
             }
         }
 

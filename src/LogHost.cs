@@ -174,6 +174,11 @@ namespace PiWebTray
                     stream.Dispose();
                     return null;
                 }
+                if (PathSafety.HasMultipleLinks(stream.SafeFileHandle))
+                {
+                    stream.Dispose();
+                    return null;
+                }
                 return stream;
             }
             catch (Exception)

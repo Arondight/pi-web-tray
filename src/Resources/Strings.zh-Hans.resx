@@ -1449,6 +1449,12 @@
   <data name="auto.repairParentUnsafe" xml:space="preserve">
     <value>安装路径中包含标准用户可重命名或替换的文件夹。请将 Pi Web Tray 移到 Program Files 等受保护的文件夹，或使用标准用户自启动。</value>
   </data>
+  <data name="auto.repairHardLinkUnsafe" xml:space="preserve">
+    <value>安装目录中包含无法安全修复的硬链接文件。请将 Pi Web Tray 移到 Program Files 等受保护的文件夹，或使用标准用户自启动。</value>
+  </data>
+  <data name="auto.repairRollbackFailed" xml:space="preserve">
+    <value>无法完整恢复原有权限；请手动检查目录 ACL。</value>
+  </data>
   <data name="auto.repairStillUnsafe" xml:space="preserve">
     <value>修复后安装目录仍可被普通用户写入。</value>
   </data>

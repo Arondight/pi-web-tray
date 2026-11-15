@@ -193,7 +193,12 @@ namespace PiWebTray
                 contentBuilder.Append("del /f /q \"%~f0\" >nul 2>&1\r\n");
                 string content = contentBuilder.ToString();
 
-                File.WriteAllText(cmdPath, content, new UTF8Encoding(false));
+                using (FileStream stream = new FileStream(cmdPath, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None))
+                using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                {
+                    writer.Write(content);
+                }
                 AppendLog(logPath, "restart command: " + cmdPath);
 
                 ProcessStartInfo viaExplorer = new ProcessStartInfo();
@@ -284,38 +289,46 @@ namespace PiWebTray
             string expectedExe)
         {
             DateTime deadline = DateTime.Now.AddMilliseconds(timeoutMs);
-            string path = Path.Combine(dataDir, "state.ini");
-            if (PathSafety.ContainsReparsePoint(path)) return 0;
+            string[] paths = new string[]
+            {
+                TrayState.SessionStatePath(dataDir),
+                Path.Combine(dataDir, "state.ini")
+            };
 
             while (DateTime.Now < deadline)
             {
                 Thread.Sleep(250);
-                try
+                foreach (string path in paths)
                 {
-                    if (!File.Exists(path)) continue;
-                    foreach (string rawLine in File.ReadAllLines(path))
+                    try
                     {
-                        string line = rawLine.Trim();
-                        if (!line.StartsWith("Pid=", StringComparison.OrdinalIgnoreCase)) continue;
-
-                        int pid;
-                        if (!int.TryParse(line.Substring(4).Trim(), NumberStyles.Integer,
-                            CultureInfo.InvariantCulture, out pid))
+                        if (PathSafety.ContainsReparsePoint(path) || !File.Exists(path))
+                            continue;
+                        foreach (string rawLine in File.ReadAllLines(path))
                         {
-                            continue;
+                            string line = rawLine.Trim();
+                            if (!line.StartsWith("Pid=", StringComparison.OrdinalIgnoreCase))
+                                continue;
+
+                            int pid;
+                            if (!int.TryParse(line.Substring(4).Trim(), NumberStyles.Integer,
+                                CultureInfo.InvariantCulture, out pid))
+                            {
+                                continue;
+                            }
+                            if (pid <= 0 || pid == oldPid || !IsExpectedTrayProcess(pid, expectedExe))
+                                continue;
+                            // State is shared by all sessions of this user. Never treat
+                            // a tray from another session as the replacement we started.
+                            int session = NativeProcess.SessionId(pid);
+                            if (session < 0 || session != Process.GetCurrentProcess().SessionId)
+                                continue;
+                            return pid;
                         }
-                        if (pid <= 0 || pid == oldPid || !IsExpectedTrayProcess(pid, expectedExe))
-                            continue;
-                        // state.ini is shared by all sessions of this user. Never treat
-                        // a tray from another session as the replacement we just started.
-                        int session = NativeProcess.SessionId(pid);
-                        if (session < 0 || session != Process.GetCurrentProcess().SessionId)
-                            continue;
-                        return pid;
                     }
-                }
-                catch (Exception)
-                {
+                    catch (Exception)
+                    {
+                    }
                 }
             }
             return 0;

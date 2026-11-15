@@ -543,6 +543,11 @@ namespace PiWebTray
                             return 1;
                         }
 
+                        // The helper is already elevated when needed, so it can remove
+                        // older backups even though the de-elevated replacement tray
+                        // cannot write to a protected installation directory.
+                        DeleteOldBackupsExcept(target, copy.Backup, logPath);
+                        DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
                         CleanupStaleFiles(target, copy.Managed, logPath);
                         // Keep the verified backup until the new tray has reached a
                         // stable Running service (or a deliberate tray-only Stopped
@@ -599,7 +604,7 @@ namespace PiWebTray
 
                     using (FileStream input = new FileStream(source, FileMode.Open,
                         FileAccess.Read, FileShare.Read))
-                    using (FileStream output = new FileStream(destination, FileMode.Create,
+                    using (FileStream output = new FileStream(destination, FileMode.CreateNew,
                         FileAccess.Write, FileShare.None))
                     {
                         byte[] buffer = new byte[81920];

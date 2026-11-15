@@ -279,7 +279,10 @@ namespace PiWebTray
             CloseInstallForm();
             CloseUpdateForm();
             ReleaseUpdateHelperGate();
-            ReleaseInstallUpdateLock();
+            // Keep UpdateName until this process exits when the npm worker is still
+            // winding down; otherwise another CLI/update helper can start replacing
+            // files while the aborted worker is still probing or running npm.
+            if (!_installWorkerRunning) ReleaseInstallUpdateLock();
             // A still-running stop worker owns StopName. Closing it here would let a
             // waiting CLI install start npm before the `pi-web stop` child has
             // released the package directory. The worker releases the lock itself.

@@ -368,8 +368,31 @@ namespace PiWebTray
                 Directory.CreateDirectory(config.OutputDir);
                 string marker = PendingMarker(config);
                 if (PathSafety.ContainsReparsePoint(marker)) return;
-                File.WriteAllText(marker,
-                    DateTime.UtcNow.ToString("o"), new UTF8Encoding(false));
+                // The marker is one-shot; an existing file already records the
+                // interrupted install. CreateNew also avoids following a link and
+                // truncating an existing target before the handle check.
+                FileStream stream = null;
+                try
+                {
+                    stream = new FileStream(marker, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None);
+                    if (!LogHost.HandleMatchesExpectedPath(stream, marker))
+                    {
+                        stream.Dispose();
+                        stream = null;
+                        try { File.Delete(marker); } catch (Exception) { }
+                        return;
+                    }
+                    byte[] data = new UTF8Encoding(false).GetBytes(DateTime.UtcNow.ToString("o"));
+                    stream.Write(data, 0, data.Length);
+                }
+                finally
+                {
+                    if (stream != null)
+                    {
+                        try { stream.Dispose(); } catch (Exception) { }
+                    }
+                }
             }
             catch (Exception)
             {

@@ -70,6 +70,11 @@ namespace PiWebTray
             info.Tag = release.TagName;
             info.Version = NormalizeVersion(release.TagName);
 
+            // Match the archive named for this release instead of taking the first
+            // matching zip. A release can contain historical or accidentally uploaded
+            // assets; selecting one of those would install a different (possibly older)
+            // build while IsNewer() still compares only the tag.
+            string expectedArchive = "pi-web-tray-" + info.Version + "-win.zip";
             if (release.Assets != null)
             {
                 foreach (GitHubAsset asset in release.Assets)
@@ -77,6 +82,8 @@ namespace PiWebTray
                     if (asset == null || string.IsNullOrEmpty(asset.Name) || string.IsNullOrEmpty(asset.BrowserDownloadUrl))
                         continue;
                     if (!IsWindowsArchive(asset.Name)) continue;
+                    if (!string.Equals(asset.Name, expectedArchive,
+                        StringComparison.OrdinalIgnoreCase)) continue;
                     info.ZipName = asset.Name;
                     info.ZipUrl = asset.BrowserDownloadUrl;
                     info.ZipSize = asset.Size;

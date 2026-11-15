@@ -657,7 +657,31 @@ namespace PiWebTray
                     NotifyError(L.T("notify.openConfigFailed"), L.T("update.error.unsafePath"));
                     return;
                 }
-                if (!File.Exists(_config.IniPath)) File.WriteAllText(_config.IniPath, "");
+                if (!File.Exists(_config.IniPath))
+                {
+                    // CreateNew prevents a swapped/dangling link at the ini name
+                    // from redirecting this elevated write into another file.
+                    FileStream stream = null;
+                    try
+                    {
+                        stream = new FileStream(_config.IniPath, FileMode.CreateNew,
+                            FileAccess.Write, FileShare.None);
+                        if (!LogHost.HandleMatchesExpectedPath(stream, _config.IniPath))
+                        {
+                            stream.Dispose();
+                            stream = null;
+                            try { File.Delete(_config.IniPath); } catch (Exception) { }
+                            return;
+                        }
+                    }
+                    finally
+                    {
+                        if (stream != null)
+                        {
+                            try { stream.Dispose(); } catch (Exception) { }
+                        }
+                    }
+                }
                 // Resolve from the system directory too; the tray may be elevated and
                 // must not pick up a notepad.exe from the current directory or PATH.
                 using (Process notepad = Process.Start(Sys.SystemExecutable("notepad.exe"),

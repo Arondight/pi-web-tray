@@ -32,7 +32,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 首次启动会检查环境、安装缺失依赖、启动 Pi Web 并打开浏览器。默认 `AutoInstall=1` 时，正常启动会自动安装缺失依赖。若缺少 Node.js，会说明所需版本并提供下载页，此时 Pi Web Tray 保持运行，检测到 Node.js 后重新检查。若 Node.js 是在该提示之后安装的，则不会自动安装依赖：会报告缺失的依赖，并在菜单中提供 **安装/更新服务**。若 Pi Web 运行期间 Node.js 被移除，会通知但不会停止正在运行的服务，并在下次启动前重新检查。若安装被中断，下次尝试会重新安装相关包，而不会直接信任不完整的目录。
 
-配置与日志默认在 `%LOCALAPPDATA%\pi-web-tray`。设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁。若可执行文件位于 `C:\Program Files` 等受保护的系统目录，便携模式会被忽略。即使在便携模式，`state.ini`、`crash.log` 和更新工作文件仍位于数据目录。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
+配置与日志默认在 `%LOCALAPPDATA%\pi-web-tray`。设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁。若可执行文件位于 `C:\Program Files` 等受保护的系统目录，便携模式会被忽略。即使在便携模式，`state.ini`（兼容旧版本的 state 文件）、按会话隔离的 `state.<session>.ini`、`crash.log` 和更新工作文件仍位于数据目录。`pi-web-tray.files.txt` 清单用于后续更新清理已移除的文件，请勿删除。
 
 ## 托盘菜单
 

@@ -120,13 +120,29 @@ namespace PiWebTray
     {
         internal static string Folder { get { return Instance.DataFolder; } }
 
+        // Legacy per-user state file. It remains writable for older helpers and for
+        // compatibility with existing installations.
         internal static string StatePath()
         {
             return Path.Combine(Folder, "state.ini");
         }
 
+        // State must be per Windows session: two trays for the same user can run in
+        // different sessions, and the legacy file alone lets the later session hide
+        // the other tray's port from CLI commands.
+        internal static string SessionStatePath()
+        {
+            return SessionStatePath(Folder);
+        }
+
+        internal static string SessionStatePath(string folder)
+        {
+            int session = Process.GetCurrentProcess().SessionId;
+            return Path.Combine(folder ?? Folder, "state." + session + ".ini");
+        }
+
         // A user stop can arrive while the update helper is already waiting to
-        // restart the tray. state.ini is deleted on exit, so this marker must live
+        // restart the tray. State files are deleted on exit, so this marker must live
         // independently until a service is started again or an update helper reads
         // it. It is a user-intent marker, not security-sensitive state.
         internal const string ServiceStopRequestName = "service.stop.requested";
@@ -209,19 +225,33 @@ namespace PiWebTray
 
         internal static void Save(int pid, bool elevated, int port)
         {
-            string path = StatePath();
             try
             {
                 Directory.CreateDirectory(Folder);
-                // Never follow a symlink planted at the known state-file name.
-                if (PathSafety.ContainsReparsePoint(path)) return;
-
                 StringBuilder sb = new StringBuilder();
                 sb.AppendLine("Pid=" + pid);
                 sb.AppendLine("Elevated=" + (elevated ? "1" : "0"));
                 sb.AppendLine("Port=" + port);
                 sb.AppendLine("Url=http://127.0.0.1:" + port);
                 sb.AppendLine("Session=" + Process.GetCurrentProcess().SessionId);
+                string content = sb.ToString();
+
+                // Write both files. New readers use the per-session file first; the
+                // legacy file keeps older helpers and CLI versions working.
+                SaveToPath(SessionStatePath(), content);
+                SaveToPath(StatePath(), content);
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        private static void SaveToPath(string path, string content)
+        {
+            try
+            {
+                // Never follow a symlink planted at a known state-file name.
+                if (PathSafety.ContainsReparsePoint(path)) return;
 
                 // Write beside the destination and replace it atomically. A CLI process
                 // can read this file at any time; a partially written Pid/Port line must
@@ -232,14 +262,29 @@ namespace PiWebTray
                     || PathSafety.ContainsReparsePoint(backup)) return;
                 try
                 {
-                    using (FileStream stream = new FileStream(temp, FileMode.Create,
-                        FileAccess.Write, FileShare.None))
+                    FileStream stream = null;
+                    try
                     {
-                        if (!LogHost.HandleMatchesExpectedPath(stream, temp)) return;
+                        stream = new FileStream(temp, FileMode.CreateNew,
+                            FileAccess.Write, FileShare.None);
+                        if (!LogHost.HandleMatchesExpectedPath(stream, temp))
+                        {
+                            stream.Dispose();
+                            stream = null;
+                            try { File.Delete(temp); } catch (Exception) { }
+                            return;
+                        }
                         using (StreamWriter writer = new StreamWriter(
                             stream, new UTF8Encoding(true)))
                         {
-                            writer.Write(sb.ToString());
+                            writer.Write(content);
+                        }
+                    }
+                    finally
+                    {
+                        if (stream != null)
+                        {
+                            try { stream.Dispose(); } catch (Exception) { }
                         }
                     }
                     if (File.Exists(path))
@@ -269,17 +314,23 @@ namespace PiWebTray
 
         internal static void Delete()
         {
+            DeleteIfOwned(SessionStatePath());
+            DeleteIfOwned(StatePath());
+        }
+
+        private static void DeleteIfOwned(string path)
+        {
             try
             {
                 // The data directory is shared by all sessions of this user. Do not
                 // delete another session's state when this tray exits.
                 int pid;
-                if (int.TryParse(ReadValue("Pid="), out pid) && pid > 0
+                if (int.TryParse(ReadValue(path, "Pid="), out pid) && pid > 0
                     && pid != Process.GetCurrentProcess().Id)
                 {
                     return;
                 }
-                File.Delete(StatePath());
+                File.Delete(path);
             }
             catch (Exception)
             {
@@ -288,23 +339,34 @@ namespace PiWebTray
 
         // The tray may run on a port overridden by PI_WEB_TRAY_PORT while the
         // CLI was started from a shell without that variable. When a live tray
-        // in this session wrote state.ini, use its actual port instead of the
+        // in this session wrote its state file, use its actual port instead of the
         // CLI's own configuration.
         internal static bool TryGetRunningPort(out int port)
         {
             port = 0;
+            string sessionPath = SessionStatePath();
+            // The per-session file is authoritative when it contains a valid live
+            // tray. Fall back to the legacy file for an older tray or a stale
+            // per-session file left by a crashed process.
+            if (File.Exists(sessionPath)
+                && TryGetRunningPort(sessionPath, out port)) return true;
+            return TryGetRunningPort(StatePath(), out port);
+        }
+
+        private static bool TryGetRunningPort(string path, out int port)
+        {
+            port = 0;
             try
             {
-                string path = StatePath();
                 if (!File.Exists(path)) return false;
 
                 int pid;
-                if (!int.TryParse(ReadValue("Pid="), out pid) || pid <= 0) return false;
+                if (!int.TryParse(ReadValue(path, "Pid="), out pid) || pid <= 0) return false;
                 if (!Sys.ProcessAlive(pid)) return false;
 
                 int currentSession = Process.GetCurrentProcess().SessionId;
                 int stateSession;
-                if (int.TryParse(ReadValue("Session="), out stateSession)
+                if (int.TryParse(ReadValue(path, "Session="), out stateSession)
                     && stateSession != currentSession)
                 {
                     return false;
@@ -328,7 +390,7 @@ namespace PiWebTray
                 }
 
                 int value;
-                if (!int.TryParse(ReadValue("Port="), out value)
+                if (!int.TryParse(ReadValue(path, "Port="), out value)
                     || value <= 0 || value > 65535)
                 {
                     return false;
@@ -344,18 +406,26 @@ namespace PiWebTray
 
         internal static bool InstanceIsElevated()
         {
-            if (ReadValue("Elevated=") != "1") return false;
+            string sessionPath = SessionStatePath();
+            if (File.Exists(sessionPath) && IsElevated(sessionPath)) return true;
+            return IsElevated(StatePath());
+        }
+
+        private static bool IsElevated(string path)
+        {
+            if (ReadValue(path, "Elevated=") != "1") return false;
 
             // The state file can be left over from a crash: if the pid is gone it is ignored
             int pid;
-            if (!int.TryParse(ReadValue("Pid="), out pid) || pid <= 0) return false;
+            if (!int.TryParse(ReadValue(path, "Pid="), out pid) || pid <= 0) return false;
             if (!Sys.ProcessAlive(pid)) return false;
 
-            // The state file is per user, not per session. Another session's tray must
-            // not make this session believe it has an elevated single instance.
+            // The session state file is authoritative; the legacy file is only a fallback.
+            // Another session's tray must not make this session believe it has an
+            // elevated single instance.
             int currentSession = Process.GetCurrentProcess().SessionId;
             int stateSession;
-            if (int.TryParse(ReadValue("Session="), out stateSession)
+            if (int.TryParse(ReadValue(path, "Session="), out stateSession)
                 && stateSession != currentSession)
             {
                 return false;
@@ -363,7 +433,7 @@ namespace PiWebTray
             int ownerSession = NativeProcess.SessionId(pid);
             if (ownerSession >= 0 && ownerSession != currentSession) return false;
 
-            // A same-user process can edit state.ini; an unrelated PID must not be
+            // A same-user process can edit state; an unrelated PID must not be
             // reported as an elevated tray, and the image path is a cheap sanity check.
             try
             {
@@ -382,12 +452,12 @@ namespace PiWebTray
             return true;
         }
 
-        private static string ReadValue(string prefix)
+        private static string ReadValue(string path, string prefix)
         {
             try
             {
-                string path = StatePath();
-                if (!File.Exists(path) || PathSafety.ContainsReparsePoint(path)) return "";
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)
+                    || PathSafety.ContainsReparsePoint(path)) return "";
                 foreach (string rawLine in File.ReadAllLines(path))
                 {
                     string line = rawLine.Trim();

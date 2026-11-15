@@ -1449,6 +1449,12 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
   <data name="auto.repairParentUnsafe" xml:space="preserve">
     <value>The installation path contains a folder that standard users can rename or replace. Move Pi Web Tray to a protected folder such as Program Files, or use standard-user start at login.</value>
   </data>
+  <data name="auto.repairHardLinkUnsafe" xml:space="preserve">
+    <value>The installation folder contains a hard-linked file that cannot be repaired safely. Move Pi Web Tray to a protected folder such as Program Files, or use standard-user start at login.</value>
+  </data>
+  <data name="auto.repairRollbackFailed" xml:space="preserve">
+    <value>The previous permissions could not be fully restored; review the folder ACL manually.</value>
+  </data>
   <data name="auto.repairStillUnsafe" xml:space="preserve">
     <value>The installation directory is still writable after the repair.</value>
   </data>

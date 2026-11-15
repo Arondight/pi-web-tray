@@ -142,6 +142,9 @@ namespace PiWebTray
         private bool _installRestartService;   // a running service was stopped and must come back
         private bool _installStartAfter;       // start the service after a successful install
         private bool _installOpenAfter;        // open the browser once that service is ready
+        // The update lock must stay held while the install worker is still winding
+        // down after ExitApp calls Installer.Abort().
+        private volatile bool _installWorkerRunning;
 
         // install (background -> UI thread)
         private readonly object _installLock = new object();

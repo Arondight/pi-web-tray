@@ -14,6 +14,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Xml;
@@ -119,6 +122,10 @@ namespace PiWebTray
         private static int _passed;
         private static readonly List<string> Failures = new List<string>();
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CreateHardLinkW(string newFileName,
+            string existingFileName, IntPtr securityAttributes);
+
         internal static int Run()
         {
             _passed = 0;
@@ -145,7 +152,9 @@ namespace PiWebTray
             InstanceHomeIsolationTests();
             OperationLockTests();
             AutostartPathTests();
+            AutostartAclTests();
             AutostartTaskXmlTests();
+            PathSafetyHardLinkTests();
             TrayClickTests();
             UpdateRestartPolicyTests();
             ConfiguredValuesTests();
@@ -163,6 +172,7 @@ namespace PiWebTray
             UpdateCancellationTests();
             UpdateCopyTests();
             UpdateCleanupTests();
+            WriteDiagTests();
             UpdateRollbackTests();
             UpdateTargetTests();
             StaleBackupTests();
@@ -1133,6 +1143,90 @@ namespace PiWebTray
             }
         }
 
+        private static void AutostartAclTests()
+        {
+            SecurityIdentifier otherUser = new SecurityIdentifier(
+                "S-1-5-21-1111111111-2222222222-3333333333-1001");
+            SecurityIdentifier localSystem = new SecurityIdentifier(
+                WellKnownSidType.LocalSystemSid, null);
+            SecurityIdentifier administrators = new SecurityIdentifier(
+                WellKnownSidType.BuiltinAdministratorsSid, null);
+
+            DirectorySecurity write = new DirectorySecurity();
+            write.AddAccessRule(new FileSystemAccessRule(otherUser,
+                FileSystemRights.Modify, AccessControlType.Allow));
+            Check("another user's write ACE is treated as unsafe",
+                Autostart.HasUnsafeAccess(write, FileSystemRights.WriteData));
+
+            DirectorySecurity read = new DirectorySecurity();
+            read.AddAccessRule(new FileSystemAccessRule(otherUser,
+                FileSystemRights.ReadAndExecute, AccessControlType.Allow));
+            Check("another user's read ACE is not treated as write access",
+                !Autostart.HasUnsafeAccess(read, FileSystemRights.WriteData));
+
+            DirectorySecurity inheritOnly = new DirectorySecurity();
+            inheritOnly.AddAccessRule(new FileSystemAccessRule(otherUser,
+                FileSystemRights.Modify, InheritanceFlags.ContainerInherit
+                    | InheritanceFlags.ObjectInherit,
+                PropagationFlags.InheritOnly, AccessControlType.Allow));
+            Check("inherit-only write ACE does not apply to this object",
+                !Autostart.HasUnsafeAccess(inheritOnly, FileSystemRights.WriteData));
+
+            DirectorySecurity trusted = new DirectorySecurity();
+            trusted.AddAccessRule(new FileSystemAccessRule(localSystem,
+                FileSystemRights.FullControl, AccessControlType.Allow));
+            trusted.AddAccessRule(new FileSystemAccessRule(administrators,
+                FileSystemRights.FullControl, AccessControlType.Allow));
+            Check("SYSTEM and Administrators write ACEs are trusted",
+                !Autostart.HasUnsafeAccess(trusted, FileSystemRights.WriteData));
+
+            DirectorySecurity untrustedOwner = new DirectorySecurity();
+            untrustedOwner.SetOwner(otherUser);
+            Check("another user as owner is untrusted",
+                Autostart.IsUntrustedOwner(untrustedOwner));
+
+            DirectorySecurity trustedOwner = new DirectorySecurity();
+            trustedOwner.SetOwner(localSystem);
+            Check("SYSTEM as owner is trusted",
+                !Autostart.IsUntrustedOwner(trustedOwner));
+        }
+
+        private static void PathSafetyHardLinkTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-hardlink-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(root);
+                string target = Path.Combine(root, "target.txt");
+                string link = Path.Combine(root, "link.txt");
+                File.WriteAllText(target, "hard-link-test");
+                Check("a file without a hard link is accepted",
+                    !PathSafety.ContainsHardLinkInTree(root));
+
+                if (!CreateHardLinkW(link, target, IntPtr.Zero))
+                {
+                    // FAT/exotic temp volumes cannot create hard links; the method
+                    // itself is still covered by the single-link case above.
+                    Console.WriteLine("[skip] hard links are unavailable on this temp volume");
+                    return;
+                }
+
+                Check("a hard link in the installation tree is rejected",
+                    PathSafety.ContainsHardLinkInTree(root));
+                using (FileStream stream = new FileStream(link, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    Check("a hard-linked handle is detected",
+                        PathSafety.HasMultipleLinks(stream.SafeFileHandle));
+                }
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
         private static void AutostartTaskXmlTests()
         {
             const string sid = "S-1-5-21-2119269988-3384628244-2020626179-1001";
@@ -1233,8 +1327,12 @@ namespace PiWebTray
             Check("a crash still restarts with AutoRestart off only when explicitly marked",
                 TrayApp.ShouldRestartServiceAfterUpdate(false, false, true));
 
-            Check("helper waits when the update starts a silent service",
-                TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false));
+            Check("helper waits when a silent service is ours",
+                TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, true));
+            Check("helper does not wait when a silent service has no listener",
+                !TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false));
+            Check("helper does not wait for a foreign listener with restart policy",
+                !TrayApp.ShouldWaitForServicePortBeforeUpdate(true, true, false));
             Check("helper waits while our service is still listening",
                 TrayApp.ShouldWaitForServicePortBeforeUpdate(false, true, true));
             Check("helper does not wait for a foreign listener after a user stop",
@@ -1401,6 +1499,8 @@ namespace PiWebTray
             string staleCopyBackup = Path.Combine(target, ".pi-web-tray-backup-stale-copy");
             string completeBackup = Path.Combine(target, ".pi-web-tray-backup-complete");
             string staleStage = Path.Combine(target, ".pi-web-tray-stage-old");
+            string currentBackup = Path.Combine(target, ".pi-web-tray-backup-current");
+            string olderBackup = Path.Combine(target, ".pi-web-tray-backup-older");
             try
             {
                 Directory.CreateDirectory(oldBackup);
@@ -1409,6 +1509,10 @@ namespace PiWebTray
                 Directory.CreateDirectory(staleCopyBackup);
                 Directory.CreateDirectory(completeBackup);
                 Directory.CreateDirectory(staleStage);
+                Directory.CreateDirectory(currentBackup);
+                Directory.CreateDirectory(olderBackup);
+                File.WriteAllText(currentBackup + ".complete", "");
+                File.WriteAllText(olderBackup + ".complete", "");
                 // A failed rollback is protected by .keep; an interrupted backup has
                 // only .incomplete and must be preserved; a finished backup has both
                 // markers and can be retried after a failed directory delete.
@@ -1432,6 +1536,15 @@ namespace PiWebTray
                     Directory.Exists(staleCopyBackup));
                 Check("finished backup is retried after a failed delete",
                     !Directory.Exists(completeBackup));
+
+                Updater.DeleteOldBackupsExcept(target, currentBackup, null);
+                Check("current update backup is retained by the helper cleanup",
+                    Directory.Exists(currentBackup));
+                Check("older complete backup is removed by the helper cleanup",
+                    !Directory.Exists(olderBackup));
+                Check("hard-link/rollback protection still applies to helper cleanup",
+                    Directory.Exists(protectedBackup)
+                    && Directory.Exists(staleCopyBackup));
 
                 Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
                 Check("stale staging snapshot is removed", !Directory.Exists(staleStage));
@@ -1874,6 +1987,29 @@ namespace PiWebTray
             ReleaseInfo noAssets = Updater.ParseRelease("{\"tag_name\":\"v0.2.0\",\"assets\":[]}", out error);
             Check("release without assets is rejected", noAssets == null && error.Length > 0);
 
+            string multipleAssetsJson = @"{
+  ""tag_name"": ""v0.2.0"",
+  ""assets"": [
+    { ""name"": ""pi-web-tray-0.1.9-win.zip"",
+      ""browser_download_url"": ""https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/pi-web-tray-0.1.9-win.zip"",
+      ""size"": 1 },
+    { ""name"": ""pi-web-tray-0.2.0-win.zip"",
+      ""browser_download_url"": ""https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/pi-web-tray-0.2.0-win.zip"",
+      ""size"": 2 },
+    { ""name"": ""pi-web-tray-0.2.0-win.zip.sha256"",
+      ""browser_download_url"": ""https://github.com/Arondight/pi-web-tray/releases/download/v0.2.0/pi-web-tray-0.2.0-win.zip.sha256"",
+      ""size"": 3 }
+  ]
+}";
+            ReleaseInfo exactAsset = Updater.ParseRelease(multipleAssetsJson, out error);
+            Check("release selects the archive matching its tag",
+                exactAsset != null && exactAsset.ZipName == "pi-web-tray-0.2.0-win.zip");
+
+            string wrongAssetJson = multipleAssetsJson.Replace(
+                "pi-web-tray-0.2.0-win.zip", "pi-web-tray-9.9.9-win.zip");
+            Check("release rejects an archive with the wrong version",
+                Updater.ParseRelease(wrongAssetJson, out error) == null);
+
             string updateLogPath = Path.Combine(Path.GetTempPath(), "pi-web-tray-log-" + Guid.NewGuid().ToString("N") + ".log");
             try
             {
@@ -2147,6 +2283,29 @@ namespace PiWebTray
             }
         }
 
+        private static void WriteDiagTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-diag-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(root);
+                string path = Path.Combine(root, "diag.txt");
+                Program.WriteDiagFile(path, "first");
+                Check("diagnostic file is written", File.Exists(path)
+                    && File.ReadAllText(path) == "first");
+                Program.WriteDiagFile(path, "second");
+                Check("diagnostic file is replaced atomically", File.ReadAllText(path) == "second");
+                Check("diagnostic replacement leaves no temp files",
+                    Directory.GetFiles(root, "diag.txt.*.tmp").Length == 0
+                    && Directory.GetFiles(root, "diag.txt.*.bak").Length == 0);
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
         private static void UpdateRollbackTests()
         {
             string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-rollback-" + Guid.NewGuid().ToString("N"));
@@ -2332,6 +2491,13 @@ namespace PiWebTray
             Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
                 @"node C:\work\other.js"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));
+            CheckEqual("failed owner probe is reported as unavailable",
+                L.T("check.ownerUnavailable"),
+                ServiceProbe.OwnerText(new PortOwnerInfo
+                {
+                    Owner = PortOwner.Unknown,
+                    CheckFailed = true
+                }));
 
             int self = System.Diagnostics.Process.GetCurrentProcess().Id;
             Check("native parent pid", NativeProcess.ParentPid(self) > 0);
@@ -2387,6 +2553,9 @@ namespace PiWebTray
                 TrayState.Save(0, true, 30141);
 
                 Check("state file created", File.Exists(TrayState.StatePath()));
+                Check("session state file created", File.Exists(TrayState.SessionStatePath()));
+                Check("session state carries the port",
+                    File.ReadAllText(TrayState.SessionStatePath()).Contains("Port=30141"));
                 TrayState.ClearServiceStopRequest();
                 Check("no service stop marker by default", !TrayState.ServiceStopRequested());
                 TrayState.RequestServiceStop();
@@ -2407,7 +2576,10 @@ namespace PiWebTray
                 TrayState.Save(4, true, 30141);
                 TrayState.Delete();
                 Check("another process's state is kept", File.Exists(TrayState.StatePath()));
+                Check("another process's session state is kept",
+                    File.Exists(TrayState.SessionStatePath()));
                 File.Delete(TrayState.StatePath());
+                File.Delete(TrayState.SessionStatePath());
 
                 // our own pid is alive -> trusted
                 TrayState.Save(System.Diagnostics.Process.GetCurrentProcess().Id, true, 30141);
@@ -2422,6 +2594,7 @@ namespace PiWebTray
 
                 TrayState.Delete();
                 Check("state deleted", !File.Exists(TrayState.StatePath()));
+                Check("session state deleted", !File.Exists(TrayState.SessionStatePath()));
             }
             finally
             {
@@ -2529,11 +2702,13 @@ namespace PiWebTray
                     WriteZipEntry(archive, "zh-Hans/pi-web-tray.resources.dll", "dll");
                 }
 
-                Updater.Extract(zip, dir);
+                string cleanDir = Path.Combine(root, "clean");
+                Directory.CreateDirectory(cleanDir);
+                Updater.Extract(zip, cleanDir);
                 CheckEqual("clean archive extracts the executable", "new exe",
-                    File.ReadAllText(Path.Combine(dir, "pi-web-tray.exe")));
+                    File.ReadAllText(Path.Combine(cleanDir, "pi-web-tray.exe")));
                 CheckEqual("clean archive extracts nested entries", "dll",
-                    File.ReadAllText(Path.Combine(dir, "zh-Hans", "pi-web-tray.resources.dll")));
+                    File.ReadAllText(Path.Combine(cleanDir, "zh-Hans", "pi-web-tray.resources.dll")));
             }
             finally
             {

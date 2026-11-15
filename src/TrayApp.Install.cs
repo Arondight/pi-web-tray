@@ -287,23 +287,31 @@ namespace PiWebTray
 
             Notify(L.T("install.startTitle"), L.T("install.startBody", string.Join(", ", packages.ToArray())));
 
+            _installWorkerRunning = true;
             Thread worker = new Thread(delegate ()
             {
-                InstallResult result;
                 try
                 {
-                    result = Installer.Install(_config, probe, force, null);
+                    InstallResult result;
+                    try
+                    {
+                        result = Installer.Install(_config, probe, force, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        result = new InstallResult();
+                        result.Success = false;
+                        result.Message = L.T("install.crashBody", ex.Message);
+                    }
+                    lock (_installLock)
+                    {
+                        _installResult = result;
+                        _installDone = true;
+                    }
                 }
-                catch (Exception ex)
+                finally
                 {
-                    result = new InstallResult();
-                    result.Success = false;
-                    result.Message = L.T("install.crashBody", ex.Message);
-                }
-                lock (_installLock)
-                {
-                    _installResult = result;
-                    _installDone = true;
+                    _installWorkerRunning = false;
                 }
             });
             worker.IsBackground = true;
@@ -313,6 +321,7 @@ namespace PiWebTray
             }
             catch (Exception ex)
             {
+                _installWorkerRunning = false;
                 lock (_installLock)
                 {
                     InstallResult failed = new InstallResult();

@@ -19,6 +19,7 @@ update.log.*
 diag.txt
 crash.log
 state.ini
+state.*.ini
 pi-web-tray.files.txt
 .pi-web-tray-backup-*/
 

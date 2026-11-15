@@ -1086,6 +1086,11 @@ namespace PiWebTray
             // lock is still held; otherwise the old "open when ready" flag must not
             // survive a later explicit start.
             ClearPendingStartAfterUpdate();
+            // An explicit start also consumes any queued restart. Otherwise a stop
+            // request followed by a start during Stopping leaves _pendingRestart set,
+            // and a later normal stop would unexpectedly start the service again.
+            _pendingRestart = false;
+            _pendingOpenBrowser = false;
 
             // Queue a start request before the external-update guard: an own install
             // holds _installUpdateLock while it stops the service, and the user's

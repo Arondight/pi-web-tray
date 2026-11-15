@@ -558,14 +558,32 @@ namespace PiWebTray
 
         private static bool WriteVerifiedText(string path, string content)
         {
-            using (FileStream stream = new FileStream(path, FileMode.Create,
-                FileAccess.Write, FileShare.None))
+            // CreateNew is important here: Create would follow a symlink/junction
+            // planted between the path check and the open and truncate its target
+            // before HandleMatchesExpectedPath can reject the handle.
+            FileStream stream = null;
+            try
             {
-                if (!LogHost.HandleMatchesExpectedPath(stream, path)) return false;
+                stream = new FileStream(path, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None);
+                if (!LogHost.HandleMatchesExpectedPath(stream, path))
+                {
+                    stream.Dispose();
+                    stream = null;
+                    try { File.Delete(path); } catch (Exception) { }
+                    return false;
+                }
                 using (StreamWriter writer = new StreamWriter(
                     stream, new UTF8Encoding(true)))
                 {
                     writer.Write(content);
+                }
+            }
+            finally
+            {
+                if (stream != null)
+                {
+                    try { stream.Dispose(); } catch (Exception) { }
                 }
             }
             return true;

@@ -215,6 +215,7 @@ namespace PiWebTray
         internal static string OwnerText(PortOwnerInfo owner)
         {
             if (owner == null) return L.T("check.ownerNone");
+            if (owner.CheckFailed) return L.T("check.ownerUnavailable");
             if (owner.ForeignSession) return L.T("check.ownerOtherSession");
             if (owner.ForeignUser) return L.T("check.ownerOtherUser");
             if (owner.IsPiWeb) return L.T("check.ownerPiweb");

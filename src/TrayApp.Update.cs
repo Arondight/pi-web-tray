@@ -27,8 +27,8 @@ namespace PiWebTray
         internal static bool ShouldWaitForServicePortBeforeUpdate(bool serviceSilent,
             bool startedWithServiceRunning, bool listenerIsOurs)
         {
-            if (serviceSilent) return true;
-            return startedWithServiceRunning && listenerIsOurs;
+            // A foreign listener is never our service and must not block the update.
+            return listenerIsOurs && (serviceSilent || startedWithServiceRunning);
         }
 
         private void BeginUpdateCheck(bool silent)
@@ -449,11 +449,13 @@ namespace PiWebTray
                         ? ApplyStartMode.ServiceSilent
                         : ApplyStartMode.TrayOnly;
                     // Only wait for the port when the update itself is meant to keep
-                    // or restore our service. A listener that appeared after the user
-                    // stopped Pi Web is not a reason to abort the update.
+                    // or restore our service. A known foreign listener is not a reason
+                    // to abort. If the owner check failed, wait rather than risk
+                    // replacing files while an unidentifiable listener still runs.
+                    bool waitForListener = listenerIsOurs || (owner != null && owner.CheckFailed);
                     bool waitForService = ShouldWaitForServicePortBeforeUpdate(
                         mode == ApplyStartMode.ServiceSilent,
-                        startedRunning, listenerIsOurs);
+                        startedRunning, waitForListener);
                     string work = Path.GetDirectoryName(staging);
                     string zipPath = string.IsNullOrEmpty(work)
                         ? ""

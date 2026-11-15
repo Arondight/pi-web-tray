@@ -77,6 +77,9 @@ namespace PiWebTray
                         path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))
                     {
                         if (!LogHost.HandleMatchesExpectedPath(stream, path)) return;
+                        // A hard link is another name for the same file; an elevated
+                        // append must not follow it into a protected target.
+                        if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return;
                         using (StreamWriter writer = new StreamWriter(
                             stream, new UTF8Encoding(false)))
                         {
