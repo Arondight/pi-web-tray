@@ -136,6 +136,7 @@ Invoke-Checked "UI string completeness" @("--lang-check") | Out-Null
 Invoke-Checked "unknown argument rejection" @("--bogus") @(2) | Out-Null
 Invoke-Checked "read-only unknown argument rejection" @("--help", "--bogus") @(2) | Out-Null
 Invoke-Checked "dry-run validation" @("--dry-run") @(2) | Out-Null
+Invoke-Checked "conflicting actions" @("--check", "--install") @(2) | Out-Null
 
 $originalLang = $env:PI_WEB_TRAY_LANG
 try {

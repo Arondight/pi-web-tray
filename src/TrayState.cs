@@ -378,9 +378,7 @@ namespace PiWebTray
                 {
                     string image = NativeProcess.ImagePath(pid);
                     if (!string.IsNullOrEmpty(image)
-                        && !string.Equals(Path.GetFullPath(image),
-                            Path.GetFullPath(Application.ExecutablePath),
-                            StringComparison.OrdinalIgnoreCase))
+                        && !PathSafety.SameLocalFile(image, Application.ExecutablePath))
                     {
                         return false;
                     }
@@ -439,9 +437,7 @@ namespace PiWebTray
             {
                 string image = NativeProcess.ImagePath(pid);
                 if (!string.IsNullOrEmpty(image)
-                    && !string.Equals(Path.GetFullPath(image),
-                        Path.GetFullPath(Application.ExecutablePath),
-                        StringComparison.OrdinalIgnoreCase))
+                    && !PathSafety.SameLocalFile(image, Application.ExecutablePath))
                 {
                     return false;
                 }

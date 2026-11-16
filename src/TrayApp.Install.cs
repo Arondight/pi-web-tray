@@ -226,15 +226,38 @@ namespace PiWebTray
                 return;
             }
 
-            // A failed owner probe is not proof that the port is ours (or foreign).
-            // Install without stopping anything; killing an unidentifiable listener
-            // would be unsafe, and aborting here would make the menu action look
-            // like a port conflict.
-            bool ownerCheckFailed = owner != null && owner.CheckFailed;
-            if (ownerCheckFailed)
+            // A failed or incomplete owner probe is not proof that the port is ours
+            // (or foreign). Never run npm while a possibly-running service uses the
+            // same package directory. Fail closed and let the user retry once the
+            // listener can be identified.
+            bool ownerCheckFailed = owner != null
+                && (owner.CheckFailed || owner.ProbeIncomplete);
+            bool foreignOwner = owner != null
+                && (owner.ForeignUser || owner.ForeignSession);
+            bool foreignPiWeb = owner != null && owner.IsPiWeb
+                && !ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript());
+            if (ownerCheckFailed || foreignOwner || foreignPiWeb)
             {
+                if (foreignPiWeb || foreignOwner)
+                {
+                    ReleaseInstallUpdateLock();
+                    owner = null;
+                    UpdateUi();
+                    NotifyPortConflict();
+                    return;
+                }
+
                 HandleOwnerCheckFailure(owner);
+                if (owner.ProbeIncomplete)
+                {
+                    NotifyWarningOnce("owner-unverified",
+                        L.T("notify.ownerCheckFailedTitle"),
+                        L.T("notify.ownerCheckFailedBody", _port));
+                }
+                ReleaseInstallUpdateLock();
                 owner = null;
+                UpdateUi();
+                return;
             }
 
             // Remember the requested intent before any stop: a service that was stopped on

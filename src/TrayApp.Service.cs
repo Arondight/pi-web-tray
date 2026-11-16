@@ -538,7 +538,7 @@ namespace PiWebTray
             {
                 if (!server.HasExited)
                 {
-                    Sys.KillTree(server.Id);
+                    Sys.KillTree(server.Id, Sys.ProcessStartTime(server), server);
                     if (waitForExit)
                     {
                         try { server.WaitForExit(3000); } catch (Exception) { }
@@ -646,7 +646,7 @@ namespace PiWebTray
                     if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                     {
                         _stopEscalatedAt = DateTime.Now;
-                        if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                        if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                         ServiceProbe.Invalidate();
                     }
                     else
@@ -1118,6 +1118,17 @@ namespace PiWebTray
             {
                 _serviceStoppedByUser = false;
                 TrayState.ClearServiceStopRequest();
+                _pendingStart = true;
+                _pendingStartOpen = _pendingStartOpen || openBrowser;
+                UpdateUi();
+                return;
+            }
+
+            // The old stop worker owns StopName and may still be running a
+            // `pi-web stop` child. Starting a new service now can race that child
+            // and, if the worker is replaced, release its cross-process lock.
+            if (_stopWorkerRunning)
+            {
                 _pendingStart = true;
                 _pendingStartOpen = _pendingStartOpen || openBrowser;
                 UpdateUi();
@@ -1648,6 +1659,21 @@ namespace PiWebTray
                 return;
             }
 
+            // A worker from an earlier stop still owns StopName and the package
+            // directory. Starting another worker here would release that lock while
+            // the old child is still alive. Leave the running state untouched and let
+            // the user retry after the old worker exits.
+            if (_stopWorkerRunning)
+            {
+                // This call may be the stop phase of an install. Never leave
+                // _installAfterStop and the cross-process install lock behind when
+                // there is no continuation path to consume them.
+                if (_installAfterStop) AbortInstallAfterStop(false);
+                NotifyWarningOnce("stop-worker-busy",
+                    L.T("notify.stoppingTitle"), L.T("notify.stoppingBody"));
+                return;
+            }
+
             _phase = Phase.Stopping;
             _stopDeadline = DateTime.Now.AddSeconds(20);
             _stopEscalatedAt = DateTime.MinValue;
@@ -1678,7 +1704,7 @@ namespace PiWebTray
                     // identified listener instead.
                     Updater.AppendLog(_config.UpdateLogFile,
                         "stop lock unavailable; killing the identified listener directly");
-                    if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                    if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                     ServiceProbe.Invalidate();
                     return;
                 }
@@ -1710,13 +1736,13 @@ namespace PiWebTray
                     if (generation == _stopWorkerGeneration)
                         _stopWorkerRunning = false;
                     ReleaseStopWorkerLock(stopLock);
-                    if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                    if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                     ServiceProbe.Invalidate();
                 }
             }
             else
             {
-                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                 ServiceProbe.Invalidate();
             }
         }

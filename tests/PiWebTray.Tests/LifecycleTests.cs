@@ -150,6 +150,7 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The zip update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The zip update helper failed.");
+                AssertProtectedInstall(target);
                 RepairTestInstall(target);
                 Assert.AreEqual("zip",
                     File.ReadAllText(Path.Combine(target, "update-marker.txt")),
@@ -234,6 +235,7 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The update helper failed.");
+                AssertProtectedInstall(target);
                 RepairTestInstall(target);
                 Assert.IsTrue(File.Exists(Path.Combine(target, "update-marker.txt")),
                     "The staged file was not copied.");
@@ -305,13 +307,24 @@ namespace PiWebTray
             return root;
         }
 
+        private static void AssertProtectedInstall(string target)
+        {
+            if (!Elevation.IsElevated()) return;
+
+            // An update must leave the protected installation protected on its own.
+            // This assertion runs before RepairTestInstall so the test cannot hide
+            // user-owned files created by the update helper.
+            Assert.IsFalse(Autostart.IsUserWritableInstall(
+                    Path.Combine(target, "pi-web-tray.exe")),
+                "The update left the installation user-writable.");
+        }
+
         private static void RepairTestInstall(string target)
         {
             if (!Elevation.IsElevated()) return;
 
-            // GitHub Actions runs elevated. Files created by the elevated update
-            // helper can be owned by the caller, so restore the protected test
-            // installation before checking CLI behavior.
+            // GitHub Actions runs elevated. Repair is retained as a safety net for
+            // the test directory ACL after processes created files during the test.
             string message;
             Assert.IsTrue(Autostart.SecureInstallDirectory(
                     Path.Combine(target, "pi-web-tray.exe"), out message),

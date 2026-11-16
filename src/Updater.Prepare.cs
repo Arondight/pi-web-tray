@@ -374,7 +374,8 @@ namespace PiWebTray
         // exercise it directly. Extract entries through a bounded stream instead of
         // ExtractToFile so a zip bomb cannot fill the disk before the checksum or the
         // caller notices.
-        internal static void Extract(string zipPath, string targetDir)
+        internal static void Extract(string zipPath, string targetDir,
+            bool protectOwners = false)
         {
             string root = Path.GetFullPath(targetDir);
             string prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
@@ -405,12 +406,19 @@ namespace PiWebTray
 
                     if (entry.FullName.EndsWith("/", StringComparison.Ordinal) || entry.Name.Length == 0)
                     {
+                        bool existed = Directory.Exists(destination);
                         Directory.CreateDirectory(destination);
+                        if (protectOwners && !existed) ProtectOwnerForUpdate(destination, true);
                         continue;
                     }
 
                     string parent = Path.GetDirectoryName(destination);
-                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                    if (!string.IsNullOrEmpty(parent))
+                    {
+                        bool parentExisted = Directory.Exists(parent);
+                        Directory.CreateDirectory(parent);
+                        if (protectOwners && !parentExisted) ProtectOwnerForUpdate(parent, true);
+                    }
 
                     using (Stream input = entry.Open())
                     using (FileStream output = new FileStream(destination, FileMode.CreateNew,
@@ -428,6 +436,10 @@ namespace PiWebTray
                             output.Write(buffer, 0, read);
                         }
                     }
+                    // The helper extracts into a directory inside the protected
+                    // installation. Repair each new file immediately so a crash
+                    // mid-extraction cannot leave the installation user-writable.
+                    if (protectOwners) ProtectOwnerForUpdate(destination, false);
                 }
             }
         }

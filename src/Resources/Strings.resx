@@ -655,6 +655,9 @@ Use --help to see the supported options.</value>
   <data name="prog.dryRunOnly" xml:space="preserve">
     <value>--dry-run can only be used together with --install.</value>
   </data>
+  <data name="prog.conflictingArg" xml:space="preserve">
+    <value>Only one command can be used at a time (found {0}).</value>
+  </data>
   <data name="help.title" xml:space="preserve">
     <value>Usage:</value>
   </data>

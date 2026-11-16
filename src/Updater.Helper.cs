@@ -132,10 +132,17 @@ namespace PiWebTray
                 string stagingHash = useZip
                     ? new string('0', 64)
                     : ComputeStagingHash(staging);
+                // The elevated helper must restart the new tray with the same
+                // instance/home/port overrides as the old tray. Pass them in the
+                // helper command line instead of a user-writable file: another
+                // process of the same user can modify a file after this process
+                // exits, but cannot modify the already-created helper command line.
+                string restartEnvironment = EncodeRestartEnvironment();
                 string arguments = BuildApplyArguments(
                     staging, target, Process.GetCurrentProcess().Id,
                     mode, elevated, logPath, L.Current, dataDir, stagingHash,
-                    waitForService ? config.Port : 0, zipPath, zipChecksum, gateEventName);
+                    waitForService ? config.Port : 0, zipPath, zipChecksum,
+                    gateEventName, restartEnvironment);
 
                 AppendLog(logPath, "launch helper: " + helper);
                 if (!useZip) AppendLog(logPath, "staging hash : " + stagingHash);
@@ -270,7 +277,7 @@ namespace PiWebTray
         internal static string BuildApplyArguments(string staging, string target, int parentPid,
             ApplyStartMode mode, bool elevated, string logPath, string language, string dataDir,
             string stagingHash, int port, string zipPath, string zipChecksum,
-            string gateEventName = null)
+            string gateEventName = null, string restartEnvironment = "")
         {
             string arguments = "--apply-update "
                 + Shell.QuoteArg(staging) + " "
@@ -291,6 +298,9 @@ namespace PiWebTray
             }
             if (!string.IsNullOrEmpty(gateEventName))
                 arguments += " " + Shell.QuoteArg(gateEventName);
+            if (!string.IsNullOrEmpty(restartEnvironment))
+                arguments += " " + RestartEnvironmentOption + " "
+                    + Shell.QuoteArg(restartEnvironment);
             return arguments;
         }
 
@@ -312,15 +322,16 @@ namespace PiWebTray
             string zipPath;
             string zipChecksum;
             string gateEventName;
+            string restartEnvironmentText;
             int port;
             int parentPid;
             ApplyStartMode mode;
             bool originalElevated;
 
-            if (!TryParseApplyArgs(args, out staging, out target, out parentPid,
+            if (!TryParseApplyArgsCore(args, out staging, out target, out parentPid,
                 out mode, out originalElevated, out logPath, out language,
                 out dataDir, out stagingHash, out port, out zipPath, out zipChecksum,
-                out gateEventName))
+                out gateEventName, out restartEnvironmentText))
             {
                 Application.EnableVisualStyles();
                 MessageBox.Show(L.T("update.error.badArgs"), L.T("update.applyFailedTitle"),
@@ -328,6 +339,8 @@ namespace PiWebTray
                 return 2;
             }
 
+            Dictionary<string, string> restartEnvironment =
+                DecodeRestartEnvironment(restartEnvironmentText);
             L.Use(language);
             Application.EnableVisualStyles();
 
@@ -338,7 +351,10 @@ namespace PiWebTray
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string targetDirectory = target
                 .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (!string.Equals(helperDirectory, targetDirectory, StringComparison.OrdinalIgnoreCase))
+            // The helper may have been launched through an 8.3 name or a junction.
+            // Compare the directory objects rather than an executable hard link in
+            // some other directory.
+            if (!PathSafety.SameDirectory(helperDirectory, targetDirectory))
             {
                 MessageBox.Show(L.T("update.error.notInstallation"), L.T("update.applyFailedTitle"),
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -387,7 +403,7 @@ namespace PiWebTray
                     // The tray that launched this helper has already exited. Do not
                     // leave the user without a tray just because another helper won
                     // the race; offer to start the existing installation.
-                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                     return 1;
                 }
 
@@ -415,7 +431,7 @@ namespace PiWebTray
                         return 1;
                     }
 
-                    if (!WaitForParent(parentPid, 60000, Path.Combine(target, "pi-web-tray.exe")))
+                    if (!WaitForParent(parentPid, 60000, Application.ExecutablePath))
                     {
                         AppendLog(logPath, "parent did not exit");
                         MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),
@@ -424,7 +440,7 @@ namespace PiWebTray
                         // Do not leave the user without a tray in that case; if it
                         // is still alive, leave recovery to the running tray.
                         if (!Sys.ProcessAlive(parentPid))
-                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                         return 1;
                     }
 
@@ -436,7 +452,7 @@ namespace PiWebTray
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
                         // ExitApp has already stopped the service and exited. Without
                         // this recovery the user would be left with no tray at all.
-                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                         return 1;
                     }
                     // The gate has served its purpose. Remove it so a later update
@@ -479,7 +495,7 @@ namespace PiWebTray
                             AppendLog(logPath, "staging directory missing");
                             MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                             return 1;
                         }
 
@@ -488,7 +504,7 @@ namespace PiWebTray
                             AppendLog(logPath, "staging executable missing");
                             MessageBox.Show(L.T("update.error.noHelper"), L.T("update.applyFailedTitle"),
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                             return 1;
                         }
                     }
@@ -509,7 +525,7 @@ namespace PiWebTray
                                 : L.T("update.error.stagingChanged"),
                             L.T("update.applyFailedTitle"),
                             MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                        OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                         return 1;
                     }
 
@@ -523,14 +539,46 @@ namespace PiWebTray
                             AppendLog(logPath, "service still owns port " + port + "; update aborted");
                             MessageBox.Show(L.T("update.error.serviceStillRunning", port),
                                 L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                             return 1;
                         }
 
                         UpdateCopyResult copy = CopyFiles(snapshot, target, logPath);
                         AppendLog(logPath, "copy complete");
 
-                        if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir))
+                        // An elevated process creates files owned by its user, even
+                        // in a protected installation directory. Restore the trusted
+                        // owner before starting the replacement tray; otherwise the
+                        // next administrator start/update refuses the installation.
+                        if (Elevation.IsElevated())
+                        {
+                            string protectError;
+                            bool protectedTarget = Autostart.ProtectInstallArtifacts(
+                                target, out protectError);
+                            if (protectedTarget)
+                            {
+                                protectedTarget = !Autostart.IsUserWritableInstall(
+                                    Path.Combine(target, "pi-web-tray.exe"));
+                                if (!protectedTarget) protectError = "installation remains writable";
+                            }
+                            if (!protectedTarget)
+                            {
+                                AppendLog(logPath, "post-copy ACL protection failed: " + protectError);
+                                bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
+                                string message = L.T("update.applyFailedBody",
+                                    protectError, logPath);
+                                if (!rolledBack)
+                                    message += Environment.NewLine + Environment.NewLine
+                                        + L.T("update.rollbackBackup", copy.Backup);
+                                MessageBox.Show(message, L.T("update.applyFailedTitle"),
+                                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                                OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
+                                return 1;
+                            }
+                            AppendLog(logPath, "installation ownership restored");
+                        }
+
+                        if (!Restart(target, mode, originalElevated, parentPid, logPath, dataDir, restartEnvironment))
                         {
                             bool rolledBack = Rollback(copy.Backup, target, copy.Managed, logPath);
                             string message = L.T("update.error.restart");
@@ -539,7 +587,7 @@ namespace PiWebTray
                                     + L.T("update.rollbackBackup", copy.Backup);
                             MessageBox.Show(message, L.T("update.applyFailedTitle"),
                                 MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                            OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                             return 1;
                         }
 
@@ -566,7 +614,7 @@ namespace PiWebTray
                     AppendLog(logPath, "apply failed: " + ex);
                     MessageBox.Show(L.T("update.applyFailedBody", ex.Message, logPath),
                         L.T("update.applyFailedTitle"), MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir);
+                    OfferStartAfterFailure(target, mode, logPath, originalElevated, dataDir, restartEnvironment);
                     return 1;
                 }
             }
@@ -588,6 +636,7 @@ namespace PiWebTray
                 Directory.CreateDirectory(snapshot);
                 if (PathSafety.ContainsReparsePoint(snapshot))
                     throw new InvalidDataException("update snapshot is a reparse point");
+                ProtectOwnerForUpdate(snapshot, true);
 
                 foreach (string source in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
                 {
@@ -600,7 +649,12 @@ namespace PiWebTray
                     if (PathSafety.ContainsReparsePoint(destination))
                         throw new InvalidDataException("staging destination is a reparse point: " + relative);
                     string parent = Path.GetDirectoryName(destination);
-                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                    if (!string.IsNullOrEmpty(parent))
+                    {
+                        bool parentExisted = Directory.Exists(parent);
+                        Directory.CreateDirectory(parent);
+                        if (!parentExisted) ProtectOwnerForUpdate(parent, true);
+                    }
 
                     using (FileStream input = new FileStream(source, FileMode.Open,
                         FileAccess.Read, FileShare.Read))
@@ -612,6 +666,7 @@ namespace PiWebTray
                         while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                             output.Write(buffer, 0, read);
                     }
+                    ProtectOwnerForUpdate(destination, false);
                 }
 
                 string actual = ComputeStagingHash(snapshot);
@@ -622,6 +677,20 @@ namespace PiWebTray
                         + ", got " + actual);
                     DeleteStagingSnapshot(snapshot);
                     return null;
+                }
+                // This snapshot lives inside the installation directory. Repair its
+                // owner now, before a crash or power loss can leave the next elevated
+                // start refusing an otherwise protected installation.
+                if (Elevation.IsElevated())
+                {
+                    string protectError;
+                    if (!Autostart.ProtectInstallArtifacts(snapshot, out protectError))
+                    {
+                        error = protectError;
+                        AppendLog(logPath, "staging snapshot owner repair failed: " + protectError);
+                        DeleteStagingSnapshot(snapshot);
+                        return null;
+                    }
                 }
                 return snapshot;
             }
@@ -666,6 +735,7 @@ namespace PiWebTray
                     while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
                         output.Write(buffer, 0, read);
                 }
+                ProtectOwnerForUpdate(zipSnapshot, false);
 
                 string actual = ComputeSha256(zipSnapshot);
                 if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
@@ -675,16 +745,26 @@ namespace PiWebTray
                         + ", got " + actual);
                     return null;
                 }
-
                 Directory.CreateDirectory(snapshot);
                 if (PathSafety.ContainsReparsePoint(snapshot))
                     throw new InvalidDataException("update snapshot is a reparse point");
-                Extract(zipSnapshot, snapshot);
+                ProtectOwnerForUpdate(snapshot, true);
+                Extract(zipSnapshot, snapshot, true);
                 if (!File.Exists(Path.Combine(snapshot, "pi-web-tray.exe")))
                 {
                     error = L.T("update.error.noHelper");
                     AppendLog(logPath, "update archive has no pi-web-tray.exe");
                     return null;
+                }
+                if (Elevation.IsElevated())
+                {
+                    string protectError;
+                    if (!Autostart.ProtectInstallArtifacts(snapshot, out protectError))
+                    {
+                        error = protectError;
+                        AppendLog(logPath, "extracted snapshot owner repair failed: " + protectError);
+                        return null;
+                    }
                 }
 
                 success = true;
@@ -797,7 +877,8 @@ namespace PiWebTray
         }
 
         private static void OfferStartAfterFailure(string target, ApplyStartMode mode, string logPath,
-            bool originalElevated, string dataDir)
+            bool originalElevated, string dataDir,
+            IDictionary<string, string> restartEnvironment)
         {
             mode = HonorServiceStopRequest(mode, dataDir, logPath);
             try
@@ -821,7 +902,8 @@ namespace PiWebTray
                 // running after a failed update. Use Explorer's medium token exactly
                 // like Updater.Restart; custom PI_WEB_TRAY_* overrides are copied into
                 // the restart command.
-                bool customEnvironment = HasCustomEnvironment();
+                bool customEnvironment = HasCustomEnvironment()
+                    || (restartEnvironment != null && restartEnvironment.Count > 0);
                 if (!originalElevated && Elevation.IsElevated())
                 {
                     try
@@ -841,7 +923,8 @@ namespace PiWebTray
                         }
                         else
                         {
-                            started = LaunchViaExplorerCommand(target, args, logPath) != null;
+                            started = LaunchViaExplorerCommand(target, args, logPath,
+                                restartEnvironment) != null;
                         }
 
                         if (started)
@@ -873,7 +956,9 @@ namespace PiWebTray
                 psi.FileName = exe;
                 psi.Arguments = args;
                 psi.WorkingDirectory = target;
-                psi.UseShellExecute = true;
+                psi.UseShellExecute = restartEnvironment == null
+                    || restartEnvironment.Count == 0;
+                ApplyRestartEnvironment(psi, restartEnvironment);
                 using (Process tray = Process.Start(psi))
                 {
                 }
@@ -923,6 +1008,18 @@ namespace PiWebTray
             out string logPath, out string language, out string dataDir, out string stagingHash,
             out int port, out string zipPath, out string zipChecksum, out string gateEventName)
         {
+            string ignored;
+            return TryParseApplyArgsCore(args, out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out port, out zipPath, out zipChecksum, out gateEventName, out ignored);
+        }
+
+        internal static bool TryParseApplyArgsCore(string[] args, out string staging,
+            out string target, out int parentPid, out ApplyStartMode mode,
+            out bool originalElevated, out string logPath, out string language,
+            out string dataDir, out string stagingHash, out int port, out string zipPath,
+            out string zipChecksum, out string gateEventName, out string restartEnvironment)
+        {
             staging = "";
             target = "";
             logPath = "";
@@ -932,6 +1029,7 @@ namespace PiWebTray
             zipPath = "";
             zipChecksum = "";
             gateEventName = "";
+            restartEnvironment = "";
             port = 0;
             parentPid = 0;
             mode = ApplyStartMode.Tray;
@@ -950,8 +1048,16 @@ namespace PiWebTray
 
             // The staging hash is mandatory. The port was added after the hash, the
             // verified zip path/checksum after the port, and the optional exit gate
-            // after those. Older helper calls remain valid for compatibility.
+            // after those. Older helper calls remain valid for compatibility. A
+            // trailing --restart-env block was added after the gate.
             int tail = args.Length - index - 1;
+            if (tail >= 2 && string.Equals(args[index + tail - 1],
+                    RestartEnvironmentOption, StringComparison.OrdinalIgnoreCase))
+            {
+                restartEnvironment = args[index + tail];
+                if (restartEnvironment.Length == 0) return false;
+                tail -= 2;
+            }
             bool hasPort = tail == 10 || tail == 11 || tail == 12 || tail == 13;
             bool hasZip = tail == 12 || tail == 13;
             bool hasGate = tail == 11 || tail == 13;
@@ -1111,12 +1217,26 @@ namespace PiWebTray
                 // wait for an unrelated process and abort a valid update.
                 using (Process parent = Process.GetProcessById(pid))
                 {
-                    string image = NativeProcess.ImagePath(pid);
-                    if (!string.IsNullOrEmpty(expectedExe) && !string.IsNullOrEmpty(image)
-                        && !string.Equals(Path.GetFullPath(image),
-                            Path.GetFullPath(expectedExe), StringComparison.OrdinalIgnoreCase))
+                    // A different image path is not automatically proof that the
+                    // parent exited: the same file can be reached through a symlink,
+                    // junction, or 8.3 short name. Compare file identity, and only
+                    // treat an unrelated image as a reused PID. If the image cannot
+                    // be inspected, keep the handle and wait; never copy files while
+                    // the real parent may still be alive.
+                    if (!string.IsNullOrEmpty(expectedExe))
                     {
-                        return true;
+                        try
+                        {
+                            string image = NativeProcess.ImagePath(pid);
+                            if (!string.IsNullOrEmpty(image)
+                                && !PathSafety.SameFile(image, expectedExe))
+                            {
+                                return true;
+                            }
+                        }
+                        catch (Exception)
+                        {
+                        }
                     }
                     return parent.WaitForExit(timeoutMs);
                 }

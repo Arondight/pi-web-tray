@@ -465,11 +465,73 @@ namespace PiWebTray
             return "";
         }
 
-        internal static void KillTree(int pid)
+        // Capture the process creation time when a handle or owner probe is
+        // available. Windows reuses PIDs aggressively; comparing the creation time
+        // before taskkill prevents killing an unrelated process after a reap.
+        internal static DateTime ProcessStartTime(int pid)
+        {
+            if (pid <= 0) return DateTime.MinValue;
+            try
+            {
+                using (Process process = Process.GetProcessById(pid))
+                    return process.StartTime.ToUniversalTime();
+            }
+            catch (Exception)
+            {
+                return DateTime.MinValue;
+            }
+        }
+
+        internal static DateTime ProcessStartTime(Process process)
+        {
+            if (process == null) return DateTime.MinValue;
+            try { return process.StartTime.ToUniversalTime(); }
+            catch (Exception) { return DateTime.MinValue; }
+        }
+
+        private static void KillProcessHandle(Process process)
+        {
+            if (process == null) return;
+            try
+            {
+                if (!process.HasExited) process.Kill();
+            }
+            catch (Exception)
+            {
+            }
+        }
+
+        internal static void KillTree(int pid, DateTime? expectedStart = null,
+            Process fallback = null)
         {
             if (pid <= 4) return;
             try
             {
+                // A caller that supplied a start-time slot but could not read it
+                // must not fall back to a bare PID kill: the process may have exited
+                // and Windows may have reused the PID. A handle the caller already
+                // owns is still safe to kill, so use it when available.
+                if (expectedStart.HasValue)
+                {
+                    if (expectedStart.Value == DateTime.MinValue)
+                    {
+                        KillProcessHandle(fallback);
+                        return;
+                    }
+                    DateTime actual;
+                    try
+                    {
+                        using (Process process = Process.GetProcessById(pid))
+                            actual = process.StartTime.ToUniversalTime();
+                    }
+                    catch (Exception)
+                    {
+                        KillProcessHandle(fallback);
+                        return;
+                    }
+                    if (actual != expectedStart.Value.ToUniversalTime()) return;
+                }
+
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = SystemExecutable("taskkill.exe");
                 psi.Arguments = "/PID " + pid + " /T /F";

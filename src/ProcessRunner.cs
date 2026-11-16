@@ -94,6 +94,8 @@ namespace PiWebTray
                     if (!process.Start()) return result;
                     result.Started = true;
                     result.Pid = process.Id;
+                    DateTime processStart = DateTime.MinValue;
+                    try { processStart = process.StartTime.ToUniversalTime(); } catch (Exception) { }
 
                     if (onStarted != null)
                     {
@@ -109,7 +111,11 @@ namespace PiWebTray
                     if (!process.WaitForExit(timeoutMs))
                     {
                         result.TimedOut = true;
-                        try { Sys.KillTree(process.Id); } catch (Exception) { }
+                        try { Sys.KillTree(process.Id, processStart); } catch (Exception) { }
+                        try { process.WaitForExit(5000); } catch (Exception) { }
+                        // A failed taskkill is not proof that the child stopped.
+                        // Prefer killing the original process handle over a reused PID.
+                        try { if (!process.HasExited) process.Kill(); } catch (Exception) { }
                         try { process.WaitForExit(5000); } catch (Exception) { }
                     }
                     else

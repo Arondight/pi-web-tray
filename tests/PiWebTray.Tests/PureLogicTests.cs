@@ -174,6 +174,7 @@ namespace PiWebTray
             UpdateCleanupTests();
             WriteDiagTests();
             UpdateRollbackTests();
+            UpdateSnapshotMoveTests();
             UpdateTargetTests();
             StaleBackupTests();
             LogHostTests();
@@ -1214,6 +1215,25 @@ namespace PiWebTray
 
                 Check("a hard link in the installation tree is rejected",
                     PathSafety.ContainsHardLinkInTree(root));
+                Check("a hard link is another name for the same file",
+                    PathSafety.SameFile(target, link));
+                string other = Path.Combine(root, "other.txt");
+                File.WriteAllText(other, "different-file");
+                Check("different files are not the same file",
+                    !PathSafety.SameFile(target, other));
+                string directory = Path.Combine(root, "directory");
+                Directory.CreateDirectory(directory);
+                Check("a directory compares as the same directory",
+                    PathSafety.SameDirectory(directory, Path.Combine(root, ".", "directory")));
+                Check("a directory trailing separator is the same directory",
+                    PathSafety.SameDirectory(directory,
+                        directory + Path.DirectorySeparatorChar));
+                Check("different directories are not the same directory",
+                    !PathSafety.SameDirectory(directory, root));
+                Check("a remote path is not opened for a local identity check",
+                    !PathSafety.SameFile(@"\\server\share\missing.txt", target));
+                Check("a remote path is never treated as a local task/script file",
+                    !PathSafety.SameLocalFile(@"\\server\share\missing.txt", target));
                 using (FileStream stream = new FileStream(link, FileMode.Open,
                     FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
@@ -1339,6 +1359,10 @@ namespace PiWebTray
                 !TrayApp.ShouldWaitForServicePortBeforeUpdate(false, true, false));
             Check("helper does not wait for a foreign listener when no service ran",
                 !TrayApp.ShouldWaitForServicePortBeforeUpdate(false, false, false));
+            Check("helper waits when the port owner probe was incomplete",
+                TrayApp.ShouldWaitForServicePortBeforeUpdate(false, false, false, true));
+            Check("helper waits when an incomplete owner is combined with a silent service",
+                TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false, true));
         }
 
         private static void NpmWorkingDirectoryTests()
@@ -1659,6 +1683,11 @@ namespace PiWebTray
             Check("pi installs with --ignore-scripts", cliArgs.Contains(" --ignore-scripts"));
             Check("pi never allows scripts", !cliArgs.Contains("--allow-scripts"));
 
+            string forceArgs = Installer.BuildArguments(config, path, web, "12.2.1", false,
+                Installer.PiWebScriptPackages, true);
+            Check("forced installs use npm --force", forceArgs.Contains(" --force"));
+            Check("normal installs do not force", !webArgs.Contains(" --force"));
+
             CheckEqual("npm major 12", 12, Installer.NpmMajor("12.2.1"));
             CheckEqual("npm major 11", 11, Installer.NpmMajor("11.6.0"));
             CheckEqual("npm major unknown", 0, Installer.NpmMajor(""));
@@ -1887,6 +1916,44 @@ namespace PiWebTray
                 out originalElevated, out logPath, out language, out dataDir, out stagingHash,
                 out parsedPort);
             Check("helper args accept zero wait port", noWaitParsed && parsedPort == 0);
+
+            string previousInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", "ReviewEnvTest");
+            string encodedEnvironment;
+            try
+            {
+                encodedEnvironment = Updater.EncodeRestartEnvironment();
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", previousInstance);
+            }
+            Dictionary<string, string> decodedEnvironment =
+                Updater.DecodeRestartEnvironment(encodedEnvironment);
+            string decodedInstance;
+            decodedEnvironment.TryGetValue("PI_WEB_TRAY_INSTANCE", out decodedInstance);
+            CheckEqual("restart environment round-trips", "ReviewEnvTest", decodedInstance);
+
+            string builtEnvironmentArgs = Updater.BuildApplyArguments(
+                "C:\\data\\update\\stage", "C:\\target", 1234,
+                ApplyStartMode.TrayOnly, false, "C:\\data\\update.log", "en",
+                "C:\\data", stagingHashArg, 0, "", "", "", encodedEnvironment);
+            Check("helper args carry the restart environment",
+                builtEnvironmentArgs.Contains("--restart-env"));
+            string parsedEnvironment;
+            bool environmentParsed = Updater.TryParseApplyArgsCore(
+                new string[]
+                {
+                    "--apply-update", "C:\\data\\update\\stage", "C:\\target", "1234",
+                    "tray-only", "0", "C:\\data\\update.log", "en", "C:\\data",
+                    stagingHashArg, "0", "--restart-env", encodedEnvironment
+                },
+                out staging, out target, out parentPid, out mode,
+                out originalElevated, out logPath, out language, out dataDir, out stagingHash,
+                out parsedPort, out parsedZip, out parsedChecksum, out parsedGate,
+                out parsedEnvironment);
+            Check("helper parses the restart environment block",
+                environmentParsed && parsedEnvironment == encodedEnvironment);
 
             string gateName = @"C:\data\update\gate-test";
             bool gateParsed = Updater.TryParseApplyArgs(
@@ -2343,6 +2410,42 @@ namespace PiWebTray
             }
         }
 
+        private static void UpdateSnapshotMoveTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-snapshot-move-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string staging = Path.Combine(target, ".pi-web-tray-stage-test");
+            string log = Path.Combine(root, "update.log");
+            try
+            {
+                Directory.CreateDirectory(staging);
+                File.WriteAllText(Path.Combine(target, "pi-web-tray.exe"), "old");
+                File.WriteAllText(Path.Combine(target, "old.txt"), "old");
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
+                Directory.CreateDirectory(Path.Combine(staging, "nested"));
+                File.WriteAllText(Path.Combine(staging, "nested", "new.txt"), "new");
+
+                UpdateCopyResult copy = Updater.CopyFiles(staging, target, log);
+                CheckEqual("snapshot move replaces executable", "new",
+                    File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+                Check("snapshot source is consumed by the move",
+                    !File.Exists(Path.Combine(staging, "pi-web-tray.exe")));
+                Check("snapshot move copies nested content", File.Exists(
+                    Path.Combine(target, "nested", "new.txt")));
+                Check("snapshot backup keeps the old executable",
+                    File.Exists(Path.Combine(copy.Backup, "pi-web-tray.exe")));
+                Check("rollback from a moved snapshot succeeds",
+                    Updater.Rollback(copy.Backup, target, copy.Managed, log));
+                CheckEqual("snapshot rollback restores the old executable", "old",
+                    File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
         private static void UpdateTargetTests()
         {
             string root = Path.Combine(Path.GetTempPath(), "pi-web-tray-target-" + Guid.NewGuid().ToString("N"));
@@ -2497,6 +2600,13 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.Unknown,
                     CheckFailed = true
+                }));
+            CheckEqual("incomplete owner probe is reported as unavailable",
+                L.T("check.ownerUnavailable"),
+                ServiceProbe.OwnerText(new PortOwnerInfo
+                {
+                    Owner = PortOwner.Unknown,
+                    ProbeIncomplete = true
                 }));
 
             int self = System.Diagnostics.Process.GetCurrentProcess().Id;

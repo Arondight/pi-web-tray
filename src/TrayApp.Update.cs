@@ -25,9 +25,15 @@ namespace PiWebTray
         // port only when the update expects our service to occupy it. Otherwise a
         // foreign listener on the configured port would block an otherwise safe update.
         internal static bool ShouldWaitForServicePortBeforeUpdate(bool serviceSilent,
-            bool startedWithServiceRunning, bool listenerIsOurs)
+            bool startedWithServiceRunning, bool listenerIsOurs,
+            bool ownerCheckFailed = false)
         {
-            // A foreign listener is never our service and must not block the update.
+            // A failed owner probe is not evidence that the port is safe to replace.
+            // Wait for it to close (or let the helper abort) rather than risking a
+            // file replacement while an unidentifiable service is still running.
+            if (ownerCheckFailed) return true;
+
+            // A known foreign listener is never our service and must not block the update.
             return listenerIsOurs && (serviceSilent || startedWithServiceRunning);
         }
 
@@ -452,10 +458,12 @@ namespace PiWebTray
                     // or restore our service. A known foreign listener is not a reason
                     // to abort. If the owner check failed, wait rather than risk
                     // replacing files while an unidentifiable listener still runs.
-                    bool waitForListener = listenerIsOurs || (owner != null && owner.CheckFailed);
+                    bool ownerCheckFailed = owner != null
+                        && (owner.CheckFailed || owner.ProbeIncomplete);
+                    bool waitForListener = listenerIsOurs || ownerCheckFailed;
                     bool waitForService = ShouldWaitForServicePortBeforeUpdate(
                         mode == ApplyStartMode.ServiceSilent,
-                        startedRunning, waitForListener);
+                        startedRunning, waitForListener, ownerCheckFailed);
                     string work = Path.GetDirectoryName(staging);
                     string zipPath = string.IsNullOrEmpty(work)
                         ? ""

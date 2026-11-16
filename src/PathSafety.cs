@@ -36,6 +36,15 @@ namespace PiWebTray
         private static extern bool GetFileInformationByHandle(SafeFileHandle file,
             out ByHandleFileInformation information);
 
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle CreateFileW(string fileName,
+            uint desiredAccess, uint shareMode, IntPtr securityAttributes,
+            uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+        private const uint FileShareReadWriteDelete = 0x00000007;
+        private const uint OpenExisting = 3;
+        private const uint FileFlagBackupSemantics = 0x02000000;
+
         internal static bool ContainsReparsePoint(string path)
         {
             try
@@ -92,6 +101,168 @@ namespace PiWebTray
             {
                 return true;
             }
+        }
+
+        // Directory identity is used where a junction/8.3 alias should be accepted,
+        // but a hard link to the executable in a different directory must not be.
+        internal static bool SameDirectory(string left, string right)
+        {
+            if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return false;
+            try
+            {
+                if (string.Equals(Path.GetFullPath(left), Path.GetFullPath(right),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            if (IsRemoteOrDevice(left) || IsRemoteOrDevice(right)) return false;
+            // Do not follow a junction to a network/device location just to
+            // compare directory identities. Normal local directories are unaffected.
+            if (ContainsReparsePoint(left) || ContainsReparsePoint(right)) return false;
+
+            SafeFileHandle first = null;
+            SafeFileHandle second = null;
+            try
+            {
+                first = CreateFileW(left, 0, FileShareReadWriteDelete, IntPtr.Zero,
+                    OpenExisting, FileFlagBackupSemantics, IntPtr.Zero);
+                second = CreateFileW(right, 0, FileShareReadWriteDelete, IntPtr.Zero,
+                    OpenExisting, FileFlagBackupSemantics, IntPtr.Zero);
+                if (first.IsInvalid || second.IsInvalid) return false;
+
+                ByHandleFileInformation a;
+                ByHandleFileInformation b;
+                if (!GetFileInformationByHandle(first, out a)
+                    || !GetFileInformationByHandle(second, out b))
+                {
+                    return false;
+                }
+                return a.VolumeSerialNumber == b.VolumeSerialNumber
+                    && a.FileIndexHigh == b.FileIndexHigh
+                    && a.FileIndexLow == b.FileIndexLow;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (first != null) first.Dispose();
+                if (second != null) second.Dispose();
+            }
+        }
+
+        private static bool IsRemoteOrDevice(string path)
+        {
+            try
+            {
+                string full = Path.GetFullPath(path);
+                if (full.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (full.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)
+                        || full.StartsWith(@"\\?\GLOBALROOT",
+                            StringComparison.OrdinalIgnoreCase))
+                        return true;
+                    return false;
+                }
+                if (full.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+                if (full.StartsWith(@"\??\", StringComparison.Ordinal)) return true;
+                try
+                {
+                    string root = Path.GetPathRoot(full);
+                    if (!string.IsNullOrEmpty(root) && root.Length >= 2 && root[1] == ':')
+                    {
+                        DriveInfo drive = new DriveInfo(root);
+                        if (drive.DriveType == DriveType.Network) return true;
+                    }
+                }
+                catch (Exception)
+                {
+                    // An unreadable drive is not a safe local path.
+                    return true;
+                }
+                return false;
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
+        // Compares two names for the same file object. A process image path can be
+        // reported through a short 8.3 name, a junction, or a UNC alias, so a plain
+        // string comparison can mistake our own process for a foreign executable.
+        internal static bool SameFile(string left, string right)
+        {
+            if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return false;
+            try
+            {
+                if (string.Equals(Path.GetFullPath(left), Path.GetFullPath(right),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            // A task or state file can supply a UNC/device path. Never turn a
+            // comparison into an implicit network/device open.
+            if (IsRemoteOrDevice(left) || IsRemoteOrDevice(right)) return false;
+
+            try
+            {
+                using (FileStream first = new FileStream(left, FileMode.Open, FileAccess.Read,
+                           FileShare.ReadWrite | FileShare.Delete))
+                using (FileStream second = new FileStream(right, FileMode.Open, FileAccess.Read,
+                           FileShare.ReadWrite | FileShare.Delete))
+                {
+                    ByHandleFileInformation a;
+                    ByHandleFileInformation b;
+                    if (!GetFileInformationByHandle(first.SafeFileHandle, out a) ||
+                        !GetFileInformationByHandle(second.SafeFileHandle, out b))
+                    {
+                        return false;
+                    }
+                    return a.VolumeSerialNumber == b.VolumeSerialNumber &&
+                        a.FileIndexHigh == b.FileIndexHigh &&
+                        a.FileIndexLow == b.FileIndexLow;
+                }
+            }
+            catch (Exception)
+            {
+                // The caller must fall back to a conservative path comparison.
+                return false;
+            }
+        }
+
+        // Like SameFile, but refuses reparse-point paths. Used for paths supplied by
+        // task/state/command-line data where opening a junction could escape to a
+        // network or device location.
+        internal static bool SameLocalFile(string left, string right)
+        {
+            if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return false;
+            try
+            {
+                if (string.Equals(Path.GetFullPath(left), Path.GetFullPath(right),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            if (IsRemoteOrDevice(left) || IsRemoteOrDevice(right)) return false;
+            if (ContainsReparsePoint(left) || ContainsReparsePoint(right)) return false;
+            return SameFile(left, right);
         }
 
         // A recursive icacls operation follows hard links because they are just

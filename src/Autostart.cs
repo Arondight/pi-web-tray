@@ -387,10 +387,11 @@ namespace PiWebTray
                 {
                     try
                     {
-                        pathMatches = string.Equals(
-                            Path.GetFullPath(expandedCommand),
-                            Path.GetFullPath(Application.ExecutablePath),
-                            StringComparison.OrdinalIgnoreCase);
+                        // Task Scheduler can retain an 8.3 or junction spelling of
+                        // the same executable. Compare the file object, not the
+                        // spelling, so a valid task is not reported as foreign.
+                        pathMatches = PathSafety.SameLocalFile(
+                            expandedCommand, Application.ExecutablePath);
                     }
                     catch (Exception)
                     {
@@ -620,7 +621,11 @@ namespace PiWebTray
                         // A stuck Task Scheduler could otherwise leave one child
                         // behind after every menu refresh or autostart poll. Do not
                         // kill a PID that has just exited and could have been reused.
-                        try { if (!p.HasExited) Sys.KillTree(p.Id); } catch (Exception) { }
+                        try
+                        {
+                            if (!p.HasExited) Sys.KillTree(p.Id, Sys.ProcessStartTime(p), p);
+                        }
+                        catch (Exception) { }
                         return null;
                     }
                     return p.HasExited && p.ExitCode == 0;
@@ -712,6 +717,181 @@ namespace PiWebTray
             }
         }
 
+        // Files created by an elevated process are owned by that process's user,
+        // even when they are created inside a protected directory. An update helper
+        // must restore the trusted owner before it reports success; otherwise its
+        // own files fail IsUserWritableInstall on the next administrator start.
+        // Keep the existing DACL (which the protected target directory supplies)
+        // and only replace an untrusted owner.
+        internal static bool ProtectFileOwner(string path, out string error)
+        {
+            error = "";
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                {
+                    error = "file is missing";
+                    return false;
+                }
+                // Following a link while changing ownership could affect a file
+                // outside the installation. Refuse before opening the path.
+                if (PathSafety.ContainsReparsePoint(path))
+                {
+                    error = "file path crosses a reparse point";
+                    return false;
+                }
+                // Changing the owner through a hard link changes the owner of the
+                // underlying file, which may be outside the installation. Refuse;
+                // the caller treats this like any other ownership repair failure.
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                           FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle))
+                    {
+                        error = "file has multiple hard links";
+                        return false;
+                    }
+                }
+
+                FileInfo info = new FileInfo(path);
+                FileSecurity security = info.GetAccessControl(
+                    AccessControlSections.Access | AccessControlSections.Owner);
+                SecurityIdentifier owner = security.GetOwner(typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+                if (owner != null && IsTrustedPrincipal(owner)) return true;
+
+                security.SetOwner(AdministratorsSid);
+                info.SetAccessControl(security);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // Directory counterpart used while the update helper creates a backup or
+        // destination directory. Kept separate from ProtectInstallArtifacts so the
+        // ownership is repaired immediately, before a crash can leave a user-owned
+        // directory in the protected installation tree.
+        internal static bool ProtectDirectoryOwner(string path, out string error)
+        {
+            error = "";
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+                {
+                    error = "directory is missing";
+                    return false;
+                }
+                if (PathSafety.ContainsReparsePoint(path))
+                {
+                    error = "directory path crosses a reparse point";
+                    return false;
+                }
+                DirectoryInfo info = new DirectoryInfo(path);
+                DirectorySecurity security = info.GetAccessControl(
+                    AccessControlSections.Access | AccessControlSections.Owner);
+                SecurityIdentifier owner = security.GetOwner(typeof(SecurityIdentifier))
+                    as SecurityIdentifier;
+                if (owner != null && IsTrustedPrincipal(owner)) return true;
+                security.SetOwner(AdministratorsSid);
+                info.SetAccessControl(security);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        // Protect every file and directory the update helper created under the
+        // installation directory, including its backup and staging leftovers.
+        // This deliberately preserves DACLs and only repairs file ownership.
+        internal static bool ProtectInstallArtifacts(string directory, out string error)
+        {
+            error = "";
+            try
+            {
+                string root = Path.GetFullPath(directory);
+                if (!Directory.Exists(root))
+                {
+                    error = "directory is missing";
+                    return false;
+                }
+
+                // Check reparse points before the hard-link walk so that a planted
+                // junction cannot make the walk inspect a directory outside the
+                // installation. The traversal below repeats the check per entry.
+                if (PathSafety.ContainsReparsePointInTree(root))
+                {
+                    error = "reparse point in installation tree";
+                    return false;
+                }
+                // A hard link is another name for a file object and can redirect an
+                // owner change outside the installation. Refuse the whole repair if
+                // the tree contains one, rather than changing the link target's owner.
+                if (PathSafety.ContainsHardLinkInTree(root))
+                {
+                    error = "hard link in installation tree";
+                    return false;
+                }
+
+                Stack<string> pending = new Stack<string>();
+                pending.Push(root);
+                while (pending.Count > 0)
+                {
+                    string current = pending.Pop();
+                    FileAttributes attributes = File.GetAttributes(current);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    {
+                        error = "reparse point: " + current;
+                        return false;
+                    }
+
+                    bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+                    FileSystemSecurity security = isDirectory
+                        ? (FileSystemSecurity)new DirectoryInfo(current).GetAccessControl(
+                            AccessControlSections.Access | AccessControlSections.Owner)
+                        : (FileSystemSecurity)new FileInfo(current).GetAccessControl(
+                            AccessControlSections.Access | AccessControlSections.Owner);
+
+                    SecurityIdentifier owner = security.GetOwner(typeof(SecurityIdentifier))
+                        as SecurityIdentifier;
+                    if (owner == null || !IsTrustedPrincipal(owner))
+                    {
+                        security.SetOwner(AdministratorsSid);
+                        if (isDirectory)
+                            new DirectoryInfo(current).SetAccessControl((DirectorySecurity)security);
+                        else
+                            new FileInfo(current).SetAccessControl((FileSecurity)security);
+                    }
+
+                    // Ownership alone is not enough. A newly inherited DACL must
+                    // not grant write/delete rights to an untrusted principal.
+                    if (HasWriteAccess(security))
+                    {
+                        error = "untrusted ACL: " + current;
+                        return false;
+                    }
+
+                    if (isDirectory)
+                    {
+                        foreach (string entry in Directory.GetFileSystemEntries(current))
+                            pending.Push(entry);
+                    }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         // Repair the installation directory so the existing administrator logon task
         // cannot be hijacked by a standard user. This needs one UAC prompt unless the
         // tray is already elevated. icacls exists on Windows 7 through 11.
@@ -739,6 +919,15 @@ namespace PiWebTray
             {
                 message = L.T("auto.repairAlreadySafe");
                 return true;
+            }
+
+            // icacls interprets wildcards in a path. A wildcard in an installation
+            // directory could make an elevated recursive repair touch sibling
+            // directories, so refuse the repair instead of guessing.
+            if (directory.IndexOf('*') >= 0 || directory.IndexOf('?') >= 0)
+            {
+                message = L.T("auto.repairParentUnsafe");
+                return false;
             }
 
             // Never rewrite the ACL of a drive root; install there is not supported.
@@ -1008,7 +1197,7 @@ namespace PiWebTray
                     if (process == null) return false;
                     if (!process.WaitForExit(120000))
                     {
-                        try { Sys.KillTree(process.Id); }
+                        try { Sys.KillTree(process.Id, Sys.ProcessStartTime(process), process); }
                         catch (Exception)
                         {
                             try { process.Kill(); } catch (Exception) { }
@@ -1261,6 +1450,18 @@ namespace PiWebTray
                 // being registered.
                 write.Dispose();
                 write = null;
+
+                // This file can live in the protected installation directory.
+                // Restore a trusted owner before schtasks reads it; otherwise the
+                // next admin start would see a user-owned file in the install tree.
+                // Do this before opening the read guard: the guard shares only read
+                // access, so correcting the owner afterwards would be denied.
+                if (elevated)
+                {
+                    string protectError;
+                    if (!ProtectFileOwner(xmlPath, out protectError)) return false;
+                }
+
                 guard = new FileStream(xmlPath, FileMode.Open, FileAccess.Read,
                     FileShare.Read);
 

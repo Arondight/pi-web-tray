@@ -23,6 +23,7 @@ namespace PiWebTray
     {
         internal PortOwner Owner;
         internal int Pid;
+        internal DateTime StartTime = DateTime.MinValue;
         internal string Detail = "";
         internal string ScriptPath = "";
         internal bool ForeignSession;
@@ -31,6 +32,10 @@ namespace PiWebTray
         // worker start failure). This is not evidence that another program owns
         // the port; callers must not kill the tracked service in that case.
         internal bool CheckFailed;
+        // The listener exists, but its command line could not be read. It may be
+        // our service or a foreign process, so ownership is not proven. Callers
+        // must not stop/kill it or replace files while it runs.
+        internal bool ProbeIncomplete;
 
         internal bool IsPiWeb { get { return Owner == PortOwner.PiWeb; } }
         internal bool IsUnknown { get { return Owner == PortOwner.Unknown; } }
@@ -52,21 +57,24 @@ namespace PiWebTray
 
         private static string CurrentUserSid()
         {
-            if (_currentUserSid == null)
+            if (string.IsNullOrEmpty(_currentUserSid))
             {
                 try
                 {
                     using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
                     {
-                        _currentUserSid = identity.User != null ? identity.User.Value : "";
+                        string sid = identity.User != null ? identity.User.Value : "";
+                        // Cache only a real value. A transient failure or a missing
+                        // token user must not poison every later owner probe.
+                        if (!string.IsNullOrEmpty(sid)) _currentUserSid = sid;
                     }
                 }
                 catch (Exception)
                 {
-                    _currentUserSid = "";
+                    return "";
                 }
             }
-            return _currentUserSid;
+            return _currentUserSid ?? "";
         }
 
         internal static PortOwnerInfo Inspect(int port)
@@ -124,6 +132,10 @@ namespace PiWebTray
             }
 
             int pid = FindListenerPid(port);
+            // Capture the creation time immediately after the listener PID is known.
+            // Waiting until the rest of the probe (including the HTTP fallback) has
+            // completed leaves a window in which the PID can exit and be reused.
+            DateTime listenerStart = pid > 4 ? Sys.ProcessStartTime(pid) : DateTime.MinValue;
 
             // Another Windows session can run the same pi-web package on the same port.
             // It is never "our" service and must never be opened or stopped by this tray.
@@ -134,6 +146,7 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.Unknown,
                     Pid = pid,
+                    StartTime = listenerStart,
                     ForeignSession = true,
                     Detail = "another Windows session"
                 };
@@ -144,6 +157,8 @@ namespace PiWebTray
             // script-path check.
             string ownerSid = pid > 4 ? NativeProcess.UserSid(pid) : "";
             string currentSid = CurrentUserSid();
+            bool userUnknown = pid > 4
+                && (ownerSid.Length == 0 || currentSid.Length == 0);
             if (ownerSid.Length > 0 && currentSid.Length > 0
                 && !string.Equals(ownerSid, currentSid, StringComparison.OrdinalIgnoreCase))
             {
@@ -151,6 +166,7 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.Unknown,
                     Pid = pid,
+                    StartTime = listenerStart,
                     ForeignUser = true,
                     Detail = "another user"
                 };
@@ -180,8 +196,12 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.PiWeb,
                     Pid = listenerPid,
+                    StartTime = listenerStart,
                     Detail = "Pi Web command line",
-                    ScriptPath = scriptPath
+                    ScriptPath = scriptPath,
+                    // A matching script path is not proof that this is our
+                    // account's process when the token SID could not be read.
+                    ProbeIncomplete = userUnknown
                 };
             }
 
@@ -194,7 +214,9 @@ namespace PiWebTray
                 {
                     Owner = PortOwner.PiWeb,
                     Pid = pid,
-                    Detail = "Pi Web HTTP response"
+                    StartTime = listenerStart,
+                    Detail = "Pi Web HTTP response",
+                    ProbeIncomplete = true
                 };
             }
 
@@ -208,14 +230,17 @@ namespace PiWebTray
             {
                 Owner = PortOwner.Unknown,
                 Pid = pid,
-                Detail = detail
+                StartTime = listenerStart,
+                Detail = detail,
+                ProbeIncomplete = string.IsNullOrEmpty(commandLine) || userUnknown
             };
         }
 
         internal static string OwnerText(PortOwnerInfo owner)
         {
             if (owner == null) return L.T("check.ownerNone");
-            if (owner.CheckFailed) return L.T("check.ownerUnavailable");
+            if (owner.CheckFailed || owner.ProbeIncomplete)
+                return L.T("check.ownerUnavailable");
             if (owner.ForeignSession) return L.T("check.ownerOtherSession");
             if (owner.ForeignUser) return L.T("check.ownerOtherUser");
             if (owner.IsPiWeb) return L.T("check.ownerPiweb");
@@ -284,22 +309,17 @@ namespace PiWebTray
         internal static bool MatchesExpectedScript(PortOwnerInfo owner, string expectedScript)
         {
             if (owner == null || !owner.IsPiWeb) return false;
+            // A probe that could not read the command line/owner is not proof of
+            // ownership, even if a partial script path was recovered.
+            if (owner.ProbeIncomplete) return false;
             // Ownership requires both paths. A listener whose command line does not expose
             // pi-web.js (including the HTTP fallback) is not proof that it is our service.
             if (string.IsNullOrEmpty(expectedScript) || string.IsNullOrEmpty(owner.ScriptPath))
                 return false;
-            try
-            {
-                return string.Equals(
-                    Path.GetFullPath(owner.ScriptPath),
-                    Path.GetFullPath(expectedScript),
-                    StringComparison.OrdinalIgnoreCase);
-            }
-            catch (Exception)
-            {
-                // A path we cannot normalize is not proof of ownership.
-                return false;
-            }
+            // Compare the file identity for local paths so an 8.3 or junction
+            // spelling of the same script is not reported as a foreign install.
+            // SameFile refuses remote/device paths before opening them.
+            return PathSafety.SameLocalFile(owner.ScriptPath, expectedScript);
         }
 
         internal static int ParseListenerPid(string netstatOutput, int port)

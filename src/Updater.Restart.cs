@@ -38,8 +38,21 @@ namespace PiWebTray
             return ApplyStartMode.TrayOnly;
         }
 
+        private static readonly string[] RestartEnvironmentNames = new string[]
+        {
+            "PI_WEB_TRAY_INSTANCE", "PI_WEB_TRAY_PORT", "PI_WEB_TRAY_LANG",
+            "PI_WEB_TRAY_HOME", "PI_WEB_TRAY_PORTABLE",
+            "PI_WEB_TRAY_NO_NODE", "PI_WEB_TRAY_NO_PIWEB", "PI_WEB_TRAY_NO_PICLI"
+        };
+
+        // The block is passed on the helper command line, not through a
+        // user-writable file. A process of the same user cannot modify the command
+        // line of an already-created helper process.
+        private const string RestartEnvironmentOption = "--restart-env";
+
         private static bool Restart(string target, ApplyStartMode mode, bool originalElevated,
-            int parentPid, string logPath, string dataDir)
+            int parentPid, string logPath, string dataDir,
+            IDictionary<string, string> restartEnvironment)
         {
             mode = HonorServiceStopRequest(mode, dataDir, logPath);
             string exe = Path.Combine(target, "pi-web-tray.exe");
@@ -52,7 +65,9 @@ namespace PiWebTray
             // new tray wrote its state file. PI_WEB_TRAY_* overrides are copied into
             // the restart command because Explorer itself does not inherit them. If the
             // launch is not observable, fall back to a direct start.
-            bool customEnvironment = HasCustomEnvironment();
+            bool hasRestartEnvironment = restartEnvironment != null
+                && restartEnvironment.Count > 0;
+            bool customEnvironment = HasCustomEnvironment() || hasRestartEnvironment;
             if (!originalElevated && helperElevated)
             {
                 string cmdPath = null;
@@ -72,7 +87,8 @@ namespace PiWebTray
                     }
                     else
                     {
-                        cmdPath = LaunchViaExplorerCommand(target, arguments, logPath);
+                        cmdPath = LaunchViaExplorerCommand(target, arguments, logPath,
+                            restartEnvironment);
                     }
 
                     if ((arguments.Length == 0 && !customEnvironment) || cmdPath != null)
@@ -106,7 +122,9 @@ namespace PiWebTray
                 direct.FileName = exe;
                 direct.Arguments = arguments;
                 direct.WorkingDirectory = target;
-                direct.UseShellExecute = true;
+                // EnvironmentVariables are honored only without ShellExecute.
+                direct.UseShellExecute = !hasRestartEnvironment;
+                ApplyRestartEnvironment(direct, restartEnvironment);
                 using (Process tray = Process.Start(direct))
                 {
                     if (tray == null) return false;
@@ -159,8 +177,7 @@ namespace PiWebTray
             {
                 string image = NativeProcess.ImagePath(pid);
                 if (string.IsNullOrEmpty(image)) return false;
-                return string.Equals(Path.GetFullPath(image),
-                    Path.GetFullPath(expectedExe), StringComparison.OrdinalIgnoreCase);
+                return PathSafety.SameFile(image, expectedExe);
             }
             catch (Exception)
             {
@@ -169,7 +186,8 @@ namespace PiWebTray
         }
 
         private static string LaunchViaExplorerCommand(string target,
-            string arguments, string logPath)
+            string arguments, string logPath,
+            IDictionary<string, string> restartEnvironment = null)
         {
             try
             {
@@ -186,7 +204,7 @@ namespace PiWebTray
                 StringBuilder contentBuilder = new StringBuilder();
                 contentBuilder.Append("@echo off\r\n");
                 contentBuilder.Append("chcp 65001 >nul\r\n");
-                AppendRestartEnvironment(contentBuilder);
+                AppendRestartEnvironment(contentBuilder, restartEnvironment);
                 contentBuilder.Append("cd /d \"%~dp0\"\r\n");
                 contentBuilder.Append("start \"\" \".\\" + Path.GetFileName(exe) + "\" ")
                     .Append(arguments).Append("\r\n");
@@ -198,6 +216,19 @@ namespace PiWebTray
                 using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
                 {
                     writer.Write(content);
+                }
+
+                // The elevated helper creates the script with its user as owner.
+                // Repair that before it can poison the protected-install check.
+                if (Elevation.IsElevated())
+                {
+                    string protectError;
+                    if (!Autostart.ProtectFileOwner(cmdPath, out protectError))
+                    {
+                        AppendLog(logPath, "restart command owner repair failed: " + protectError);
+                        try { File.Delete(cmdPath); } catch (Exception) { }
+                        return null;
+                    }
                 }
                 AppendLog(logPath, "restart command: " + cmdPath);
 
@@ -226,23 +257,80 @@ namespace PiWebTray
         // Explorer does not inherit the tray's environment. Preserve only the
         // documented PI_WEB_TRAY_* overrides; they are needed by named instances and
         // testing setups. All values are placed inside quoted set commands.
-        private static void AppendRestartEnvironment(StringBuilder content)
+        private static void AppendRestartEnvironment(StringBuilder content,
+            IDictionary<string, string> restartEnvironment = null)
         {
-            string[] names = new string[]
+            foreach (string name in RestartEnvironmentNames)
             {
-                "PI_WEB_TRAY_INSTANCE", "PI_WEB_TRAY_PORT", "PI_WEB_TRAY_LANG",
-                "PI_WEB_TRAY_HOME", "PI_WEB_TRAY_PORTABLE",
-                "PI_WEB_TRAY_NO_NODE", "PI_WEB_TRAY_NO_PIWEB", "PI_WEB_TRAY_NO_PICLI"
-            };
-            foreach (string name in names)
-            {
-                string value = Environment.GetEnvironmentVariable(name);
+                string value = null;
+                if (restartEnvironment != null)
+                    restartEnvironment.TryGetValue(name, out value);
+                if (string.IsNullOrEmpty(value))
+                    value = Environment.GetEnvironmentVariable(name);
                 if (string.IsNullOrEmpty(value)) continue;
                 value = value.Replace("\r", "").Replace("\n", "")
                     .Replace("%", "%%").Replace("\"", "");
                 content.Append("set \"").Append(name).Append('=').Append(value)
                     .Append("\"\r\n");
             }
+        }
+
+        private static void ApplyRestartEnvironment(ProcessStartInfo psi,
+            IDictionary<string, string> restartEnvironment)
+        {
+            if (psi == null || restartEnvironment == null) return;
+            foreach (string name in RestartEnvironmentNames)
+            {
+                string value;
+                if (!restartEnvironment.TryGetValue(name, out value)) continue;
+                if (string.IsNullOrEmpty(value)) continue;
+                psi.EnvironmentVariables[name] = value;
+            }
+        }
+
+        internal static string EncodeRestartEnvironment()
+        {
+            StringBuilder content = new StringBuilder();
+            foreach (string name in RestartEnvironmentNames)
+            {
+                string value = Environment.GetEnvironmentVariable(name);
+                if (string.IsNullOrEmpty(value)) continue;
+                value = value.Replace("\r", "").Replace("\n", "");
+                content.Append(name).Append('=').Append(value).Append('\n');
+            }
+            if (content.Length == 0) return "";
+            return Convert.ToBase64String(Encoding.UTF8.GetBytes(content.ToString()));
+        }
+
+        internal static Dictionary<string, string> DecodeRestartEnvironment(string encoded)
+        {
+            Dictionary<string, string> result = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(encoded)) return result;
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(encoded);
+                if (bytes.Length == 0 || bytes.Length > 32768) return result;
+                string text = Encoding.UTF8.GetString(bytes);
+                foreach (string rawLine in text.Split(new char[] { '\n' }))
+                {
+                    int separator = rawLine.IndexOf('=');
+                    if (separator <= 0) continue;
+                    string name = rawLine.Substring(0, separator);
+                    string value = rawLine.Substring(separator + 1);
+                    if (Array.IndexOf(RestartEnvironmentNames, name) < 0) continue;
+                    if (string.IsNullOrEmpty(value)
+                        || value.IndexOf('\r') >= 0 || value.IndexOf('\n') >= 0)
+                        continue;
+                    result[name] = value;
+                }
+            }
+            catch (Exception)
+            {
+                // A malformed optional block is ignored; the helper still falls back
+                // to its inherited environment for same-user launches.
+            }
+            return result;
         }
 
         // explorer.exe lives in %windir%, not in System32, and it must never be started

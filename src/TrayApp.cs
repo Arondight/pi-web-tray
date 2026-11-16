@@ -683,6 +683,21 @@ namespace PiWebTray
                     break;
             }
 
+            // A start requested while a stop worker was still winding down is
+            // queued by StartServer. PollStopping normally consumes it, but an
+            // escalated Stopped phase can outlive the worker; retry once the worker
+            // has released StopName, never while it is still running.
+            if (!_stopWorkerRunning && !_installAfterStop && _pendingStart
+                && !_exiting && _modalDepth == 0
+                && _phase != Phase.Stopping && _phase != Phase.Installing
+                && _phase != Phase.Checking && _phase != Phase.Starting)
+            {
+                bool open = _pendingStartOpen;
+                _pendingStart = false;
+                _pendingStartOpen = false;
+                StartServer(open);
+            }
+
             if (UpdateBusy())
             {
                 _updateTicks++;

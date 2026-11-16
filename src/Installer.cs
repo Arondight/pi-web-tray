@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -56,6 +57,8 @@ namespace PiWebTray
 
         // pid of the running npm process (0 = idle), so "exit" can abort a half-finished install
         private static int _runningPid;
+        private static DateTime _runningStart = DateTime.MinValue;
+        private static Process _runningProcess;
         private static bool _aborted;
         private static readonly object PidLock = new object();
 
@@ -64,9 +67,14 @@ namespace PiWebTray
             get { lock (PidLock) return _runningPid; }
         }
 
-        private static void SetRunningPid(int pid)
+        private static void SetRunningPid(int pid, DateTime start, Process process)
         {
-            lock (PidLock) _runningPid = pid;
+            lock (PidLock)
+            {
+                _runningPid = pid;
+                _runningStart = start;
+                _runningProcess = process;
+            }
         }
 
         internal static void ResetAbort()
@@ -82,12 +90,16 @@ namespace PiWebTray
         internal static void Abort()
         {
             int pid;
+            DateTime start;
+            Process process;
             lock (PidLock)
             {
                 _aborted = true;
                 pid = _runningPid;
+                start = _runningStart;
+                process = _runningProcess;
             }
-            if (pid > 0) Sys.KillTree(pid);
+            if (pid > 0) Sys.KillTree(pid, start, process);
         }
 
         // The install form lives longer than a single attempt in the tray process.
@@ -233,9 +245,11 @@ namespace PiWebTray
             return digits > 0 ? major : 0;
         }
 
-        // Build the full node + npm-cli.js command line (no cmd.exe, no quoting hell)
+        // Build the full node + npm-cli.js command line (no cmd.exe, no quoting hell).
+        // force makes npm rewrite an already-present package; the menu's
+        // "Install/update service" action and an interrupted install rely on it.
         internal static string BuildArguments(Config config, string npmCliPath, List<string> packages,
-            string npmVersion, bool ignoreScripts, string allowScripts)
+            string npmVersion, bool ignoreScripts, string allowScripts, bool force = false)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append(Shell.Quote(npmCliPath));
@@ -253,6 +267,7 @@ namespace PiWebTray
                 if (!string.IsNullOrEmpty(allowScripts) && NpmMajor(npmVersion) >= 12)
                     sb.Append(" --allow-scripts ").Append(Shell.Quote(allowScripts));
             }
+            if (force) sb.Append(" --force");
 
             return sb.ToString();
         }
@@ -495,7 +510,8 @@ namespace PiWebTray
                     int stepNo = i + 1;
                     lastStepNo = stepNo;
                     string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
-                        probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
+                        probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "",
+                        force);
 
                     AppendLog(config, "==== install start (step "
                         + stepNo + "/" + steps.Count + ") ====");
@@ -538,13 +554,34 @@ namespace PiWebTray
                             env,
                             delegate (int pid)
                             {
-                                SetRunningPid(pid);
-                                if (Aborted) Sys.KillTree(pid);
+                                DateTime start = Sys.ProcessStartTime(pid);
+                                Process process = null;
+                                // Only keep a handle when the creation time was
+                                // captured. Opening a process after the time is
+                                // unavailable can attach to a reused, unrelated PID.
+                                if (start != DateTime.MinValue)
+                                {
+                                    try
+                                    {
+                                        process = Process.GetProcessById(pid);
+                                        if (Sys.ProcessStartTime(process) != start)
+                                        {
+                                            process.Dispose();
+                                            process = null;
+                                        }
+                                    }
+                                    catch (Exception)
+                                    {
+                                        process = null;
+                                    }
+                                }
+                                SetRunningPid(pid, start, process);
+                                if (Aborted) Sys.KillTree(pid, start, process);
                             });
                     }
                     finally
                     {
-                        SetRunningPid(0);
+                        SetRunningPid(0, DateTime.MinValue, null);
                     }
 
                     last = run;
@@ -736,7 +773,8 @@ namespace PiWebTray
             foreach (InstallStep step in steps)
             {
                 string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,
-                    probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "");
+                    probe.NpmVersion, step.IgnoreScripts, step.AllowScripts ? allowScripts : "",
+                    force);
                 ConsoleHost.WriteLine("  " + Shell.Quote(probe.NodePath) + " "
                     + Shell.RedactSecrets(arguments));
             }

@@ -41,6 +41,32 @@ namespace PiWebTray
             return backupRoot + ".keep";
         }
 
+        private static void ProtectOwnerForUpdate(string path, bool directory)
+        {
+            if (!Elevation.IsElevated()) return;
+            string error;
+            bool ok = directory
+                ? Autostart.ProtectDirectoryOwner(path, out error)
+                : Autostart.ProtectFileOwner(path, out error);
+            if (!ok) throw new UnauthorizedAccessException(error);
+        }
+
+        private static bool IsInside(string path, string root)
+        {
+            try
+            {
+                string full = Path.GetFullPath(path);
+                string prefix = Path.GetFullPath(root)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                return full.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         internal static UpdateCopyResult CopyFiles(string staging, string target, string logPath)
         {
             string backupRoot = Path.Combine(target, ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
@@ -60,8 +86,10 @@ namespace PiWebTray
                 // Never delete an older backup here: it may be the only copy left after a
                 // crash during a previous update. Successful updates remove it explicitly.
                 Directory.CreateDirectory(backupRoot);
+                ProtectOwnerForUpdate(backupRoot, true);
                 File.WriteAllText(IncompleteMarker(backupRoot), "",
                     new UTF8Encoding(false));
+                ProtectOwnerForUpdate(IncompleteMarker(backupRoot), false);
 
                 foreach (string source in files)
                 {
@@ -72,15 +100,26 @@ namespace PiWebTray
                     if (PathSafety.ContainsReparsePoint(destination))
                         throw new InvalidDataException("update destination crosses a reparse point: " + relative);
                     string parent = Path.GetDirectoryName(destination);
-                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                    if (!string.IsNullOrEmpty(parent))
+                    {
+                        bool parentExisted = Directory.Exists(parent);
+                        Directory.CreateDirectory(parent);
+                        if (!parentExisted) ProtectOwnerForUpdate(parent, true);
+                    }
 
                     if (File.Exists(destination))
                     {
                         string backup = Path.Combine(backupRoot, relative);
                         string backupDir = Path.GetDirectoryName(backup);
-                        if (!string.IsNullOrEmpty(backupDir)) Directory.CreateDirectory(backupDir);
+                        if (!string.IsNullOrEmpty(backupDir))
+                        {
+                            bool backupDirExisted = Directory.Exists(backupDir);
+                            Directory.CreateDirectory(backupDir);
+                            if (!backupDirExisted) ProtectOwnerForUpdate(backupDir, true);
+                        }
                         try { File.SetAttributes(destination, FileAttributes.Normal); } catch (Exception) { }
                         File.Move(destination, backup);
+                        ProtectOwnerForUpdate(backup, false);
                         backupSources.Add(backup);
                         backupTargets.Add(destination);
                     }
@@ -89,7 +128,26 @@ namespace PiWebTray
                     // leave a partial file; the rollback must delete it before restoring
                     // the previous file or File.Move will refuse to overwrite it.
                     attempted.Add(destination);
-                    File.Copy(source, destination, true);
+                    bool moved = false;
+                    // The helper's verified snapshot lives inside the installation
+                    // directory. Moving from it preserves the trusted owner that was
+                    // assigned when the snapshot was extracted; a plain File.Copy
+                    // would create a new file owned by the elevated helper's user.
+                    if (IsInside(source, target))
+                    {
+                        try
+                        {
+                            File.Move(source, destination);
+                            moved = true;
+                        }
+                        catch (IOException)
+                        {
+                            // Fall back to a copy below (for example a cross-volume
+                            // alias); the destination owner is repaired explicitly.
+                        }
+                    }
+                    if (!moved) File.Copy(source, destination, true);
+                    ProtectOwnerForUpdate(destination, false);
                     AppendLog(logPath, "copy " + relative);
                 }
             }
@@ -145,6 +203,7 @@ namespace PiWebTray
                 // the backup remains protected by .incomplete and is never deleted
                 // automatically.
                 File.WriteAllText(CompleteMarker(backupRoot), "", new UTF8Encoding(false));
+                ProtectOwnerForUpdate(CompleteMarker(backupRoot), false);
             }
             catch (Exception)
             {
@@ -230,15 +289,12 @@ namespace PiWebTray
                 }
             }
 
-            try
-            {
-                WriteManifest(manifest, keep);
-            }
-            catch (Exception ex)
+            string manifestError;
+            if (!WriteManifest(manifest, keep, out manifestError))
             {
                 // The files themselves were copied successfully; a missing manifest only
                 // means the next update cannot remove stale files.
-                AppendLog(logPath, "write manifest failed: " + ex.Message);
+                AppendLog(logPath, "write manifest failed: " + manifestError);
             }
         }
 
@@ -499,20 +555,41 @@ namespace PiWebTray
             return result;
         }
 
-        internal static void WriteManifest(string path, IEnumerable<string> relativeFiles)
+        internal static bool WriteManifest(string path, IEnumerable<string> relativeFiles,
+            out string error)
         {
-            List<string> files = new List<string>(relativeFiles);
-            files.Sort(StringComparer.OrdinalIgnoreCase);
-
-            StringBuilder sb = new StringBuilder();
-            foreach (string relative in files)
+            error = "";
+            try
             {
-                string normalized = NormalizeManifestPath(relative);
-                if (normalized.Length == 0) continue;
-                if (string.Equals(normalized, ManifestName, StringComparison.OrdinalIgnoreCase)) continue;
-                sb.Append(normalized).Append('\n');
+                List<string> files = new List<string>(relativeFiles);
+                files.Sort(StringComparer.OrdinalIgnoreCase);
+
+                StringBuilder sb = new StringBuilder();
+                foreach (string relative in files)
+                {
+                    string normalized = NormalizeManifestPath(relative);
+                    if (normalized.Length == 0) continue;
+                    if (string.Equals(normalized, ManifestName, StringComparison.OrdinalIgnoreCase)) continue;
+                    sb.Append(normalized).Append('\n');
+                }
+                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+
+                // A manifest created by the elevated helper must not make the
+                // protected installation look user-writable to the next start.
+                if (Elevation.IsElevated()
+                    && !Autostart.ProtectFileOwner(path, out error))
+                {
+                    try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+                    return false;
+                }
+                return true;
             }
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+                return false;
+            }
         }
 
         private static string TargetRelativePath(string target, string fullPath)

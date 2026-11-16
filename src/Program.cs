@@ -25,6 +25,20 @@ namespace PiWebTray
         [STAThread]
         private static int Main(string[] args)
         {
+            // --version only reads assembly metadata. It must remain usable from a
+            // user-writable installation even when that installation is elevated,
+            // because no resource or code from the installation directory is loaded
+            // beyond the already-running executable.
+            if (args.Length == 1
+                && string.Equals(args[0], "--version", StringComparison.OrdinalIgnoreCase))
+            {
+                string earlyVersion = AppName + " " + Version;
+                if (ConsoleHost.TryAttach()) ConsoleHost.WriteLine(earlyVersion);
+                else MessageBox.Show(earlyVersion, AppName,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return 0;
+            }
+
             // This check must run before Config.Load/resource lookup. A user-writable
             // installation can be replaced by a same-user process, including its
             // satellite resource DLLs. Refuse an elevated start instead of loading
@@ -40,6 +54,29 @@ namespace PiWebTray
                 else MessageBox.Show(unsafeElevated, AppName,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
+            }
+
+            // Reject two independent commands instead of silently executing only
+            // the first one. A typo such as "--stop --install" otherwise looks like
+            // a successful install when only the service was stopped.
+            string conflicting = FindConflictingAction(args);
+            if (conflicting != null)
+            {
+                Config.Load(false);
+                ConsoleHost.TryAttach();
+                ConsoleHost.WriteError(L.T("prog.conflictingArg", conflicting));
+                return 2;
+            }
+
+            // --dry-run is an install modifier. Check it before dispatching any
+            // other command so "--stop --dry-run" is rejected instead of silently
+            // ignoring the modifier.
+            if (Has(args, "--dry-run") && !Has(args, "--install"))
+            {
+                Config.Load(false);
+                ConsoleHost.TryAttach();
+                ConsoleHost.WriteError(L.T("prog.dryRunOnly"));
+                return 2;
             }
 
             // The language must be known before any text appears: read ini / env first
@@ -413,7 +450,7 @@ namespace PiWebTray
                         }
                         else
                         {
-                            if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                            if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                             Net.WaitPortClosed(config.Port, 8000);
                         }
                     }
@@ -464,6 +501,52 @@ namespace PiWebTray
         }
 
         // Reject typos instead of silently starting the tray for an unknown switch
+        private static string FindConflictingAction(string[] args)
+        {
+            string first = null;
+            foreach (string raw in args)
+            {
+                string action = NormalizeAction(raw);
+                if (action == null) continue;
+                if (first != null) return action;
+                first = action;
+            }
+            return null;
+        }
+
+        private static string NormalizeAction(string raw)
+        {
+            if (string.Equals(raw, "--help", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "-h", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(raw, "/?", StringComparison.OrdinalIgnoreCase))
+                return "--help";
+            if (string.Equals(raw, "--version", StringComparison.OrdinalIgnoreCase))
+                return "--version";
+            if (string.Equals(raw, "--lang-check", StringComparison.OrdinalIgnoreCase))
+                return "--lang-check";
+            if (string.Equals(raw, "--apply-update", StringComparison.OrdinalIgnoreCase))
+                return "--apply-update";
+            if (string.Equals(raw, "--log-host-check", StringComparison.OrdinalIgnoreCase))
+                return "--log-host-check";
+            if (string.Equals(raw, "--log-host", StringComparison.OrdinalIgnoreCase))
+                return "--log-host";
+            if (string.Equals(raw, "--make-ico", StringComparison.OrdinalIgnoreCase))
+                return "--make-ico";
+            if (string.Equals(raw, "--check", StringComparison.OrdinalIgnoreCase))
+                return "--check";
+            if (string.Equals(raw, "--install", StringComparison.OrdinalIgnoreCase))
+                return "--install";
+            if (string.Equals(raw, "--diag", StringComparison.OrdinalIgnoreCase))
+                return "--diag";
+            if (string.Equals(raw, "--stop", StringComparison.OrdinalIgnoreCase))
+                return "--stop";
+            if (string.Equals(raw, "--quit", StringComparison.OrdinalIgnoreCase))
+                return "--quit";
+            if (string.Equals(raw, "--restart", StringComparison.OrdinalIgnoreCase))
+                return "--restart";
+            return null;
+        }
+
         private static string FindUnknownArgument(string[] args)
         {
             string[] known = new string[]
@@ -658,7 +741,7 @@ namespace PiWebTray
                     ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
                     return false;
                 }
-                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                 Net.WaitPortClosed(config.Port, 5000);
             }
 
@@ -901,8 +984,29 @@ namespace PiWebTray
             }
             string script = ExpectedPiWebScript(config, probe);
             PortOwnerInfo owner = ServiceProbe.Inspect(port, script);
+
+            // An unreadable listener or a different Pi Web installation must not
+            // be left running while npm rewrites the shared package tree.
+            if (!dryRun && (owner.CheckFailed || owner.ProbeIncomplete))
+            {
+                ConsoleHost.WriteError(L.T("notify.ownerCheckFailedBody", port));
+                return false;
+            }
+            // A listener in another Windows session or owned by another user may
+            // still use the shared npm package tree. Do not rewrite that tree while
+            // another account's service is running.
+            if (!dryRun && (owner.ForeignSession || owner.ForeignUser))
+            {
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", port));
+                return false;
+            }
             if (!owner.IsPiWeb) return true;
-            if (!ServiceProbe.MatchesExpectedScript(owner, script)) return true;
+            if (!ServiceProbe.MatchesExpectedScript(owner, script))
+            {
+                if (dryRun) return true;
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", port));
+                return false;
+            }
 
             if (dryRun) return true;
 

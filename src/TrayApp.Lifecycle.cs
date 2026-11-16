@@ -115,7 +115,7 @@ namespace PiWebTray
                 // Exiting right after starting: kill the tree instead of waiting for it to come up
                 if (_phase == Phase.Starting && _server != null)
                 {
-                    try { if (!_server.HasExited) Sys.KillTree(_server.Id); } catch (Exception) { }
+                    try { if (!_server.HasExited) Sys.KillTree(_server.Id, Sys.ProcessStartTime(_server), _server); } catch (Exception) { }
                 }
 
                 if (Net.IsPortOpen(_port, 200))
@@ -157,7 +157,7 @@ namespace PiWebTray
                             owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
                             if (IsOurPiWeb(owner) || TrayOwnsPort(owner))
                             {
-                                if (owner.Pid > 4) Sys.KillTree(owner.Pid);
+                                if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
                             }
                             else
                             {

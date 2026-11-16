@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -654,6 +654,9 @@
   </data>
   <data name="prog.dryRunOnly" xml:space="preserve">
     <value>--dry-run 只能和 --install 一起使用。</value>
+  </data>
+  <data name="prog.conflictingArg" xml:space="preserve">
+    <value>一次只能使用一個命令（發現 {0}）。</value>
   </data>
   <data name="help.title" xml:space="preserve">
     <value>用法：</value>
