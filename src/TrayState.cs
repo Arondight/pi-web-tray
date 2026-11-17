@@ -353,6 +353,42 @@ namespace PiWebTray
             return TryGetRunningPort(StatePath(), out port);
         }
 
+        // Read the last recorded port even when the tray process is gone (for
+        // example after a crash). This is only a hint for CLI commands; any stop
+        // still re-validates the listener owner before killing it.
+        internal static bool TryGetRecordedPort(out int port)
+        {
+            port = 0;
+            string sessionPath = SessionStatePath();
+            if (TryGetRecordedPort(sessionPath, out port)) return true;
+            return TryGetRecordedPort(StatePath(), out port);
+        }
+
+        private static bool TryGetRecordedPort(string path, out int port)
+        {
+            port = 0;
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)
+                    || PathSafety.ContainsReparsePoint(path))
+                    return false;
+                int value;
+                if (!int.TryParse(ReadValue(path, "Port="), out value)
+                    || value <= 0 || value > 65535)
+                    return false;
+                int session;
+                if (int.TryParse(ReadValue(path, "Session="), out session)
+                    && session != Process.GetCurrentProcess().SessionId)
+                    return false;
+                port = value;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private static bool TryGetRunningPort(string path, out int port)
         {
             port = 0;

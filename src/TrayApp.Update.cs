@@ -250,6 +250,7 @@ namespace PiWebTray
             // preserves a service that was running when the update began.
             _updateStartedWithServiceRunning = _updateStartedWithServiceRunning
                 || _phase == Phase.Running || _phase == Phase.RunningUnverified
+                || _phase == Phase.Starting
                 || _restartAfterUpdate;
 
             UpdateCancellation cancellation = new UpdateCancellation();

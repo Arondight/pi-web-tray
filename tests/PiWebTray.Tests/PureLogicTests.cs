@@ -2678,6 +2678,9 @@ namespace PiWebTray
                 Check("state has pid", content.Contains("Pid=0"));
                 Check("state has port", content.Contains("Port=30141"));
                 Check("state has session", content.Contains("Session="));
+                int recordedPort;
+                Check("recorded port survives a dead tray",
+                    TrayState.TryGetRecordedPort(out recordedPort) && recordedPort == 30141);
 
                 // pid 0 is never a real process, so the stale-state guard must answer false
                 Check("stale state is not trusted", !TrayState.InstanceIsElevated());

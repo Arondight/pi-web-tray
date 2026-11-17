@@ -1144,8 +1144,21 @@ namespace PiWebTray
         // different shell must use that value, not their own config.
         private static int EffectivePort(Config config)
         {
+            bool trayRunning = TrayRunning();
             int port;
-            if (TrayRunning() && TrayState.TryGetRunningPort(out port)) return port;
+            if (trayRunning)
+            {
+                // A live tray should have a fresh state file. If it does not, do
+                // not fall back to an older recorded port from a crashed process:
+                // that could make this CLI command talk to a different service.
+                return TrayState.TryGetRunningPort(out port) ? port : config.Port;
+            }
+
+            // A crashed tray can leave its state file behind while Pi Web is still
+            // listening on the recorded port. Use that port when it is actually
+            // open; every stop path still verifies the listener owner before kill.
+            if (TrayState.TryGetRecordedPort(out port) && Net.IsPortOpen(port, 200))
+                return port;
             return config.Port;
         }
 

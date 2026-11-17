@@ -214,6 +214,10 @@ namespace PiWebTray
         private void OpenOrStart()
         {
             if (_exiting) return;
+            // An explicit user start/open is a fresh recovery attempt. Without this,
+            // three rapid failures would suppress AutoRestart even after the user
+            // manually recovered the service.
+            _autoRestartAttempts = 0;
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;

@@ -696,7 +696,7 @@ namespace PiWebTray
                     NotifyWarningOnce("service-stopped",
                         L.T("notify.serviceStoppedTitle"),
                         L.T("notify.serviceStoppedBody"),
-                        delegate { StartServer(false); });
+                        delegate { _autoRestartAttempts = 0; StartServer(false); });
                     if (UpdateBusy() && _config.AutoRestart
                         && CanStartServiceFromProbe(_probe, File.Exists))
                     {
@@ -1080,6 +1080,13 @@ namespace PiWebTray
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
             if (_updateStage == UpdateStage.Applying) return;
+
+            // A user (or an explicit signal) can start the service while an update
+            // check/download is in progress. Record that intent before the update's
+            // apply phase chooses TrayOnly from its older state. Without this, a
+            // service that was still Starting when the helper launched could be
+            // stopped and left down after a successful update.
+            if (UpdateBusy()) _updateStartedWithServiceRunning = true;
 
             // This call supersedes an earlier start request that was waiting for an
             // update lock. RefuseStartForExternalUpdate records a fresh request if the
@@ -1789,6 +1796,8 @@ namespace PiWebTray
         private void RestartServer(bool openBrowser)
         {
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
+            // Restart is an explicit recovery action, not an automatic retry.
+            _autoRestartAttempts = 0;
             _pendingRestart = true;
             _pendingOpenBrowser = openBrowser;
             if (_phase != Phase.Running && _phase != Phase.RunningUnverified)

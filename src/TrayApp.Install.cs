@@ -85,6 +85,51 @@ namespace PiWebTray
                 return;
             }
 
+            // The Node.js watcher can observe a removal while the cached probe
+            // still says Node is present. Never launch npm with the stale path.
+            if (_nodePresenceKnown && !_nodePresent)
+            {
+                lock (_checkLock)
+                {
+                    _installAfterCheck = false;
+                    _installAfterCheckForce = false;
+                    _installAfterCheckStart = false;
+                    _installAfterCheckOpen = false;
+                }
+                ReleaseInstallUpdateLock();
+                // A live service can keep running with the already loaded Node.js.
+                // Keep Running/RunningUnverified so Stop and Open remain usable; only
+                // downgrade a stable stopped state to NeedsNode.
+                if (_phase != Phase.Running && _phase != Phase.RunningUnverified
+                    && _phase != Phase.PortConflict)
+                {
+                    _phase = Phase.NeedsNode;
+                }
+                UpdateUi();
+                NotifyWarningOnce("needs-node-install",
+                    L.T("notify.noNodeInstallTitle"),
+                    L.T("notify.noNodeInstallBody", L.T("probe.issue.noNode")));
+                return;
+            }
+
+            // A Node.js upgrade/reinstall can change the effective path. Refresh
+            // the probe before running npm, then let PollEnvironmentCheck start
+            // this install with the updated paths.
+            if (_nodeProbeStale)
+            {
+                _nodeProbeStale = false;
+                ReleaseInstallUpdateLock();
+                lock (_checkLock)
+                {
+                    _installAfterCheck = true;
+                    _installAfterCheckForce = _installAfterCheckForce || force;
+                    _installAfterCheckStart = _installAfterCheckStart || thenStart;
+                    _installAfterCheckOpen = _installAfterCheckOpen || thenOpen;
+                }
+                BeginEnvironmentCheck(false, false, 0, true);
+                return;
+            }
+
             ProbeResult probe = _probe;
 
             if (probe.NeedsNode)
@@ -138,6 +183,31 @@ namespace PiWebTray
             ContinueBeginInstall(force, thenStart, thenOpen, null);
         }
 
+        // An install can be aborted after the initial environment check but before
+        // the Installing phase is entered. Leaving Phase.Checking in that case is a
+        // dead end: PollPortSync does not handle Checking, and the menu actions are
+        // disabled as busy. Move to a stable phase so Open/Start can retry.
+        private void RecoverInstallAbortPhase()
+        {
+            if (_phase != Phase.Checking) return;
+            _phase = Phase.Failed;
+            UpdateUi();
+        }
+
+        // An install that discovered a foreign/ambiguous listener must not keep the
+        // orange Checking state when it was started from the initial probe.
+        private void MarkInstallPortConflict()
+        {
+            if (_phase == Phase.Starting || _phase == Phase.Stopping
+                || _phase == Phase.Installing) return;
+            // A tracked wrapper that is not the listener is stale once we have
+            // proven the port belongs to a foreign process. Do not leave it
+            // holding the package directory.
+            KillTrackedServer();
+            _phase = Phase.PortConflict;
+            UpdateUi();
+        }
+
         private void ContinueBeginInstall(bool force, bool thenStart, bool thenOpen, PortOwnerInfo owner)
         {
             if (ElevatedInstallUnsafe())
@@ -179,6 +249,8 @@ namespace PiWebTray
                 NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
                 if (restore && _updateStage != UpdateStage.Applying)
                     RestoreServiceAfterInstall();
+                else
+                    RecoverInstallAbortPhase();
                 return;
             }
 
@@ -223,6 +295,8 @@ namespace PiWebTray
                 _installOpenAfter = false;
                 if (restore && _updateStage != UpdateStage.Applying)
                     RestoreServiceAfterInstall();
+                else
+                    RecoverInstallAbortPhase();
                 return;
             }
 
@@ -234,12 +308,17 @@ namespace PiWebTray
                 && (owner.CheckFailed || owner.ProbeIncomplete);
             bool foreignOwner = owner != null
                 && (owner.ForeignUser || owner.ForeignSession);
+            // A process tree started by this tray is still ours even if the
+            // command line shows an old script path (for example after a Node/npm
+            // prefix change while the old service was still listening).
             bool foreignPiWeb = owner != null && owner.IsPiWeb
-                && !ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript());
+                && !ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript())
+                && !TrayOwnsPort(owner);
             if (ownerCheckFailed || foreignOwner || foreignPiWeb)
             {
                 if (foreignPiWeb || foreignOwner)
                 {
+                    MarkInstallPortConflict();
                     ReleaseInstallUpdateLock();
                     owner = null;
                     UpdateUi();
@@ -254,6 +333,7 @@ namespace PiWebTray
                         L.T("notify.ownerCheckFailedTitle"),
                         L.T("notify.ownerCheckFailedBody", _port));
                 }
+                RecoverInstallAbortPhase();
                 ReleaseInstallUpdateLock();
                 owner = null;
                 UpdateUi();

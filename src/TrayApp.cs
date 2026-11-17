@@ -339,7 +339,7 @@ namespace PiWebTray
             _openItem.Click += delegate { OpenOrStart(); };
 
             _startItem = new ToolStripMenuItem(L.T("menu.start"));
-            _startItem.Click += delegate { StartServer(false); };
+            _startItem.Click += delegate { _autoRestartAttempts = 0; StartServer(false); };
 
             _stopItem = new ToolStripMenuItem(L.T("menu.stop"));
             _stopItem.Click += delegate { StopServerFromUser(); };
@@ -606,7 +606,7 @@ namespace PiWebTray
             }
             if (stopSignal) StopServerFromUser();
             if (installStopSignal) StopServerForInstallSignal();
-            if (startSignal) StartServer(false);
+            if (startSignal) { _autoRestartAttempts = 0; StartServer(false); }
 
             PollAutostartOp();
             DispatchOwnerCheck();
@@ -696,6 +696,30 @@ namespace PiWebTray
                 _pendingStart = false;
                 _pendingStartOpen = false;
                 StartServer(open);
+            }
+
+            // A restart requested while the previous stop worker was still
+            // winding down is queued as _pendingRestart, not _pendingStart. The
+            // same retry rule must consume it; otherwise Restart can appear to do
+            // nothing when the phase is Running/Unverified rather than Stopping.
+            if (!_stopWorkerRunning && !_installAfterStop && _pendingRestart
+                && !_stopAfterOwnerCheck && !_ownerCheckRunning
+                && !_exiting && _modalDepth == 0 && _updateStage != UpdateStage.Applying
+                && _phase != Phase.Stopping && _phase != Phase.Installing
+                && _phase != Phase.Checking && _phase != Phase.Starting)
+            {
+                if (_phase == Phase.Running || _phase == Phase.RunningUnverified)
+                {
+                    // StopServer keeps _pendingRestart for PollStopping to consume.
+                    StopServer();
+                }
+                else
+                {
+                    bool open = _pendingOpenBrowser;
+                    _pendingRestart = false;
+                    _pendingOpenBrowser = false;
+                    StartServer(open);
+                }
             }
 
             if (UpdateBusy())
