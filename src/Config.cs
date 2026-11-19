@@ -108,6 +108,7 @@ namespace PiWebTray
                             && !File.Exists(dataIni) && File.Exists(localIni))
                         {
                             File.Copy(localIni, dataIni);
+                            config.ProtectInstallFile(dataIni);
                         }
                     }
                     catch (Exception)
@@ -445,6 +446,7 @@ namespace PiWebTray
                     if (!WriteVerifiedText(temp, sb.ToString())) return;
                     if (File.Exists(IniPath)) return;
                     File.Move(temp, IniPath);
+                    ProtectInstallFile(IniPath);
                 }
                 finally
                 {
@@ -525,7 +527,10 @@ namespace PiWebTray
                 {
                     if (!WriteVerifiedLines(temp, lines)) return false;
                     ReplaceIniFile(temp, IniPath, backup);
-                    return true;
+                    // An elevated tray in a protected installation writes a new
+                    // ini owned by its user; repair the owner immediately so the
+                    // next administrator start still passes the ACL check.
+                    return ProtectInstallFile(IniPath);
                 }
                 catch (Exception)
                 {
@@ -642,6 +647,32 @@ namespace PiWebTray
             }
         }
 
+        // The ini can live in a protected installation (portable/elevated mode).
+        // A file created by an elevated process is owned by that user, not by the
+        // Administrators group, so IsUserWritableInstall would reject its own
+        // configuration on the next start. Only touch files inside BaseDir; data
+        // under LOCALAPPDATA is intentionally user-owned.
+        internal bool ProtectInstallFile(string path)
+        {
+            try
+            {
+                if (!Elevation.IsElevated() || string.IsNullOrEmpty(path)
+                    || string.IsNullOrEmpty(BaseDir) || !File.Exists(path))
+                    return true;
+                string root = Path.GetFullPath(BaseDir)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
+                string full = Path.GetFullPath(path);
+                if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return true;
+                string error;
+                return Autostart.ProtectFileOwner(full, out error);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Per-user data is the safe default: the ini may hold registry credentials and
         // the logs may hold prompts or file contents. Portable mode is an explicit opt-in.
         internal static bool ShouldUseDataDir(bool isolated, bool systemInstall, bool portable)
@@ -653,6 +684,7 @@ namespace PiWebTray
         internal static bool IsSystemDirectory(string dir)
         {
             if (string.IsNullOrEmpty(dir)) return true;
+            dir = PathSafety.CanonicalPath(dir);
             string[] roots = new string[]
             {
                 Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),

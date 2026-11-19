@@ -47,8 +47,17 @@ namespace PiWebTray
             bool legacyTask = LegacyTaskEnabled(true);
             bool run = IsRunKeyEnabled()
                 && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
+                && Autostart.RunValueStartsService(Autostart.RunValue())
                 && Autostart.RunValueApproved();
-            bool busy = AutostartBusy() || UpdateBusy() || _autostartSyncing;
+            bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
+                || _phase == Phase.Starting || _phase == Phase.Stopping;
+            // An external updater helper owns the installation while it replaces
+            // files. Autostart changes are cheap, but the menu must not claim it can
+            // create a task against a directory that is being updated.
+            bool updateLockHeld = !OperationLock.IsAvailable(
+                OperationLock.UpdateName(_config.BaseDir));
+            bool busy = serviceBusy || AutostartBusy() || UpdateBusy()
+                || _autostartSyncing || updateLockHeld;
 
             // A task that exists but is disabled or points at an older installation
             // does not make the current installation start at login.
@@ -66,6 +75,8 @@ namespace PiWebTray
 
         private void ToggleAutostart()
         {
+            if (_exiting || AutostartBusy() || UpdateBusy()
+                || _phase == Phase.Checking || IsServiceActionInProgress()) return;
             bool enable = !_autostartItem.Checked;
             if (enable && _config.AutostartAdmin && RefuseAdminAutostart())
             {
@@ -83,7 +94,8 @@ namespace PiWebTray
 
         private void ToggleAdminAutostart()
         {
-            if (AutostartBusy()) return;
+            if (_exiting || AutostartBusy() || UpdateBusy()
+                || _phase == Phase.Checking || IsServiceActionInProgress()) return;
 
             bool enable = !_config.AutostartAdmin;
             if (enable && RefuseAdminAutostart()) return;
@@ -166,6 +178,8 @@ namespace PiWebTray
 
         private void ShowAdminAutostartBlockedDetails()
         {
+            if (_exiting) return;
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             string directory = Path.GetDirectoryName(Application.ExecutablePath)
                 ?? Application.ExecutablePath;
             ShowAdminAutostartWarning(
@@ -286,6 +300,10 @@ namespace PiWebTray
 
         private void BeginAutostartOp(bool enable, bool admin)
         {
+            if (_exiting || UpdateBusy() || _phase == Phase.Checking
+                || IsServiceActionInProgress()) return;
+            if (!OperationLock.IsAvailable(OperationLock.UpdateName(_config.BaseDir)))
+                return;
             lock (_autoLock)
             {
                 if (_autoBusy) return;

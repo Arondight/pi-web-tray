@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 
 namespace PiWebTray
@@ -40,6 +41,10 @@ namespace PiWebTray
         private static extern SafeFileHandle CreateFileW(string fileName,
             uint desiredAccess, uint shareMode, IntPtr securityAttributes,
             uint creationDisposition, uint flagsAndAttributes, IntPtr templateFile);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetFinalPathNameByHandleW(SafeFileHandle file,
+            StringBuilder path, uint pathLength, uint flags);
 
         private const uint FileShareReadWriteDelete = 0x00000007;
         private const uint OpenExisting = 3;
@@ -86,6 +91,52 @@ namespace PiWebTray
             }
         }
 
+
+        // Resolve a local path to the spelling Windows uses for the same file
+        // object. This expands 8.3 names and follows junctions, so two aliases of
+        // one installation share an update lock and a system-directory decision.
+        // Missing or remote paths fall back to Path.GetFullPath: opening a network
+        // path here could hang Explorer or contact a server unexpectedly.
+        internal static string CanonicalPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "";
+            string full;
+            try { full = Path.GetFullPath(path); }
+            catch (Exception) { return path; }
+            try
+            {
+                if (IsRemoteOrDevice(full)) return full;
+                using (SafeFileHandle handle = CreateFileW(full, 0,
+                    FileShareReadWriteDelete, IntPtr.Zero, OpenExisting,
+                    FileFlagBackupSemantics, IntPtr.Zero))
+                {
+                    if (handle.IsInvalid) return full;
+                    StringBuilder buffer = new StringBuilder(1024);
+                    uint length = GetFinalPathNameByHandleW(handle, buffer,
+                        (uint)buffer.Capacity, 0);
+                    if (length == 0) return full;
+                    if (length >= buffer.Capacity)
+                    {
+                        buffer = new StringBuilder((int)length + 1);
+                        length = GetFinalPathNameByHandleW(handle, buffer,
+                            (uint)buffer.Capacity, 0);
+                        if (length == 0) return full;
+                    }
+                    string final = buffer.ToString();
+                    if (final.StartsWith(@"\\?\UNC\",
+                            StringComparison.OrdinalIgnoreCase))
+                        final = @"\\" + final.Substring(8);
+                    else if (final.StartsWith(@"\\?\",
+                                 StringComparison.OrdinalIgnoreCase))
+                        final = final.Substring(4);
+                    return Path.GetFullPath(final);
+                }
+            }
+            catch (Exception)
+            {
+                return full;
+            }
+        }
 
         // A hard link is not a reparse point but is still another directory entry
         // for the same file. Refuse operations that could act on the other name.

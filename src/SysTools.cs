@@ -538,14 +538,44 @@ namespace PiWebTray
                 psi.WorkingDirectory = SystemDirectory;
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
-                using (Process taskkill = Process.Start(psi))
+                bool launched = false;
+                try
                 {
-                    // taskkill is detached; the using only releases the Process handle.
+                    using (Process taskkill = Process.Start(psi))
+                    {
+                        if (taskkill != null)
+                        {
+                            launched = true;
+                            // Wait briefly for taskkill's own result. The caller may
+                            // then check the port; killing the tracked handle below
+                            // also covers a taskkill that failed or timed out.
+                            try { taskkill.WaitForExit(5000); } catch (Exception) { }
+                        }
+                    }
                 }
+                catch (Exception)
+                {
+                }
+
+                // taskkill can fail because of permissions, a missing system tool, or
+                // a transient process error. The caller supplied a handle for exactly
+                // this reason; never report a kill without trying it.
+                if (!launched || (fallback != null && !HasExited(fallback)))
+                    KillProcessHandle(fallback);
             }
             catch (Exception)
             {
+                // A failure before taskkill (for example StartTime access) still has
+                // the caller-owned handle as a safe fallback. The handle kill is
+                // PID-reuse safe because it refers to the original process object.
+                KillProcessHandle(fallback);
             }
+        }
+
+        private static bool HasExited(Process process)
+        {
+            try { return process == null || process.HasExited; }
+            catch (Exception) { return false; }
         }
 
         internal static Process StartHidden(string fileName, string arguments, string workingDir)
@@ -1027,11 +1057,13 @@ namespace PiWebTray
             if (string.IsNullOrEmpty(raw)) return "";
             string text = raw.Trim();
             if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase)) text = text.Substring(1);
+            // Build metadata starts at '+'. It must not be mistaken for a
+            // pre-release dash inside metadata such as "1.0.0+build-1".
+            int plus = text.IndexOf('+');
+            if (plus >= 0) text = text.Substring(0, plus);
             int dash = text.IndexOf('-');
             if (dash < 0) return "";
-            string value = text.Substring(dash + 1);
-            int plus = value.IndexOf('+');
-            return plus >= 0 ? value.Substring(0, plus) : value;
+            return text.Substring(dash + 1);
         }
 
         private static int ComparePreRelease(string a, string b)

@@ -813,9 +813,29 @@ namespace PiWebTray
                 if (File.Exists(Path.Combine(target, "pi-web-tray.exe"))) return false;
 
                 string[] backups = Directory.GetDirectories(target, ".pi-web-tray-backup-*");
-                Array.Sort(backups, StringComparer.OrdinalIgnoreCase);
+                // Prefer a complete snapshot, then the newest one. Alphabetical
+                // ordering could otherwise restore an older or interrupted copy.
+                bool hasComplete = false;
                 foreach (string backup in backups)
                 {
+                    if (File.Exists(CompleteMarker(backup))) hasComplete = true;
+                }
+                Array.Sort(backups, delegate (string left, string right)
+                {
+                    bool leftComplete = File.Exists(CompleteMarker(left));
+                    bool rightComplete = File.Exists(CompleteMarker(right));
+                    if (leftComplete != rightComplete) return leftComplete ? -1 : 1;
+                    int byTime = Directory.GetLastWriteTimeUtc(right)
+                        .CompareTo(Directory.GetLastWriteTimeUtc(left));
+                    if (byTime != 0) return byTime;
+                    return StringComparer.OrdinalIgnoreCase.Compare(left, right);
+                });
+                foreach (string backup in backups)
+                {
+                    // Never fall through to a partially copied snapshot when a
+                    // complete one is available; a failed restore should not make
+                    // the target less recoverable.
+                    if (hasComplete && !File.Exists(CompleteMarker(backup))) continue;
                     string reason;
                     if (!IsPiWebTrayInstallation(backup, out reason)) continue;
                     AppendLog(logPath, "target incomplete; recovering from " + backup);

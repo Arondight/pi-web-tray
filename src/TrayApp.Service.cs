@@ -167,6 +167,7 @@ namespace PiWebTray
                 }
                 Phase previousPhase = _phase;
                 _phase = PhaseFromOwner(owner);
+                bool unexpectedStop = IsUnexpectedServiceStop(previousPhase, owner);
                 bool openResolved = _openWhenResolved;
                 _openWhenResolved = false;
                 if (_phase == Phase.Running)
@@ -182,6 +183,7 @@ namespace PiWebTray
                     KillTrackedServer();
                 }
                 UpdateUi();
+                if (unexpectedStop) NotifyUnexpectedServiceStop();
                 if (_phase == Phase.Running && openResolved) OpenBrowser();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
@@ -800,9 +802,12 @@ namespace PiWebTray
 
                 // The listener is not ours. Release any stale wrapper before
                 // switching to the conflict/stopped state.
+                Phase previousPhase = _phase;
                 KillTrackedServer();
                 _phase = (current.IsUnknown || current.IsPiWeb) ? Phase.PortConflict : Phase.Stopped;
                 UpdateUi();
+                if (IsUnexpectedServiceStop(previousPhase, current))
+                    NotifyUnexpectedServiceStop();
                 if (_phase == Phase.PortConflict) NotifyPortConflict();
                 return;
             }
@@ -850,6 +855,32 @@ namespace PiWebTray
                 _phase = Phase.Stopped;
                 UpdateUi();
             }
+        }
+
+        // A running listener that disappears between two owner checks must be
+        // reported and auto-restarted exactly like the synchronous closed-port path.
+        // PortOwner.None is the only result that proves the port is now free; a
+        // foreign or unidentifiable listener is a conflict, not a service crash.
+        internal static bool IsUnexpectedServiceStop(Phase previous, PortOwnerInfo owner)
+        {
+            return previous == Phase.Running && owner != null
+                && owner.Owner == PortOwner.None;
+        }
+
+        private void NotifyUnexpectedServiceStop()
+        {
+            NotifyWarningOnce("service-stopped",
+                L.T("notify.serviceStoppedTitle"),
+                L.T("notify.serviceStoppedBody"),
+                delegate { _autoRestartAttempts = 0; StartServer(false); });
+            if (UpdateBusy() && _config.AutoRestart
+                && CanStartServiceFromProbe(_probe, File.Exists))
+            {
+                // The update owns the busy flag; remember the crash and schedule the
+                // restart after the update check/download has finished.
+                _restartAfterUpdate = true;
+            }
+            ScheduleAutoRestart();
         }
 
         private void ClearUserStopMarkerOnObservedRun(Phase previousPhase)

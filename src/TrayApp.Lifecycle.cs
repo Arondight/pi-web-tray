@@ -98,13 +98,7 @@ namespace PiWebTray
             // cancelled prompt never leaves an invisible child waiting for a lock.
             if (restart && !StartRestartProcess()) return false;
 
-            _exiting = true;
-            _timer.Stop();
-            // ExitApp pumps the message loop while it waits for the service. Hide the
-            // tray and disable the menu first so a queued click cannot start a new
-            // service while the old one is being stopped.
-            try { _tray.Visible = false; } catch (Exception) { }
-            try { _menu.Enabled = false; } catch (Exception) { }
+            BeginExitUi();
 
             UpdateCancellation updateCancellation;
             lock (_updateLock) updateCancellation = _updateCancellation;
@@ -209,8 +203,7 @@ namespace PiWebTray
                 NotifyWarning(L.T("update.busyTitle"), L.T("update.exitDuringApplyBody"));
                 return;
             }
-            _exiting = true;
-            try { _timer.Stop(); } catch (Exception) { }
+            BeginExitUi();
 
             // Keep an external/older service alive, but never leave a service that
             // this tray started behind a prompt. The elevated --tray-only takeover
@@ -233,6 +226,17 @@ namespace PiWebTray
             TrayState.Delete();
             Cleanup();
             ExitThread();
+        }
+
+        // Both exit paths pump messages while they wait. Hide the tray and disable
+        // the menu before that wait so a queued click cannot start an action against
+        // a process that is already leaving.
+        private void BeginExitUi()
+        {
+            _exiting = true;
+            try { _timer.Stop(); } catch (Exception) { }
+            try { _tray.Visible = false; } catch (Exception) { }
+            try { _menu.Enabled = false; } catch (Exception) { }
         }
 
         private void WaitForStopWorker(int timeoutMs)

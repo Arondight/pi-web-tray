@@ -40,11 +40,11 @@ The icon colour shows the state at a glance:
 
 | Colour    | State                                                                            |
 | --------- | -------------------------------------------------------------------------------- |
-| 🟢 Green  | Running                                                                          |
+| 🟢 Green  | Running (update checks/downloads keep this colour)                               |
 | ⚪ Grey   | Stopped                                                                          |
-| 🟠 Orange | Busy: checking, installing, starting/stopping the service, or applying an update |
+| 🟠 Orange | Busy: checking, installing, starting/stopping, unverified, or applying an update |
 | 🔵 Blue   | Missing prerequisites (Node.js / Pi Web)                                         |
-| 🔴 Red    | Error or port conflict                                                           |
+| 🔴 Red    | Failed or port conflict                                                          |
 
 The menu follows the service state:
 
@@ -107,22 +107,22 @@ Exit and stop service
 
 Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker. Relative `WorkingDir` and `NodePath` values are resolved against the executable directory.
 
-When the Pi Web Tray installation directory, any folder in its path, or any file the elevated process loads can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation, the Fix action reports that the program must be moved to a protected location such as Program Files; a user-writable parent cannot be repaired safely. If the administrator preference is unavailable and the user enables start-at-login from the main menu, Pi Web Tray clears that preference and uses standard-user start-at-login instead.
+When the Pi Web Tray installation directory, any folder in its path, or any file the elevated process loads can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation whose parent is user-writable, the Fix action reports that the program must be moved to a protected location such as Program Files; a user-writable parent cannot be repaired safely. Runtime logs remain user-owned and do not make a protected installation fail this check. If the administrator preference is unavailable and the user enables start-at-login from the main menu, Pi Web Tray clears that preference and uses standard-user start-at-login instead.
 
 The data directory is per user. Pi Web Tray redacts URL user info and token query values from its logs. When `Proxy` is set, only Pi Web Tray update checks and downloads use it. An empty value uses the system proxy. The setting is not passed to Node, npm or Pi Web child processes. The **Test** button in Settings only tests proxy connectivity and does not save.
 
 ### Environment variables
 
-| Variable               | Description                                                                                                                                              |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PI_WEB_TRAY_INSTANCE` | Isolated instance: separate mutex, signals, config, data and start-at-login entries. With `PI_WEB_TRAY_HOME`, data goes under `HOME\pi-web-tray.<name>`. |
-| `PI_WEB_TRAY_PORT`     | Overrides the configured port.                                                                                                                           |
-| `PI_WEB_TRAY_LANG`     | Overrides the UI language.                                                                                                                               |
-| `PI_WEB_TRAY_HOME`     | Overrides the data directory root and takes precedence over portable mode.                                                                               |
-| `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable.                                                                                                        |
-| `PI_WEB_TRAY_NO_NODE`  | Test hook: simulate a missing Node.js installation.                                                                                                      |
-| `PI_WEB_TRAY_NO_PIWEB` | Test hook: simulate a missing Pi Web package.                                                                                                            |
-| `PI_WEB_TRAY_NO_PICLI` | Test hook: simulate a missing Pi package.                                                                                                                |
+| Variable               | Description                                                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PI_WEB_TRAY_INSTANCE` | Isolated instance: separate mutex, signals, config, data and start-at-login entries. With `PI_WEB_TRAY_HOME`, data goes under `HOME\pi-web-tray.<name>`.                  |
+| `PI_WEB_TRAY_PORT`     | Overrides the configured port.                                                                                                                                            |
+| `PI_WEB_TRAY_LANG`     | Overrides the UI language.                                                                                                                                                |
+| `PI_WEB_TRAY_HOME`     | Overrides the data directory root and takes precedence over portable mode. Must be writable by the user; the elevated update helper rejects protected system directories. |
+| `PI_WEB_TRAY_PORTABLE` | `1` keeps the ini and logs beside the executable.                                                                                                                         |
+| `PI_WEB_TRAY_NO_NODE`  | Test hook: simulate a missing Node.js installation.                                                                                                                       |
+| `PI_WEB_TRAY_NO_PIWEB` | Test hook: simulate a missing Pi Web package.                                                                                                                             |
+| `PI_WEB_TRAY_NO_PICLI` | Test hook: simulate a missing Pi package.                                                                                                                                 |
 
 Named instances use separate names for their legacy start-at-login entries, but start-at-login cannot be enabled for a named instance; use the default instance for start-at-login. A Run value or scheduled task does not preserve the launching environment.
 

@@ -230,6 +230,12 @@ namespace PiWebTray
                 // offered; a newer check must not be discarded here.
                 if (ReferenceEquals(_availableRelease, release)) _availableRelease = null;
                 if (ownsCheck && UpdateBusy()) EndUpdate();
+                // A deferred notification has no check operation left to call
+                // EndUpdate. Do not keep the old service intent forever after the
+                // user declines that offer. If a newer release is still pending,
+                // its own intent must be preserved.
+                else if (!UpdateBusy() && _availableRelease == null)
+                    _updateStartedWithServiceRunning = false;
                 return;
             }
 
@@ -252,6 +258,7 @@ namespace PiWebTray
                 || _phase == Phase.Running || _phase == Phase.RunningUnverified
                 || _phase == Phase.Starting
                 || _restartAfterUpdate;
+            _availableRelease = null;
 
             UpdateCancellation cancellation = new UpdateCancellation();
             int generation;
@@ -568,7 +575,11 @@ namespace PiWebTray
                 _updateStartedWithServiceRunning, _serviceStoppedByUser,
                 _restartAfterUpdate);
             _restartAfterUpdate = false;
-            _updateStartedWithServiceRunning = false;
+            // A silent check can end with an available release waiting for the
+            // notification click. Keep the service intent until that offer is
+            // accepted or declined; otherwise a service that was running during
+            // the check is not preserved when the deferred download begins.
+            if (_availableRelease == null) _updateStartedWithServiceRunning = false;
             if (restartAfterUpdate && _config.AutoRestart
                 && CanStartServiceFromProbe(_probe, File.Exists)
                 && (_phase == Phase.Stopped || _phase == Phase.Failed))

@@ -159,6 +159,9 @@ namespace PiWebTray
 
                 string oldTarget = RunValueTarget(value);
                 if (string.IsNullOrEmpty(oldTarget)) return;
+                // Registry values commonly store %LOCALAPPDATA% / %ProgramFiles%.
+                // Resolve them before deciding that the old installation is gone.
+                oldTarget = Environment.ExpandEnvironmentVariables(oldTarget);
                 // Never redirect a valid existing installation. Repair only the stale
                 // case the comment describes: the old target file no longer exists.
                 if (File.Exists(oldTarget)) return;
@@ -239,6 +242,33 @@ namespace PiWebTray
 
             int space = text.IndexOfAny(new char[] { ' ', '\t' });
             return space > 0 ? text.Substring(0, space).Trim() : text;
+        }
+
+        // A Run value can contain arguments. The old check looked only at the
+        // path, so an entry such as "...\pi-web-tray.exe --tray-only" was shown as
+        // enabled even though it never starts the service. Parse the same limited
+        // argument set used by the scheduled task; an empty argument list still
+        // means a normal start (legacy entries remain valid).
+        internal static bool RunValueStartsService(string value)
+        {
+            string text = (value ?? "").Trim();
+            if (text.Length == 0) return false;
+            string target = RunValueTarget(text);
+            if (string.IsNullOrEmpty(target)) return false;
+            string arguments;
+            if (text[0] == '"')
+            {
+                int end = text.IndexOf('"', 1);
+                if (end <= 1) return false;
+                arguments = text.Substring(end + 1).Trim();
+            }
+            else
+            {
+                int index = text.IndexOf(target, StringComparison.OrdinalIgnoreCase);
+                if (index < 0) return false;
+                arguments = text.Substring(index + target.Length).Trim();
+            }
+            return TaskArgumentsStartService(arguments);
         }
 
         internal static bool QueryTask()
@@ -398,7 +428,8 @@ namespace PiWebTray
                     }
                 }
 
-                if (pathMatches && TaskArgumentsStartService(arguments) && userMatches)
+                if (pathMatches && TaskArgumentsStartService(arguments)
+                    && userMatches && TaskXmlSupportsAdminAutostart(document))
                 {
                     enabled = parsedEnabled;
                     matchesExecutable = true;
@@ -471,6 +502,34 @@ namespace PiWebTray
                 if (!string.IsNullOrEmpty((node.InnerText ?? "").Trim())) explicitUser = true;
                 if (!TaskUserIdMatchesCurrentUser(node.InnerText)) return false;
             }
+            return true;
+        }
+
+        // A task that exists and points at this executable is not enough for an
+        // administrator service: it must also run highest-available, use the
+        // interactive token, and keep running on battery. A weaker task is treated
+        // as not enabled so the tray can offer to recreate it.
+        internal static bool TaskXmlSupportsAdminAutostart(XmlDocument document)
+        {
+            if (document == null) return false;
+            if (!string.Equals(ReadTaskElement(document, "LogonType"),
+                    "InteractiveToken", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (!string.Equals(ReadTaskElement(document, "RunLevel"),
+                    "HighestAvailable", StringComparison.OrdinalIgnoreCase))
+                return false;
+            // These settings default to true when omitted, so require an explicit false.
+            if (!string.Equals(ReadTaskElement(document, "DisallowStartIfOnBatteries"),
+                    "false", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (!string.Equals(ReadTaskElement(document, "StopIfGoingOnBatteries"),
+                    "false", StringComparison.OrdinalIgnoreCase))
+                return false;
+            // A scheduled task must not terminate a long-running tray after the
+            // default three-day execution limit.
+            if (!string.Equals(ReadTaskElement(document, "ExecutionTimeLimit"),
+                    "PT0S", StringComparison.OrdinalIgnoreCase))
+                return false;
             return true;
         }
 
@@ -1300,6 +1359,25 @@ namespace PiWebTray
         // Check the files the elevated tray can load, not just pi-web-tray.exe. An
         // explicit ACE on app.config or a satellite resource DLL is enough for code
         // execution in the elevated process. Reparse points are always unsafe here.
+        // Files the elevated process actually loads or executes. Runtime output
+        // (server.log, install.log, update.log, diag.txt, state*) is deliberately
+        // excluded: those files are created by the tray's normal user token and a
+        // user-owned log must not make an otherwise protected installation look
+        // replaceable. The ini is included because it controls working directory,
+        // Node path and registry/proxy settings for the elevated service.
+        internal static bool IsElevatedLoadedFile(string path)
+        {
+            string name = Path.GetFileName(path ?? "");
+            if (name.Equals("pi-web-tray.ini", StringComparison.OrdinalIgnoreCase))
+                return true;
+            if (name.Equals("pi-web-tray.files.txt", StringComparison.OrdinalIgnoreCase))
+                return true;
+            return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".config", StringComparison.OrdinalIgnoreCase)
+                || name.EndsWith(".manifest", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool HasUnsafeChildAcl(string directory)
         {
             try
@@ -1314,7 +1392,14 @@ namespace PiWebTray
                         FileAttributes attributes = File.GetAttributes(entry);
                         if ((attributes & FileAttributes.ReparsePoint) != 0) return true;
 
-                        FileSystemSecurity security = (attributes & FileAttributes.Directory) != 0
+                        bool isDirectory = (attributes & FileAttributes.Directory) != 0;
+                        // Files that are never loaded by the elevated process are
+                        // runtime data. They are still covered by the reparse-point
+                        // check above, but their owner/DACL must not turn the install
+                        // into a false "user-writable" result.
+                        if (!isDirectory && !IsElevatedLoadedFile(entry)) continue;
+
+                        FileSystemSecurity security = isDirectory
                             ? (FileSystemSecurity)new DirectoryInfo(entry).GetAccessControl(
                                 AccessControlSections.Access | AccessControlSections.Owner)
                             : new FileInfo(entry).GetAccessControl(
@@ -1322,7 +1407,7 @@ namespace PiWebTray
                         if (IsUntrustedOwner(security)) return true;
                         if (HasWriteAccess(security)) return true;
 
-                        if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
+                        if (isDirectory) pending.Push(entry);
                     }
                 }
                 return false;

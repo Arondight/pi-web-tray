@@ -55,7 +55,10 @@ namespace PiWebTray
         // same time, and a new helper must not race an older helper that is still alive.
         internal static string UpdateName(string target)
         {
-            string normalized = (target ?? "").TrimEnd('\\', '/').ToLowerInvariant();
+            // Use the final local path, not the caller's spelling: an 8.3 name or a
+            // junction must not create a second lock for the same installation.
+            string normalized = PathSafety.CanonicalPath(target ?? "")
+                .TrimEnd('\\', '/').ToLowerInvariant();
             byte[] hash;
             using (SHA256 sha = SHA256.Create())
             {

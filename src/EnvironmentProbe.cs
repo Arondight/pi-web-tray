@@ -177,7 +177,9 @@ namespace PiWebTray
         {
             List<string> candidates = new List<string>();
 
-            if (!string.IsNullOrEmpty(config.NodePath)) candidates.Add(config.NodePath);
+            string configuredNode;
+            if (TryGetFullyQualifiedPath(config.NodePath, out configuredNode))
+                candidates.Add(configuredNode);
 
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
@@ -188,12 +190,39 @@ namespace PiWebTray
                 candidates.Add(Path.Combine(localAppData, @"Programs\nodejs\node.exe"));
 
             // nvm-windows keeps the active version behind NVM_SYMLINK; NVM_HOME is the store
-            string nvmSymlink = Environment.GetEnvironmentVariable("NVM_SYMLINK");
-            if (!string.IsNullOrEmpty(nvmSymlink)) candidates.Add(Path.Combine(nvmSymlink, "node.exe"));
-            string nvmHome = Environment.GetEnvironmentVariable("NVM_HOME");
-            if (!string.IsNullOrEmpty(nvmHome)) candidates.Add(Path.Combine(nvmHome, "node.exe"));
+            AddNodeCandidate(candidates, Environment.GetEnvironmentVariable("NVM_SYMLINK"));
+            AddNodeCandidate(candidates, Environment.GetEnvironmentVariable("NVM_HOME"));
 
             return candidates;
+        }
+
+        private static void AddNodeCandidate(List<string> candidates, string directory)
+        {
+            string full;
+            if (TryGetFullyQualifiedPath(directory, out full))
+                candidates.Add(Path.Combine(full, "node.exe"));
+        }
+
+        // PATH and NVM variables must not be interpreted relative to the tray's
+        // current directory. In particular, "C:nodejs" is drive-relative, not an
+        // absolute path, even though Path.IsPathRooted returns true for it.
+        internal static bool TryGetFullyQualifiedPath(string value, out string full)
+        {
+            full = "";
+            if (string.IsNullOrEmpty(value)) return false;
+            string candidate = Environment.ExpandEnvironmentVariables(value).Trim().Trim('"');
+            if (candidate.Length == 0) return false;
+            try
+            {
+                string root = Path.GetPathRoot(candidate);
+                if (string.IsNullOrEmpty(root) || root.Length <= 2) return false;
+                full = Path.GetFullPath(candidate);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         // A cheap fingerprint used by the background Node.js watcher. It reads local files
@@ -571,11 +600,12 @@ namespace PiWebTray
             {
                 try
                 {
-                    // A relative PATH entry changes meaning between the tray and
-                    // the service working directory; do not trust it for detection
-                    // or execution.
-                    if (!Path.IsPathRooted(dir)) continue;
-                    string candidate = Path.Combine(dir, fileName);
+                    // A relative or drive-relative PATH entry changes meaning between
+                    // the tray and the service working directory. Resolve only fully
+                    // qualified, non-drive-relative paths.
+                    string resolved;
+                    if (!TryGetFullyQualifiedPath(dir, out resolved)) continue;
+                    string candidate = Path.Combine(resolved, fileName);
                     if (File.Exists(candidate)) return candidate;
                 }
                 catch (Exception)

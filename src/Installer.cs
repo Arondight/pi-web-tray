@@ -166,7 +166,7 @@ namespace PiWebTray
             foreach (char c in tag)
             {
                 bool simple = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || c == '-' || c == '_';
+                    || (c >= '0' && c <= '9') || c == '-' || c == '_';
                 if (!simple) return "latest";
             }
             return tag;

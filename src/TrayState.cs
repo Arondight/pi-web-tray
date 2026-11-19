@@ -234,6 +234,10 @@ namespace PiWebTray
                 sb.AppendLine("Port=" + port);
                 sb.AppendLine("Url=http://127.0.0.1:" + port);
                 sb.AppendLine("Session=" + Process.GetCurrentProcess().SessionId);
+                // Record the tray image, not just the PID. A CLI can be launched
+                // from another copy of the app; the live PID still belongs to the
+                // service's tray and must be trusted for port selection.
+                sb.AppendLine("Exe=" + Application.ExecutablePath);
                 string content = sb.ToString();
 
                 // Write both files. New readers use the per-session file first; the
@@ -413,11 +417,7 @@ namespace PiWebTray
                 try
                 {
                     string image = NativeProcess.ImagePath(pid);
-                    if (!string.IsNullOrEmpty(image)
-                        && !PathSafety.SameLocalFile(image, Application.ExecutablePath))
-                    {
-                        return false;
-                    }
+                    if (!ImageMatchesState(image, path)) return false;
                 }
                 catch (Exception)
                 {
@@ -472,16 +472,30 @@ namespace PiWebTray
             try
             {
                 string image = NativeProcess.ImagePath(pid);
-                if (!string.IsNullOrEmpty(image)
-                    && !PathSafety.SameLocalFile(image, Application.ExecutablePath))
-                {
-                    return false;
-                }
+                if (!ImageMatchesState(image, path)) return false;
             }
             catch (Exception)
             {
             }
             return true;
+        }
+
+        // The state records the image that wrote it. Compare against that path,
+        // not against this CLI's own executable: a second copy of Pi Web Tray (or
+        // a test instance) must still recognize the owner and its recorded port.
+        // Older state files have no Exe line; accept another pi-web-tray image by
+        // name, which preserves the old sanity check without rejecting valid copies.
+        private static bool ImageMatchesState(string image, string statePath)
+        {
+            if (string.IsNullOrEmpty(image)) return true;
+            string expected = ReadValue(statePath, "Exe=");
+            if (!string.IsNullOrEmpty(expected))
+                return PathSafety.SameLocalFile(image, expected);
+            string imageName = Path.GetFileName(image);
+            return string.Equals(imageName, "pi-web-tray.exe",
+                       StringComparison.OrdinalIgnoreCase)
+                || string.Equals(imageName, Path.GetFileName(Application.ExecutablePath),
+                       StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ReadValue(string path, string prefix)

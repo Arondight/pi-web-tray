@@ -129,7 +129,7 @@ namespace PiWebTray
             bool applying = _updateStage == UpdateStage.Applying;
             bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
                 || _phase == Phase.Starting || _phase == Phase.Stopping;
-            bool busy = serviceBusy || updateBusy;
+            bool busy = serviceBusy || updateBusy || AutostartBusy() || _autostartSyncing;
             bool running = _phase == Phase.Running || _phase == Phase.RunningUnverified;
             bool portConflict = _phase == Phase.PortConflict;
             bool ready = _probe != null && _probe.Ready;
@@ -385,6 +385,8 @@ namespace PiWebTray
 
         private void ShowLog(string path, string title)
         {
+            if (_exiting) return;
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             try
             {
                 if (PathSafety.ContainsReparsePoint(path))
@@ -407,6 +409,8 @@ namespace PiWebTray
 
         private void ShowAbout()
         {
+            if (_exiting) return;
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             using (AboutForm form = new AboutForm())
             {
                 BeginModal();
@@ -420,7 +424,7 @@ namespace PiWebTray
         // a tracked wrapper that actually owns it) blocks the change; PortConflict is
         // explicitly allowed because changing the port is the resolution path.
         internal static bool CanApplyPortChange(Phase phase, bool oldPortListening,
-            bool trackedServiceAlive)
+            bool trackedServiceAlive, bool listenerIsOurs = false)
         {
             if (phase == Phase.Running || phase == Phase.RunningUnverified
                 || phase == Phase.Starting || phase == Phase.Stopping
@@ -428,23 +432,55 @@ namespace PiWebTray
             {
                 return false;
             }
+            // A listener can be ours even when this tray has no _server handle:
+            // it may have attached to a service started by an older tray. Changing
+            // the port while that listener is alive would leave the old service
+            // running and make the CLI and the tray disagree.
+            if (oldPortListening && listenerIsOurs && phase != Phase.PortConflict)
+                return false;
             bool trackedServiceOwnsPort = oldPortListening && trackedServiceAlive;
             return !trackedServiceOwnsPort || phase == Phase.PortConflict;
+        }
+
+        private bool ListenerLooksOurs()
+        {
+            try
+            {
+                if (!Net.IsPortOpen(_port, 200)) return false;
+                ServiceProbe.Invalidate();
+                PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
+                return IsOurPiWeb(owner) || TrayOwnsPort(owner);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         private void ShowSettings()
         {
             if (_exiting) return;
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             int previousPort = _port;
             bool installPiBefore = _config.InstallPi;
             bool restartRequested = false;
             // A running/starting/stopping service owns the old port. Changing the
             // configured port without restarting the whole tray would make CLI
             // commands and the service state disagree, so require a stopped service.
-            bool allowPortChange = _phase != Phase.Running
-                && _phase != Phase.RunningUnverified && _phase != Phase.Starting
-                && _phase != Phase.Stopping && _phase != Phase.Installing
-                && _phase != Phase.Checking;
+            // Also check an external pi-web listener that this tray did not start;
+            // otherwise the dialog would accept a port change and reject it only on OK.
+            bool oldPortListening = Net.IsPortOpen(_port, 200);
+            bool listenerIsOurs = false;
+            // These are the phases where a service can be alive without a tracked
+            // _server handle. Avoid an owner probe for the more common foreign-listener
+            // conflict; opening Settings must stay responsive.
+            if (_phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
+                || _phase == Phase.Failed)
+            {
+                listenerIsOurs = oldPortListening && ListenerLooksOurs();
+            }
+            bool allowPortChange = CanApplyPortChange(_phase, oldPortListening,
+                TrackedServerAlive(), listenerIsOurs);
             using (SettingsForm form = new SettingsForm(_config, allowPortChange, _elevated))
             {
                 DialogResult result;
@@ -468,9 +504,16 @@ namespace PiWebTray
                         // the service this tray started may still own the old one. A foreign
                         // program on the old port must not block the configuration change:
                         // changing the port is exactly how the user resolves a conflict.
-                        bool oldPortListening = Net.IsPortOpen(previousPort, 200);
-                        bool canApplyPort = CanApplyPortChange(_phase, oldPortListening,
-                            _server != null && !_server.HasExited);
+                        bool currentOldPortListening = Net.IsPortOpen(previousPort, 200);
+                        bool currentListenerIsOurs = false;
+                        if (_phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
+                            || _phase == Phase.Failed || _phase == Phase.Stopped)
+                        {
+                            currentListenerIsOurs = currentOldPortListening
+                                && ListenerLooksOurs();
+                        }
+                        bool canApplyPort = CanApplyPortChange(_phase, currentOldPortListening,
+                            _server != null && !_server.HasExited, currentListenerIsOurs);
                         if (!canApplyPort)
                         {
                             _config.Port = previousPort;
@@ -559,6 +602,7 @@ namespace PiWebTray
         // update/install confirmation has succeeded.
         private void RestartTray()
         {
+            if (_exiting) return;
             // The update helper is already replacing this executable. Starting a
             // second tray now would launch the old binary while files are changing.
             if (_updateStage == UpdateStage.Applying)
@@ -601,7 +645,11 @@ namespace PiWebTray
                 try { return Net.IsPortOpen(_port, 200); }
                 catch (Exception) { }
             }
-            return false;
+
+            // NeedsNode/NeedsDeps/Failed can still have an external listener that
+            // belongs to pi-web (for example a service that was already running when
+            // this tray started). Do not choose --tray-only for it.
+            return ListenerLooksOurs();
         }
 
         private bool StartRestartProcess()
@@ -641,6 +689,7 @@ namespace PiWebTray
 
         private void OpenFolder(string path)
         {
+            if (_exiting) return;
             try
             {
                 Directory.CreateDirectory(path);
@@ -654,6 +703,8 @@ namespace PiWebTray
 
         private void OpenConfiguration()
         {
+            if (_exiting) return;
+            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             try
             {
                 if (PathSafety.ContainsReparsePoint(_config.IniPath))
@@ -686,6 +737,14 @@ namespace PiWebTray
                         }
                     }
                 }
+                // Protect a newly created file and repair an existing elevated
+                // install whose ini is still owned by the user.
+                if (!_config.ProtectInstallFile(_config.IniPath))
+                {
+                    NotifyError(L.T("notify.openConfigFailed"),
+                        L.T("update.error.unsafePath"));
+                    return;
+                }
                 // Resolve from the system directory too; the tray may be elevated and
                 // must not pick up a notepad.exe from the current directory or PATH.
                 using (Process notepad = Process.Start(Sys.SystemExecutable("notepad.exe"),
@@ -701,6 +760,7 @@ namespace PiWebTray
 
         private void CopyUrl()
         {
+            if (_exiting) return;
             try
             {
                 string url = "http://127.0.0.1:" + _port;
@@ -715,7 +775,7 @@ namespace PiWebTray
 
         private void RestartAsAdministrator()
         {
-            if (_elevated) return;
+            if (_exiting || _elevated) return;
             // The update helper is already replacing this executable. A second
             // replacement would race the helper and could leave two trays fighting
             // over the mutex and port; the settings restart has the same guard.
@@ -767,6 +827,7 @@ namespace PiWebTray
 
         private void CreateDesktopShortcut()
         {
+            if (_exiting) return;
             if (_elevated)
             {
                 // WScript.Shell is resolved through COM; do not load a user-controlled

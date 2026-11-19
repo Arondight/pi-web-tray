@@ -466,6 +466,19 @@ namespace PiWebTray
             {
                 TrayNotification current = _currentNotification;
                 if (current == null) return;
+                if (_exiting)
+                {
+                    CompleteNotification();
+                    return;
+                }
+                // During apply the helper is already waiting for this process to exit.
+                // A delayed balloon click must not open a modal dialog and block that
+                // exit (the helper gives up after 60 seconds).
+                if (UpdateBusy() && _updateStage == UpdateStage.Applying)
+                {
+                    CompleteNotification();
+                    return;
+                }
                 Action action = current.OnClick;
                 CompleteNotification();
                 if (action != null)

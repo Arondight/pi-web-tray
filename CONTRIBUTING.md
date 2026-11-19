@@ -49,7 +49,7 @@ dotnet test .\tests\PiWebTray.Tests\PiWebTray.Tests.csproj -c Release
 
 Before a release, manually check:
 
-- tray icon states: checking / needs Node / installing / starting / running / stopping / failed;
+- tray icon states: checking / needs Node / needs dependencies / installing / starting / running / unverified / stopping / failed / port conflict;
 - install start, finish and failure notifications;
 - first start without Node.js (dialogue, download page, detects a later install while running);
 - Node.js removed while running (warning, running service continues, next start is guarded);

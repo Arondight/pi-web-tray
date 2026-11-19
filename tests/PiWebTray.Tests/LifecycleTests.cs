@@ -13,6 +13,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -22,6 +24,55 @@ namespace PiWebTray
     [TestClass]
     public sealed class LifecycleTests
     {
+        [TestMethod]
+        public void ProtectedInstallRepairsOnlyLoadedFiles()
+        {
+            if (!Elevation.IsElevated()) return;
+
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+            string root = CreateProtectedInstallRoot(source, "acl");
+            try
+            {
+                string app = Path.Combine(root, "pi-web-tray.exe");
+                string log = Path.Combine(root, "server.log");
+                File.WriteAllText(log, "runtime output");
+                MakeUserOwner(log);
+                Assert.IsFalse(Autostart.IsUserWritableInstall(app),
+                    "A user-owned runtime log must not make a protected install unusable.");
+
+                string ini = Path.Combine(root, "pi-web-tray.ini");
+                File.WriteAllText(ini, "Port=30141" + Environment.NewLine);
+                MakeUserOwner(ini);
+                Assert.IsTrue(Autostart.IsUserWritableInstall(app),
+                    "A user-owned ini is loaded by the elevated tray and must be rejected.");
+
+                Config config = new Config();
+                config.BaseDir = root;
+                config.IniPath = ini;
+                Assert.IsTrue(config.SetValue("Port", "30142"),
+                    "The elevated settings write failed.");
+                Assert.IsFalse(Autostart.IsUserWritableInstall(app),
+                    "The elevated settings write must restore the trusted ini owner.");
+            }
+            finally
+            {
+                DeleteTestInstallRoot(root);
+            }
+        }
+
+        private static void MakeUserOwner(string path)
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                Assert.IsNotNull(identity.User, "The test process has no user SID.");
+                FileSecurity security = File.GetAccessControl(path);
+                security.SetOwner(identity.User);
+                File.SetAccessControl(path, security);
+            }
+        }
+
         [TestMethod]
         public void TrayLifecycleHandlesDuplicateRestartAndQuit()
         {
@@ -413,6 +464,60 @@ namespace PiWebTray
             }
             finally
             {
+                if (command != null)
+                {
+                    try { if (!command.HasExited) command.Kill(); } catch (Exception) { }
+                    try { command.Dispose(); } catch (Exception) { }
+                }
+                try { Directory.Delete(home, true); } catch (Exception) { }
+                DeleteTestInstallRoot(installRoot);
+            }
+        }
+
+        [TestMethod]
+        public void StopWithoutTrayUsesTheRecordedPort()
+        {
+            string source = AppDomain.CurrentDomain.BaseDirectory;
+            string sourceExe = Path.Combine(source, "pi-web-tray.exe");
+            Assert.IsTrue(File.Exists(sourceExe), "The test output must contain pi-web-tray.exe.");
+            string installRoot = CreateProtectedInstallRoot(source, "recorded-stop");
+            string app = installRoot != null
+                ? Path.Combine(installRoot, "pi-web-tray.exe")
+                : sourceExe;
+
+            string home = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-recorded-stop-" + Guid.NewGuid().ToString("N"));
+            string instance = "RecordedStop" + Guid.NewGuid().ToString("N").Substring(0, 8);
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            Process command = null;
+            try
+            {
+                listener.Start();
+                int recordedPort = ((IPEndPoint)listener.LocalEndpoint).Port;
+                int configuredPort = FreePort();
+                while (configuredPort == recordedPort) configuredPort = FreePort();
+
+                string folder = Path.Combine(home, "pi-web-tray." + instance.ToLowerInvariant());
+                Directory.CreateDirectory(folder);
+                int session = Process.GetCurrentProcess().SessionId;
+                string state = "Pid=999999" + Environment.NewLine
+                    + "Elevated=0" + Environment.NewLine
+                    + "Port=" + recordedPort.ToString(CultureInfo.InvariantCulture)
+                    + Environment.NewLine
+                    + "Session=" + session.ToString(CultureInfo.InvariantCulture)
+                    + Environment.NewLine
+                    + "Exe=" + app + Environment.NewLine;
+                File.WriteAllText(Path.Combine(folder,
+                    "state." + session.ToString(CultureInfo.InvariantCulture) + ".ini"), state);
+
+                command = Start(app, home, instance, configuredPort, "--stop", null);
+                Assert.IsTrue(command.WaitForExit(15000), "--stop did not finish.");
+                Assert.AreEqual(1, command.ExitCode,
+                    "--stop must target the live recorded port, not the closed configured port.");
+            }
+            finally
+            {
+                try { listener.Stop(); } catch (Exception) { }
                 if (command != null)
                 {
                     try { if (!command.HasExited) command.Kill(); } catch (Exception) { }

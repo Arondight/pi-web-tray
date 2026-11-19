@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -31,6 +32,99 @@ namespace PiWebTray
         public void AllPureLogicChecksPass()
         {
             Assert.AreEqual(0, SelfTest.Run(), "Pure-logic checks failed. See test output.");
+        }
+
+        [TestMethod]
+        public void KillTreeFallsBackWhenTaskkillCannotFindThePid()
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
+            psi.Arguments = "/c ping -n 30 127.0.0.1 >nul";
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            using (Process child = Process.Start(psi))
+            {
+                Assert.IsNotNull(child);
+                try
+                {
+                    // The child's pid is not the pid passed to taskkill, so taskkill
+                    // fails; the caller-owned fallback handle must still be used.
+                    Sys.KillTree(int.MaxValue, null, child);
+                    Assert.IsTrue(child.WaitForExit(5000),
+                        "KillTree must use the fallback when taskkill cannot find the pid.");
+                }
+                finally
+                {
+                    try { if (!child.HasExited) child.Kill(); } catch (Exception) { }
+                }
+            }
+        }
+
+        [TestMethod]
+        public void KillTreeUsesTheCallerOwnedHandleWhenStartTimeIsUnknown()
+        {
+            ProcessStartInfo psi = new ProcessStartInfo();
+            psi.FileName = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
+            psi.Arguments = "/c ping -n 30 127.0.0.1 >nul";
+            psi.UseShellExecute = false;
+            psi.CreateNoWindow = true;
+            using (Process child = Process.Start(psi))
+            {
+                Assert.IsNotNull(child);
+                try
+                {
+                    Sys.KillTree(child.Id, DateTime.MinValue, child);
+                    Assert.IsTrue(child.WaitForExit(3000),
+                        "KillTree must use the safe fallback handle when start time is unavailable.");
+                }
+                finally
+                {
+                    try { if (!child.HasExited) child.Kill(); } catch (Exception) { }
+                }
+            }
+        }
+
+        [TestMethod]
+        public void EffectivePortPrefersTheRecordedLivePort()
+        {
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string originalInstance = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            string home = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-effective-port-" + Guid.NewGuid().ToString("N"));
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            try
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", home);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE",
+                    "EffectivePort" + Guid.NewGuid().ToString("N").Substring(0, 8));
+                listener.Start();
+                int livePort = ((IPEndPoint)listener.LocalEndpoint).Port;
+
+                Config config = new Config();
+                config.Port = livePort == 65535 ? livePort - 1 : livePort + 1;
+                int configuredPort = config.Port;
+                TrayState.Save(System.Diagnostics.Process.GetCurrentProcess().Id, false, livePort);
+
+                Assert.AreEqual(livePort, Program.EffectivePort(config),
+                    "A live tray's recorded port must win over the CLI's configured port.");
+
+                listener.Stop();
+                Assert.AreEqual(configuredPort, Program.EffectivePort(config),
+                    "A recorded port that is no longer listening must not be used.");
+            }
+            finally
+            {
+                try { listener.Stop(); } catch (Exception) { }
+                if (originalHome == null)
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", null);
+                else
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                if (originalInstance == null)
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                else
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", originalInstance);
+                try { if (Directory.Exists(home)) Directory.Delete(home, true); } catch (Exception) { }
+            }
         }
 
         [TestMethod]
@@ -166,6 +260,7 @@ namespace PiWebTray
             UpdateTests();
             InstallServiceStopTests();
             RestartArgumentsTests();
+            UnexpectedStopTests();
             StartSuppressionTests();
             PortChangeTests();
             ServiceRestoreTests();
@@ -180,6 +275,7 @@ namespace PiWebTray
             LogHostTests();
             LogViewTests();
             ServiceProbeTests();
+            UpdaterRestartMutexTests();
             StateFileTests();
             HttpProbeTestsSkip();
             UpdaterExtractTests();
@@ -233,6 +329,10 @@ namespace PiWebTray
                 VersionUtil.Compare("1.2.3-beta.10", "1.2.3-beta.2"));
             CheckEqual("identical pre-releases compare equal", 0,
                 VersionUtil.Compare("1.2.3-beta.2", "1.2.3-beta.2"));
+            CheckEqual("build metadata does not create a pre-release", 0,
+                VersionUtil.Compare("1.0.0+build-1", "1.0.0"));
+            CheckEqual("build metadata is ignored in version ordering", 1,
+                VersionUtil.Compare("1.0.1+build-1", "1.0.0"));
         }
 
         private static void VersionParseTests()
@@ -1190,6 +1290,17 @@ namespace PiWebTray
             trustedOwner.SetOwner(localSystem);
             Check("SYSTEM as owner is trusted",
                 !Autostart.IsUntrustedOwner(trustedOwner));
+
+            Check("runtime logs are not loaded by the elevated tray",
+                !Autostart.IsElevatedLoadedFile("server.log"));
+            Check("the portable ini is loaded by the elevated tray",
+                Autostart.IsElevatedLoadedFile("pi-web-tray.ini"));
+            Check("the update manifest is loaded by the elevated helper",
+                Autostart.IsElevatedLoadedFile("pi-web-tray.files.txt"));
+            Check("satellite resource DLLs are loaded",
+                Autostart.IsElevatedLoadedFile(Path.Combine("zh-Hans", "pi-web-tray.resources.dll")));
+            Check("application config files are loaded",
+                Autostart.IsElevatedLoadedFile("pi-web-tray.exe.config"));
         }
 
         private static void PathSafetyHardLinkTests()
@@ -1234,6 +1345,12 @@ namespace PiWebTray
                     !PathSafety.SameFile(@"\\server\share\missing.txt", target));
                 Check("a remote path is never treated as a local task/script file",
                     !PathSafety.SameLocalFile(@"\\server\share\missing.txt", target));
+                Check("canonical paths ignore dot segments",
+                    string.Equals(PathSafety.CanonicalPath(directory + "\\.\\"),
+                        Path.GetFullPath(directory), StringComparison.OrdinalIgnoreCase));
+                Check("update locks share one name for equivalent spellings",
+                    OperationLock.UpdateName(directory + "\\.\\")
+                    == OperationLock.UpdateName(directory));
                 using (FileStream stream = new FileStream(link, FileMode.Open,
                     FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                 {
@@ -1288,6 +1405,44 @@ namespace PiWebTray
             CheckEqual("task XML arguments", "--autostart",
                 document.GetElementsByTagName("Arguments", "*")[0].InnerText);
             Check("generated task XML is enabled", Autostart.IsTaskXmlEnabled(document));
+            Check("generated task XML has safe admin settings",
+                Autostart.TaskXmlSupportsAdminAutostart(document));
+            XmlDocument leastPrivilege = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                leastPrivilege.Load(stream);
+            }
+            ((XmlElement)leastPrivilege.GetElementsByTagName("RunLevel", "*")[0]).InnerText =
+                "LeastPrivilege";
+            Check("admin autostart rejects least-privilege tasks",
+                !Autostart.TaskXmlSupportsAdminAutostart(leastPrivilege));
+            XmlDocument passwordLogon = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                passwordLogon.Load(stream);
+            }
+            ((XmlElement)passwordLogon.GetElementsByTagName("LogonType", "*")[0]).InnerText =
+                "Password";
+            Check("admin autostart rejects password logon tasks",
+                !Autostart.TaskXmlSupportsAdminAutostart(passwordLogon));
+            XmlDocument batteryLimited = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                batteryLimited.Load(stream);
+            }
+            ((XmlElement)batteryLimited.GetElementsByTagName(
+                "DisallowStartIfOnBatteries", "*")[0]).InnerText = "true";
+            Check("admin autostart rejects battery-blocked tasks",
+                !Autostart.TaskXmlSupportsAdminAutostart(batteryLimited));
+            XmlDocument timeLimited = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(bytes))
+            {
+                timeLimited.Load(stream);
+            }
+            ((XmlElement)timeLimited.GetElementsByTagName(
+                "ExecutionTimeLimit", "*")[0]).InnerText = "PT72H";
+            Check("admin autostart rejects execution-time-limited tasks",
+                !Autostart.TaskXmlSupportsAdminAutostart(timeLimited));
             Check("empty task arguments still start the service",
                 Autostart.TaskArgumentsStartService(""));
             Check("autostart arguments start the service",
@@ -1298,6 +1453,12 @@ namespace PiWebTray
                 !Autostart.TaskArgumentsStartService("--tray-only"));
             Check("mixed unsafe arguments are rejected",
                 !Autostart.TaskArgumentsStartService("--autostart --tray-only"));
+            Check("a tray-only Run value does not start the service",
+                !Autostart.RunValueStartsService("\"C:\\Apps\\pi-web-tray.exe\" --tray-only"));
+            Check("a normal quoted Run value starts the service",
+                Autostart.RunValueStartsService("\"C:\\Apps\\pi-web-tray.exe\""));
+            Check("an autostart Run value starts the service",
+                Autostart.RunValueStartsService("\"C:\\Apps\\pi-web-tray.exe\" --autostart"));
 
             // A task disabled in Task Scheduler has Settings/Enabled=false while the
             // logon trigger can still be true. The parser must not pick the trigger's
@@ -1773,6 +1934,11 @@ namespace PiWebTray
             CheckEqual("dist tag is shared with the pi", "next",
                 Installer.PiCliTag(nextConfig));
 
+            Config numberedTag = new Config();
+            numberedTag.InstallTag = "next-2";
+            CheckEqual("numbered dist tags are shared with the pi", "next-2",
+                Installer.PiCliTag(numberedTag));
+
             CheckEqual("npm warning is not the npm version", "12.2.1",
                 EnvironmentProbe.LastMeaningfulLine("npm warn deprecated x\n12.2.1\n"));
             CheckEqual("npm errors alone do not provide a version", "",
@@ -2167,6 +2333,27 @@ namespace PiWebTray
                 !TrayApp.CanApplyPortChange(Phase.Starting, false, false));
             Check("port change blocks an environment check",
                 !TrayApp.CanApplyPortChange(Phase.Checking, false, false));
+            Check("port change blocks an owned external listener while stopped",
+                !TrayApp.CanApplyPortChange(Phase.Stopped, true, false, true));
+            Check("port change still resolves a foreign conflict with an owned hint",
+                TrayApp.CanApplyPortChange(Phase.PortConflict, true, false, true));
+        }
+
+        private static void UnexpectedStopTests()
+        {
+            PortOwnerInfo none = new PortOwnerInfo { Owner = PortOwner.None };
+            PortOwnerInfo piweb = new PortOwnerInfo { Owner = PortOwner.PiWeb };
+            PortOwnerInfo unknown = new PortOwnerInfo { Owner = PortOwner.Unknown };
+            Check("a free port after Running is an unexpected stop",
+                TrayApp.IsUnexpectedServiceStop(Phase.Running, none));
+            Check("a foreign pi-web listener is not an unexpected stop",
+                !TrayApp.IsUnexpectedServiceStop(Phase.Running, piweb));
+            Check("an unreadable listener is not an unexpected stop",
+                !TrayApp.IsUnexpectedServiceStop(Phase.Running, unknown));
+            Check("a stopped state does not report another stop",
+                !TrayApp.IsUnexpectedServiceStop(Phase.Stopped, none));
+            Check("a missing owner check is not a stop",
+                !TrayApp.IsUnexpectedServiceStop(Phase.Running, null));
         }
 
         private static void ServiceRestoreTests()
@@ -2229,7 +2416,9 @@ namespace PiWebTray
                     + "./old.txt" + Environment.NewLine
                     + "zh-Hant/old.resources.dll" + Environment.NewLine
                     + "../outside.txt" + Environment.NewLine
-                    + "sub/../pi-web-tray.exe" + Environment.NewLine);
+                    + "sub/../pi-web-tray.exe" + Environment.NewLine
+                    + "server.log" + Environment.NewLine
+                    + "pi-web-tray.ini" + Environment.NewLine);
 
                 File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
                 File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe.config"), "config");
@@ -2297,6 +2486,10 @@ namespace PiWebTray
                 Updater.CleanupStaleFiles(target, copy.Managed, logPath);
 
                 Check("update removes stale file", !File.Exists(Path.Combine(target, "old.txt")));
+                Check("stale cleanup never removes a runtime log",
+                    File.Exists(Path.Combine(target, "server.log")));
+                Check("stale cleanup never removes the user ini",
+                    File.Exists(Path.Combine(target, "pi-web-tray.ini")));
                 Check("update removes empty stale directory",
                     !Directory.Exists(Path.Combine(target, "zh-Hant")));
                 Check("manifest never deletes outside the target",
@@ -2560,6 +2753,46 @@ namespace PiWebTray
                 !LogForm.IsLastLineVisible(998, 999));
         }
 
+        private static void UpdaterRestartMutexTests()
+        {
+            string original = Environment.GetEnvironmentVariable("PI_WEB_TRAY_INSTANCE");
+            try
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE",
+                    "RestartMutex" + Guid.NewGuid().ToString("N").Substring(0, 8));
+                Check("no tray mutex means no running instance",
+                    !Updater.TrayInstanceRunning());
+                using (Mutex held = new Mutex(false, Instance.MutexName))
+                {
+                    bool acquired = false;
+                    Thread holder = new Thread(delegate ()
+                    {
+                        try
+                        {
+                            held.WaitOne();
+                            acquired = true;
+                            Thread.Sleep(1500);
+                            held.ReleaseMutex();
+                        }
+                        catch (Exception) { }
+                    });
+                    holder.IsBackground = true;
+                    holder.Start();
+                    for (int i = 0; i < 50 && !acquired; i++) Thread.Sleep(20);
+                    Check("a held tray mutex means a running instance",
+                        acquired && Updater.TrayInstanceRunning());
+                    holder.Join(5000);
+                }
+            }
+            finally
+            {
+                if (original == null)
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", null);
+                else
+                    Environment.SetEnvironmentVariable("PI_WEB_TRAY_INSTANCE", original);
+            }
+        }
+
         private static void ServiceProbeTests()
         {
             string netstat = string.Join(Environment.NewLine, new string[]
@@ -2651,6 +2884,19 @@ namespace PiWebTray
                 }
             }
             Check("system tool path is absolute", Path.IsPathRooted(Sys.SystemExecutable("netstat.exe")));
+            string fullyQualified;
+            Check("a fully qualified path is accepted",
+                EnvironmentProbe.TryGetFullyQualifiedPath(@"C:\nodejs", out fullyQualified)
+                && Path.IsPathRooted(fullyQualified));
+            Check("a relative path is rejected",
+                !EnvironmentProbe.TryGetFullyQualifiedPath("nodejs", out fullyQualified));
+            Check("a drive-relative path is rejected",
+                !EnvironmentProbe.TryGetFullyQualifiedPath("C:nodejs", out fullyQualified));
+            Check("a root-relative path is rejected",
+                !EnvironmentProbe.TryGetFullyQualifiedPath(@"\nodejs", out fullyQualified));
+            Check("a quoted absolute path is accepted",
+                EnvironmentProbe.TryGetFullyQualifiedPath("\"C:\\nodejs\"", out fullyQualified)
+                && Path.IsPathRooted(fullyQualified));
         }
 
         private static void StateFileTests()
@@ -2678,6 +2924,7 @@ namespace PiWebTray
                 Check("state has pid", content.Contains("Pid=0"));
                 Check("state has port", content.Contains("Port=30141"));
                 Check("state has session", content.Contains("Session="));
+                Check("state records the owning image", content.Contains("Exe="));
                 int recordedPort;
                 Check("recorded port survives a dead tray",
                     TrayState.TryGetRecordedPort(out recordedPort) && recordedPort == 30141);

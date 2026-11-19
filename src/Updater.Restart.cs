@@ -99,6 +99,18 @@ namespace PiWebTray
                             AppendLog(logPath, "new tray observed after explorer restart");
                             return true;
                         }
+                        // Explorer may have launched the tray successfully while
+                        // the state file is unwritable or was not visible in time.
+                        // A live single-instance mutex is stronger evidence of a
+                        // working tray than the state file; starting a second direct
+                        // child here would race it, and a rollback would replace
+                        // files under the tray that just started.
+                        if (TrayInstanceRunning())
+                        {
+                            AppendLog(logPath,
+                                "explorer restart not observable, but the tray mutex is held");
+                            return true;
+                        }
                         AppendLog(logPath, "explorer restart not observed or not stable; falling back");
                     }
                 }
@@ -137,6 +149,41 @@ namespace PiWebTray
             {
                 AppendLog(logPath, "restart failed: " + ex);
                 return false;
+            }
+        }
+
+        internal static bool TrayInstanceRunning()
+        {
+            Mutex mutex = null;
+            try
+            {
+                mutex = new Mutex(false, Instance.MutexName);
+                if (!mutex.WaitOne(0)) return true;
+                try { mutex.ReleaseMutex(); } catch (Exception) { }
+                return false;
+            }
+            catch (AbandonedMutexException)
+            {
+                // The previous owner died while holding the lock; no live tray.
+                try { if (mutex != null) mutex.ReleaseMutex(); } catch (Exception) { }
+                return false;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Another user's tray owns the instance; absence of our state file
+                // is not proof that starting another copy is safe.
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (mutex != null)
+                {
+                    try { mutex.Dispose(); } catch (Exception) { }
+                }
             }
         }
 

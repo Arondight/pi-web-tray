@@ -246,6 +246,14 @@ namespace PiWebTray
                 foreach (string relative in oldManaged)
                 {
                     if (current.ContainsKey(relative)) continue;
+                    // Old manifests from a previous buggy version could contain a
+                    // runtime log, the user's ini, or a state file. Those are never
+                    // release-managed and must not be deleted by stale cleanup.
+                    if (ShouldSkip(relative))
+                    {
+                        keep.Add(relative);
+                        continue;
+                    }
 
                     string full = SafeTargetPath(target, relative);
                     if (full == null)

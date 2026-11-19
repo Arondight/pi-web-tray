@@ -288,24 +288,25 @@ namespace PiWebTray
             bool accessDenied;
             bool acquired = TryAcquireMutex(0, out mutex, out accessDenied);
 
+            // The tray may have been started with PI_WEB_TRAY_PORT in a different
+            // shell, or the ini port may have changed after it started. The state file
+            // records the port the service actually uses. Use that value for stop/quit,
+            // including the no-tray case; install computes its own effective port.
+            int servicePort = (isStop || isQuit) ? EffectivePort(config) : config.Port;
+
             if (acquired)
             {
                 // No other tray is running: I become the tray
                 if (isStop || isQuit)
                 {
                     // There is not even a tray, so stop the service directly
-                    bool stopped = StopServiceWithoutTray(config);
+                    bool stopped = StopServiceWithoutTray(config, servicePort);
                     ReleaseMutex(mutex);
                     return stopped ? 0 : 1;
                 }
                 RunTray(config, elevated, !isTrayOnly, mutex, !isTrayOnly && !noBrowser);
                 return 0;
             }
-
-            // The running tray may have been started with PI_WEB_TRAY_PORT in a
-            // different shell. Prefer the port it recorded in state.<session>.ini so CLI
-            // install/stop/check commands target the service that actually exists.
-            int servicePort = EffectivePort(config);
 
             if (isStop)
             {
@@ -689,8 +690,15 @@ namespace PiWebTray
 
         // No tray is running, so stop the service through the CLI. A listener that
         // cannot be identified as pi-web is never killed.
-        private static bool StopServiceWithoutTray(Config config)
+        private static bool StopServiceWithoutTray(Config config, int port)
         {
+            if (port <= 0 || port > 65535) port = config.Port;
+
+            // Do not run node/npm probes while holding the single-instance mutex when
+            // there is no listener to stop. A normal launch during that probe would
+            // otherwise see the mutex as an existing tray and silently do nothing.
+            if (!Net.IsPortOpen(port, 300)) return true;
+
             ServiceProbe.Invalidate();
             ProbeResult probe;
             try
@@ -704,11 +712,11 @@ namespace PiWebTray
                 return false;
             }
             string script = ExpectedPiWebScript(config, probe);
-            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, script);
+            PortOwnerInfo owner = ServiceProbe.Inspect(port, script);
             if (owner.IsUnknown)
             {
                 ConsoleHost.TryAttach();
-                ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", port));
                 return false;
             }
             if (owner.Owner == PortOwner.None) return true;
@@ -717,7 +725,7 @@ namespace PiWebTray
             if (owner.IsPiWeb && !ServiceProbe.MatchesExpectedScript(owner, script))
             {
                 ConsoleHost.TryAttach();
-                ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                ConsoleHost.WriteError(L.T("prog.portConflictStop", port));
                 return false;
             }
 
@@ -727,28 +735,28 @@ namespace PiWebTray
                 // A bare "node.exe" fallback would let CreateProcess resolve a binary
                 // from the current directory or PATH. If Node.js is gone, use the
                 // identified listener PID below instead of attempting the CLI stop.
-                ProcessRunner.Run(probe.NodePath, Shell.Quote(script) + " stop --port " + config.Port,
+                ProcessRunner.Run(probe.NodePath, Shell.Quote(script) + " stop --port " + port,
                     config.WorkingDir, 20000, null, null);
             }
 
-            if (Net.IsPortOpen(config.Port, 300))
+            if (Net.IsPortOpen(port, 300))
             {
                 ServiceProbe.Invalidate();
-                owner = ServiceProbe.Inspect(config.Port, script);
+                owner = ServiceProbe.Inspect(port, script);
                 if (!owner.IsPiWeb || !ServiceProbe.MatchesExpectedScript(owner, script))
                 {
                     ConsoleHost.TryAttach();
-                    ConsoleHost.WriteError(L.T("prog.portConflictStop", config.Port));
+                    ConsoleHost.WriteError(L.T("prog.portConflictStop", port));
                     return false;
                 }
                 if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
-                Net.WaitPortClosed(config.Port, 5000);
+                Net.WaitPortClosed(port, 5000);
             }
 
             // The exit code must tell the truth: a privileged listener can survive a
             // non-elevated taskkill, and a chained `--stop && ...` script must not be
             // told the service stopped when it did not.
-            return !Net.IsPortOpen(config.Port, 300);
+            return !Net.IsPortOpen(port, 300);
         }
 
         private static void OpenBrowser(int port)
@@ -1035,7 +1043,7 @@ namespace PiWebTray
             }
 
             // StopServiceWithoutTray prints its own conflict error
-            stopped = StopServiceWithoutTray(config);
+            stopped = StopServiceWithoutTray(config, port);
             return stopped;
         }
 
@@ -1142,7 +1150,7 @@ namespace PiWebTray
         // A live tray in this session records its actual port (including a
         // PI_WEB_TRAY_PORT override) in the per-session state file. CLI commands started from a
         // different shell must use that value, not their own config.
-        private static int EffectivePort(Config config)
+        internal static int EffectivePort(Config config)
         {
             bool trayRunning = TrayRunning();
             int port;
