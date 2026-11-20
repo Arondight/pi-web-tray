@@ -997,6 +997,10 @@ namespace PiWebTray
             // be left running while npm rewrites the shared package tree.
             if (!dryRun && (owner.CheckFailed || owner.ProbeIncomplete))
             {
+                // We already sent the stop signal when a tray was running. The
+                // listener could be ours but unreadable, so restore it if the
+                // install aborts rather than leaving the service down.
+                if (trayRunning && serviceWasRunning) stopped = true;
                 ConsoleHost.WriteError(L.T("notify.ownerCheckFailedBody", port));
                 return false;
             }
@@ -1017,6 +1021,11 @@ namespace PiWebTray
             }
 
             if (dryRun) return true;
+
+            // The listener is confirmed to be this installation's Pi Web. Record
+            // that a stop was requested before waiting, so a timeout or a stop-worker
+            // failure still restores the service through the normal abort path.
+            if (trayRunning && serviceWasRunning) stopped = true;
 
             ConsoleHost.WriteLine(L.T("install.stopFirst"));
             if (trayRunning)

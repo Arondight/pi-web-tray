@@ -956,7 +956,7 @@
     <value>关于</value>
   </data>
   <data name="about.description" xml:space="preserve">
-    <value>基于 Pi Web 的 Windows 7 至 11 Harness 解决方案。</value>
+    <value>基于 Pi Web 的 Windows 7 至 11 解决方案。</value>
   </data>
   <data name="about.itemVersion" xml:space="preserve">
     <value>版本</value>

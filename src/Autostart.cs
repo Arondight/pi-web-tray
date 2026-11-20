@@ -339,8 +339,10 @@ namespace PiWebTray
             bool userMatches;
             bool explicitUser;
             bool xmlParsed;
+            bool adminSettingsSafe;
             bool queried = QueryTaskDetails(name, out enabled, out matches,
-                out command, out userMatches, out explicitUser, out xmlParsed);
+                out command, out userMatches, out explicitUser, out xmlParsed,
+                out adminSettingsSafe);
             parsed = queried && xmlParsed;
             // A no-user task is a machine-wide legacy task. Leave it alone: it
             // cannot be attributed to this account, and another user may rely on it.
@@ -352,13 +354,16 @@ namespace PiWebTray
             out bool userMatches, out bool xmlParsed)
         {
             bool explicitUser;
+            bool adminSettingsSafe;
             return QueryTaskDetails(name, out enabled, out matchesExecutable,
-                out commandPath, out userMatches, out explicitUser, out xmlParsed);
+                out commandPath, out userMatches, out explicitUser, out xmlParsed,
+                out adminSettingsSafe);
         }
 
         private static bool QueryTaskDetails(string name, out bool enabled,
             out bool matchesExecutable, out string commandPath,
-            out bool userMatches, out bool explicitUser, out bool xmlParsed)
+            out bool userMatches, out bool explicitUser, out bool xmlParsed,
+            out bool adminSettingsSafe)
         {
             enabled = false;
             // Do not claim an unknown task belongs to this installation. A false
@@ -368,6 +373,7 @@ namespace PiWebTray
             userMatches = false;
             explicitUser = false;
             xmlParsed = false;
+            adminSettingsSafe = false;
 
             bool parsed = false;
             bool parsedEnabled = false;
@@ -417,9 +423,10 @@ namespace PiWebTray
                 {
                     try
                     {
-                        // Task Scheduler can retain an 8.3 or junction spelling of
-                        // the same executable. Compare the file object, not the
-                        // spelling, so a valid task is not reported as foreign.
+                        // Task Scheduler can retain an 8.3 spelling of the same
+                        // executable. Compare the file object, not the spelling, so a
+                        // valid task is not reported as foreign. A different junction
+                        // alias is rejected conservatively by SameLocalFile.
                         pathMatches = PathSafety.SameLocalFile(
                             expandedCommand, Application.ExecutablePath);
                     }
@@ -428,12 +435,24 @@ namespace PiWebTray
                     }
                 }
 
-                if (pathMatches && TaskArgumentsStartService(arguments)
-                    && userMatches && TaskXmlSupportsAdminAutostart(document))
+                // Whether the task starts this executable is independent from whether
+                // it meets the stronger current administrator-task settings. The
+                // legacy any-user task must still be recognised so the tray does not
+                // add a second Run value or claim a disable succeeded while the task
+                // remains active. Keep the stricter match for the current task name:
+                // a weak current task should still be offered for repair/recreation.
+                bool startsAtLogin = pathMatches
+                    && TaskArgumentsStartService(arguments) && userMatches;
+                bool adminSafe = startsAtLogin
+                    && TaskXmlSupportsAdminAutostart(document);
+                bool legacyTaskName = string.Equals(name, LegacyTaskName,
+                    StringComparison.OrdinalIgnoreCase);
+                if (startsAtLogin && (legacyTaskName || adminSafe))
                 {
                     enabled = parsedEnabled;
                     matchesExecutable = true;
                     commandPath = expandedCommand;
+                    adminSettingsSafe = adminSafe;
                     return true;
                 }
 
@@ -456,6 +475,7 @@ namespace PiWebTray
                 userMatches = parsedUserMatches;
                 explicitUser = parsedExplicitUser;
                 xmlParsed = true;
+                adminSettingsSafe = false;
                 return true;
             }
 
@@ -1052,9 +1072,16 @@ namespace PiWebTray
                 return false;
             }
 
-            // Re-check immediately before the elevated command. This does not make the
-            // operation atomic, but it shortens the window for a link added while the
-            // snapshot was being captured.
+            // Re-check both link forms immediately before the elevated command. This
+            // does not make the operation atomic, but it shortens the window for a link
+            // added while the snapshot was being captured. Checking only hard links
+            // here would let a junction inserted after CaptureAclSnapshot redirect the
+            // recursive icacls operation into a protected directory.
+            if (PathSafety.ContainsReparsePointInTree(directory))
+            {
+                message = L.T("auto.repairParentUnsafe");
+                return false;
+            }
             if (PathSafety.ContainsHardLinkInTree(directory))
             {
                 message = L.T("auto.repairHardLinkUnsafe");
@@ -1490,6 +1517,15 @@ namespace PiWebTray
             return false;
         }
 
+        // A no-user legacy task cannot be removed by this account. If it already
+        // starts this executable, creating a second administrator entry would race
+        // two trays at logon; refuse instead of leaving both entries.
+        internal static bool LegacyTaskBlocksAdminCreation(bool legacyExists,
+            bool legacyOwned, bool legacyMatchesCurrentExecutable)
+        {
+            return legacyExists && !legacyOwned && legacyMatchesCurrentExecutable;
+        }
+
         internal static bool CreateTask(bool elevated, string executablePath,
             out bool legacyRemovalFailed)
         {
@@ -1498,6 +1534,22 @@ namespace PiWebTray
             // been created. Removing it first would leave the user with no autostart
             // entry if the second UAC prompt is cancelled.
             bool legacyExisted = Instance.Suffix.Length == 0 && QueryTask(LegacyTaskName);
+            if (legacyExisted)
+            {
+                // A machine-wide legacy task with no explicit user cannot be safely
+                // removed by this account. If it already starts this executable,
+                // creating the new administrator task would leave two login entries
+                // and race two trays. Fail instead of adding a duplicate; the user can
+                // remove the legacy task manually.
+                bool legacyOwned = QueryTaskUserBelongsToCurrentUser(LegacyTaskName,
+                    out _);
+                if (LegacyTaskBlocksAdminCreation(legacyExisted, legacyOwned,
+                        QueryTaskMatchesCurrentExecutable(LegacyTaskName)))
+                {
+                    legacyRemovalFailed = true;
+                    return false;
+                }
+            }
 
             string principal = CurrentUserPrincipal();
             if (string.IsNullOrEmpty(principal)) return false;
@@ -1572,9 +1624,12 @@ namespace PiWebTray
                     bool userMatches;
                     bool explicitUser;
                     bool xmlParsed;
+                    bool adminSettingsSafe;
                     if (QueryTaskDetails(TaskName, out enabled, out matchesExecutable,
-                            out _, out userMatches, out explicitUser, out xmlParsed)
-                        && enabled && matchesExecutable && userMatches && explicitUser)
+                            out _, out userMatches, out explicitUser, out xmlParsed,
+                            out adminSettingsSafe)
+                        && enabled && matchesExecutable && userMatches && explicitUser
+                        && adminSettingsSafe)
                     {
                         FinishTaskCreation(elevated, legacyExisted, out legacyRemovalFailed);
                         return true;
@@ -1647,7 +1702,10 @@ namespace PiWebTray
                     writer.WriteStartDocument();
                     writer.WriteStartElement("Task",
                         "http://schemas.microsoft.com/windows/2004/02/mit/task");
-                    writer.WriteAttributeString("version", "1.2");
+                    // Schema 1.2 was introduced with Windows 8. The elements used
+                    // here are all available in the Windows 7 schema (1.1), which is
+                    // required for the supported Windows 7 SP1 target.
+                    writer.WriteAttributeString("version", "1.1");
 
                     // A user-scoped logon trigger. Without <UserId> the task fires
                     // for every account that logs on, and the administrator service
@@ -1845,7 +1903,11 @@ namespace PiWebTray
                         : L.T("auto.enabledAdmin");
                     return true;
                 }
-                message = L.T("auto.taskFailed");
+                // A rejected no-user legacy task is a removal problem, not a UAC
+                // cancellation; report that autostart may still be active.
+                message = legacyRemovalFailed
+                    ? L.T("auto.taskDeleteFailed")
+                    : L.T("auto.taskFailed");
                 return false;
             }
 

@@ -5,10 +5,11 @@
 // so another program on the same port is never mistaken for pi-web.
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
-using System.Text.RegularExpressions;
 
 namespace PiWebTray
 {
@@ -43,8 +44,6 @@ namespace PiWebTray
 
     internal static class ServiceProbe
     {
-        private static readonly Regex QuotedArgument = new Regex("\"([^\"]+)\"", RegexOptions.Compiled);
-
         private static readonly object CacheLock = new object();
         private static readonly TimeSpan CacheLifetime = TimeSpan.FromSeconds(3);
 
@@ -251,19 +250,44 @@ namespace PiWebTray
         internal static bool IsPiWebCommandLine(string commandLine)
         {
             if (string.IsNullOrEmpty(commandLine)) return false;
-            string text = commandLine.ToLowerInvariant();
 
-            // The service command line contains the pi-web.js script:
-            //   "node.exe" "...\@agegr\pi-web\bin\pi-web.js" --no-open -p 30141
-            // Also accept the npm package path for renamed/launcher variants.
-            if (text.IndexOf("pi-web.js", StringComparison.Ordinal) >= 0) return true;
-            if (text.IndexOf("@agegr\\pi-web", StringComparison.Ordinal) >= 0) return true;
-            if (text.IndexOf("@agegr/pi-web", StringComparison.Ordinal) >= 0) return true;
-            return false;
+            // Only the actual node script argument identifies the service. A
+            // command-line option or config value that happens to contain "pi-web.js"
+            // must not make an unrelated listener look like this installation.
+            string script = FirstScriptArgument(commandLine);
+            if (!string.IsNullOrEmpty(script))
+            {
+                if (IsPiWebScriptPath(script)) return true;
+                // A normal .js/.cjs/.mjs script is enough to prove this is not the
+                // pi-web package. Do not fall back to scanning unrelated argument
+                // values for @agegr.
+                if (LooksLikeScript(script)) return false;
+            }
+
+            // A pi-web child (for example the next start process) may show the package
+            // path in one of its module arguments instead of naming pi-web.js as its
+            // first script. Keep that parent-discovery fallback for a non-script
+            // launcher, but never use it when a concrete standard script was found.
+            return ContainsPiWebPackageMarker(commandLine);
         }
 
-        // Extract the pi-web.js path from a command line so a different installation
-        // (same session) is not mistaken for the service this tray manages.
+        private static bool IsPiWebScriptPath(string path)
+        {
+            return path.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0
+                || ContainsPiWebPackageMarker(path);
+        }
+
+        private static bool ContainsPiWebPackageMarker(string text)
+        {
+            return text.IndexOf("@agegr\\pi-web", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("@agegr/pi-web", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // Extract the script argument of the node process. Scanning every token for
+        // "pi-web.js" lets a benign process such as
+        //   node listener.js --config C:\...\pi-web.js
+        // pass the ownership check. The first non-option argument after the executable
+        // is the script node actually runs; later tokens are application arguments.
         internal static string ExtractScriptPath(string commandLine)
         {
             return ExtractScriptPath(commandLine, "");
@@ -271,24 +295,88 @@ namespace PiWebTray
 
         internal static string ExtractScriptPath(string commandLine, string expectedScript)
         {
-            if (string.IsNullOrEmpty(commandLine)) return "";
-
-            foreach (Match match in QuotedArgument.Matches(commandLine))
+            string script = FirstScriptArgument(commandLine);
+            if (string.IsNullOrEmpty(script)) return "";
+            if (IsExpectedScript(script, expectedScript)
+                || IsPiWebScriptPath(script))
             {
-                string value = match.Groups[1].Value;
-                if (IsExpectedScript(value, expectedScript)
-                    || value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0)
-                    return value;
-            }
-            foreach (string raw in commandLine.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                string value = raw.Trim('"');
-                if (IsExpectedScript(value, expectedScript)
-                    || value.IndexOf("pi-web.js", StringComparison.OrdinalIgnoreCase) >= 0)
-                    return value;
+                return script;
             }
             return "";
         }
+
+        private static string FirstScriptArgument(string commandLine)
+        {
+            List<string> arguments = SplitCommandLine(commandLine);
+            if (arguments.Count < 2) return "";
+
+            bool afterOptionTerminator = false;
+            for (int i = 1; i < arguments.Count; i++)
+            {
+                string value = arguments[i];
+                if (!afterOptionTerminator)
+                {
+                    if (string.Equals(value, "--", StringComparison.Ordinal))
+                    {
+                        afterOptionTerminator = true;
+                        continue;
+                    }
+                    // Node options precede the script. A value that is not an option
+                    // is the candidate script; do not scan later application arguments.
+                    if (value.Length > 0 && value[0] == '-') continue;
+                }
+                return value;
+            }
+            return "";
+        }
+
+        private static bool LooksLikeScript(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            try
+            {
+                string name = Path.GetFileName(value);
+                if (name.EndsWith(".js", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".cjs", StringComparison.OrdinalIgnoreCase)
+                    || name.EndsWith(".mjs", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return ContainsPiWebPackageMarker(value);
+        }
+
+        private static List<string> SplitCommandLine(string commandLine)
+        {
+            List<string> result = new List<string>();
+            if (string.IsNullOrEmpty(commandLine)) return result;
+
+            IntPtr argv = CommandLineToArgvW(commandLine, out int count);
+            if (argv == IntPtr.Zero) return result;
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    IntPtr value = Marshal.ReadIntPtr(argv, i * IntPtr.Size);
+                    string text = value == IntPtr.Zero ? "" : Marshal.PtrToStringUni(value);
+                    if (!string.IsNullOrEmpty(text)) result.Add(text);
+                }
+            }
+            finally
+            {
+                LocalFree(argv);
+            }
+            return result;
+        }
+
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern IntPtr CommandLineToArgvW(string commandLine, out int argumentCount);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr LocalFree(IntPtr memory);
 
         private static bool IsExpectedScript(string value, string expectedScript)
         {
@@ -316,9 +404,9 @@ namespace PiWebTray
             // pi-web.js (including the HTTP fallback) is not proof that it is our service.
             if (string.IsNullOrEmpty(expectedScript) || string.IsNullOrEmpty(owner.ScriptPath))
                 return false;
-            // Compare the file identity for local paths so an 8.3 or junction
-            // spelling of the same script is not reported as a foreign install.
-            // SameFile refuses remote/device paths before opening them.
+            // Compare the file identity for local paths so an 8.3 spelling of the
+            // same script is not reported as a foreign install. A different junction
+            // alias is rejected conservatively by SameLocalFile.
             return PathSafety.SameLocalFile(owner.ScriptPath, expectedScript);
         }
 

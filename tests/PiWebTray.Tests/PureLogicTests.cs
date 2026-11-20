@@ -269,10 +269,12 @@ namespace PiWebTray
             UpdateCleanupTests();
             WriteDiagTests();
             UpdateRollbackTests();
+            UpdateLayoutTransitionTests();
             UpdateSnapshotMoveTests();
             UpdateTargetTests();
             StaleBackupTests();
             LogHostTests();
+            UnsafeLogFallbackTests();
             LogViewTests();
             ServiceProbeTests();
             UpdaterRestartMutexTests();
@@ -1386,6 +1388,8 @@ namespace PiWebTray
                     .SelectNodes("descendant::*[local-name()='UserId']").Count == 1);
             CheckEqual("task XML uses the user SID in both UserId fields", 2,
                 document.GetElementsByTagName("UserId", "*").Count);
+            CheckEqual("task XML uses the Windows 7-compatible schema", "1.1",
+                document.DocumentElement.GetAttribute("version"));
             CheckEqual("task XML trigger user", sid,
                 ((XmlElement)document.GetElementsByTagName("LogonTrigger", "*")[0])
                     .GetElementsByTagName("UserId", "*")[0].InnerText);
@@ -1453,6 +1457,12 @@ namespace PiWebTray
                 !Autostart.TaskArgumentsStartService("--tray-only"));
             Check("mixed unsafe arguments are rejected",
                 !Autostart.TaskArgumentsStartService("--autostart --tray-only"));
+            Check("a no-user legacy task blocks a duplicate admin entry",
+                Autostart.LegacyTaskBlocksAdminCreation(true, false, true));
+            Check("an owned legacy task can be replaced",
+                !Autostart.LegacyTaskBlocksAdminCreation(true, true, true));
+            Check("a foreign legacy task does not block admin autostart",
+                !Autostart.LegacyTaskBlocksAdminCreation(true, false, false));
             Check("a tray-only Run value does not start the service",
                 !Autostart.RunValueStartsService("\"C:\\Apps\\pi-web-tray.exe\" --tray-only"));
             Check("a normal quoted Run value starts the service",
@@ -2299,6 +2309,12 @@ namespace PiWebTray
                 "--restart --start-no-open", TrayApp.RestartArguments(true));
             CheckEqual("restart while stopped keeps the service stopped",
                 "--restart --tray-only", TrayApp.RestartArguments(false));
+            Check("a standard helper can start a standard replacement directly",
+                Updater.CanStartDirectly(false, false));
+            Check("an elevated original tray can start an elevated replacement directly",
+                Updater.CanStartDirectly(true, true));
+            Check("an elevated helper must not start a standard tray directly",
+                !Updater.CanStartDirectly(false, true));
         }
 
         private static void StartSuppressionTests()
@@ -2476,6 +2492,11 @@ namespace PiWebTray
                 CheckEqual("update copies the sample config", "sample",
                     File.ReadAllText(Path.Combine(target, "config", "pi-web-tray.ini")));
                 Check("update keeps a backup until restart", Directory.Exists(copy.Backup));
+                Check("update backs up old-only files for rollback",
+                    File.Exists(Path.Combine(copy.Backup, "old.txt"))
+                    && File.Exists(Path.Combine(copy.Backup, "zh-Hant", "old.resources.dll")));
+                Check("update leaves old-only files in place until restart",
+                    File.Exists(Path.Combine(target, "old.txt")));
                 Check("update marks the backup as incomplete until restart",
                     File.Exists(copy.Backup + ".incomplete"));
                 Check("update marks a finished backup as complete",
@@ -2486,6 +2507,8 @@ namespace PiWebTray
                 Updater.CleanupStaleFiles(target, copy.Managed, logPath);
 
                 Check("update removes stale file", !File.Exists(Path.Combine(target, "old.txt")));
+                Check("stale cleanup keeps the rollback copy",
+                    File.Exists(Path.Combine(copy.Backup, "old.txt")));
                 Check("stale cleanup never removes a runtime log",
                     File.Exists(Path.Combine(target, "server.log")));
                 Check("stale cleanup never removes the user ini",
@@ -2603,6 +2626,55 @@ namespace PiWebTray
             }
         }
 
+        private static void UpdateLayoutTransitionTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-layout-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string staging = Path.Combine(root, "staging");
+            string logPath = Path.Combine(root, "update.log");
+            try
+            {
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(staging);
+                Directory.CreateDirectory(Path.Combine(target, "parent"));
+                File.WriteAllText(Path.Combine(target, "old-node.txt"), "old-file");
+                File.WriteAllText(Path.Combine(target, "parent", "old.txt"), "old-child");
+                File.WriteAllText(Path.Combine(target, Updater.ManifestName),
+                    "old-node.txt" + Environment.NewLine
+                    + "parent/old.txt" + Environment.NewLine);
+
+                Directory.CreateDirectory(Path.Combine(staging, "old-node.txt"));
+                File.WriteAllText(Path.Combine(staging, "old-node.txt", "child.txt"), "new-child");
+                File.WriteAllText(Path.Combine(staging, "parent"), "new-file");
+
+                UpdateCopyResult copy = Updater.CopyFiles(staging, target, logPath);
+                Check("a file can become a directory during an update",
+                    Directory.Exists(Path.Combine(target, "old-node.txt"))
+                    && File.Exists(Path.Combine(target, "old-node.txt", "child.txt")));
+                Check("a directory can become a file during an update",
+                    File.Exists(Path.Combine(target, "parent"))
+                    && File.ReadAllText(Path.Combine(target, "parent")) == "new-file");
+                Check("layout transition backs up the old file",
+                    File.Exists(Path.Combine(copy.Backup, "old-node.txt")));
+                Check("layout transition backs up the old child",
+                    File.Exists(Path.Combine(copy.Backup, "parent", "old.txt")));
+
+                Check("layout transition rollback succeeds",
+                    Updater.Rollback(copy.Backup, target, copy.Managed, logPath));
+                Check("rollback restores the old file",
+                    File.Exists(Path.Combine(target, "old-node.txt"))
+                    && File.ReadAllText(Path.Combine(target, "old-node.txt")) == "old-file");
+                Check("rollback restores the old child and directory",
+                    File.Exists(Path.Combine(target, "parent", "old.txt"))
+                    && File.ReadAllText(Path.Combine(target, "parent", "old.txt")) == "old-child");
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
         private static void UpdateSnapshotMoveTests()
         {
             string root = Path.Combine(Path.GetTempPath(),
@@ -2665,6 +2737,18 @@ namespace PiWebTray
             {
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
+        }
+
+        private static void UnsafeLogFallbackTests()
+        {
+            Check("non-elevated tray may use the known-unavailable log fallback",
+                TrayApp.UseUnsafeLogFallback(false, 0));
+            Check("elevated tray never uses the unsafe log fallback",
+                !TrayApp.UseUnsafeLogFallback(true, 0));
+            Check("unknown log-host state is not treated as unavailable",
+                !TrayApp.UseUnsafeLogFallback(false, -1));
+            Check("available log host uses the safe writer",
+                !TrayApp.UseUnsafeLogFallback(false, 1));
         }
 
         private static void LogHostTests()
@@ -2826,6 +2910,27 @@ namespace PiWebTray
                 customScript, ServiceProbe.ExtractScriptPath(customLine, customScript));
             Check("other node command rejected", !ServiceProbe.IsPiWebCommandLine(
                 @"node C:\work\other.js"));
+            string decoyExpected = @"C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js";
+            string decoyLine = "\"C:\\Program Files\\nodejs\\node.exe\" \"C:\\work\\listener.js\" --config \""
+                + decoyExpected + "\"";
+            Check("a config argument containing pi-web.js is not a script",
+                !ServiceProbe.IsPiWebCommandLine(decoyLine));
+            string decoyExtracted = ServiceProbe.ExtractScriptPath(decoyLine, decoyExpected);
+            Check("script extraction ignores a later config argument",
+                !string.Equals(decoyExtracted, decoyExpected, StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrEmpty(decoyExtracted));
+            Check("script extraction does not expose an unrelated listener script",
+                string.IsNullOrEmpty(ServiceProbe.ExtractScriptPath(decoyLine)));
+            Check("a decoy script path does not match the expected pi-web script",
+                !ServiceProbe.MatchesExpectedScript(new PortOwnerInfo
+                {
+                    Owner = PortOwner.PiWeb,
+                    ScriptPath = decoyExtracted
+                }, decoyExpected));
+            Check("the real pi-web script is still accepted",
+                ServiceProbe.IsPiWebCommandLine(
+                    "\"C:\\Program Files\\nodejs\\node.exe\" \""
+                    + decoyExpected + "\" --no-open -p 30141"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));
             CheckEqual("failed owner probe is reported as unavailable",
                 L.T("check.ownerUnavailable"),

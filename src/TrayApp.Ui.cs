@@ -197,7 +197,7 @@ namespace PiWebTray
             // cancelled safely. Exiting at that point would leave the update and the
             // service in an unpredictable state, so keep the action unavailable until
             // the updater itself calls ExitApp.
-            _exitItem.Enabled = !applying;
+            _exitItem.Enabled = !applying && !AutostartBusy();
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
             if (portConflict) _openItem.Text = L.T("menu.portConflict");

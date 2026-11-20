@@ -1104,9 +1104,25 @@ namespace PiWebTray
             return false;
         }
 
+        // The cmd 1>> fallback writes through a path after the safe-log check, so it
+        // must never be used by an elevated tray. A non-elevated tray may use it only
+        // when the log-host probe positively failed; an unknown probe result is not
+        // evidence that the host is unavailable.
+        internal static bool UseUnsafeLogFallback(bool elevated, int logHostState)
+        {
+            return !elevated && logHostState == 0;
+        }
+
         private void StartServer(bool openBrowser)
         {
             if (_exiting) return;
+            if (AutostartBusy())
+            {
+                _pendingStart = true;
+                _pendingStartOpen = _pendingStartOpen || openBrowser;
+                UpdateUi();
+                return;
+            }
             // The update helper is replacing the executable and has already stopped
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
@@ -1426,15 +1442,26 @@ namespace PiWebTray
                         + " --no-open -p " + _port
                         + " 2>&1 | " + logHost;
                 }
-                else
+                else if (UseUnsafeLogFallback(_elevated, _logHostState))
                 {
-                    // Last-resort compatibility path: this loses live rotation and bypasses
-                    // the log-host's redaction (npm credential forms would land in server.log
-                    // as-is), but keeps the service startable when the log-host child cannot
-                    // be launched. SECURITY.md documents this residual risk.
+                    // Last-resort compatibility path for a non-elevated tray only.
+                    // This loses live rotation and bypasses the log-host's redaction
+                    // (npm credential forms would land in server.log as-is), but keeps
+                    // the service startable when the log-host child cannot be launched.
+                    // An elevated tray must fail closed: cmd would reopen the path after
+                    // the safe-log check and could follow a hard link or symlink planted
+                    // by a same-user process.
                     command = nodeArg + " " + scriptArg
                         + " --no-open -p " + _port
                         + " 1>>" + logArg + " 2>&1";
+                }
+                else
+                {
+                    // Unknown log-host state or an elevated tray. Discard output rather
+                    // than redirecting it through a path that could have been swapped.
+                    command = nodeArg + " " + scriptArg
+                        + " --no-open -p " + _port
+                        + " >NUL 2>&1";
                 }
 
                 ProcessStartInfo psi = new ProcessStartInfo();

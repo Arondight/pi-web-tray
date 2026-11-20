@@ -312,6 +312,9 @@ namespace PiWebTray
                 _autoMessage = null;
             }
             UpdateAutostartItems();
+            // UpdateUi is the central busy gate; without it Settings, Install,
+            // Update and Exit remain enabled while the task/ACL worker runs.
+            UpdateUi();
 
             Thread worker = new Thread(delegate ()
             {
@@ -378,6 +381,7 @@ namespace PiWebTray
             // completes instead of briefly showing the old state.
             _autostartSyncing = true;
             InvalidateAutostartCache();
+            UpdateUi();
             if (!string.IsNullOrEmpty(message))
             {
                 if (error) NotifyError(L.T("notify.autostartFailed"), message);
@@ -565,6 +569,10 @@ namespace PiWebTray
                 }
                 AuditExistingAdminTask();
                 UpdateAutostartItems();
+                // The busy state used by UpdateUi includes _autostartSyncing. Clear
+                // the disabled Settings/Install/Update/Exit items as soon as the
+                // fresh task query completes.
+                UpdateUi();
             }
 
             // Keep the cached value from going stale while the tray sits idle

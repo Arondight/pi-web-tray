@@ -27,7 +27,8 @@ namespace PiWebTray
         [TestMethod]
         public void ProtectedInstallRepairsOnlyLoadedFiles()
         {
-            if (!Elevation.IsElevated()) return;
+            if (!Elevation.IsElevated())
+                Assert.Inconclusive("This test requires an elevated test process.");
 
             string source = AppDomain.CurrentDomain.BaseDirectory;
             string sourceExe = Path.Combine(source, "pi-web-tray.exe");
@@ -339,7 +340,11 @@ namespace PiWebTray
         // create a protected test install when needed instead of weakening that check.
         private static string CreateProtectedInstallRoot(string source, string prefix)
         {
-            if (!Elevation.IsElevated()) return null;
+            if (!Elevation.IsElevated())
+            {
+                Assert.Inconclusive("This test requires an elevated test process.");
+                return null;
+            }
 
             string programFiles = Environment.GetFolderPath(
                 Environment.SpecialFolder.ProgramFiles);
@@ -360,7 +365,8 @@ namespace PiWebTray
 
         private static void AssertProtectedInstall(string target)
         {
-            if (!Elevation.IsElevated()) return;
+            if (!Elevation.IsElevated())
+                Assert.Inconclusive("This test requires an elevated test process.");
 
             // An update must leave the protected installation protected on its own.
             // This assertion runs before RepairTestInstall so the test cannot hide
@@ -372,7 +378,8 @@ namespace PiWebTray
 
         private static void RepairTestInstall(string target)
         {
-            if (!Elevation.IsElevated()) return;
+            if (!Elevation.IsElevated())
+                Assert.Inconclusive("This test requires an elevated test process.");
 
             // GitHub Actions runs elevated. Repair is retained as a safety net for
             // the test directory ACL after processes created files during the test.

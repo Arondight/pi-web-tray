@@ -23,6 +23,11 @@ namespace PiWebTray
         private bool ExitApp(bool restart)
         {
             if (_exiting || _exitPromptOpen) return false;
+            if (AutostartBusy() && !_exitForUpdateApply)
+            {
+                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
+                return false;
+            }
 
             // The updater's own ExitApp call is the only exit allowed while the helper
             // is replacing files. A menu/CLI exit at that point would abandon the
@@ -195,6 +200,11 @@ namespace PiWebTray
         private void ExitWithoutStoppingService(bool stopTrackedService)
         {
             if (_exiting) return;
+            if (AutostartBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
+                return;
+            }
             // An elevated --tray-only takeover is not allowed to abandon a running
             // update helper. ExitApp has the same guard; this path previously bypassed
             // it and could leave the helper waiting for a gate that never arrives.

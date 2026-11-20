@@ -972,6 +972,13 @@ namespace PiWebTray
                     }
                 }
 
+                if (!CanStartDirectly(originalElevated, Elevation.IsElevated()))
+                {
+                    AppendLog(logPath,
+                        "de-elevated start after failure unavailable; refusing an elevated direct start");
+                    return;
+                }
+
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = exe;
                 psi.Arguments = args;

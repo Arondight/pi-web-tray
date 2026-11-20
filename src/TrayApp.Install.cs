@@ -21,6 +21,11 @@ namespace PiWebTray
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_exiting) return;
+            if (AutostartBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
+                return;
+            }
             if (ElevatedInstallUnsafe())
             {
                 NotifyWarningOnce("elevated-writable-install",

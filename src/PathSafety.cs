@@ -154,8 +154,10 @@ namespace PiWebTray
             }
         }
 
-        // Directory identity is used where a junction/8.3 alias should be accepted,
-        // but a hard link to the executable in a different directory must not be.
+        // Directory identity is used where an 8.3 alias or the same local spelling
+        // should be accepted. Junction aliases are rejected conservatively by the
+        // reparse check below; a hard link to the executable in a different directory
+        // must not be accepted either.
         internal static bool SameDirectory(string left, string right)
         {
             if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return false;

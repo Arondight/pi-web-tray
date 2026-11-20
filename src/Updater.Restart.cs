@@ -25,6 +25,15 @@ namespace PiWebTray
         // not mistaken for a successful update before the new tray's backup cleanup.
         private const int StableTrayMilliseconds = 5000;
 
+        // A standard-user tray must not fall back to a direct child from an elevated
+        // helper: Process.Start inherits the helper's full token, even without the
+        // runas verb. Direct starts are allowed only when the original tray was
+        // elevated or the helper itself is not elevated.
+        internal static bool CanStartDirectly(bool originalElevated, bool helperElevated)
+        {
+            return originalElevated || !helperElevated;
+        }
+
         // A --stop/--quit that arrives after the tray has handed control to the
         // helper cannot update the already-fixed start mode. Honour the persistent
         // user-stop marker at the last moment instead of resurrecting the service.
@@ -125,6 +134,13 @@ namespace PiWebTray
                         try { File.Delete(cmdPath); } catch (Exception) { }
                     }
                 }
+            }
+
+            if (!CanStartDirectly(originalElevated, helperElevated))
+            {
+                AppendLog(logPath,
+                    "de-elevated restart unavailable; refusing to start an elevated replacement");
+                return false;
             }
 
             try

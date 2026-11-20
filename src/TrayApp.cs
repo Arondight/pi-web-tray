@@ -655,7 +655,7 @@ namespace PiWebTray
             }
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
-                && !UpdateBusy() && !_exiting && !_nodePromptOpen && _modalDepth == 0
+                && !UpdateBusy() && !AutostartBusy() && !_exiting && !_nodePromptOpen && _modalDepth == 0
                 && _phase != Phase.Installing && _phase != Phase.Checking
                 && _phase != Phase.Starting && _phase != Phase.Stopping)
             {

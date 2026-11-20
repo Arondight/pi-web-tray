@@ -39,7 +39,7 @@ namespace PiWebTray
 
         private void BeginUpdateCheck(bool silent)
         {
-            if (_exiting) return;
+            if (_exiting || AutostartBusy()) return;
             if (_phase == Phase.Installing || _phase == Phase.Checking
                 || _phase == Phase.Starting || _phase == Phase.Stopping)
             {
@@ -180,7 +180,7 @@ namespace PiWebTray
                         // Never start a download while an install or service action is
                         // in progress.
                         if (!_exiting && !UpdateBusy() && !IsServiceActionInProgress()
-                            && _phase != Phase.Checking)
+                            && !AutostartBusy() && _phase != Phase.Checking)
                         {
                             OfferUpdate(release);
                         }
@@ -193,7 +193,7 @@ namespace PiWebTray
 
         private void OfferUpdate(ReleaseInfo release)
         {
-            if (release == null || _exiting) return;
+            if (release == null || _exiting || AutostartBusy()) return;
 
             // HandleUpdateCheck calls this while its check is still the active
             // operation. A notification action calls it with no active operation.
@@ -251,6 +251,7 @@ namespace PiWebTray
 
         private void BeginUpdateDownload(ReleaseInfo release)
         {
+            if (AutostartBusy()) return;
             // Keep the state from the check as well as the state at the start of the
             // download. If the service stops before the helper is launched, this still
             // preserves a service that was running when the update began.

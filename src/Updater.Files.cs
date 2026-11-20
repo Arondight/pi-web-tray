@@ -91,6 +91,16 @@ namespace PiWebTray
                     new UTF8Encoding(false));
                 ProtectOwnerForUpdate(IncompleteMarker(backupRoot), false);
 
+                // Keep old-release files that are about to become stale in the backup
+                // as well. CleanupStaleFiles runs only after a successful restart; the
+                // retained backup is therefore a complete rollback source rather than
+                // only a copy of files that happened to exist in the new release.
+                // Files that are replaced by a directory (or whose parent becomes a
+                // file) are moved now so the new layout can be created; other old-only
+                // files are copied and remain in the target until stale cleanup.
+                BackupOldOnlyFiles(target, backupRoot, newManaged, backupSources,
+                    backupTargets, logPath);
+
                 foreach (string source in files)
                 {
                     string relative = RelativePath(staging, source);
@@ -119,9 +129,12 @@ namespace PiWebTray
                         }
                         try { File.SetAttributes(destination, FileAttributes.Normal); } catch (Exception) { }
                         File.Move(destination, backup);
-                        ProtectOwnerForUpdate(backup, false);
+                        // Track the move before the owner repair. If ProtectOwnerForUpdate
+                        // fails, the catch block must put this file back before deleting
+                        // the backup directory.
                         backupSources.Add(backup);
                         backupTargets.Add(destination);
+                        ProtectOwnerForUpdate(backup, false);
                     }
 
                     // Remember every destination before copying. A failed File.Copy can
@@ -213,6 +226,84 @@ namespace PiWebTray
             result.Backup = backupRoot;
             result.Managed = newManaged;
             return result;
+        }
+
+        private static void BackupOldOnlyFiles(string target, string backupRoot,
+            List<string> newManaged, List<string> backupSources, List<string> backupTargets,
+            string logPath)
+        {
+            string manifest = Path.Combine(target, ManifestName);
+            List<string> oldManaged = ReadManifest(manifest);
+            if (oldManaged.Count == 0) return;
+
+            HashSet<string> current = new HashSet<string>(newManaged,
+                StringComparer.OrdinalIgnoreCase);
+            HashSet<string> handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string oldRelative in oldManaged)
+            {
+                string full = SafeTargetPath(target, oldRelative);
+                if (full == null) continue;
+
+                // Resolve dot segments and "./" before comparing with the new list.
+                string relative = TargetRelativePath(target, full);
+                if (string.IsNullOrEmpty(relative) || ShouldSkip(relative)) continue;
+                if (current.Contains(relative)) continue;
+                if (!handled.Add(relative)) continue;
+                if (PathSafety.ContainsReparsePoint(full)) continue;
+                if (!File.Exists(full)) continue;
+
+                bool replacedByDirectory = false;
+                bool replacedByFile = false;
+                foreach (string newRelative in newManaged)
+                {
+                    if (newRelative.StartsWith(relative + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        replacedByDirectory = true;
+                        break;
+                    }
+                    if (relative.StartsWith(newRelative + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        replacedByFile = true;
+                        break;
+                    }
+                }
+
+                string backup = Path.Combine(backupRoot,
+                    relative.Replace('/', Path.DirectorySeparatorChar));
+                string backupDir = Path.GetDirectoryName(backup);
+                if (!string.IsNullOrEmpty(backupDir))
+                {
+                    bool existed = Directory.Exists(backupDir);
+                    Directory.CreateDirectory(backupDir);
+                    if (!existed) ProtectOwnerForUpdate(backupDir, true);
+                }
+
+                if (replacedByDirectory || replacedByFile)
+                {
+                    // CreateDirectory cannot replace an old file that becomes a
+                    // directory, and File.Copy cannot replace an old directory that
+                    // becomes a file. Move this file out of the way now; Rollback
+                    // restores it from the tracked backup entry if the update fails.
+                    try { File.SetAttributes(full, FileAttributes.Normal); } catch (Exception) { }
+                    File.Move(full, backup);
+                    // Track the move before the owner repair so a repair failure
+                    // restores the old-only file instead of deleting the backup.
+                    backupSources.Add(backup);
+                    backupTargets.Add(full);
+                    ProtectOwnerForUpdate(backup, false);
+                    if (replacedByFile) DeleteEmptyParents(target, full);
+                }
+                else
+                {
+                    // Leave the old target file in place until the post-restart stale
+                    // cleanup. Keeping it in the backup makes the backup complete
+                    // without risking the old executable before the restart.
+                    File.Copy(full, backup, false);
+                    ProtectOwnerForUpdate(backup, false);
+                }
+                AppendLog(logPath, "backup stale " + relative);
+            }
         }
 
         private static List<string> ManagedFiles(string staging, List<string> files)
