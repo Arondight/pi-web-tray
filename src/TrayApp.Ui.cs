@@ -127,8 +127,8 @@ namespace PiWebTray
             _statusItem.Text = Shell.Clip(statusText, 100).Replace("&", "&&");
 
             bool applying = _updateStage == UpdateStage.Applying;
-            bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
-                || _phase == Phase.Starting || _phase == Phase.Stopping;
+            bool serviceBusy = IsServiceActionInProgress()
+                || _phase == Phase.Checking;
             bool busy = serviceBusy || updateBusy || AutostartBusy() || _autostartSyncing;
             bool running = _phase == Phase.Running || _phase == Phase.RunningUnverified;
             bool portConflict = _phase == Phase.PortConflict;

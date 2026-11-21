@@ -308,6 +308,7 @@ namespace PiWebTray
             string target = _config.BaseDir;
             Thread worker = new Thread(delegate ()
             {
+                bool success = false;
                 try
                 {
                     // Never delete a backup while an update helper owns the installation.
@@ -325,13 +326,25 @@ namespace PiWebTray
                         string dataBackupStore = Path.Combine(_config.DataDir, "update",
                             "backups", Updater.TargetCleanupKey(target));
                         Updater.DeleteStaleBackups(dataBackupStore, TimeSpan.FromSeconds(30));
+                        success = true;
                     }
                 }
                 catch (Exception) { }
+                finally
+                {
+                    _updateBackupCleanupRunning = false;
+                    if (success) _updateBackupCleanupAt = DateTime.MinValue;
+                    else _updateBackupCleanupAt = DateTime.Now.AddSeconds(30);
+                }
             });
             worker.IsBackground = true;
             worker.Name = "pi-web-tray backup cleanup";
-            try { worker.Start(); } catch (Exception) { }
+            try { worker.Start(); }
+            catch (Exception)
+            {
+                _updateBackupCleanupRunning = false;
+                _updateBackupCleanupAt = DateTime.Now.AddSeconds(30);
+            }
         }
 
         private void RotateLog()

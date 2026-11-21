@@ -1123,6 +1123,16 @@ namespace PiWebTray
                 UpdateUi();
                 return;
             }
+            // An owner-check continuation is already deciding whether to start or
+            // stop the service. Queue this signal instead of launching a competing
+            // process; the next stable tick will consume it.
+            if (HasPendingOwnerAction())
+            {
+                _pendingStart = true;
+                _pendingStartOpen = _pendingStartOpen || openBrowser;
+                UpdateUi();
+                return;
+            }
             // The update helper is replacing the executable and has already stopped
             // the service. An external --start-no-open signal or a queued action must
             // not launch the old binary again during that window.
@@ -1283,6 +1293,7 @@ namespace PiWebTray
                     // result arrives instead of freezing the UI thread.
                     _startAfterOwnerCheck = true;
                     _startAfterOwnerCheckOpen = openBrowser;
+                    UpdateUi();
                     BeginOwnerCheck();
                     return;
                 }
@@ -1561,6 +1572,8 @@ namespace PiWebTray
             _pendingStartOpen = false;
             _restartAfterUpdate = false;
             _autoRestartAt = DateTime.MinValue;
+            _installAfterAutostartStart = false;
+            _installAfterAutostartOpen = false;
             ClearPendingStartAfterUpdate();
             StopServer();
         }
@@ -1590,6 +1603,11 @@ namespace PiWebTray
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
+            // A dependency install may be waiting behind an autostart operation.
+            // A user stop cancels its start/open continuation even when the
+            // install itself remains queued.
+            _installAfterAutostartStart = false;
+            _installAfterAutostartOpen = false;
 
             // A stop requested while an environment probe is deciding whether to
             // start the service must also cancel that queued start.
@@ -1682,6 +1700,7 @@ namespace PiWebTray
                 // but the probe can take seconds; continue when the result arrives instead
                 // of freezing the UI thread.
                 _stopAfterOwnerCheck = true;
+                UpdateUi();
                 BeginOwnerCheck();
                 return;
             }

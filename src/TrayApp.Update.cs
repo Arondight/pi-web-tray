@@ -39,12 +39,8 @@ namespace PiWebTray
 
         private void BeginUpdateCheck(bool silent)
         {
-            if (_exiting || AutostartBusy()) return;
-            if (_phase == Phase.Installing || _phase == Phase.Checking
-                || _phase == Phase.Starting || _phase == Phase.Stopping)
-            {
-                return;
-            }
+            if (_exiting || AutostartBusy() || _phase == Phase.Checking
+                || IsServiceActionInProgress()) return;
 
             if (!silent) _autoUpdateCheckAt = DateTime.MinValue;
 
@@ -268,6 +264,11 @@ namespace PiWebTray
 
         private void BeginUpdateDownload(ReleaseInfo release)
         {
+            // Downloading does not stop or start the service. Keep it available
+            // while a service action is running; only the autostart task operation
+            // owns a conflicting update lock. An offer declined here leaves the
+            // caller's update state intact, so do not add a busy return without
+            // making the caller finish that state.
             if (AutostartBusy()) return;
             // Keep the state from the check as well as the state at the start of the
             // download. If the service stops before the helper is launched, this still
@@ -303,19 +304,35 @@ namespace PiWebTray
 
             Thread worker = new Thread(delegate ()
             {
-                string error;
-                string staging = Updater.Prepare(
-                    _config,
-                    release,
-                    delegate (int percent) { _updatePercent = percent; },
-                    cancellation,
-                    out error);
-                lock (_updateLock)
+                string error = null;
+                string staging = null;
+                try
                 {
-                    if (generation != _updateGeneration) return;
-                    _updateStaging = staging;
-                    _updateError = error;
-                    _updateDone = true;
+                    staging = Updater.Prepare(
+                        _config,
+                        release,
+                        delegate (int percent) { _updatePercent = percent; },
+                        cancellation,
+                        out error);
+                }
+                catch (Exception ex)
+                {
+                    // Keep the same invariant as the check worker: an unexpected
+                    // exception must not leave _updateBusy set until process exit.
+                    staging = null;
+                    error = ex.Message;
+                }
+                finally
+                {
+                    lock (_updateLock)
+                    {
+                        if (generation == _updateGeneration)
+                        {
+                            _updateStaging = staging;
+                            _updateError = error;
+                            _updateDone = true;
+                        }
+                    }
                 }
             });
             worker.IsBackground = true;

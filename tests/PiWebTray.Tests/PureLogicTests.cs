@@ -275,6 +275,7 @@ namespace PiWebTray
             UpdateTargetTests();
             StaleBackupTests();
             UpdateBackupHandoffTests();
+            PendingOwnerActionTests();
             LogHostTests();
             UnsafeLogFallbackTests();
             LogViewTests();
@@ -1750,6 +1751,43 @@ namespace PiWebTray
             {
                 try { if (Directory.Exists(target)) Directory.Delete(target, true); } catch (Exception) { }
             }
+        }
+
+        private static void PendingOwnerActionTests()
+        {
+            // A pending owner-check continuation keeps the visible phase stable.
+            // The busy gate must still include it, otherwise an install, update or
+            // autostart operation can race the continuation.
+            TrayApp app = (TrayApp)System.Runtime.Serialization.FormatterServices
+                .GetUninitializedObject(typeof(TrayApp));
+            FieldInfo install = typeof(TrayApp).GetField("_installAfterOwnerCheck",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo start = typeof(TrayApp).GetField("_startAfterOwnerCheck",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            FieldInfo stop = typeof(TrayApp).GetField("_stopAfterOwnerCheck",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo busy = typeof(TrayApp).GetMethod("IsServiceActionInProgress",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Check("busy-gate fields are available", install != null && start != null
+                && stop != null && busy != null);
+            if (install == null || start == null || stop == null || busy == null) return;
+
+            Check("an empty pending-action set is idle",
+                !(bool)busy.Invoke(app, null));
+            install.SetValue(app, true);
+            Check("pending install owner check is busy",
+                (bool)busy.Invoke(app, null));
+            install.SetValue(app, false);
+            start.SetValue(app, true);
+            Check("pending start owner check is busy",
+                (bool)busy.Invoke(app, null));
+            start.SetValue(app, false);
+            stop.SetValue(app, true);
+            Check("pending stop owner check is busy",
+                (bool)busy.Invoke(app, null));
+            stop.SetValue(app, false);
+            Check("clearing pending actions restores idle",
+                !(bool)busy.Invoke(app, null));
         }
 
         private static void UpdateBackupHandoffTests()

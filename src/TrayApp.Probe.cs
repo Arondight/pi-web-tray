@@ -15,10 +15,20 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        // Pending owner-check continuations are part of the action gate too. They
+        // leave the phase stable while a background netstat/HTTP probe runs, so
+        // checking only the phase would let an install, update or autostart worker
+        // race the continuation that is about to stop/start the service or run npm.
+        private bool HasPendingOwnerAction()
+        {
+            return _installAfterOwnerCheck || _startAfterOwnerCheck
+                || _stopAfterOwnerCheck;
+        }
+
         private bool IsServiceActionInProgress()
         {
             return _phase == Phase.Starting || _phase == Phase.Stopping
-                || _phase == Phase.Installing;
+                || _phase == Phase.Installing || HasPendingOwnerAction();
         }
 
         private void BeginEnvironmentCheck(bool thenStart, bool openBrowser)

@@ -49,8 +49,8 @@ namespace PiWebTray
                 && Autostart.RunValueTargetsExecutable(Application.ExecutablePath)
                 && Autostart.RunValueStartsService(Autostart.RunValue())
                 && Autostart.RunValueApproved();
-            bool serviceBusy = _phase == Phase.Installing || _phase == Phase.Checking
-                || _phase == Phase.Starting || _phase == Phase.Stopping;
+            bool serviceBusy = IsServiceActionInProgress()
+                || _phase == Phase.Checking;
             // An external updater helper owns the installation while it replaces
             // files. Autostart changes are cheap, but the menu must not claim it can
             // create a task against a directory that is being updated.
@@ -312,12 +312,23 @@ namespace PiWebTray
         private bool BeginAutostartOp(bool enable, bool admin)
         {
             if (_exiting || UpdateBusy() || _phase == Phase.Checking
-                || IsServiceActionInProgress()) return false;
-            if (!OperationLock.IsAvailable(OperationLock.UpdateName(_config.BaseDir)))
+                || IsServiceActionInProgress() || _installUpdateLock != null)
                 return false;
             lock (_autoLock)
             {
                 if (_autoBusy) return false;
+            }
+
+            // Hold the same cross-process lock as npm and the update helper for the
+            // whole task operation. Checking IsAvailable alone is a TOCTOU race:
+            // another process can acquire the lock immediately afterwards.
+            OperationLock updateLock = OperationLock.TryAcquire(
+                OperationLock.UpdateName(_config.BaseDir));
+            if (updateLock == null) return false;
+
+            lock (_autoLock)
+            {
+                _autostartUpdateLock = updateLock;
                 _autoBusy = true;
                 _autoDone = false;
                 _autoMessage = null;
@@ -371,6 +382,7 @@ namespace PiWebTray
             string message;
             bool error;
             int revertAdmin;
+            OperationLock updateLock;
             lock (_autoLock)
             {
                 if (!_autoDone) return;
@@ -380,6 +392,14 @@ namespace PiWebTray
                 revertAdmin = _revertAdminAutostart;
                 _revertAdminAutostart = -1;
                 _autoMessage = null;
+                updateLock = _autostartUpdateLock;
+                _autostartUpdateLock = null;
+            }
+            // The worker has finished reading/writing task state. Release the
+            // installation lock before handling the result or starting anything new.
+            if (updateLock != null)
+            {
+                try { updateLock.Dispose(); } catch (Exception) { }
             }
 
             if (error && revertAdmin >= 0)

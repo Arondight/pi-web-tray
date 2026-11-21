@@ -240,6 +240,10 @@ namespace PiWebTray
         private string _autoMessage;
         private bool _autoError;
         private int _revertAdminAutostart = -1; // -1 = no revert, 0/1 = previous value
+        // The update lock is acquired on the UI thread and held until the autostart
+        // worker finishes. A plain availability check left a window in which an
+        // update helper or npm install could start after the check.
+        private OperationLock _autostartUpdateLock;
 
         // update (background -> UI thread)
         private readonly object _updateLock = new object();
@@ -253,6 +257,7 @@ namespace PiWebTray
         private UpdateForm _updateForm;
         private DateTime _autoUpdateCheckAt = DateTime.MinValue;
         private DateTime _updateBackupCleanupAt = DateTime.MinValue;
+        private volatile bool _updateBackupCleanupRunning;
         private string _updateStaging;
         private string _updateError;
         private UpdateCancellation _updateCancellation;
@@ -643,16 +648,18 @@ namespace PiWebTray
             if (_modalDepth == 0) RetryPendingStartAfterUpdate();
 
             if (_updateBackupCleanupAt != DateTime.MinValue && DateTime.Now >= _updateBackupCleanupAt
-                && !_exiting)
+                && !_exiting && !_updateBackupCleanupRunning)
             {
                 // The helper can observe only that the replacement tray stayed
                 // alive briefly. Keep the previous release until the new service is
                 // actually Running (or this is a deliberately tray-only start), then
-                // let the age-based cleanup remove the backup.
+                // let the age-based cleanup remove the backup. The worker rearms the
+                // timer if it could not acquire the update lock; a one-shot attempt
+                // could otherwise leave the handoff backup in the data directory.
                 if (_phase == Phase.Running
                     || (_phase == Phase.Stopped && !_serviceStoppedByUser))
                 {
-                    _updateBackupCleanupAt = DateTime.MinValue;
+                    _updateBackupCleanupRunning = true;
                     CleanupStaleUpdateBackups();
                 }
                 else
@@ -663,8 +670,8 @@ namespace PiWebTray
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
                 && !UpdateBusy() && !AutostartBusy() && !_exiting && !_nodePromptOpen && _modalDepth == 0
-                && _phase != Phase.Installing && _phase != Phase.Checking
-                && _phase != Phase.Starting && _phase != Phase.Stopping)
+                && !IsServiceActionInProgress()
+                && _phase != Phase.Checking)
             {
                 _autoUpdateCheckAt = DateTime.MinValue;
                 BeginUpdateCheck(true);

@@ -213,6 +213,10 @@ namespace PiWebTray
                     _installAfterOwnerCheckForce = force;
                     _installAfterOwnerCheckStart = thenStart;
                     _installAfterOwnerCheckOpen = thenOpen;
+                    // The probe leaves _phase stable while it runs; publish the
+                    // pending action so the menu busy gate and autostart/update
+                    // checks cannot start a competing operation.
+                    UpdateUi();
                     BeginOwnerCheck();
                     return;
                 }
@@ -264,6 +268,15 @@ namespace PiWebTray
             if (_phase == Phase.Starting || _phase == Phase.Stopping)
             {
                 ReleaseInstallUpdateLock();
+                return;
+            }
+            if (AutostartBusy())
+            {
+                // The autostart worker may have started while the owner probe was
+                // in flight. Requeue the install instead of running npm against a
+                // task/ACL operation.
+                ReleaseInstallUpdateLock();
+                BeginInstall(force, thenStart, thenOpen);
                 return;
             }
             if (_installAfterStop)
@@ -580,6 +593,8 @@ namespace PiWebTray
             _installRestartService = false;
             _installStartAfter = false;
             _installOpenAfter = false;
+            _installAfterAutostartStart = false;
+            _installAfterAutostartOpen = false;
             ReleaseInstallUpdateLock();
             Updater.AppendLog(_config.UpdateLogFile, "dependency update cancelled: Pi Web is still running");
             if (notify && _phase != Phase.PortConflict)

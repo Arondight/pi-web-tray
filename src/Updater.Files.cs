@@ -581,14 +581,19 @@ namespace PiWebTray
                 string dataCanonical = PathSafety.CanonicalPath(dataDir);
                 string dataRoot = Path.Combine(dataDir, "update", "backups",
                     TargetCleanupKey(target));
+                string dataRootCanonical = Path.Combine(dataCanonical, "update", "backups",
+                    TargetCleanupKey(target));
                 // Do not move a protected backup back under the protected target.
                 // PathSafety fails closed for a reparse point anywhere in the path.
-                // The canonical checks also reject an 8.3 alias of the target.
+                // Canonical checks also reject an 8.3 alias of the target, including
+                // aliases in the data path's parent components.
                 if (string.IsNullOrEmpty(target)
                     || PathSafety.ContainsReparsePoint(dataDir)
                     || PathSafety.ContainsReparsePoint(dataRoot)
                     || IsInside(dataCanonical, targetCanonical)
                     || PathSafety.SameDirectory(dataCanonical, targetCanonical)
+                    || IsInside(dataRootCanonical, targetCanonical)
+                    || PathSafety.SameDirectory(dataRootCanonical, targetCanonical)
                     || IsInside(dataRoot, targetCanonical)
                     || PathSafety.SameDirectory(dataRoot, targetCanonical)
                     || PathSafety.ContainsReparsePointInTree(backupRoot)) return false;
