@@ -155,7 +155,10 @@ namespace PiWebTray
             {
                 string value = RunValue();
                 if (value.Length == 0) return;
-                if (value.IndexOf(Shell.Quote(executablePath), StringComparison.OrdinalIgnoreCase) >= 0) return;
+                // Compare the file object, not a spelling of the path. An 8.3 name
+                // or a junction must count as the current executable instead of
+                // being treated as another installation.
+                if (RunValueTargetsExecutable(executablePath)) return;
 
                 string oldTarget = RunValueTarget(value);
                 if (string.IsNullOrEmpty(oldTarget)) return;
@@ -180,6 +183,7 @@ namespace PiWebTray
             try
             {
                 target = Environment.ExpandEnvironmentVariables(target);
+                if (PathSafety.SameFile(target, executablePath)) return true;
                 return string.Equals(Path.GetFullPath(target), Path.GetFullPath(executablePath),
                     StringComparison.OrdinalIgnoreCase);
             }
@@ -583,8 +587,28 @@ namespace PiWebTray
             if (domain.Length > 0 && user.Length > 0
                 && string.Equals(value, domain + "\\" + user, StringComparison.OrdinalIgnoreCase))
                 return true;
-            return value.IndexOf('\\') < 0 && user.Length > 0
-                && string.Equals(value, user, StringComparison.OrdinalIgnoreCase);
+
+            // An unqualified name is ambiguous on a domain-joined machine: a local
+            // account and a domain account can share it. Resolve it to a SID and
+            // compare identities instead of accepting every account whose display
+            // name happens to equal Environment.UserName.
+            if (value.IndexOf('\\') >= 0) return false;
+            try
+            {
+                NTAccount account = new NTAccount(value);
+                SecurityIdentifier translated = account.Translate(
+                    typeof(SecurityIdentifier)) as SecurityIdentifier;
+                string currentSidText = CurrentUserPrincipal();
+                if (translated == null || string.IsNullOrEmpty(currentSidText)) return false;
+                SecurityIdentifier current = new SecurityIdentifier(currentSidText);
+                return translated.Equals(current);
+            }
+            catch (Exception)
+            {
+                // An unresolvable or ambiguous name must never be treated as the
+                // current user just because its final component matches.
+                return false;
+            }
         }
 
         private static List<Encoding> TaskXmlEncodings()
@@ -883,6 +907,121 @@ namespace PiWebTray
             {
                 error = ex.Message;
                 return false;
+            }
+        }
+
+        // Create a known cleanup DACL for a directory that will hold a moved
+        // backup. A directory created by an elevated process is owned by that
+        // user, and inheritance from Program Files can resolve CREATOR OWNER into
+        // a concrete allow ACE for the same standard-user token. Replace the
+        // inherited rules with trusted full control and read/delete-only access for
+        // Builtin Users; the replacement tray needs no write access there.
+        internal static bool CreateCleanupDirectory(string directory, out string error)
+        {
+            error = "";
+            try
+            {
+                if (string.IsNullOrEmpty(directory))
+                {
+                    error = "directory is missing";
+                    return false;
+                }
+                if (!Directory.Exists(directory))
+                {
+                    if (PathSafety.ContainsReparsePoint(directory))
+                    {
+                        error = "directory path crosses a reparse point";
+                        return false;
+                    }
+                    DirectorySecurity security = new DirectorySecurity();
+                    security.SetOwner(AdministratorsSid);
+                    security.SetAccessRuleProtection(true, false);
+                    AddCleanupRules(security, true);
+                    Directory.CreateDirectory(directory, security);
+                }
+                return ProtectCleanupDirectory(directory, true, out error);
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        internal static bool ProtectCleanupDirectory(string directory, out string error)
+        {
+            return ProtectCleanupDirectory(directory, true, out error);
+        }
+
+        // allowUserDelete is false for the source backup still inside the protected
+        // installation. If the move fails, that directory must not make the
+        // installation look user-writable to the next elevated start.
+        internal static bool ProtectCleanupDirectory(string directory, bool allowUserDelete,
+            out string error)
+        {
+            error = "";
+            try
+            {
+                if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+                {
+                    error = "directory is missing";
+                    return false;
+                }
+                if (PathSafety.ContainsReparsePoint(directory))
+                {
+                    error = "directory path crosses a reparse point";
+                    return false;
+                }
+                // Changing a directory DACL with inheritance can propagate to
+                // existing child objects. A planted junction or hard link could
+                // therefore retarget the repair at a protected file.
+                if (PathSafety.ContainsReparsePointInTree(directory))
+                {
+                    error = "directory tree contains a reparse point";
+                    return false;
+                }
+                if (PathSafety.ContainsHardLinkInTree(directory))
+                {
+                    error = "directory tree contains a hard link";
+                    return false;
+                }
+
+                DirectoryInfo info = new DirectoryInfo(directory);
+                DirectorySecurity security = info.GetAccessControl(
+                    AccessControlSections.Access | AccessControlSections.Owner);
+                security.SetOwner(AdministratorsSid);
+                security.SetAccessRuleProtection(true, false);
+                AddCleanupRules(security, allowUserDelete);
+                info.SetAccessControl(security);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        private static void AddCleanupRules(DirectorySecurity security, bool allowUserDelete)
+        {
+            const InheritanceFlags inherit = InheritanceFlags.ContainerInherit
+                | InheritanceFlags.ObjectInherit;
+            SecurityIdentifier users = new SecurityIdentifier(
+                WellKnownSidType.BuiltinUsersSid, null);
+            security.AddAccessRule(new FileSystemAccessRule(LocalSystemSid,
+                FileSystemRights.FullControl, inherit, PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(AdministratorsSid,
+                FileSystemRights.FullControl, inherit, PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(users,
+                FileSystemRights.ReadAndExecute, inherit, PropagationFlags.None,
+                AccessControlType.Allow));
+            if (allowUserDelete)
+            {
+                security.AddAccessRule(new FileSystemAccessRule(users,
+                    FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles,
+                    inherit, PropagationFlags.None, AccessControlType.Allow));
             }
         }
 
@@ -1369,6 +1508,36 @@ namespace PiWebTray
             | FileSystemRights.DeleteSubdirectoriesAndFiles
             | FileSystemRights.ChangePermissions
             | FileSystemRights.TakeOwnership;
+
+        // A cleanup store intentionally grants standard users delete rights so the
+        // replacement tray can remove an old backup. Rights that let them create,
+        // replace or re-permission entries are still unsafe.
+        private const FileSystemRights StoreWriteRights = FileSystemRights.WriteData
+            | FileSystemRights.AppendData
+            | FileSystemRights.WriteExtendedAttributes
+            | FileSystemRights.ChangePermissions
+            | FileSystemRights.TakeOwnership;
+
+        // Check a directory that will receive a helper migration rather than an
+        // installation. Delete-only rights are allowed here for the cleanup store.
+        internal static bool IsUnsafeWritableDirectory(string directory)
+        {
+            try
+            {
+                string full = Path.GetFullPath(directory);
+                if (PathSafety.ContainsReparsePoint(full)) return true;
+                DirectoryInfo info = new DirectoryInfo(full);
+                if (!info.Exists) return true;
+                DirectorySecurity security = info.GetAccessControl(
+                    AccessControlSections.Access | AccessControlSections.Owner);
+                if (IsUntrustedOwner(security)) return true;
+                return HasUnsafeAccess(security, StoreWriteRights);
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
 
         // Rights that let a standard user rename/delete an ancestor directory or
         // change its permissions. AppendData/WriteData alone only create new entries;

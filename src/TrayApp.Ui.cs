@@ -794,7 +794,19 @@ namespace PiWebTray
             }
             if (Autostart.IsUserWritableInstall(Application.ExecutablePath))
             {
-                NotifyWarning(L.T("notify.adminRestartTitle"), L.T("notify.adminRestartWritableBody"));
+                // The same directory may still be made safe by taking ownership
+                // and resetting its ACL. Reuse the administrator-autostart warning
+                // form so manual elevation has the same Fix action instead of only
+                // telling the user to move the program elsewhere.
+                NotifyWarning(L.T("notify.adminRestartTitle"),
+                    L.T("notify.adminRestartWritableBody"),
+                    delegate
+                    {
+                        ShowAdminAutostartWarning(
+                            L.T("notify.adminRestartTitle"),
+                            L.T("notify.adminRestartFixDetails", Application.ExecutablePath),
+                            false);
+                    });
                 return;
             }
 

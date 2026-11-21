@@ -189,7 +189,10 @@ namespace PiWebTray
                     }
                     finally
                     {
-                        acquired.Set();
+                        // The waiting caller may have closed the event after its
+                        // timeout. Do not let that race terminate the process from
+                        // this background thread.
+                        try { acquired.Set(); } catch (Exception) { }
                     }
 
                     if (!got) return;

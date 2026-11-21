@@ -6,6 +6,7 @@
 // PI_WEB_TRAY_HOME overrides the data directory entirely (default %LOCALAPPDATA%\pi-web-tray).
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Security.Cryptography;
@@ -502,9 +503,9 @@ namespace PiWebTray
         {
             try
             {
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)
-                    || PathSafety.ContainsReparsePoint(path)) return "";
-                foreach (string rawLine in File.ReadAllLines(path))
+                string[] lines = ReadVerifiedLines(path);
+                if (lines == null) return "";
+                foreach (string rawLine in lines)
                 {
                     string line = rawLine.Trim();
                     if (line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -515,6 +516,34 @@ namespace PiWebTray
             {
             }
             return "";
+        }
+
+        // The state file is in a user-writable directory. Verify the opened handle
+        // and reject hard links before an elevated CLI reads it.
+        private static string[] ReadVerifiedLines(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)
+                    || PathSafety.ContainsReparsePoint(path)) return null;
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
+                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
+                    List<string> lines = new List<string>();
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null) lines.Add(line);
+                    }
+                    return lines.ToArray();
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
     }

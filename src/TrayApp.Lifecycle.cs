@@ -322,14 +322,16 @@ namespace PiWebTray
                         // installation into this target-specific data directory and
                         // grants Users delete access explicitly. Never scan a shared
                         // data directory broadly: another installation may have a
-                        // rollback copy there.
+                        // rollback copy there. An elevated helper normally uses the
+                        // protected sibling store instead; non-elevated helpers and
+                        // older releases may use this one.
                         string dataBackupStore = Path.Combine(_config.DataDir, "update",
                             "backups", Updater.TargetCleanupKey(target));
                         Updater.DeleteStaleBackups(dataBackupStore, TimeSpan.FromSeconds(30));
-                        // A cross-volume data directory cannot receive the running
-                        // helper's backup. The helper then uses a target-specific
-                        // sibling directory, which is on the installation's volume
-                        // and has an explicit delete ACE for this cleanup.
+                        // The elevated helper uses a target-specific sibling directory
+                        // on the installation's volume, with an explicit read/delete
+                        // DACL for this cleanup. A cross-volume data directory also
+                        // falls back here.
                         string siblingBackupStore = Updater.TargetCleanupRoot(target);
                         if (!string.IsNullOrEmpty(siblingBackupStore))
                             Updater.DeleteStaleBackups(siblingBackupStore,

@@ -344,13 +344,11 @@ namespace PiWebTray
         // GitHub Actions runs its Windows tests with an elevated token. The tray
         // deliberately refuses an elevated start from a user-writable directory, so
         // create a protected test install when needed instead of weakening that check.
+        // A non-elevated test process uses the user-writable test output instead; the
+        // update and tray lifecycle paths do not require Program Files.
         private static string CreateProtectedInstallRoot(string source, string prefix)
         {
-            if (!Elevation.IsElevated())
-            {
-                Assert.Inconclusive("This test requires an elevated test process.");
-                return null;
-            }
+            if (!Elevation.IsElevated()) return null;
 
             string programFiles = Environment.GetFolderPath(
                 Environment.SpecialFolder.ProgramFiles);
@@ -371,8 +369,8 @@ namespace PiWebTray
 
         private static void AssertProtectedInstall(string target)
         {
-            if (!Elevation.IsElevated())
-                Assert.Inconclusive("This test requires an elevated test process.");
+            // A user-writable test target has no protected ACL to assert.
+            if (!Elevation.IsElevated()) return;
 
             // An update must leave the protected installation protected on its own.
             // This assertion runs before RepairTestInstall so the test cannot hide
@@ -384,8 +382,7 @@ namespace PiWebTray
 
         private static void RepairTestInstall(string target)
         {
-            if (!Elevation.IsElevated())
-                Assert.Inconclusive("This test requires an elevated test process.");
+            if (!Elevation.IsElevated()) return;
 
             // GitHub Actions runs elevated. Repair is retained as a safety net for
             // the test directory ACL after processes created files during the test.
@@ -398,10 +395,13 @@ namespace PiWebTray
         private static void DeleteTestInstallRoot(string root)
         {
             if (root == null) return;
+            string cleanup = Updater.TargetCleanupRoot(root);
             for (int attempt = 0; attempt < 10; attempt++)
             {
                 try
                 {
+                    if (!string.IsNullOrEmpty(cleanup) && Directory.Exists(cleanup))
+                        Directory.Delete(cleanup, true);
                     if (Directory.Exists(root)) Directory.Delete(root, true);
                     return;
                 }

@@ -259,6 +259,17 @@ namespace PiWebTray
                 return;
             }
 
+            if (AutostartBusy())
+            {
+                // This path is only reachable when an autostart operation became
+                // busy while the confirmation dialog was open. Finish the check it
+                // belongs to instead of leaving the update form in Checking forever.
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "update offer ignored: autostart operation is active");
+                if (ownsCheck && UpdateBusy()) EndUpdate();
+                return;
+            }
+
             BeginUpdateDownload(release);
         }
 

@@ -139,9 +139,10 @@ namespace PiWebTray
             {
                 // Never parse a symlink planted at the known ini name. Reading it could
                 // copy protected file contents into configuration values and logs.
-                if (!PathSafety.ContainsReparsePoint(config.IniPath))
+                string[] iniLines = ReadVerifiedLines(config.IniPath);
+                if (iniLines != null)
                 {
-                    foreach (string rawLine in File.ReadAllLines(config.IniPath))
+                    foreach (string rawLine in iniLines)
                     {
                         string key;
                         string value;
@@ -366,15 +367,44 @@ namespace PiWebTray
             return true;
         }
 
+        // Read configuration lines through a verified handle. The ini can live in a
+        // user-writable directory; an elevated process must not follow a hard link or
+        // a link swapped into place to read a protected file.
+        private static string[] ReadVerifiedLines(string path)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(path) || !File.Exists(path)
+                    || PathSafety.ContainsReparsePoint(path)) return null;
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
+                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
+                    List<string> lines = new List<string>();
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null) lines.Add(line);
+                    }
+                    return lines.ToArray();
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         // Read a single key; used to pick the language before the full parse
         internal static string ReadIniValue(string path, string key)
         {
             try
             {
-                if (!File.Exists(path)) return "";
-                if (PathSafety.ContainsReparsePoint(path)) return "";
+                string[] lines = ReadVerifiedLines(path);
+                if (lines == null) return "";
                 string wanted = (key ?? "").Trim();
-                foreach (string rawLine in File.ReadAllLines(path))
+                foreach (string rawLine in lines)
                 {
                     string parsedKey;
                     string parsedValue;
@@ -490,9 +520,13 @@ namespace PiWebTray
                 // A symlink at the known ini name must not redirect an elevated settings
                 // save (or read a protected file) into an arbitrary target.
                 if (PathSafety.ContainsReparsePoint(IniPath)) return false;
-                List<string> lines = File.Exists(IniPath)
-                    ? new List<string>(File.ReadAllLines(IniPath))
-                    : new List<string>();
+                List<string> lines = new List<string>();
+                if (File.Exists(IniPath))
+                {
+                    string[] existing = ReadVerifiedLines(IniPath);
+                    if (existing == null) return false;
+                    lines.AddRange(existing);
+                }
 
                 foreach (KeyValuePair<string, string> pair in values)
                 {

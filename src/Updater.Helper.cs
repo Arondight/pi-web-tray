@@ -643,6 +643,7 @@ namespace PiWebTray
                     throw new InvalidDataException("update snapshot is a reparse point");
                 ProtectOwnerForUpdate(snapshot, true);
 
+                long totalBytes = 0;
                 foreach (string source in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
                 {
                     string relative = RelativePath(staging, source);
@@ -663,13 +664,29 @@ namespace PiWebTray
 
                     using (FileStream input = new FileStream(source, FileMode.Open,
                         FileAccess.Read, FileShare.Read))
-                    using (FileStream output = new FileStream(destination, FileMode.CreateNew,
-                        FileAccess.Write, FileShare.None))
                     {
-                        byte[] buffer = new byte[81920];
-                        int read;
-                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                            output.Write(buffer, 0, read);
+                        // The staging directory is user-writable. Verify the file
+                        // object the helper actually opened, not only the path that
+                        // was checked above; a hard link or a link swapped into
+                        // place afterwards must not copy a protected file here.
+                        if (!LogHost.HandleMatchesExpectedPath(input, source))
+                            throw new InvalidDataException("staging source changed: " + relative);
+                        if (PathSafety.HasMultipleLinks(input.SafeFileHandle))
+                            throw new InvalidDataException("staging source has multiple links: " + relative);
+
+                        using (FileStream output = new FileStream(destination, FileMode.CreateNew,
+                            FileAccess.Write, FileShare.None))
+                        {
+                            byte[] buffer = new byte[81920];
+                            int read;
+                            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                totalBytes += read;
+                                if (totalBytes > MaxDownloadBytes)
+                                    throw new InvalidDataException("staging is larger than the download limit");
+                                output.Write(buffer, 0, read);
+                            }
+                        }
                     }
                     ProtectOwnerForUpdate(destination, false);
                 }
@@ -732,13 +749,30 @@ namespace PiWebTray
                     throw new InvalidDataException("update archive snapshot is a reparse point");
                 using (FileStream input = new FileStream(zipPath, FileMode.Open,
                     FileAccess.Read, FileShare.Read))
-                using (FileStream output = new FileStream(zipSnapshot, FileMode.CreateNew,
-                    FileAccess.Write, FileShare.None))
                 {
-                    byte[] buffer = new byte[81920];
-                    int read;
-                    while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
-                        output.Write(buffer, 0, read);
+                    // The archive path is user-writable. Verify the opened file
+                    // object so a hard link or a link swapped in after the path
+                    // check cannot make this elevated helper read and copy an
+                    // arbitrary protected file.
+                    if (!LogHost.HandleMatchesExpectedPath(input, zipPath))
+                        throw new InvalidDataException("update archive changed while opening");
+                    if (PathSafety.HasMultipleLinks(input.SafeFileHandle))
+                        throw new InvalidDataException("update archive has multiple links");
+
+                    using (FileStream output = new FileStream(zipSnapshot, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None))
+                    {
+                        byte[] buffer = new byte[81920];
+                        long totalBytes = 0;
+                        int read;
+                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            totalBytes += read;
+                            if (totalBytes > MaxDownloadBytes)
+                                throw new InvalidDataException("update archive is larger than the download limit");
+                            output.Write(buffer, 0, read);
+                        }
+                    }
                 }
                 ProtectOwnerForUpdate(zipSnapshot, false);
 

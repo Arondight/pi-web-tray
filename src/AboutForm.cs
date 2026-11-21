@@ -220,7 +220,7 @@ namespace PiWebTray
             info.TabStop = false;
 
             DataGridViewTextBoxColumn item = new DataGridViewTextBoxColumn();
-            item.HeaderText = L.T("check.item");
+            item.HeaderText = L.T("about.itemProperty");
             item.FillWeight = 28f;
             item.SortMode = DataGridViewColumnSortMode.NotSortable;
             info.Columns.Add(item);

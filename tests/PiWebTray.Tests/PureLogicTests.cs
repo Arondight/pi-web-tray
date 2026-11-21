@@ -245,12 +245,14 @@ namespace PiWebTray
             InstanceSuffixTests();
             InstanceHomeIsolationTests();
             OperationLockTests();
+            SignalTests();
             AutostartPathTests();
             AutostartAclTests();
             AutostartTaskXmlTests();
             PathSafetyHardLinkTests();
             TrayClickTests();
             UpdateRestartPolicyTests();
+            AutoRestartStopIntentTests();
             ConfiguredValuesTests();
             NpmWorkingDirectoryTests();
             LocalizationTests();
@@ -285,6 +287,7 @@ namespace PiWebTray
             StateFileTests();
             HttpProbeTestsSkip();
             UpdaterExtractTests();
+            UpdaterSourceIdentityTests();
             ConfigDefaultTests();
 
             Console.WriteLine();
@@ -992,6 +995,29 @@ namespace PiWebTray
                     string duplicateText = File.ReadAllText(writePath);
                     Check("duplicate ini key leaves no stale copies",
                         !duplicateText.Contains("Port=1") && !duplicateText.Contains("Port=2"));
+
+                    string hardTarget = path + ".hard-target";
+                    string hardLink = path + ".hard-link";
+                    try
+                    {
+                        File.WriteAllText(hardTarget, "Port=30500\n", new UTF8Encoding(false));
+                        if (CreateHardLinkW(hardLink, hardTarget, IntPtr.Zero))
+                        {
+                            CheckEqual("a hard-linked ini is not read", "",
+                                Config.ReadIniValue(hardLink, "port"));
+                            Config hardConfig = new Config();
+                            hardConfig.IniPath = hardLink;
+                            Check("a hard-linked ini is not rewritten",
+                                !hardConfig.SetValue("Port", "30501"));
+                            CheckEqual("a rejected hard-linked ini leaves its target unchanged",
+                                "Port=30500\n", File.ReadAllText(hardTarget));
+                        }
+                    }
+                    finally
+                    {
+                        try { File.Delete(hardLink); } catch (Exception) { }
+                        try { File.Delete(hardTarget); } catch (Exception) { }
+                    }
                 }
                 finally
                 {
@@ -1173,6 +1199,34 @@ namespace PiWebTray
                     StringComparison.OrdinalIgnoreCase));
         }
 
+        private static void SignalTests()
+        {
+            string name = @"Local\PiWebTray.SelfTest.Signal."
+                + Guid.NewGuid().ToString("N");
+            Check("sending to a missing signal fails", !Program.SendSignal(name));
+            bool exists = false;
+            try
+            {
+                using (EventWaitHandle missing = EventWaitHandle.OpenExisting(name))
+                {
+                    exists = true;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            Check("a failed signal is not created", !exists);
+
+            bool created;
+            using (EventWaitHandle signal = new EventWaitHandle(false,
+                EventResetMode.AutoReset, name, out created))
+            using (EventWaitHandle waiter = EventWaitHandle.OpenExisting(name))
+            {
+                Check("sending to an existing signal succeeds", Program.SendSignal(name));
+                Check("the existing signal receives the event", waiter.WaitOne(1000));
+            }
+        }
+
         private static void AutostartPathTests()
         {
             string temp = Path.Combine(Path.GetTempPath(),
@@ -1209,6 +1263,9 @@ namespace PiWebTray
                         System.Security.Principal.WindowsIdentity.GetCurrent().User.Value));
                 Check("task user rejects another SID",
                     !Autostart.TaskUserIdMatchesCurrentUser("S-1-5-21-1-2-3-4"));
+                Check("an unresolved bare user name is not treated as the current user",
+                    !Autostart.TaskUserIdMatchesCurrentUser(
+                        "pi-web-tray-no-such-user-" + Guid.NewGuid().ToString("N")));
                 Check("task without UserId is the legacy any-user task",
                     Autostart.TaskUserIdMatchesCurrentUser(""));
 
@@ -1560,6 +1617,63 @@ namespace PiWebTray
                     StringComparison.OrdinalIgnoreCase));
         }
 
+        private static void AutoRestartStopIntentTests()
+        {
+            TrayApp app = (TrayApp)System.Runtime.Serialization.FormatterServices
+                .GetUninitializedObject(typeof(TrayApp));
+            BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            FieldInfo updateLock = typeof(TrayApp).GetField("_updateLock", flags);
+            FieldInfo configField = typeof(TrayApp).GetField("_config", flags);
+            FieldInfo probeField = typeof(TrayApp).GetField("_probe", flags);
+            FieldInfo stoppedField = typeof(TrayApp).GetField("_serviceStoppedByUser", flags);
+            FieldInfo restartField = typeof(TrayApp).GetField("_autoRestartAt", flags);
+            MethodInfo schedule = typeof(TrayApp).GetMethod("ScheduleAutoRestart", flags);
+            Check("auto-restart test fields are available",
+                updateLock != null && configField != null && probeField != null
+                && stoppedField != null && restartField != null && schedule != null);
+            if (updateLock == null || configField == null || probeField == null
+                || stoppedField == null || restartField == null || schedule == null) return;
+
+            updateLock.SetValue(app, new object());
+            configField.SetValue(app, new Config { AutoRestart = true });
+            ProbeResult ready = new ProbeResult();
+            ready.NodeFound = true;
+            ready.NodeRunnable = true;
+            ready.NpmFound = true;
+            ready.NodeVersion = ProbeResult.NodeMinimum;
+            ready.PiWebFound = true;
+            ready.PiWebScript = typeof(Program).Assembly.Location;
+            ready.PiCliFound = true;
+            probeField.SetValue(app, ready);
+            stoppedField.SetValue(app, true);
+            restartField.SetValue(app, DateTime.MinValue);
+
+            schedule.Invoke(app, null);
+            Check("a user stop suppresses auto restart",
+                (DateTime)restartField.GetValue(app) == DateTime.MinValue);
+
+            string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
+            string home = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-auto-restart-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(home);
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", home);
+                TrayState.RequestServiceStop(home);
+                stoppedField.SetValue(app, false);
+                restartField.SetValue(app, DateTime.MinValue);
+                schedule.Invoke(app, null);
+                Check("a persisted user-stop marker suppresses auto restart",
+                    (DateTime)restartField.GetValue(app) == DateTime.MinValue);
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", originalHome);
+                TrayState.ClearServiceStopRequest(home);
+                try { if (Directory.Exists(home)) Directory.Delete(home, true); } catch (Exception) { }
+            }
+        }
+
         private static void ConfiguredValuesTests()
         {
             string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
@@ -1773,6 +1887,15 @@ namespace PiWebTray
                 // cleanup directory, which is always on the same volume.
                 File.WriteAllText(dataPath, "not a directory");
 
+                if (ElevatedHandoffParentWritable(target))
+                {
+                    Check("elevated sibling handoff refuses a user-writable parent",
+                        !Updater.MoveBackupForUserCleanup(backup, dataPath, logPath));
+                    Check("refused sibling handoff keeps the target backup",
+                        Directory.Exists(backup));
+                    return;
+                }
+
                 Check("sibling backup handoff succeeds",
                     Updater.MoveBackupForUserCleanup(backup, dataPath, logPath));
                 Check("sibling handoff removes the target backup",
@@ -1857,37 +1980,82 @@ namespace PiWebTray
                 running = Process.Start(psi);
                 Thread.Sleep(300);
 
+                if (ElevatedHandoffParentWritable(target))
+                {
+                    // The target's parent is user-writable in this fixture. An
+                    // elevated helper must refuse to hand the backup to a store a
+                    // standard-user process could replace with a junction.
+                    Check("elevated handoff refuses a user-writable cleanup parent",
+                        !Updater.MoveBackupForUserCleanup(backup, dataDir, logPath));
+                    Check("refused handoff keeps the backup in the target",
+                        Directory.Exists(backup));
+                    return;
+                }
+
                 Check("protected backup handoff succeeds",
                     Updater.MoveBackupForUserCleanup(backup, dataDir, logPath));
                 Check("handoff removes the backup from the protected target",
                     !Directory.Exists(backup));
-                string handoff = Path.Combine(dataDir, "update", "backups",
-                    Updater.TargetCleanupKey(target));
-                string[] moved = Directory.GetDirectories(
-                    handoff, ".pi-web-tray-backup-*");
+                string moved = FindMovedBackup(target, dataDir);
                 Check("handoff moves a running helper backup",
-                    moved.Length == 1
-                    && File.Exists(Path.Combine(moved[0], "pi-web-tray.exe")));
+                    moved != null
+                    && File.Exists(Path.Combine(moved, "pi-web-tray.exe")));
                 Check("handoff moves the completion markers",
-                    File.Exists(moved[0] + ".incomplete")
-                    && File.Exists(moved[0] + ".complete"));
+                    moved != null
+                    && File.Exists(moved + ".incomplete")
+                    && File.Exists(moved + ".complete"));
 
                 if (!running.HasExited) running.Kill();
                 running.WaitForExit(5000);
-                Directory.SetLastWriteTimeUtc(moved[0], DateTime.UtcNow.AddHours(-2));
-                Updater.DeleteStaleBackups(handoff, TimeSpan.FromMinutes(30));
-                Check("moved backup is removable by the standard-user cleanup path",
-                    !Directory.Exists(moved[0]));
+                if (moved != null)
+                {
+                    string handoff = Path.GetDirectoryName(moved);
+                    Directory.SetLastWriteTimeUtc(moved, DateTime.UtcNow.AddHours(-2));
+                    Updater.DeleteStaleBackups(handoff, TimeSpan.FromMinutes(30));
+                    Check("moved backup is removable by the standard-user cleanup path",
+                        !Directory.Exists(moved));
+                }
             }
             finally
             {
                 if (running != null)
                 {
                     try { if (!running.HasExited) running.Kill(); } catch (Exception) { }
+                    try { running.WaitForExit(5000); } catch (Exception) { }
                     try { running.Dispose(); } catch (Exception) { }
                 }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
+        }
+
+        // The elevated helper must refuse a cleanup store whose parent lets a
+        // standard user create entries. The test fixture is usually user-writable;
+        // on a protected temp directory the successful path should run instead.
+        private static bool ElevatedHandoffParentWritable(string target)
+        {
+            if (!Elevation.IsElevated()) return false;
+            string parent = Path.GetDirectoryName(target);
+            return !string.IsNullOrEmpty(parent)
+                && Autostart.IsUserWritableInstall(
+                    Path.Combine(parent, "pi-web-tray.exe"));
+        }
+
+        // A backup is handed to the protected sibling store by an elevated helper,
+        // and to the user data store only when the helper has no elevated token.
+        private static string FindMovedBackup(string target, string dataDir)
+        {
+            string[] roots = new string[]
+            {
+                Path.Combine(dataDir, "update", "backups", Updater.TargetCleanupKey(target)),
+                Updater.TargetCleanupRoot(target)
+            };
+            foreach (string root in roots)
+            {
+                if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
+                string[] moved = Directory.GetDirectories(root, ".pi-web-tray-backup-*");
+                if (moved.Length == 1) return moved[0];
+            }
+            return null;
         }
 
         private static void LocalizationTests()
@@ -3247,6 +3415,24 @@ namespace PiWebTray
                 TrayState.Delete();
                 Check("state deleted", !File.Exists(TrayState.StatePath()));
                 Check("session state deleted", !File.Exists(TrayState.SessionStatePath()));
+
+                string hardTarget = Path.Combine(temp, "state-hard-target.ini");
+                string hardLink = TrayState.StatePath();
+                try
+                {
+                    File.WriteAllText(hardTarget, "Port=39999\n", new UTF8Encoding(false));
+                    if (CreateHardLinkW(hardLink, hardTarget, IntPtr.Zero))
+                    {
+                        int hardPort;
+                        Check("a hard-linked state file is not trusted",
+                            !TrayState.TryGetRecordedPort(out hardPort));
+                    }
+                }
+                finally
+                {
+                    try { File.Delete(hardLink); } catch (Exception) { }
+                    try { File.Delete(hardTarget); } catch (Exception) { }
+                }
             }
             finally
             {
@@ -3361,6 +3547,77 @@ namespace PiWebTray
                     File.ReadAllText(Path.Combine(cleanDir, "pi-web-tray.exe")));
                 CheckEqual("clean archive extracts nested entries", "dll",
                     File.ReadAllText(Path.Combine(cleanDir, "zh-Hans", "pi-web-tray.resources.dll")));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdaterSourceIdentityTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-source-id-" + Guid.NewGuid().ToString("N"));
+            string staging = Path.Combine(root, "staging");
+            string target = Path.Combine(root, "target");
+            string outside = Path.Combine(root, "outside");
+            string log = Path.Combine(root, "update.log");
+            try
+            {
+                Directory.CreateDirectory(staging);
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(outside);
+                string outsideFile = Path.Combine(outside, "payload.txt");
+                File.WriteAllText(outsideFile, "protected payload");
+                string stagingFile = Path.Combine(staging, "payload.txt");
+                if (!CreateHardLinkW(stagingFile, outsideFile, IntPtr.Zero))
+                {
+                    Console.WriteLine("[skip] hard links are unavailable on this temp volume");
+                    return;
+                }
+
+                string stagingHash = Updater.ComputeStagingHash(staging);
+                MethodInfo snapshotStaging = typeof(Updater).GetMethod("SnapshotStaging",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Check("staging snapshot method is available", snapshotStaging != null);
+                if (snapshotStaging != null)
+                {
+                    object result = snapshotStaging.Invoke(null, new object[]
+                    {
+                        staging, stagingHash, target, log, null
+                    });
+                    Check("staging hard-link source is rejected", result == null);
+                }
+
+                string zip = Path.Combine(root, "release.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    ZipArchiveEntry entry = archive.CreateEntry("pi-web-tray.exe");
+                    using (Stream entryStream = entry.Open())
+                    using (StreamWriter writer = new StreamWriter(entryStream, new UTF8Encoding(false)))
+                        writer.Write("new exe");
+                }
+
+                string zipLink = Path.Combine(root, "release-hard.zip");
+                if (CreateHardLinkW(zipLink, zip, IntPtr.Zero))
+                {
+                    string zipHash = Updater.ComputeSha256(zipLink);
+                    MethodInfo snapshotZip = typeof(Updater).GetMethod("SnapshotFromZip",
+                        BindingFlags.Static | BindingFlags.NonPublic);
+                    Check("zip snapshot method is available", snapshotZip != null);
+                    if (snapshotZip != null)
+                    {
+                        object result = snapshotZip.Invoke(null, new object[]
+                        {
+                            zipLink, zipHash, target, log, null
+                        });
+                        Check("zip hard-link source is rejected", result == null);
+                    }
+                }
+
+                Check("rejected update sources leave no staging snapshot",
+                    Directory.GetDirectories(target, ".pi-web-tray-stage-*").Length == 0);
             }
             finally
             {

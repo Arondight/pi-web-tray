@@ -216,6 +216,14 @@ namespace PiWebTray
                         if (force) _text.Text = L.T("update.error.unsafePath");
                         return;
                     }
+                    // A hard link is another name for the same file. The writers
+                    // already reject one; a reader in an elevated tray must not
+                    // display a protected file through a planted hard link either.
+                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle))
+                    {
+                        if (force) _text.Text = L.T("update.error.unsafePath");
+                        return;
+                    }
                     long start = Math.Max(0, stream.Length - TailBytes);
                     stream.Seek(start, SeekOrigin.Begin);
                     using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))

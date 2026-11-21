@@ -275,6 +275,10 @@ namespace PiWebTray
             }
             else
             {
+                // The existing task points at a protected installation. The audit
+                // is complete for this session; repeating the full ACL walk on
+                // every task refresh would run on the UI thread once a minute.
+                _existingAdminTaskAuditDone = true;
                 return;
             }
 

@@ -604,8 +604,9 @@ namespace PiWebTray
                         && !File.Exists(CompleteMarker(backupRoot)))) return false;
                 if (PathSafety.ContainsReparsePointInTree(backupRoot)) return false;
 
+                bool elevated = Elevation.IsElevated();
                 string dataRoot = null;
-                if (!string.IsNullOrEmpty(dataDir) && Path.IsPathRooted(dataDir)
+                if (!elevated && !string.IsNullOrEmpty(dataDir) && Path.IsPathRooted(dataDir)
                     && !PathSafety.ContainsReparsePoint(dataDir))
                 {
                     string dataCanonical = PathSafety.CanonicalPath(dataDir);
@@ -628,19 +629,51 @@ namespace PiWebTray
                     }
                 }
 
+                string siblingRoot = TargetCleanupRoot(target);
+                bool siblingUsable = !string.IsNullOrEmpty(siblingRoot)
+                    && !string.Equals(siblingRoot, dataRoot,
+                        StringComparison.OrdinalIgnoreCase)
+                    && !IsInside(siblingRoot, targetCanonical)
+                    && !PathSafety.SameDirectory(siblingRoot, targetCanonical);
+
+                if (elevated)
+                {
+                    // The data directory is normally user-writable. An elevated
+                    // helper must not grant Builtin Users delete rights -- or move
+                    // into a directory -- that a standard-user process can replace
+                    // with a junction after the path check. The sibling store is
+                    // under the installation's protected parent instead.
+                    if (siblingUsable)
+                    {
+                        string cleanupParent = Path.GetDirectoryName(siblingRoot);
+                        // A protected target can still live under a parent that lets
+                        // standard users create new entries. That is enough to race
+                        // the predictable sibling store, so require the parent to be
+                        // create/delete-safe before granting an ACL there.
+                        if (string.IsNullOrEmpty(cleanupParent)
+                            || Autostart.IsUserWritableInstall(
+                                Path.Combine(cleanupParent, "pi-web-tray.exe")))
+                        {
+                            AppendLog(logPath,
+                                "backup cleanup parent is user-writable; backup retained in the protected installation");
+                            return false;
+                        }
+                        if (TryMoveBackupToStore(backupRoot, siblingRoot, logPath))
+                            return true;
+                    }
+                    if (!Directory.Exists(backupRoot)) return false;
+                    AppendLog(logPath,
+                        "backup retained in the protected installation; a later elevated update can remove it");
+                    return false;
+                }
+
                 if (dataRoot != null && TryMoveBackupToStore(backupRoot, dataRoot, logPath))
                     return true;
                 // If the first move failed after consuming the source, do not try a
                 // second store: the backup is already at a recoverable location.
                 if (!Directory.Exists(backupRoot)) return false;
 
-                string siblingRoot = TargetCleanupRoot(target);
-                if (!string.IsNullOrEmpty(siblingRoot)
-                    && !string.Equals(siblingRoot, dataRoot,
-                        StringComparison.OrdinalIgnoreCase)
-                    && !IsInside(siblingRoot, targetCanonical)
-                    && !PathSafety.SameDirectory(siblingRoot, targetCanonical)
-                    && TryMoveBackupToStore(backupRoot, siblingRoot, logPath))
+                if (siblingUsable && TryMoveBackupToStore(backupRoot, siblingRoot, logPath))
                     return true;
                 return false;
             }
@@ -658,10 +691,48 @@ namespace PiWebTray
             {
                 if (!Directory.Exists(backupRoot) || string.IsNullOrEmpty(storeRoot)
                     || PathSafety.ContainsReparsePoint(storeRoot)) return false;
-                Directory.CreateDirectory(storeRoot);
+                if (Elevation.IsElevated())
+                {
+                    // Create the store with its final DACL in one operation. Creating
+                    // it first and repairing it afterwards leaves a window in which
+                    // CREATOR OWNER makes the new directory writable by the standard
+                    // token.
+                    string createError;
+                    if (!Autostart.CreateCleanupDirectory(storeRoot, out createError))
+                    {
+                        AppendLog(logPath, "backup cleanup store protection failed: " + createError);
+                        return false;
+                    }
+                }
+                else
+                {
+                    Directory.CreateDirectory(storeRoot);
+                }
                 // Re-check after creation: a standard user may have replaced a
                 // user-writable parent with a junction before the elevated move.
                 if (PathSafety.ContainsReparsePoint(storeRoot)) return false;
+                if (Elevation.IsElevated() && Autostart.IsUnsafeWritableDirectory(storeRoot))
+                {
+                    AppendLog(logPath, "backup cleanup store is user-writable; backup retained");
+                    return false;
+                }
+                // Install the same protected DACL on the source backup before it
+                // moves. A moved directory keeps its ACL, so this also closes the
+                // window between Directory.Move and the destination repair.
+                if (Elevation.IsElevated())
+                {
+                    string sourceProtectError;
+                    if (!Autostart.ProtectCleanupDirectory(backupRoot, false, out sourceProtectError))
+                    {
+                        AppendLog(logPath, "backup source protection failed: " + sourceProtectError);
+                        return false;
+                    }
+                    if (Autostart.IsUnsafeWritableDirectory(backupRoot))
+                    {
+                        AppendLog(logPath, "backup source is user-writable; backup retained");
+                        return false;
+                    }
+                }
                 // The backup itself contains the helper's running image, so the
                 // helper cannot delete it. Give the standard-user cleanup path an
                 // explicit delete-only ACE on the store root and on the moved tree.
@@ -671,6 +742,18 @@ namespace PiWebTray
                 MoveBackupDirectory(backupRoot, destination);
                 try
                 {
+                    if (Elevation.IsElevated())
+                    {
+                        string protectError;
+                        if (!Autostart.ProtectCleanupDirectory(destination, out protectError))
+                            throw new UnauthorizedAccessException(protectError);
+                        if (Autostart.IsUnsafeWritableDirectory(destination))
+                            throw new UnauthorizedAccessException("moved backup is user-writable");
+                    }
+                    else
+                    {
+                        ProtectOwnerForUpdate(destination, true);
+                    }
                     GrantBackupDeleteAccess(destination);
                 }
                 catch (Exception ex)

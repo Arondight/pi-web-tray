@@ -958,6 +958,9 @@ See {1} for details.</value>
   <data name="about.description" xml:space="preserve">
     <value>A Windows 7 to 11 Harness solution based on Pi Web.</value>
   </data>
+  <data name="about.itemProperty" xml:space="preserve">
+    <value>Property</value>
+  </data>
   <data name="about.itemVersion" xml:space="preserve">
     <value>Version</value>
   </data>
@@ -1489,7 +1492,13 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
     <value>The installation directory is writable by standard users. Restart Pi Web Tray normally before updating.</value>
   </data>
   <data name="notify.adminRestartWritableBody" xml:space="preserve">
-    <value>Pi Web Tray is installed in a folder that standard users can modify. Starting it elevated from this location would let another process replace the program. Move it to a protected folder such as Program Files, or run it without administrator rights.</value>
+    <value>Pi Web Tray is installed in a folder that standard users can modify. Starting it elevated from this location would let another process replace the program. Move it to a protected folder such as Program Files, run it without administrator rights, or click this notification to repair the folder permissions.</value>
+  </data>
+  <data name="notify.adminRestartFixDetails" xml:space="preserve">
+    <value>Administrator mode was not enabled because this directory can be modified by standard users
+{0}
+
+Click "Fix" to take ownership and reset the folder ACL with one UAC prompt, then choose Restart as administrator again. You can also run Pi Web Tray without administrator rights.</value>
   </data>
   <data name="notify.adminAccountBody" xml:space="preserve">
     <value>Only an account that is a member of the Administrators group can restart Pi Web Tray as administrator. Use your own administrator account or run the tray normally.</value>

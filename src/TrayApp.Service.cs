@@ -1045,6 +1045,10 @@ namespace PiWebTray
         private void ScheduleAutoRestart()
         {
             if (!_config.AutoRestart || _exiting || UpdateBusy()) return;
+            // A failed user stop can leave the service running with the stop intent
+            // already recorded. If it crashes before the stop is retried, AutoRestart
+            // must not override the user's explicit decision to keep it down.
+            if (_serviceStoppedByUser || TrayState.ServiceStopRequested()) return;
             if (!CanStartServiceFromProbe(_probe, File.Exists)) return;
             if (_phase == Phase.Installing || _phase == Phase.Starting || _phase == Phase.Stopping) return;
 

@@ -49,7 +49,9 @@ namespace PiWebTray
                 const string unsafeElevated =
                     "Pi Web Tray refuses to run as administrator from a directory that "
                     + "standard users can modify. Move the program to a protected location "
-                    + "such as Program Files and try again.";
+                    + "such as Program Files, make sure the folder and files are owned by "
+                    + "Administrators (the tray's administrator-autostart warning offers a "
+                    + "Fix action), or run it without administrator rights.";
                 if (ConsoleHost.TryAttach()) ConsoleHost.WriteError(unsafeElevated);
                 else MessageBox.Show(unsafeElevated, AppName,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -281,6 +283,53 @@ namespace PiWebTray
                 // --tray-only instance). Login autostart must still start the
                 // service without opening a browser.
                 if (isTrayOnly) return 0;
+
+                // An elevated login task must not merely signal an existing
+                // non-elevated tray; that would start the service with the wrong
+                // token. Perform the same quit-and-takeover handoff as a normal
+                // elevated launch, but keep the browser closed.
+                if (elevated && !autoDenied && !TrayState.InstanceIsElevated())
+                {
+                    if (!SendSignal(Instance.QuitSignalName))
+                    {
+                        // The event may have disappeared because the old tray
+                        // exited just before this signal. If the mutex is free,
+                        // start the elevated tray instead of signaling nobody.
+                        Mutex earlyMutex;
+                        if (TryAcquireMutex(0, out earlyMutex, out _))
+                        {
+                            StopOldServiceForElevatedTakeover(config, false);
+                            RunTray(config, elevated, true, earlyMutex, false);
+                            return 0;
+                        }
+                        return SendSignal(Instance.StartSignalName) ? 0 : 1;
+                    }
+                    Mutex takeoverMutex;
+                    if (TryAcquireMutex(60000, out takeoverMutex, out _))
+                    {
+                        // The old non-elevated listener must not keep the service
+                        // running under the previous token. Use the same takeover
+                        // cleanup as a normal elevated launch.
+                        StopOldServiceForElevatedTakeover(config, false);
+                        RunTray(config, elevated, true, takeoverMutex, false);
+                        return 0;
+                    }
+                    // The old tray may have exited just after the wait timeout. If
+                    // the mutex is free now, start the elevated replacement instead
+                    // of racing its disappearing events.
+                    Mutex lateMutex;
+                    if (TryAcquireMutex(0, out lateMutex, out _))
+                    {
+                        StopOldServiceForElevatedTakeover(config, false);
+                        RunTray(config, elevated, true, lateMutex, false);
+                        return 0;
+                    }
+                    // The old tray did not exit. If it is still alive, asking it to
+                    // start is preferable to leaving the service stopped; report a
+                    // failure when even that signal cannot be delivered.
+                    return SendSignal(Instance.StartSignalName) ? 0 : 1;
+                }
+
                 return SendSignal(Instance.StartSignalName) ? 0 : 1;
             }
 
@@ -430,38 +479,45 @@ namespace PiWebTray
             // before starting the replacement (ExitWithout waits up to 30 seconds).
             if (TryAcquireMutex(60000, out taken, out denied))
             {
-                // --tray-only explicitly says "do not start or manage the service".
-                // Killing the listener here would contradict that flag, especially
-                // after the old tray was asked to keep its service running.
-                if (!isTrayOnly && Net.IsPortOpen(config.Port, 300))
-                {
-                    ServiceProbe.Invalidate();
-                    PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, ExpectedPiWebScript(config));
-                    if (owner.IsPiWeb)
-                    {
-                        if (!ServiceProbe.MatchesExpectedScript(owner, ExpectedPiWebScript(config)))
-                        {
-                            // Another Pi Web installation owns the port. The old tray has
-                            // already exited, so returning here would leave the user without
-                            // a tray. Start the new tray in the normal conflict state instead;
-                            // it will report the conflict and offer Settings.
-                            Updater.AppendLog(config.UpdateLogFile,
-                                "elevated takeover: port " + config.Port
-                                + " is owned by another Pi Web installation; keeping it running");
-                        }
-                        else
-                        {
-                            if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
-                            Net.WaitPortClosed(config.Port, 8000);
-                        }
-                    }
-                }
+                StopOldServiceForElevatedTakeover(config, isTrayOnly);
                 RunTray(config, elevated, !isTrayOnly, taken, !isTrayOnly && !noBrowser);
                 return 0;
             }
 
             Inform(L.T("prog.takeoverTitle"), L.T("prog.takeoverBody"));
             return 0;
+        }
+
+        // Once an elevated tray has taken over the instance, a service started by
+        // the old tray may still own the port. Stop only a listener proven to be this
+        // installation's Pi Web; a foreign or unreadable listener is left in place and
+        // the new tray reports the conflict.
+        private static void StopOldServiceForElevatedTakeover(Config config, bool isTrayOnly)
+        {
+            // --tray-only explicitly says "do not start or manage the service".
+            // Killing the listener here would contradict that flag, especially
+            // after the old tray was asked to keep its service running.
+            if (isTrayOnly || !Net.IsPortOpen(config.Port, 300)) return;
+
+            ServiceProbe.Invalidate();
+            string expectedScript = ExpectedPiWebScript(config);
+            PortOwnerInfo owner = ServiceProbe.Inspect(config.Port, expectedScript);
+            if (!owner.IsPiWeb) return;
+
+            if (!ServiceProbe.MatchesExpectedScript(owner, expectedScript))
+            {
+                // Another Pi Web installation owns the port. The old tray has already
+                // exited, so returning here would leave the user without a tray. Start
+                // the new tray in the normal conflict state instead; it will report the
+                // conflict and offer Settings.
+                Updater.AppendLog(config.UpdateLogFile,
+                    "elevated takeover: port " + config.Port
+                    + " is owned by another Pi Web installation; keeping it running");
+                return;
+            }
+
+            if (owner.Pid > 4) Sys.KillTree(owner.Pid, owner.StartTime);
+            Net.WaitPortClosed(config.Port, 8000);
         }
 
         internal static string Version
@@ -641,18 +697,36 @@ namespace PiWebTray
 
         internal static bool SendSignal(string name)
         {
-            try
+            if (string.IsNullOrEmpty(name)) return false;
+
+            // Open an existing event instead of creating one. Creating a missing
+            // event would make every caller report a successful hand-off even when
+            // no tray owns the event. A tray creates this event very early in its
+            // constructor; retry briefly so a launch racing that constructor still
+            // reaches the new tray.
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(1000);
+            while (true)
             {
-                bool created;
-                using (EventWaitHandle signal = new EventWaitHandle(false, EventResetMode.AutoReset, name, out created))
+                try
                 {
-                    signal.Set();
-                    return true;
+                    using (EventWaitHandle signal = EventWaitHandle.OpenExisting(name))
+                    {
+                        signal.Set();
+                        return true;
+                    }
                 }
-            }
-            catch (Exception)
-            {
-                return false;
+                catch (WaitHandleCannotBeOpenedException)
+                {
+                    if (DateTime.UtcNow >= deadline) return false;
+                    try { Thread.Sleep(25); } catch (Exception) { return false; }
+                }
+                catch (Exception)
+                {
+                    // Access denied means the existing instance is at another
+                    // integrity level. Report the failure so callers can fall back
+                    // instead of pretending the signal was delivered.
+                    return false;
+                }
             }
         }
 
@@ -1256,7 +1330,11 @@ namespace PiWebTray
             {
                 string statePath = TrayState.StatePath();
                 if (File.Exists(statePath) && !PathSafety.ContainsReparsePoint(statePath))
-                    state = File.ReadAllText(statePath).Replace("\r", "").Replace("\n", "  ");
+                {
+                    string stateText = ReadStateFileVerified(statePath);
+                    if (stateText != null)
+                        state = stateText.Replace("\r", "").Replace("\n", "  ");
+                }
             }
             catch (Exception)
             {
@@ -1367,6 +1445,28 @@ namespace PiWebTray
             }
             catch (Exception)
             {
+            }
+        }
+
+        // Read a state file through a verified handle. The path is in a writable
+        // per-user directory; a hard link to a protected file must not be followed
+        // by an elevated --diag process.
+        private static string ReadStateFileVerified(string path)
+        {
+            try
+            {
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
+                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
+                        return reader.ReadToEnd();
+                }
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 

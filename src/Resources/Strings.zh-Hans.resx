@@ -958,6 +958,9 @@
   <data name="about.description" xml:space="preserve">
     <value>基于 Pi Web 的 Windows 7 至 11 解决方案。</value>
   </data>
+  <data name="about.itemProperty" xml:space="preserve">
+    <value>属性</value>
+  </data>
   <data name="about.itemVersion" xml:space="preserve">
     <value>版本</value>
   </data>
@@ -1489,7 +1492,13 @@
     <value>安装目录可被标准用户修改。请以普通权限重新启动 Pi Web Tray 后再更新。</value>
   </data>
   <data name="notify.adminRestartWritableBody" xml:space="preserve">
-    <value>Pi Web Tray 安装在一个可被标准用户修改的目录中。从该位置以管理员身份启动，可能让其他进程替换程序。请将其移到 Program Files 等受保护目录，或以普通权限运行。</value>
+    <value>Pi Web Tray 安装在一个可被标准用户修改的目录中。从该位置以管理员身份启动，可能让其他进程替换程序。请将其移到 Program Files 等受保护目录，或以普通权限运行；也可以点击此通知修复目录权限。</value>
+  </data>
+  <data name="notify.adminRestartFixDetails" xml:space="preserve">
+    <value>管理员模式未开启，因为该目录可被标准用户修改
+{0}
+
+点击“修复”通过一次 UAC 授权取得所有权并重置文件夹 ACL，然后重新选择“以管理员身份重启”。也可以以普通权限运行 Pi Web Tray。</value>
   </data>
   <data name="notify.adminAccountBody" xml:space="preserve">
     <value>只有属于 Administrators 组的账户才能以管理员身份重新启动 Pi Web Tray。请使用自己的管理员账户，或以普通权限运行托盘。</value>
