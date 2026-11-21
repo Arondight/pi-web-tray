@@ -78,14 +78,31 @@ namespace PiWebTray
 
             Thread worker = new Thread(delegate ()
             {
-                string error;
-                ReleaseInfo release = Updater.FindLatest(_config, cancellation, out error);
-                lock (_updateLock)
+                string error = null;
+                ReleaseInfo release = null;
+                try
                 {
-                    if (generation != _updateGeneration) return;
-                    _updateRelease = release;
-                    _updateError = error;
-                    _updateDone = true;
+                    release = Updater.FindLatest(_config, cancellation, out error);
+                }
+                catch (Exception ex)
+                {
+                    // A network/configuration exception must still release the UI
+                    // busy gate. Without this finally, a single unexpected failure
+                    // leaves _updateBusy true until the tray is restarted.
+                    release = null;
+                    error = ex.Message;
+                }
+                finally
+                {
+                    lock (_updateLock)
+                    {
+                        if (generation == _updateGeneration)
+                        {
+                            _updateRelease = release;
+                            _updateError = error;
+                            _updateDone = true;
+                        }
+                    }
                 }
             });
             worker.IsBackground = true;

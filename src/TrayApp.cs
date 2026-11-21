@@ -139,6 +139,12 @@ namespace PiWebTray
         private bool _installAfterCheckOpen;
         private bool _installAfterStop;
         private bool _installAfterStopForce;
+        // A menu/auto install that arrived while an autostart UAC/task operation was
+        // running. It is replayed after that operation releases the busy gate.
+        private bool _installAfterAutostart;
+        private bool _installAfterAutostartForce;
+        private bool _installAfterAutostartStart;
+        private bool _installAfterAutostartOpen;
         private bool _installRestartService;   // a running service was stopped and must come back
         private bool _installStartAfter;       // start the service after a successful install
         private bool _installOpenAfter;        // open the browser once that service is ready
@@ -625,6 +631,7 @@ namespace PiWebTray
             DispatchOwnerCheck();
             if (_modalDepth == 0)
             {
+                FlushPendingInstallAfterAutostart();
                 PollEnvironmentCheck();
                 PollInstall();
                 PollUpdate();

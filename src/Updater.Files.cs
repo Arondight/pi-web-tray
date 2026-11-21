@@ -11,7 +11,9 @@ using System.IO.Compression;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
@@ -119,15 +121,75 @@ namespace PiWebTray
 
                     if (File.Exists(destination))
                     {
-                        string backup = Path.Combine(backupRoot, relative);
-                        string backupDir = Path.GetDirectoryName(backup);
-                        if (!string.IsNullOrEmpty(backupDir))
-                        {
-                            bool backupDirExisted = Directory.Exists(backupDir);
-                            Directory.CreateDirectory(backupDir);
-                            if (!backupDirExisted) ProtectOwnerForUpdate(backupDir, true);
-                        }
+                        string backup = PrepareBackupPath(backupRoot, relative);
                         try { File.SetAttributes(destination, FileAttributes.Normal); } catch (Exception) { }
+                        // The main executable is replaced atomically: ReplaceFile
+                        // moves the old image to the backup and installs the new one
+                        // in one operation, so a helper crash cannot leave the
+                        // installation without an executable. The staged source is
+                        // inside the target, so ReplaceFile's same-volume requirement
+                        // is met. Legacy sources outside the target keep the
+                        // move-then-copy fallback below.
+                        if (IsMainExecutable(relative) && IsInside(source, target))
+                        {
+                            bool replaced = false;
+                            try
+                            {
+                                File.Replace(source, destination, backup, true);
+                                replaced = true;
+                            }
+                            catch (Exception ex)
+                            {
+                                // If ReplaceFile failed after moving the old image,
+                                // restore it through the normal rollback path. If the
+                                // source is gone and both target and backup exist, the
+                                // replacement actually happened; track it instead of
+                                // reporting a half-completed copy.
+                                if (!File.Exists(destination) && File.Exists(backup))
+                                {
+                                    backupSources.Add(backup);
+                                    backupTargets.Add(destination);
+                                    throw new IOException(
+                                        "atomic executable replacement failed: " + relative, ex);
+                                }
+                                if (!File.Exists(source) && File.Exists(destination)
+                                    && File.Exists(backup))
+                                {
+                                    replaced = true;
+                                }
+                                else
+                                {
+                                    // FAT and other filesystems can reject
+                                    // ReplaceFile. A user-writable installation has no
+                                    // protected image to lose, so retain the previous
+                                    // move-and-copy behavior there. A protected
+                                    // installation fails closed instead of reopening the
+                                    // missing-executable crash window.
+                                    bool canFallback = File.Exists(source)
+                                        && File.Exists(destination)
+                                        && !File.Exists(backup)
+                                        && Autostart.IsUserWritableInstall(
+                                            Path.Combine(target, "pi-web-tray.exe"));
+                                    if (!canFallback)
+                                        throw new IOException(
+                                            "atomic executable replacement failed: " + relative, ex);
+                                    AppendLog(logPath, "atomic replace unavailable; using copy fallback for " + relative);
+                                }
+                            }
+                            if (replaced)
+                            {
+                                backupSources.Add(backup);
+                                backupTargets.Add(destination);
+                                // Track the new destination before owner repair; a
+                                // repair failure must delete it and put the old image
+                                // back.
+                                attempted.Add(destination);
+                                ProtectOwnerForUpdate(backup, false);
+                                ProtectOwnerForUpdate(destination, false);
+                                AppendLog(logPath, "replace " + relative);
+                                continue;
+                            }
+                        }
                         File.Move(destination, backup);
                         // Track the move before the owner repair. If ProtectOwnerForUpdate
                         // fails, the catch block must put this file back before deleting
@@ -226,6 +288,19 @@ namespace PiWebTray
             result.Backup = backupRoot;
             result.Managed = newManaged;
             return result;
+        }
+
+        private static string PrepareBackupPath(string backupRoot, string relative)
+        {
+            string backup = Path.Combine(backupRoot, relative);
+            string backupDir = Path.GetDirectoryName(backup);
+            if (!string.IsNullOrEmpty(backupDir))
+            {
+                bool backupDirExisted = Directory.Exists(backupDir);
+                Directory.CreateDirectory(backupDir);
+                if (!backupDirExisted) ProtectOwnerForUpdate(backupDir, true);
+            }
+            return backup;
         }
 
         private static void BackupOldOnlyFiles(string target, string backupRoot,
@@ -471,6 +546,119 @@ namespace PiWebTray
             }
         }
 
+        // Data directories can be shared by multiple installations of the same
+        // instance. Keep moved backups in a target-specific directory so one
+        // installation never deletes another installation's rollback copy.
+        internal static string TargetCleanupKey(string target)
+        {
+            string normalized;
+            try { normalized = PathSafety.CanonicalPath(target); }
+            catch (Exception) { normalized = target ?? ""; }
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(normalized));
+                StringBuilder text = new StringBuilder(32);
+                for (int i = 0; i < 16 && i < hash.Length; i++)
+                    text.Append(hash[i].ToString("x2"));
+                return text.ToString();
+            }
+        }
+
+        // A backup contains the helper's running executable, so the helper cannot
+        // delete it. Move the retained backup into the data directory and grant
+        // Builtin Users delete access on the moved tree. The replacement tray then
+        // removes it after a stable state, without making the protected installation
+        // directory user-writable.
+        internal static bool MoveBackupForUserCleanup(string backupRoot, string dataDir,
+            string logPath)
+        {
+            if (string.IsNullOrEmpty(backupRoot) || string.IsNullOrEmpty(dataDir)
+                || !Directory.Exists(backupRoot)) return false;
+            try
+            {
+                string target = Path.GetDirectoryName(backupRoot);
+                string targetCanonical = PathSafety.CanonicalPath(target);
+                string dataCanonical = PathSafety.CanonicalPath(dataDir);
+                string dataRoot = Path.Combine(dataDir, "update", "backups",
+                    TargetCleanupKey(target));
+                // Do not move a protected backup back under the protected target.
+                // PathSafety fails closed for a reparse point anywhere in the path.
+                // The canonical checks also reject an 8.3 alias of the target.
+                if (string.IsNullOrEmpty(target)
+                    || PathSafety.ContainsReparsePoint(dataDir)
+                    || PathSafety.ContainsReparsePoint(dataRoot)
+                    || IsInside(dataCanonical, targetCanonical)
+                    || PathSafety.SameDirectory(dataCanonical, targetCanonical)
+                    || IsInside(dataRoot, targetCanonical)
+                    || PathSafety.SameDirectory(dataRoot, targetCanonical)
+                    || PathSafety.ContainsReparsePointInTree(backupRoot)) return false;
+                // A keep/incomplete marker protects a rollback copy. If the marker
+                // files were left behind, the data-directory cleanup could mistake the
+                // moved backup for an ordinary complete one and delete the only copy.
+                if (File.Exists(KeepMarker(backupRoot))
+                    || (File.Exists(IncompleteMarker(backupRoot))
+                        && !File.Exists(CompleteMarker(backupRoot)))) return false;
+
+                Directory.CreateDirectory(dataRoot);
+                // Re-check after creation: a standard user may have replaced the
+                // user-writable parent with a junction between the first check and
+                // the elevated move.
+                if (PathSafety.ContainsReparsePoint(dataRoot)) return false;
+                string destination = Path.Combine(dataRoot,
+                    ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
+                Directory.Move(backupRoot, destination);
+                try
+                {
+                    GrantBackupDeleteAccess(destination);
+                }
+                catch (Exception ex)
+                {
+                    // Keep the backup in the target if the explicit delete ACE
+                    // cannot be applied; do not strand it in the data directory
+                    // without the permission the cleanup relies on.
+                    try { Directory.Move(destination, backupRoot); } catch (Exception) { }
+                    AppendLog(logPath, "backup cleanup handoff failed: " + ex.Message);
+                    return false;
+                }
+                MoveBackupMarker(backupRoot + ".complete", destination + ".complete");
+                MoveBackupMarker(backupRoot + ".incomplete", destination + ".incomplete");
+                AppendLog(logPath, "backup moved for user cleanup: "
+                    + Path.GetFileName(destination));
+                return true;
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "backup cleanup handoff failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static void MoveBackupMarker(string source, string destination)
+        {
+            try
+            {
+                if (File.Exists(source)) File.Move(source, destination);
+            }
+            catch (Exception)
+            {
+                // The marker is advisory. The moved backup itself is retained; a
+                // leftover marker in the target is harmless and never grants access.
+            }
+        }
+
+        private static void GrantBackupDeleteAccess(string directory)
+        {
+            DirectoryInfo info = new DirectoryInfo(directory);
+            DirectorySecurity security = info.GetAccessControl(AccessControlSections.Access);
+            SecurityIdentifier users = new SecurityIdentifier(
+                WellKnownSidType.BuiltinUsersSid, null);
+            security.AddAccessRule(new FileSystemAccessRule(users,
+                FileSystemRights.Delete | FileSystemRights.DeleteSubdirectoriesAndFiles,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None, AccessControlType.Allow));
+            info.SetAccessControl(security);
+        }
+
         // A helper cannot delete the backup that contains its own running executable.
         // Remove such leftovers on a later tray start, but only after they are old enough
         // not to belong to an update that is still running.
@@ -478,11 +666,15 @@ namespace PiWebTray
         {
             try
             {
+                // The data-directory handoff store is user-writable. Never follow a
+                // junction planted there while the tray may be elevated.
+                if (PathSafety.ContainsReparsePoint(target)) return;
                 DateTime cutoff = DateTime.UtcNow - minimumAge;
                 foreach (string old in Directory.GetDirectories(target, ".pi-web-tray-backup-*"))
                 {
                     try
                     {
+                        if (PathSafety.ContainsReparsePoint(old)) continue;
                         if (File.Exists(KeepMarker(old))
                             || (File.Exists(IncompleteMarker(old))
                                 && !File.Exists(CompleteMarker(old)))) continue;

@@ -116,7 +116,18 @@ namespace PiWebTray
             if (_autostartItem.Checked)
             {
                 lock (_autoLock) _revertAdminAutostart = previous ? 1 : 0;
-                BeginAutostartOp(true, _config.AutostartAdmin);
+                if (!BeginAutostartOp(true, _config.AutostartAdmin))
+                {
+                    // The preference was already persisted, but a race with another
+                    // operation prevented the task from being re-applied. Put the
+                    // preference back so the menu never claims a mode that is not
+                    // actually installed.
+                    lock (_autoLock) _revertAdminAutostart = -1;
+                    _config.AutostartAdmin = previous;
+                    if (!_config.SetValue("AutostartAdmin", previous ? "1" : "0"))
+                        NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
+                    UpdateAutostartItems();
+                }
             }
         }
 
@@ -298,15 +309,15 @@ namespace PiWebTray
                 true, target);
         }
 
-        private void BeginAutostartOp(bool enable, bool admin)
+        private bool BeginAutostartOp(bool enable, bool admin)
         {
             if (_exiting || UpdateBusy() || _phase == Phase.Checking
-                || IsServiceActionInProgress()) return;
+                || IsServiceActionInProgress()) return false;
             if (!OperationLock.IsAvailable(OperationLock.UpdateName(_config.BaseDir)))
-                return;
+                return false;
             lock (_autoLock)
             {
-                if (_autoBusy) return;
+                if (_autoBusy) return false;
                 _autoBusy = true;
                 _autoDone = false;
                 _autoMessage = null;
@@ -352,6 +363,7 @@ namespace PiWebTray
                     _autoDone = true;
                 }
             }
+            return true;
         }
 
         private void PollAutostartOp()

@@ -15,17 +15,25 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        private void FlushPendingInstallAfterAutostart()
+        {
+            if (!_installAfterAutostart || AutostartBusy() || _exiting) return;
+            bool force = _installAfterAutostartForce;
+            bool start = _installAfterAutostartStart;
+            bool open = _installAfterAutostartOpen;
+            _installAfterAutostart = false;
+            _installAfterAutostartForce = false;
+            _installAfterAutostartStart = false;
+            _installAfterAutostartOpen = false;
+            BeginInstall(force, start, open);
+        }
+
         // thenStart/thenOpen describe what to do after a successful install. A menu-driven
         // dependency update must not start a service the user had stopped; a startup install
         // or an icon click passes its own intent instead of reusing _autoStartService.
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_exiting) return;
-            if (AutostartBusy())
-            {
-                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
-                return;
-            }
             if (ElevatedInstallUnsafe())
             {
                 NotifyWarningOnce("elevated-writable-install",
@@ -56,6 +64,32 @@ namespace PiWebTray
                     RestoreServiceAfterInstall();
                 return;
             }
+            if (AutostartBusy())
+            {
+                // Do not leave the tray in Checking when an automatic install is
+                // requested while the autostart worker owns the busy gate. Preserve
+                // the install intent and replay it when that worker finishes.
+                _installAfterAutostart = true;
+                _installAfterAutostartForce = _installAfterAutostartForce || force;
+                _installAfterAutostartStart = _installAfterAutostartStart || thenStart;
+                _installAfterAutostartOpen = _installAfterAutostartOpen || thenOpen;
+                if (_phase == Phase.Checking)
+                {
+                    _phase = _probe == null ? Phase.NeedsDeps
+                        : _probe.NeedsNode ? Phase.NeedsNode
+                        : (_probe.NeedsPiWeb || _probe.NeedsPiCli) ? Phase.NeedsDeps
+                        : Phase.Stopped;
+                }
+                UpdateUi();
+                return;
+            }
+            // Any non-deferred install supersedes a replay queued behind an
+            // autostart operation (for example a second install click after the
+            // worker finished but before the next UI tick).
+            _installAfterAutostart = false;
+            _installAfterAutostartForce = false;
+            _installAfterAutostartStart = false;
+            _installAfterAutostartOpen = false;
             // A newer explicit action owns the phase now; do not let a stale phase-resolve
             // or start continuation overwrite it later.
             ClearPendingOwnerActions(false);

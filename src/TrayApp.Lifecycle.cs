@@ -23,11 +23,6 @@ namespace PiWebTray
         private bool ExitApp(bool restart)
         {
             if (_exiting || _exitPromptOpen) return false;
-            if (AutostartBusy() && !_exitForUpdateApply)
-            {
-                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
-                return false;
-            }
 
             // The updater's own ExitApp call is the only exit allowed while the helper
             // is replacing files. A menu/CLI exit at that point would abandon the
@@ -200,11 +195,6 @@ namespace PiWebTray
         private void ExitWithoutStoppingService(bool stopTrackedService)
         {
             if (_exiting) return;
-            if (AutostartBusy())
-            {
-                NotifyWarning(L.T("notify.autostartTitle"), L.T("menu.autostartBusy"));
-                return;
-            }
             // An elevated --tray-only takeover is not allowed to abandon a running
             // update helper. ExitApp has the same guard; this path previously bypassed
             // it and could leave the helper waiting for a gate that never arrives.
@@ -327,6 +317,14 @@ namespace PiWebTray
                         if (updateLock == null) return;
                         Updater.DeleteStaleBackups(target, TimeSpan.FromSeconds(30));
                         Updater.DeleteStaleStagingSnapshots(target, TimeSpan.FromSeconds(30));
+                        // The helper moves the retained backup out of a protected
+                        // installation into this target-specific data directory and
+                        // grants Users delete access explicitly. Never scan a shared
+                        // data directory broadly: another installation may have a
+                        // rollback copy there.
+                        string dataBackupStore = Path.Combine(_config.DataDir, "update",
+                            "backups", Updater.TargetCleanupKey(target));
+                        Updater.DeleteStaleBackups(dataBackupStore, TimeSpan.FromSeconds(30));
                     }
                 }
                 catch (Exception) { }

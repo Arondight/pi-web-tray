@@ -594,6 +594,11 @@ namespace PiWebTray
                         // The helper is already elevated when needed, so it can remove
                         // older backups even though the de-elevated replacement tray
                         // cannot write to a protected installation directory.
+                        // The current backup contains the helper's running image and
+                        // cannot be deleted here. Hand it to a target-specific data
+                        // directory with delete rights so the replacement tray can
+                        // remove it after the service reaches a stable state.
+                        MoveBackupForUserCleanup(copy.Backup, dataDir, logPath);
                         DeleteOldBackupsExcept(target, copy.Backup, logPath);
                         DeleteStaleStagingSnapshots(target, TimeSpan.FromMinutes(30));
                         CleanupStaleFiles(target, copy.Managed, logPath);

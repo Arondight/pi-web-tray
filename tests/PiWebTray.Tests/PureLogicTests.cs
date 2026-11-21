@@ -271,8 +271,10 @@ namespace PiWebTray
             UpdateRollbackTests();
             UpdateLayoutTransitionTests();
             UpdateSnapshotMoveTests();
+            UpdateRunningExecutableTests();
             UpdateTargetTests();
             StaleBackupTests();
+            UpdateBackupHandoffTests();
             LogHostTests();
             UnsafeLogFallbackTests();
             LogViewTests();
@@ -1750,6 +1752,65 @@ namespace PiWebTray
             }
         }
 
+        private static void UpdateBackupHandoffTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-handoff-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string dataDir = Path.Combine(root, "data");
+            string logPath = Path.Combine(root, "update.log");
+            string backup = Path.Combine(target, ".pi-web-tray-backup-handoff");
+            Process running = null;
+            try
+            {
+                Directory.CreateDirectory(backup);
+                // The helper's backup contains the executable that is still running.
+                // Use a real image to cover moving a directory with an open executable.
+                File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+                    Path.Combine(backup, "pi-web-tray.exe"), true);
+                File.WriteAllText(backup + ".incomplete", "");
+                File.WriteAllText(backup + ".complete", "");
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = Path.Combine(backup, "pi-web-tray.exe");
+                psi.Arguments = "/c ping -n 20 127.0.0.1 >nul";
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                running = Process.Start(psi);
+                Thread.Sleep(300);
+
+                Check("protected backup handoff succeeds",
+                    Updater.MoveBackupForUserCleanup(backup, dataDir, logPath));
+                Check("handoff removes the backup from the protected target",
+                    !Directory.Exists(backup));
+                string handoff = Path.Combine(dataDir, "update", "backups",
+                    Updater.TargetCleanupKey(target));
+                string[] moved = Directory.GetDirectories(
+                    handoff, ".pi-web-tray-backup-*");
+                Check("handoff moves a running helper backup",
+                    moved.Length == 1
+                    && File.Exists(Path.Combine(moved[0], "pi-web-tray.exe")));
+                Check("handoff moves the completion markers",
+                    File.Exists(moved[0] + ".incomplete")
+                    && File.Exists(moved[0] + ".complete"));
+
+                if (!running.HasExited) running.Kill();
+                running.WaitForExit(5000);
+                Directory.SetLastWriteTimeUtc(moved[0], DateTime.UtcNow.AddHours(-2));
+                Updater.DeleteStaleBackups(handoff, TimeSpan.FromMinutes(30));
+                Check("moved backup is removable by the standard-user cleanup path",
+                    !Directory.Exists(moved[0]));
+            }
+            finally
+            {
+                if (running != null)
+                {
+                    try { if (!running.HasExited) running.Kill(); } catch (Exception) { }
+                    try { running.Dispose(); } catch (Exception) { }
+                }
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
         private static void LocalizationTests()
         {
             List<string> problems = L.Problems();
@@ -2707,6 +2768,53 @@ namespace PiWebTray
             }
             finally
             {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateRunningExecutableTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-running-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string staging = Path.Combine(target, ".pi-web-tray-stage-running");
+            string logPath = Path.Combine(root, "update.log");
+            Process running = null;
+            try
+            {
+                Directory.CreateDirectory(target);
+                Directory.CreateDirectory(staging);
+                // Use a real executable image so the loader holds the same kind of
+                // mapping as the tray. Copying cmd.exe makes the test independent of
+                // the tray's own service/configuration.
+                File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"),
+                    Path.Combine(target, "pi-web-tray.exe"), true);
+                File.WriteAllText(Path.Combine(staging, "pi-web-tray.exe"), "new");
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = Path.Combine(target, "pi-web-tray.exe");
+                psi.Arguments = "/c ping -n 20 127.0.0.1 >nul";
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                psi.WindowStyle = ProcessWindowStyle.Hidden;
+                running = Process.Start(psi);
+                Thread.Sleep(300);
+
+                UpdateCopyResult copy = Updater.CopyFiles(staging, target, logPath);
+                CheckEqual("atomic replacement updates a running executable", "new",
+                    File.ReadAllText(Path.Combine(target, "pi-web-tray.exe")));
+                Check("atomic replacement keeps the old executable in the backup",
+                    File.Exists(Path.Combine(copy.Backup, "pi-web-tray.exe"))
+                    && new FileInfo(Path.Combine(copy.Backup, "pi-web-tray.exe")).Length > 0);
+                Check("atomic replacement consumes the staged executable",
+                    !File.Exists(Path.Combine(staging, "pi-web-tray.exe")));
+            }
+            finally
+            {
+                if (running != null)
+                {
+                    try { if (!running.HasExited) running.Kill(); } catch (Exception) { }
+                    try { running.Dispose(); } catch (Exception) { }
+                }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
         }

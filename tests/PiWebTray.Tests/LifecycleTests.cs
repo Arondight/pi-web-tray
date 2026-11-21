@@ -202,6 +202,9 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The zip update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The zip update helper failed.");
+                Assert.AreEqual(0,
+                    Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length,
+                    "The helper did not hand the retained backup off for cleanup.");
                 AssertProtectedInstall(target);
                 RepairTestInstall(target);
                 Assert.AreEqual("zip",
@@ -287,6 +290,9 @@ namespace PiWebTray
                     home, instance, port);
                 Assert.IsTrue(helper.WaitForExit(90000), "The update helper did not exit.");
                 Assert.AreEqual(0, helper.ExitCode, "The update helper failed.");
+                Assert.AreEqual(0,
+                    Directory.GetDirectories(target, ".pi-web-tray-backup-*").Length,
+                    "The helper did not hand the retained backup off for cleanup.");
                 AssertProtectedInstall(target);
                 RepairTestInstall(target);
                 Assert.IsTrue(File.Exists(Path.Combine(target, "update-marker.txt")),
