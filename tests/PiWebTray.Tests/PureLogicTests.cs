@@ -275,6 +275,7 @@ namespace PiWebTray
             UpdateTargetTests();
             StaleBackupTests();
             UpdateBackupHandoffTests();
+            UpdateBackupSiblingHandoffTests();
             PendingOwnerActionTests();
             LogHostTests();
             UnsafeLogFallbackTests();
@@ -1750,6 +1751,46 @@ namespace PiWebTray
             finally
             {
                 try { if (Directory.Exists(target)) Directory.Delete(target, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateBackupSiblingHandoffTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-sibling-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target");
+            string dataPath = Path.Combine(root, "not-a-directory");
+            string logPath = Path.Combine(root, "update.log");
+            string backup = Path.Combine(target, ".pi-web-tray-backup-sibling");
+            try
+            {
+                Directory.CreateDirectory(backup);
+                File.WriteAllText(Path.Combine(backup, "pi-web-tray.exe"), "old");
+                File.WriteAllText(backup + ".incomplete", "");
+                File.WriteAllText(backup + ".complete", "");
+                // A file at the configured data root makes the normal data-store
+                // move fail. The handoff must fall back to the target's sibling
+                // cleanup directory, which is always on the same volume.
+                File.WriteAllText(dataPath, "not a directory");
+
+                Check("sibling backup handoff succeeds",
+                    Updater.MoveBackupForUserCleanup(backup, dataPath, logPath));
+                Check("sibling handoff removes the target backup",
+                    !Directory.Exists(backup));
+                string siblingRoot = Updater.TargetCleanupRoot(target);
+                string[] moved = Directory.GetDirectories(
+                    siblingRoot, ".pi-web-tray-backup-*");
+                Check("sibling handoff moves the backup outside the target",
+                    moved.Length == 1
+                    && File.Exists(Path.Combine(moved[0], "pi-web-tray.exe")));
+                Directory.SetLastWriteTimeUtc(moved[0], DateTime.UtcNow.AddHours(-2));
+                Updater.DeleteStaleBackups(siblingRoot, TimeSpan.FromMinutes(30));
+                Check("sibling backup is removable by cleanup",
+                    !Directory.Exists(moved[0]));
+            }
+            finally
+            {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
         }
 

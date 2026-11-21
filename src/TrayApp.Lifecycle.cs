@@ -326,6 +326,14 @@ namespace PiWebTray
                         string dataBackupStore = Path.Combine(_config.DataDir, "update",
                             "backups", Updater.TargetCleanupKey(target));
                         Updater.DeleteStaleBackups(dataBackupStore, TimeSpan.FromSeconds(30));
+                        // A cross-volume data directory cannot receive the running
+                        // helper's backup. The helper then uses a target-specific
+                        // sibling directory, which is on the installation's volume
+                        // and has an explicit delete ACE for this cleanup.
+                        string siblingBackupStore = Updater.TargetCleanupRoot(target);
+                        if (!string.IsNullOrEmpty(siblingBackupStore))
+                            Updater.DeleteStaleBackups(siblingBackupStore,
+                                TimeSpan.FromSeconds(30));
                         success = true;
                     }
                 }

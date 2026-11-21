@@ -568,60 +568,114 @@ namespace PiWebTray
         // delete it. Move the retained backup into the data directory and grant
         // Builtin Users delete access on the moved tree. The replacement tray then
         // removes it after a stable state, without making the protected installation
-        // directory user-writable.
+        // directory user-writable. If the data directory is on another volume or is
+        // not safe to use, use a sibling cleanup directory instead; the target's
+        // parent is always on the same volume as the backup.
+        internal static string TargetCleanupRoot(string target)
+        {
+            try
+            {
+                string canonical = PathSafety.CanonicalPath(target);
+                string parent = Path.GetDirectoryName(canonical);
+                if (string.IsNullOrEmpty(parent)) return "";
+                return Path.Combine(parent,
+                    ".pi-web-tray-cleanup-" + TargetCleanupKey(target));
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
         internal static bool MoveBackupForUserCleanup(string backupRoot, string dataDir,
             string logPath)
         {
-            if (string.IsNullOrEmpty(backupRoot) || string.IsNullOrEmpty(dataDir)
-                || !Directory.Exists(backupRoot)) return false;
+            if (string.IsNullOrEmpty(backupRoot) || !Directory.Exists(backupRoot)) return false;
             try
             {
                 string target = Path.GetDirectoryName(backupRoot);
                 string targetCanonical = PathSafety.CanonicalPath(target);
-                string dataCanonical = PathSafety.CanonicalPath(dataDir);
-                string dataRoot = Path.Combine(dataDir, "update", "backups",
-                    TargetCleanupKey(target));
-                string dataRootCanonical = Path.Combine(dataCanonical, "update", "backups",
-                    TargetCleanupKey(target));
-                // Do not move a protected backup back under the protected target.
-                // PathSafety fails closed for a reparse point anywhere in the path.
-                // Canonical checks also reject an 8.3 alias of the target, including
-                // aliases in the data path's parent components.
-                if (string.IsNullOrEmpty(target)
-                    || PathSafety.ContainsReparsePoint(dataDir)
-                    || PathSafety.ContainsReparsePoint(dataRoot)
-                    || IsInside(dataCanonical, targetCanonical)
-                    || PathSafety.SameDirectory(dataCanonical, targetCanonical)
-                    || IsInside(dataRootCanonical, targetCanonical)
-                    || PathSafety.SameDirectory(dataRootCanonical, targetCanonical)
-                    || IsInside(dataRoot, targetCanonical)
-                    || PathSafety.SameDirectory(dataRoot, targetCanonical)
-                    || PathSafety.ContainsReparsePointInTree(backupRoot)) return false;
+                if (string.IsNullOrEmpty(target)) return false;
                 // A keep/incomplete marker protects a rollback copy. If the marker
-                // files were left behind, the data-directory cleanup could mistake the
-                // moved backup for an ordinary complete one and delete the only copy.
+                // files were left behind, a cleanup store could mistake the moved
+                // backup for an ordinary complete one and delete the only copy.
                 if (File.Exists(KeepMarker(backupRoot))
                     || (File.Exists(IncompleteMarker(backupRoot))
                         && !File.Exists(CompleteMarker(backupRoot)))) return false;
+                if (PathSafety.ContainsReparsePointInTree(backupRoot)) return false;
 
-                Directory.CreateDirectory(dataRoot);
-                // Re-check after creation: a standard user may have replaced the
-                // user-writable parent with a junction between the first check and
-                // the elevated move.
-                if (PathSafety.ContainsReparsePoint(dataRoot)) return false;
-                string destination = Path.Combine(dataRoot,
+                string dataRoot = null;
+                if (!string.IsNullOrEmpty(dataDir) && Path.IsPathRooted(dataDir)
+                    && !PathSafety.ContainsReparsePoint(dataDir))
+                {
+                    string dataCanonical = PathSafety.CanonicalPath(dataDir);
+                    string candidate = Path.Combine(dataDir, "update", "backups",
+                        TargetCleanupKey(target));
+                    string candidateCanonical = Path.Combine(dataCanonical, "update", "backups",
+                        TargetCleanupKey(target));
+                    // Do not move a protected backup back under the protected target.
+                    // Canonical checks reject an 8.3 alias of the target, including
+                    // aliases in the data path's parent components.
+                    if (!PathSafety.ContainsReparsePoint(candidate)
+                        && !IsInside(dataCanonical, targetCanonical)
+                        && !PathSafety.SameDirectory(dataCanonical, targetCanonical)
+                        && !IsInside(candidateCanonical, targetCanonical)
+                        && !PathSafety.SameDirectory(candidateCanonical, targetCanonical)
+                        && !IsInside(candidate, targetCanonical)
+                        && !PathSafety.SameDirectory(candidate, targetCanonical))
+                    {
+                        dataRoot = candidate;
+                    }
+                }
+
+                if (dataRoot != null && TryMoveBackupToStore(backupRoot, dataRoot, logPath))
+                    return true;
+                // If the first move failed after consuming the source, do not try a
+                // second store: the backup is already at a recoverable location.
+                if (!Directory.Exists(backupRoot)) return false;
+
+                string siblingRoot = TargetCleanupRoot(target);
+                if (!string.IsNullOrEmpty(siblingRoot)
+                    && !string.Equals(siblingRoot, dataRoot,
+                        StringComparison.OrdinalIgnoreCase)
+                    && !IsInside(siblingRoot, targetCanonical)
+                    && !PathSafety.SameDirectory(siblingRoot, targetCanonical)
+                    && TryMoveBackupToStore(backupRoot, siblingRoot, logPath))
+                    return true;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                AppendLog(logPath, "backup cleanup handoff failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        private static bool TryMoveBackupToStore(string backupRoot, string storeRoot,
+            string logPath)
+        {
+            try
+            {
+                if (!Directory.Exists(backupRoot) || string.IsNullOrEmpty(storeRoot)
+                    || PathSafety.ContainsReparsePoint(storeRoot)) return false;
+                Directory.CreateDirectory(storeRoot);
+                // Re-check after creation: a standard user may have replaced a
+                // user-writable parent with a junction before the elevated move.
+                if (PathSafety.ContainsReparsePoint(storeRoot)) return false;
+                // The backup itself contains the helper's running image, so the
+                // helper cannot delete it. Give the standard-user cleanup path an
+                // explicit delete-only ACE on the store root and on the moved tree.
+                GrantBackupDeleteAccess(storeRoot);
+                string destination = Path.Combine(storeRoot,
                     ".pi-web-tray-backup-" + Guid.NewGuid().ToString("N"));
-                Directory.Move(backupRoot, destination);
+                MoveBackupDirectory(backupRoot, destination);
                 try
                 {
                     GrantBackupDeleteAccess(destination);
                 }
                 catch (Exception ex)
                 {
-                    // Keep the backup in the target if the explicit delete ACE
-                    // cannot be applied; do not strand it in the data directory
-                    // without the permission the cleanup relies on.
-                    try { Directory.Move(destination, backupRoot); } catch (Exception) { }
+                    try { MoveBackupDirectory(destination, backupRoot); } catch (Exception) { }
                     AppendLog(logPath, "backup cleanup handoff failed: " + ex.Message);
                     return false;
                 }
@@ -635,6 +689,28 @@ namespace PiWebTray
             {
                 AppendLog(logPath, "backup cleanup handoff failed: " + ex.Message);
                 return false;
+            }
+        }
+
+        private static void MoveBackupDirectory(string source, string destination)
+        {
+            // The source contains the helper executable that is still running.
+            // Windows normally permits renaming it, but an antivirus/indexer can
+            // briefly hold the directory; retry only sharing-style IO failures.
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    Directory.Move(source, destination);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    bool transient = ex is IOException
+                        || ex is UnauthorizedAccessException;
+                    if (attempt == 4 || !transient) throw;
+                    Thread.Sleep(100);
+                }
             }
         }
 
