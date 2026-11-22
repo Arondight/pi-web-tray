@@ -194,6 +194,7 @@ namespace PiWebTray
         private bool _pendingStartAfterUpdate;
         private bool _pendingStartAfterUpdateOpen;
         private DateTime _pendingStartAfterUpdateAt = DateTime.MinValue;
+        private DateTime _pendingStartAfterUpdateWarnAt = DateTime.MinValue;
         private DateTime _pendingStartAfterUpdateDeadline = DateTime.MinValue;
         private bool _serviceStoppedByUser;
         private bool _exiting;

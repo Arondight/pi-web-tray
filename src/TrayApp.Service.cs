@@ -350,12 +350,17 @@ namespace PiWebTray
                 _pendingStartAfterUpdateOpen =
                     _pendingStartAfterUpdateOpen || openBrowser;
                 if (_pendingStartAfterUpdateAt == DateTime.MinValue)
+                {
                     _pendingStartAfterUpdateAt = DateTime.Now.AddSeconds(2);
+                    _pendingStartAfterUpdateWarnAt = DateTime.Now.AddSeconds(10);
+                }
                 if (_pendingStartAfterUpdateDeadline == DateTime.MinValue)
                     _pendingStartAfterUpdateDeadline = DateTime.Now.AddSeconds(60);
             }
-            NotifyWarningOnce("external-update-start", L.T("notify.startBlockedTitle"),
-                L.T("notify.startBlockedBody"));
+            // A post-update handoff normally releases the update lock within a few
+            // seconds. Do not show an alarming "start is blocked" balloon for that
+            // short, expected wait; RetryPendingStartAfterUpdate warns only if the
+            // lock is still held after a delay.
             UpdateUi();
             return true;
         }
@@ -365,6 +370,7 @@ namespace PiWebTray
             _pendingStartAfterUpdate = false;
             _pendingStartAfterUpdateOpen = false;
             _pendingStartAfterUpdateAt = DateTime.MinValue;
+            _pendingStartAfterUpdateWarnAt = DateTime.MinValue;
             _pendingStartAfterUpdateDeadline = DateTime.MinValue;
         }
 
@@ -384,6 +390,13 @@ namespace PiWebTray
                 }
                 else
                 {
+                    if (_pendingStartAfterUpdateWarnAt != DateTime.MinValue
+                        && DateTime.Now >= _pendingStartAfterUpdateWarnAt)
+                    {
+                        _pendingStartAfterUpdateWarnAt = DateTime.MinValue;
+                        NotifyWarningOnce("external-update-start", L.T("notify.startBlockedTitle"),
+                            L.T("notify.startBlockedBody"));
+                    }
                     _pendingStartAfterUpdateAt = DateTime.Now.AddSeconds(2);
                 }
                 return;
