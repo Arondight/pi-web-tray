@@ -248,6 +248,27 @@ namespace PiWebTray
             }
         }
 
+        // Start a replacement tray with the logged-on user's standard token.
+        // Explorer is already running as the interactive user; asking it to run
+        // the temporary command script de-elevates the child instead of inheriting
+        // this tray's administrator token. The script also preserves the
+        // documented PI_WEB_TRAY_* overrides through AppendRestartEnvironment.
+        internal static bool StartStandardUserTray(string executablePath, string arguments,
+            string logPath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(executablePath)) return false;
+                string target = Path.GetDirectoryName(executablePath);
+                if (string.IsNullOrEmpty(target)) return false;
+                return LaunchViaExplorerCommand(target, arguments, logPath) != null;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private static string LaunchViaExplorerCommand(string target,
             string arguments, string logPath,
             IDictionary<string, string> restartEnvironment = null)

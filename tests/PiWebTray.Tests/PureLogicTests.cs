@@ -998,7 +998,7 @@ namespace PiWebTray
                     writeConfig.IniPath = writePath;
                     List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
                     values.Add(new KeyValuePair<string, string>("Port", "30200"));
-                    values.Add(new KeyValuePair<string, string>("WorkingDir", "C:/work;old"));
+                    values.Add(new KeyValuePair<string, string>("NodePath", "C:/work;old"));
                     values.Add(new KeyValuePair<string, string>("NpmRegistry", "https://example.test/#frag"));
                     values.Add(new KeyValuePair<string, string>("Proxy", "http://user:p\"ass;x@host:8080"));
                     values.Add(new KeyValuePair<string, string>("Language", "zh-Hant"));
@@ -1006,13 +1006,13 @@ namespace PiWebTray
                     string parsedKey;
                     string parsedValue;
                     CheckEqual("ini quoted semicolon parses", "C:/work;old",
-                        Config.TryParseLine("WorkingDir=\"C:/work;old\"", out parsedKey, out parsedValue)
+                        Config.TryParseLine("NodePath=\"C:/work;old\"", out parsedKey, out parsedValue)
                             ? parsedValue : "parse-failed");
                     CheckEqual("ini doubled quote parses", "a\"b;c",
                         Config.TryParseLine("Proxy=\"a\"\"b;c\"", out parsedKey, out parsedValue)
                             ? parsedValue : "parse-failed");
                     CheckEqual("ini written port", "30200", Config.ReadIniValue(writePath, "port"));
-                    CheckEqual("ini written semicolon path", "C:/work;old", Config.ReadIniValue(writePath, "WorkingDir"));
+                    CheckEqual("ini written semicolon path", "C:/work;old", Config.ReadIniValue(writePath, "NodePath"));
                     CheckEqual("ini written hash URL", "https://example.test/#frag", Config.ReadIniValue(writePath, "npmregistry"));
                     CheckEqual("ini written quoted value round-trips",
                         "http://user:p\"ass;x@host:8080", Config.ReadIniValue(writePath, "proxy"));
@@ -1767,10 +1767,8 @@ namespace PiWebTray
             Config config = new Config();
             config.DataDir = Path.Combine(Path.GetTempPath(),
                 "pi-web-tray-npm-data-" + Guid.NewGuid().ToString("N"));
-            config.WorkingDir = Path.Combine(Path.GetTempPath(),
-                "pi-web-tray-npm-project-" + Guid.NewGuid().ToString("N"));
 
-            string directory = EnvironmentProbe.NpmWorkingDirectory(config);
+            string directory = EnvironmentProbe.NpmWorkingDirectory();
             Check("npm working directory is available",
                 !string.IsNullOrEmpty(directory) && Directory.Exists(directory));
             Check("npm uses the user home instead of a data subfolder",
@@ -1892,8 +1890,6 @@ namespace PiWebTray
                 CheckEqual("ini port is preserved separately", 30211, config.ConfiguredPort);
                 CheckEqual("environment port is effective", 30222, config.Port);
                 Check("port override is recorded", config.PortFromEnvironment);
-                CheckEqual("working directory keeps its raw ini value",
-                    "%USERPROFILE%", config.ConfiguredWorkingDir);
                 CheckEqual("node path keeps its raw ini value",
                     "%NODE_TEST%", config.ConfiguredNodePath);
                 CheckEqual("node path is expanded for use",
@@ -1910,8 +1906,6 @@ namespace PiWebTray
                     "%TAG_TEST%", config.ConfiguredInstallTag);
                 CheckEqual("tag is expanded for use", "latest", config.InstallTag);
                 Check("install Pi can be disabled from the ini", !config.InstallPi);
-                Check("working directory is expanded for use",
-                    Directory.Exists(config.WorkingDir));
 
                 using (SettingsForm form = new SettingsForm(config))
                 {
@@ -1931,8 +1925,6 @@ namespace PiWebTray
                 Check("settings preserves the configured port", saved.Contains("Port=30211"));
                 Check("settings preserves the disabled install Pi option",
                     saved.Contains("InstallPi=0"));
-                Check("settings preserves the %USERPROFILE% template",
-                    saved.Contains("WorkingDir=%USERPROFILE%"));
                 Check("settings preserves the node path template",
                     saved.Contains("NodePath=%NODE_TEST%"));
                 Check("settings preserves the registry template",
@@ -3966,12 +3958,10 @@ namespace PiWebTray
                 CheckEqual("default proxy is empty", "", config.Proxy);
                 CheckEqual("default language", "auto", config.Language);
                 Check("default admin autostart is off", !config.AutostartAdmin);
-                Check("default working dir is the profile", Directory.Exists(config.WorkingDir));
                 CheckEqual("default node path is empty", "", config.NodePath ?? "");
 
                 string content = File.ReadAllText(ini);
                 Check("ini documents the port", content.Contains("Port=30141"));
-                Check("ini documents the working dir", content.Contains("WorkingDir=%USERPROFILE%"));
                 Check("ini documents auto install", content.Contains("AutoInstall=1"));
                 Check("ini documents install Pi", content.Contains("InstallPi=1"));
                 Check("ini documents auto restart", content.Contains("AutoRestart=0"));
@@ -3982,7 +3972,7 @@ namespace PiWebTray
                 Check("ini documents node path", content.Contains("NodePath="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 11 documented keys", 11, CountIniKeys(content));
             }
             finally
             {

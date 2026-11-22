@@ -67,7 +67,9 @@ namespace PiWebTray
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+            // Both report tables are content-sized; do not let the software
+            // table stretch into an empty area when the window is larger.
+            root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _root = root;
 
@@ -88,8 +90,13 @@ namespace PiWebTray
             runtimeGroup.AutoSize = true;
             runtimeGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             GroupBox softwareGroup = BuildGroup(L.T("check.software"), _softwareGrid);
-            softwareGroup.AutoSize = false;
-            softwareGroup.Dock = DockStyle.Fill;
+            // Size the group and its table to the rows. A Dock.Fill group in the
+            // Percent row grows with the window and leaves an empty grid area
+            // below the last row; the report should look the same at any window
+            // size instead.
+            softwareGroup.AutoSize = true;
+            softwareGroup.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            softwareGroup.Dock = DockStyle.Top;
             // Keep the software table visible when a very small/high-DPI work
             // area forces the form to shrink; the root's AutoScroll handles the
             // overflow.
@@ -289,10 +296,10 @@ namespace PiWebTray
         // Separated from OnLoad so layout tests do not need an interactive desktop.
         internal void FitForDisplay()
         {
-            // The runtime table has a fixed small number of rows. The software
-            // group lives in the Percent row and fills the remaining height; only
-            // the runtime table needs a content-derived height.
+            // Both tables have a small, fixed number of rows. Size them to their
+            // content so no table displays an empty strip below the last row.
             FitGridHeight(_runtimeGrid);
+            FitGridHeight(_softwareGrid);
             FitInitialHeight();
         }
 
@@ -331,25 +338,16 @@ namespace PiWebTray
             }
         }
 
-        // The software table is deliberately NOT fitted to its rows. It lives in
-        // the Percent row and must keep filling the space above the button row.
-        // Instead, shrink the whole dialog to its current content so the default
-        // window does not open with a large empty grid area. Resizing the window
-        // later still lets the table absorb the extra height.
+        // Shrink the whole dialog to the actual content height. The tables are
+        // already fitted to their rows, so using the root's preferred height avoids
+        // a large empty strip below the tables and buttons.
         private void FitInitialHeight()
         {
             try
             {
                 if (WindowState != FormWindowState.Normal) return;
                 PerformLayout();
-                GroupBox softwareGroup = _softwareGrid.Parent as GroupBox;
-                if (softwareGroup == null) return;
-
-                int groupChrome = Math.Max(0, softwareGroup.Height - _softwareGrid.Height);
-                int desiredGroup = Math.Max(softwareGroup.MinimumSize.Height,
-                    GridContentHeight(_softwareGrid) + groupChrome);
-                int desiredClient = ClientSize.Height + (desiredGroup - softwareGroup.Height);
-
+                int desiredClient = _root.PreferredSize.Height;
                 int chrome = Height - ClientSize.Height;
                 int maxClient = Math.Max(300,
                     Screen.FromControl(this).WorkingArea.Height - chrome - 20);
@@ -403,6 +401,7 @@ namespace PiWebTray
                             _refresh.Enabled = true;
                             UseWaitCursor = false;
                             PopulateSoftwareGrid(_softwareGrid, listening, owner, false, ownerFailed);
+                            FitGridHeight(_softwareGrid);
                         }));
                     }
                 }
@@ -411,7 +410,33 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                _refreshing = false;
+                _refresh.Enabled = true;
+                UseWaitCursor = false;
+                bool listening = false;
+                try { listening = Net.IsPortOpen(_config.Port, 300); }
+                catch (Exception) { }
+                PopulateSoftwareGrid(_softwareGrid, listening, null, false, true);
+                ShowWorkerStartError(ex);
+            }
+        }
+
+        private void ShowWorkerStartError(Exception ex)
+        {
+            try
+            {
+                MessageBox.Show(this, L.T("notify.selfCheckError", ex.Message),
+                    L.T("sc.title"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void PopulateRuntimeGrid(DataGridView grid)
@@ -440,7 +465,6 @@ namespace PiWebTray
                 L.T("check.portState", _config.Port,
                     listening ? L.T("bool.yes") : L.T("bool.no"),
                     ownerText));
-            AddInfoRow(grid, L.T("sc.workDir"), _config.WorkingDir);
             AddInfoRow(grid, L.T("sc.dataDir"), _config.OutputDir);
             AddInfoRow(grid, L.T("sc.admin"), _elevated ? L.T("bool.yes") : L.T("bool.no"));
             AddInfoRow(grid, L.T("sc.language"), L.Current);
@@ -461,6 +485,7 @@ namespace PiWebTray
             PopulateRuntimeGrid(_runtimeGrid);
             PopulateSoftwareGrid(_softwareGrid, listening, owner, false, ownerFailed);
             FitGridHeight(_runtimeGrid);
+            FitGridHeight(_softwareGrid);
             _summary.Text = BuildSummary();
         }
 
@@ -515,7 +540,7 @@ namespace PiWebTray
                             if (result == null)
                             {
                                 _summary.Text = BuildSummary();
-                                MessageBox.Show(
+                                MessageBox.Show(this,
                                     L.T("notify.selfCheckError", error ?? ""),
                                     L.T("sc.title"),
                                     MessageBoxButtons.OK,
@@ -536,7 +561,18 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                _refreshing = false;
+                _refresh.Enabled = true;
+                UseWaitCursor = false;
+                _summary.Text = BuildSummary();
+                ShowWorkerStartError(ex);
+            }
         }
 
         private static void AddComponentRow(

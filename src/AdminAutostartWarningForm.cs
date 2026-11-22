@@ -249,7 +249,22 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                _busy = false;
+                _fix.Enabled = true;
+                _close.Enabled = true;
+                ControlBox = true;
+                CancelButton = _close;
+                UseWaitCursor = false;
+                SetStatus(L.T("auto.repairFailed", ex.Message),
+                    Color.FromArgb(0xD1, 0x3A, 0x3A));
+                FitToContent();
+            }
         }
 
         private void FinishRepair(bool repaired, string message)

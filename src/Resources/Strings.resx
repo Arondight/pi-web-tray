@@ -37,10 +37,10 @@
     <value>Stopping… port {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
-    <value>Error · click to retry</value>
+    <value>Error</value>
   </data>
   <data name="status.stopped" xml:space="preserve">
-    <value>Stopped · click to start</value>
+    <value>Stopped</value>
   </data>
   <data name="status.admin" xml:space="preserve">
     <value> (administrator)</value>
@@ -423,13 +423,7 @@ Exit anyway?</value>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>Desktop shortcut created</value>
   </data>
-  <data name="notify.workingDirFallbackTitle" xml:space="preserve">
-    <value>Working directory not found</value>
-  </data>
-  <data name="notify.workingDirFallbackBody" xml:space="preserve">
-    <value>The configured service working directory does not exist: {0}. Using {1} instead. Change it in Settings.</value>
-  </data>
-  <data name="notify.nodePathInvalidTitle" xml:space="preserve">
+<data name="notify.nodePathInvalidTitle" xml:space="preserve">
     <value>Node.js path not found</value>
   </data>
   <data name="notify.nodePathInvalidBody" xml:space="preserve">
@@ -585,10 +579,7 @@ Exit anyway?</value>
   <data name="sc.port" xml:space="preserve">
     <value>Port {0} (listening={1})</value>
   </data>
-  <data name="sc.workDir" xml:space="preserve">
-    <value>Working directory</value>
-  </data>
-  <data name="sc.admin" xml:space="preserve">
+<data name="sc.admin" xml:space="preserve">
     <value>Administrator</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
@@ -763,10 +754,7 @@ Use --help to see the supported options.</value>
   <data name="ini.portC" xml:space="preserve">
     <value>; Pi Web port (default 30141)</value>
   </data>
-  <data name="ini.workdirC" xml:space="preserve">
-    <value>; Service working directory (also Pi's default project directory when installed)</value>
-  </data>
-  <data name="ini.autoInstallC" xml:space="preserve">
+<data name="ini.autoInstallC" xml:space="preserve">
     <value>; Install missing dependencies at startup (first installation usually takes 10-20 minutes)</value>
   </data>
   <data name="ini.installPiC" xml:space="preserve">
@@ -1084,10 +1072,7 @@ See {1} for details.</value>
   <data name="settings.port" xml:space="preserve">
     <value>Service port</value>
   </data>
-  <data name="settings.workingDir" xml:space="preserve">
-    <value>Service working directory</value>
-  </data>
-  <data name="settings.language" xml:space="preserve">
+<data name="settings.language" xml:space="preserve">
     <value>Language</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
@@ -1138,11 +1123,14 @@ See {1} for details.</value>
 <data name="settings.browse" xml:space="preserve">
     <value>Browse</value>
   </data>
+<data name="settings.elevatedRestartNote" xml:space="preserve">
+    <value>1. {0} changes require stopping the service.&#10;2. {1} changes require a tray restart; other settings do not require a restart.&#10;3. {2} is read-only; it can be changed in standard-user mode.</value>
+  </data>
 <data name="settings.selectNode" xml:space="preserve">
     <value>Select node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>Changing the service port requires stopping Pi Web. Language, working directory and Node.js path changes take effect after a restart.</value>
+    <value>1. {0} changes require stopping the service.&#10;2. {1} and {2} changes require a tray restart; other settings do not require a restart.</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>Save</value>
@@ -1153,10 +1141,7 @@ See {1} for details.</value>
   <data name="settings.cancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
-  <data name="settings.invalidWorkingDir" xml:space="preserve">
-    <value>The working directory does not exist.</value>
-  </data>
-  <data name="settings.invalidNodePath" xml:space="preserve">
+<data name="settings.invalidNodePath" xml:space="preserve">
     <value>The selected Node.js executable does not exist.</value>
   </data>
 <data name="settings.invalidRegistry" xml:space="preserve">
@@ -1207,7 +1192,10 @@ See {1} for details.</value>
   <data name="menu.copyUrl" xml:space="preserve">
     <value>Copy page link</value>
   </data>
-  <data name="menu.restartAdmin" xml:space="preserve">
+  <data name="menu.restartStandard" xml:space="preserve">
+    <value>Restart as standard user</value>
+  </data>
+<data name="menu.restartAdmin" xml:space="preserve">
     <value>Restart as administrator</value>
   </data>
   <data name="menu.folder" xml:space="preserve">

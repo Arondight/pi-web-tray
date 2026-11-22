@@ -1,8 +1,9 @@
 // Pi Web Tray — settings window
 //
 // Edits the supported keys of pi-web-tray.ini without requiring the user to find and
-// edit the file. Port, language, working directory and explicit tool paths take effect
-// after the tray is restarted; InstallPi refreshes the cached readiness immediately.
+// edit the file. Port changes require the service to be stopped; language and
+// NodePath changes take effect after the tray restarts. Other settings apply
+// without a restart; InstallPi refreshes the cached readiness immediately.
 
 using System;
 using System.Collections.Generic;
@@ -32,9 +33,6 @@ namespace PiWebTray
         private readonly TableLayoutPanel _outer;
         private readonly FlowLayoutPanel _buttons;
         private readonly NumericUpDown _port;
-        private readonly TextBox _workingDir;
-        private readonly string _initialWorkingDir;
-        private readonly bool _workingDirWasUnset;
         private readonly ComboBox _language;
         private readonly CheckBox _autoInstall;
         private readonly CheckBox _installPi;
@@ -46,6 +44,7 @@ namespace PiWebTray
         private readonly Button _testProxy;
         private readonly TextBox _nodePath;
         private readonly bool _elevated;
+        private Font _noteBoldFont;
 
         internal SettingsForm(Config config)
             : this(config, true, false)
@@ -108,10 +107,10 @@ namespace PiWebTray
             root.AutoSize = true;
             root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             root.ColumnCount = 2;
-            root.RowCount = 12;
+            root.RowCount = 11;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-            for (int i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < 11; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             scroll.Controls.Add(root);
             _root = root;
 
@@ -125,15 +124,6 @@ namespace PiWebTray
             _port.Anchor = AnchorStyles.Left;
             AddRow(root, 0, L.T("settings.port"), _port);
 
-            _workingDir = new TextBox();
-            _workingDirWasUnset = string.IsNullOrEmpty(config.ConfiguredWorkingDir);
-            _workingDir.Text = !_workingDirWasUnset
-                ? config.ConfiguredWorkingDir
-                : (config.WorkingDir ?? "");
-            _initialWorkingDir = _workingDir.Text;
-            AddBrowseRow(root, 1, L.T("settings.workingDir"), _workingDir,
-                L.T("settings.browse"), delegate { BrowseFolder(_workingDir); }, !_elevated);
-
             _language = new ComboBox();
             _language.DropDownStyle = ComboBoxStyle.DropDownList;
             _language.Width = 220;
@@ -143,47 +133,47 @@ namespace PiWebTray
             AddLanguageItems(string.IsNullOrEmpty(config.ConfiguredLanguage)
                 ? (string.IsNullOrEmpty(config.Language) ? L.Auto : config.Language)
                 : config.ConfiguredLanguage);
-            AddRow(root, 2, L.T("settings.language"), _language);
+            AddRow(root, 1, L.T("settings.language"), _language);
 
             _autoInstall = new CheckBox();
             _autoInstall.Text = L.T("settings.autoInstall");
             _autoInstall.Checked = config.AutoInstall;
             _autoInstall.AutoSize = true;
-            AddRow(root, 3, "", _autoInstall);
+            AddRow(root, 2, "", _autoInstall);
 
             _autoRestart = new CheckBox();
             _autoRestart.Text = L.T("settings.autoRestart");
             _autoRestart.Checked = config.AutoRestart;
             _autoRestart.AutoSize = true;
-            AddRow(root, 4, "", _autoRestart);
+            AddRow(root, 3, "", _autoRestart);
 
             _autoCheckUpdates = new CheckBox();
             _autoCheckUpdates.Text = L.T("settings.autoCheckUpdates");
             _autoCheckUpdates.Checked = config.AutoCheckUpdates;
             _autoCheckUpdates.AutoSize = true;
-            AddRow(root, 5, "", _autoCheckUpdates);
+            AddRow(root, 4, "", _autoCheckUpdates);
 
             _installPi = new CheckBox();
             _installPi.Text = L.T("settings.installPi");
             _installPi.Checked = config.InstallPi;
             _installPi.AutoSize = true;
-            AddRow(root, 6, "", _installPi);
+            AddRow(root, 5, "", _installPi);
 
             _installTag = new TextBox();
             _installTag.Text = string.IsNullOrEmpty(config.ConfiguredInstallTag)
                 ? (string.IsNullOrEmpty(config.InstallTag) ? "latest" : config.InstallTag)
                 : config.ConfiguredInstallTag;
-            AddRow(root, 7, L.T("settings.installTag"), _installTag);
+            AddRow(root, 6, L.T("settings.installTag"), _installTag);
 
             _npmRegistry = new TextBox();
             _npmRegistry.Text = string.IsNullOrEmpty(config.ConfiguredNpmRegistry)
                 ? (config.NpmRegistry ?? "") : config.ConfiguredNpmRegistry;
-            AddRow(root, 8, L.T("settings.npmRegistry"), _npmRegistry);
+            AddRow(root, 7, L.T("settings.npmRegistry"), _npmRegistry);
 
             _nodePath = new TextBox();
             _nodePath.Text = string.IsNullOrEmpty(config.ConfiguredNodePath)
                 ? (config.NodePath ?? "") : config.ConfiguredNodePath;
-            AddBrowseRow(root, 9, L.T("settings.nodePath"), _nodePath,
+            AddBrowseRow(root, 8, L.T("settings.nodePath"), _nodePath,
                 L.T("settings.browse"), delegate { BrowseFile(_nodePath, L.T("settings.selectNode"), "node.exe|node.exe|Executables (*.exe)|*.exe"); }, !_elevated);
 
             _proxy = new TextBox();
@@ -211,16 +201,43 @@ namespace PiWebTray
             _testProxy.Margin = new Padding(6, 0, 0, 0);
             proxyLine.Controls.Add(_proxy, 0, 0);
             proxyLine.Controls.Add(_testProxy, 1, 0);
-            AddRow(root, 10, L.T("settings.proxy"), proxyLine);
+            AddRow(root, 9, L.T("settings.proxy"), proxyLine);
 
-            Label note = new Label();
-            note.Text = L.T("settings.restartNote");
-            if (config.PortFromEnvironment)
-                note.Text += "\r\n" + L.T("settings.portEnvOverrideNote");
-            note.AutoSize = true;
-            note.MaximumSize = new Size(680, 0);
+            RichTextBox note = new RichTextBox();
+            note.ReadOnly = true;
+            note.BorderStyle = BorderStyle.None;
+            note.BackColor = SystemColors.Control;
+            note.ForeColor = SystemColors.GrayText;
+            note.DetectUrls = false;
+            note.ScrollBars = RichTextBoxScrollBars.None;
+            note.WordWrap = true;
+            note.TabStop = false;
+            note.Font = Font;
             note.Margin = new Padding(0, 12, 0, 12);
-            root.Controls.Add(note, 0, 11);
+            note.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            string portLabel = L.T("settings.port");
+            string languageLabel = L.T("settings.language");
+            string nodePathLabel = L.T("settings.nodePath");
+            string noteText = string.Format(CultureInfo.CurrentCulture,
+                _elevated ? L.T("settings.elevatedRestartNote") : L.T("settings.restartNote"),
+                portLabel, languageLabel, nodePathLabel);
+            if (config.PortFromEnvironment)
+                noteText += "\r\n" + L.T("settings.portEnvOverrideNote");
+            note.Text = noteText;
+            note.Width = 680;
+            _noteBoldFont = new Font(note.Font, FontStyle.Bold);
+            BoldOccurrences(note, portLabel, _noteBoldFont);
+            BoldOccurrences(note, languageLabel, _noteBoldFont);
+            BoldOccurrences(note, nodePathLabel, _noteBoldFont);
+            note.Select(0, 0);
+            note.Height = MeasureNoteHeight(note);
+            note.ContentsResized += delegate (object sender, ContentsResizedEventArgs e)
+            {
+                if (e.NewRectangle.Height <= 0 || note.Height == e.NewRectangle.Height)
+                    return;
+                note.Height = e.NewRectangle.Height;
+            };
+            root.Controls.Add(note, 0, 10);
             root.SetColumnSpan(note, 2);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel();
@@ -454,6 +471,32 @@ namespace PiWebTray
             root.Controls.Add(control, 1, row);
         }
 
+        private static void BoldOccurrences(RichTextBox box, string text, Font boldFont)
+        {
+            if (string.IsNullOrEmpty(text) || boldFont == null) return;
+            int index = 0;
+            while ((index = box.Text.IndexOf(text, index, StringComparison.Ordinal)) >= 0)
+            {
+                box.Select(index, text.Length);
+                box.SelectionFont = boldFont;
+                index += text.Length;
+            }
+        }
+
+        private static int MeasureNoteHeight(RichTextBox note)
+        {
+            try
+            {
+                int width = Math.Max(1, note.Width);
+                return Math.Max(1, TextRenderer.MeasureText(note.Text, note.Font,
+                    new Size(width, int.MaxValue), TextFormatFlags.WordBreak).Height + 10);
+            }
+            catch (Exception)
+            {
+                return 40;
+            }
+        }
+
         private static void AddBrowseRow(TableLayoutPanel root, int row, string labelText,
             TextBox textBox, string buttonText, EventHandler browse, bool allowBrowse)
         {
@@ -468,6 +511,11 @@ namespace PiWebTray
             line.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             textBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             textBox.Margin = new Padding(0, 0, 6, 0);
+            // A read-only field keeps the value visible/copyable without letting
+            // the elevated process accept a new path. The Browse button is
+            // disabled for the same reason; see the note at the bottom.
+            textBox.ReadOnly = !allowBrowse;
+            if (!allowBrowse) textBox.BackColor = SystemColors.Control;
             line.Controls.Add(textBox, 0, 0);
 
             Button button = new Button();
@@ -481,20 +529,6 @@ namespace PiWebTray
             line.Controls.Add(button, 1, 0);
 
             AddRow(root, row, labelText, line);
-        }
-
-        private void BrowseFolder(TextBox target)
-        {
-            // The picker loads shell extensions. Never do that with an elevated token.
-            if (_elevated) return;
-            using (FolderBrowserDialog dialog = new FolderBrowserDialog())
-            {
-                dialog.Description = L.T("settings.workingDir");
-                dialog.ShowNewFolderButton = true;
-                string current = Environment.ExpandEnvironmentVariables((target.Text ?? "").Trim());
-                if (Directory.Exists(current)) dialog.SelectedPath = current;
-                if (dialog.ShowDialog(this) == DialogResult.OK) target.Text = dialog.SelectedPath;
-            }
         }
 
         private void BrowseFile(TextBox target, string title, string filter)
@@ -572,31 +606,6 @@ namespace PiWebTray
 
         private bool SaveSettings(bool restart)
         {
-            string workingDirRaw = (_workingDir.Text ?? "").Trim();
-            string workingDir = workingDirRaw.Length == 0
-                ? (_config.WorkingDir ?? "")
-                : Environment.ExpandEnvironmentVariables(workingDirRaw);
-            if (workingDir.Length > 0)
-                workingDir = Config.ResolvePath(_config.BaseDir, workingDir);
-            if (workingDir.Length == 0 || !Directory.Exists(workingDir))
-            {
-                ShowError(L.T("settings.invalidWorkingDir"));
-                _workingDir.Focus();
-                return false;
-            }
-
-            // Preserve the documented %USERPROFILE% template when the user did not
-            // change the auto-detected default. Only the fallback case needs this;
-            // an explicit path is always written exactly as entered.
-            string workingDirValue = workingDirRaw;
-            string home = Shell.Home();
-            if (_workingDirWasUnset && !string.IsNullOrEmpty(home)
-                && string.Equals(workingDir, home, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(workingDirRaw, _initialWorkingDir, StringComparison.Ordinal))
-            {
-                workingDirValue = "%USERPROFILE%";
-            }
-
             string nodePathRaw = (_nodePath.Text ?? "").Trim();
             string nodePath = Environment.ExpandEnvironmentVariables(nodePathRaw);
             if (nodePath.Length > 0)
@@ -670,7 +679,6 @@ namespace PiWebTray
             string oldProxy = _config.Proxy ?? "";
             List<KeyValuePair<string, string>> values = new List<KeyValuePair<string, string>>();
             values.Add(new KeyValuePair<string, string>("Port", port.ToString(CultureInfo.InvariantCulture)));
-            values.Add(new KeyValuePair<string, string>("WorkingDir", workingDirValue));
             values.Add(new KeyValuePair<string, string>("Language", languageRaw));
             values.Add(new KeyValuePair<string, string>("AutoInstall", _autoInstall.Checked ? "1" : "0"));
             values.Add(new KeyValuePair<string, string>("InstallPi", _installPi.Checked ? "1" : "0"));
@@ -693,8 +701,6 @@ namespace PiWebTray
             // The environment override keeps priority for this process. Saving the ini
             // must not turn a temporary PI_WEB_TRAY_PORT value into a permanent one.
             if (!_config.PortFromEnvironment) _config.Port = port;
-            _config.WorkingDir = workingDir;
-            _config.ConfiguredWorkingDir = workingDirValue;
             _config.Language = languageValue;
             _config.ConfiguredLanguage = languageRaw;
             _config.AutoInstall = _autoInstall.Checked;
@@ -721,6 +727,16 @@ namespace PiWebTray
         private void ShowError(string message)
         {
             MessageBox.Show(this, message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _noteBoldFont != null)
+            {
+                try { _noteBoldFont.Dispose(); } catch (Exception) { }
+                _noteBoldFont = null;
+            }
+            base.Dispose(disposing);
         }
     }
 }

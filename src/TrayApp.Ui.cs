@@ -201,7 +201,10 @@ namespace PiWebTray
             _updateLogItem.Enabled = !applying && File.Exists(_config.UpdateLogFile);
             _copyUrlItem.Enabled = running;
             _shortcutItem.Enabled = !applying;
+            _restartAdminItem.Visible = !_elevated;
             _restartAdminItem.Enabled = !_elevated && !busy;
+            _restartStandardItem.Visible = _elevated;
+            _restartStandardItem.Enabled = _elevated && !busy;
             // Applying replaces this executable and starts a helper that cannot be
             // cancelled safely. Exiting at that point would leave the update and the
             // service in an unpredictable state, so keep the action unavailable until
@@ -735,6 +738,17 @@ namespace PiWebTray
         {
             string arguments = RestartArguments(ServiceRunningForRestart());
 
+            if (_replaceWithStandardUser)
+            {
+                if (!Updater.StartStandardUserTray(Application.ExecutablePath,
+                        arguments, _config.UpdateLogFile))
+                {
+                    NotifyError(L.T("notify.restartFailed"), Application.ExecutablePath);
+                    return false;
+                }
+                return true;
+            }
+
             if (_replaceWithElevated)
             {
                 if (!Sys.RunElevated(Application.ExecutablePath, arguments))
@@ -862,6 +876,18 @@ namespace PiWebTray
             {
                 NotifyError(L.T("notify.copyFailed"), ex.Message);
             }
+        }
+
+        private void RestartAsStandardUser()
+        {
+            if (_exiting || !_elevated) return;
+            if (_updateStage == UpdateStage.Applying)
+            {
+                Notify(L.T("notify.restartCanceled"), L.T("notify.restartBusyBody"));
+                return;
+            }
+            _replaceWithStandardUser = true;
+            if (!ExitApp(true)) _replaceWithStandardUser = false;
         }
 
         private void RestartAsAdministrator()

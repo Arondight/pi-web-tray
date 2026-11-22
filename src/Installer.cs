@@ -491,7 +491,7 @@ namespace PiWebTray
             try
             {
                 string nodeDir = Path.GetDirectoryName(probe.NodePath);
-                string npmWorkingDir = EnvironmentProbe.NpmWorkingDirectory(config);
+                string npmWorkingDir = EnvironmentProbe.NpmWorkingDirectory();
                 IDictionary<string, string> env = ProcessRunner.WithPathPrefix(nodeDir);
                 try
                 {
@@ -789,7 +789,7 @@ namespace PiWebTray
             if (!string.IsNullOrEmpty(config.NpmRegistry))
                 ConsoleHost.WriteLine("  npm_config_registry=" + Shell.RedactSecrets(config.NpmRegistry));
             string allowScripts = AllowScriptsFor(steps, probe, env,
-                EnvironmentProbe.NpmWorkingDirectory(config));
+                EnvironmentProbe.NpmWorkingDirectory());
             foreach (InstallStep step in steps)
             {
                 string arguments = BuildArguments(config, probe.NpmCliPath, step.Packages,

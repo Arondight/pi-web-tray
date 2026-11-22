@@ -37,10 +37,10 @@
     <value>停止中… 連接埠 {0}</value>
   </data>
   <data name="status.failed" xml:space="preserve">
-    <value>錯誤 · 點擊重試</value>
+    <value>錯誤</value>
   </data>
   <data name="status.stopped" xml:space="preserve">
-    <value>已停止 · 點擊啟動</value>
+    <value>已停止</value>
   </data>
   <data name="status.admin" xml:space="preserve">
     <value>（系統管理員）</value>
@@ -423,13 +423,7 @@
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已建立桌面捷徑</value>
   </data>
-  <data name="notify.workingDirFallbackTitle" xml:space="preserve">
-    <value>工作目錄不存在</value>
-  </data>
-  <data name="notify.workingDirFallbackBody" xml:space="preserve">
-    <value>設定的服務工作目錄不存在：{0}。將改用 {1}。請在設定中修改。</value>
-  </data>
-  <data name="notify.nodePathInvalidTitle" xml:space="preserve">
+<data name="notify.nodePathInvalidTitle" xml:space="preserve">
     <value>Node.js 路徑不存在</value>
   </data>
   <data name="notify.nodePathInvalidBody" xml:space="preserve">
@@ -585,10 +579,7 @@
   <data name="sc.port" xml:space="preserve">
     <value>連接埠 {0}（接聽中={1}）</value>
   </data>
-  <data name="sc.workDir" xml:space="preserve">
-    <value>工作目錄</value>
-  </data>
-  <data name="sc.admin" xml:space="preserve">
+<data name="sc.admin" xml:space="preserve">
     <value>系統管理員權限</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
@@ -763,10 +754,7 @@
   <data name="ini.portC" xml:space="preserve">
     <value>; Pi Web 連接埠，預設 30141</value>
   </data>
-  <data name="ini.workdirC" xml:space="preserve">
-    <value>; 服務工作目錄（安裝 Pi 時也是其預設專案目錄）</value>
-  </data>
-  <data name="ini.autoInstallC" xml:space="preserve">
+<data name="ini.autoInstallC" xml:space="preserve">
     <value>; 啟動時自動安裝缺少的相依套件（首次約需 10~20 分鐘）</value>
   </data>
   <data name="ini.installPiC" xml:space="preserve">
@@ -1084,10 +1072,7 @@
   <data name="settings.port" xml:space="preserve">
     <value>服務連接埠</value>
   </data>
-  <data name="settings.workingDir" xml:space="preserve">
-    <value>服務工作目錄</value>
-  </data>
-  <data name="settings.language" xml:space="preserve">
+<data name="settings.language" xml:space="preserve">
     <value>介面語言</value>
   </data>
   <data name="settings.autoInstall" xml:space="preserve">
@@ -1138,11 +1123,14 @@
 <data name="settings.browse" xml:space="preserve">
     <value>瀏覽</value>
   </data>
+<data name="settings.elevatedRestartNote" xml:space="preserve">
+    <value>1. {0}修改需要先停止服務。&#10;2. {1}修改需要重新啟動托盤；其他設定無需重新啟動。&#10;3. {2} 唯讀，標準使用者模式下可變更。</value>
+  </data>
 <data name="settings.selectNode" xml:space="preserve">
     <value>選擇 node.exe</value>
   </data>
 <data name="settings.restartNote" xml:space="preserve">
-    <value>修改服務連接埠需要先停止 Pi Web。語言、服務工作目錄和 Node.js 路徑的修改在重新啟動後生效。</value>
+    <value>1. {0}修改需要先停止服務。&#10;2. {1}和 {2} 修改需要重新啟動托盤；其他設定無需重新啟動。</value>
   </data>
   <data name="settings.save" xml:space="preserve">
     <value>儲存</value>
@@ -1153,10 +1141,7 @@
   <data name="settings.cancel" xml:space="preserve">
     <value>取消</value>
   </data>
-  <data name="settings.invalidWorkingDir" xml:space="preserve">
-    <value>工作目錄不存在。</value>
-  </data>
-  <data name="settings.invalidNodePath" xml:space="preserve">
+<data name="settings.invalidNodePath" xml:space="preserve">
     <value>選擇的 Node.js 執行檔不存在。</value>
   </data>
 <data name="settings.invalidRegistry" xml:space="preserve">
@@ -1207,7 +1192,10 @@
   <data name="menu.copyUrl" xml:space="preserve">
     <value>複製網頁連結位址</value>
   </data>
-  <data name="menu.restartAdmin" xml:space="preserve">
+  <data name="menu.restartStandard" xml:space="preserve">
+    <value>以標準使用者身分重新啟動</value>
+  </data>
+<data name="menu.restartAdmin" xml:space="preserve">
     <value>以系統管理員身分重新啟動</value>
   </data>
   <data name="menu.folder" xml:space="preserve">

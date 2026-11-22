@@ -812,7 +812,7 @@ namespace PiWebTray
                 // from the current directory or PATH. If Node.js is gone, use the
                 // identified listener PID below instead of attempting the CLI stop.
                 ProcessRunner.Run(probe.NodePath, Shell.Quote(script) + " stop --port " + port,
-                    config.WorkingDir, 20000, null, null);
+                    Shell.Home(), 20000, null, null);
             }
 
             if (Net.IsPortOpen(port, 300))
@@ -899,7 +899,6 @@ namespace PiWebTray
                 sb.AppendLine(L.T("sc.dataDir") + " : " + config.OutputDir);
                 sb.AppendLine(L.T("sc.port", port, Net.IsPortOpen(port, 300) ? L.T("bool.yes") : L.T("bool.no")));
                 sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
-                sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
                 sb.AppendLine(L.T("sc.admin") + " : " + (elevated ? L.T("bool.yes") : L.T("bool.no")));
                 sb.AppendLine(L.T("sc.language") + " : " + L.Current);
                 sb.AppendLine();
@@ -1283,7 +1282,6 @@ namespace PiWebTray
             PortOwnerInfo owner = ServiceProbe.Inspect(port, ExpectedPiWebScript(config));
             sb.AppendLine(L.T("sc.port", port, Net.IsPortOpen(port, 300) ? L.T("bool.yes") : L.T("bool.no")));
             sb.AppendLine(L.T("sc.portOwner") + " : " + ServiceProbe.OwnerText(owner));
-            sb.AppendLine(L.T("sc.workDir") + " : " + config.WorkingDir);
             sb.AppendLine(L.T("sc.config") + " : " + config.IniPath);
             sb.AppendLine(L.T("sc.language") + " : " + L.Current);
             sb.AppendLine(L.T("sc.serverLog") + " : " + config.LogFile);

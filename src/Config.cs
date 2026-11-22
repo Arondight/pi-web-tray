@@ -33,10 +33,8 @@ namespace PiWebTray
         internal string InstallTag = "latest";
         internal string NpmRegistry = "";
         internal string Proxy = "";
-        internal string WorkingDir;
         // Raw ini values (before %ENV% expansion). Settings writes these back so a
         // deliberate template is not silently replaced by the expanded value.
-        internal string ConfiguredWorkingDir = "";
         internal string ConfiguredNodePath = "";
         internal string ConfiguredInstallTag = "";
         internal string ConfiguredNpmRegistry = "";
@@ -45,7 +43,6 @@ namespace PiWebTray
         internal string NodePath;
         // Diagnostics for the tray notification: a configured path that was invalid
         // must not disappear silently.
-        internal bool WorkingDirFallback;
         internal bool NodePathInvalid;
         // Set when an existing ini cannot be read safely or the default file
         // cannot be created. The tray surfaces this instead of silently using
@@ -169,13 +166,6 @@ namespace PiWebTray
                                 int parsed;
                                 if (int.TryParse(value, out parsed) && parsed > 0 && parsed <= 65535) config.Port = parsed;
                                 break;
-                            case "workingdir":
-                                if (value.Length > 0)
-                                {
-                                    config.WorkingDir = ResolvePath(config.BaseDir, value);
-                                    config.ConfiguredWorkingDir = rawValue;
-                                }
-                                break;
                             case "nodepath":
                                 if (value.Length > 0)
                                 {
@@ -247,12 +237,6 @@ namespace PiWebTray
             if (!string.IsNullOrEmpty(config.NodePath) && !File.Exists(config.NodePath))
                 config.NodePathInvalid = true;
 
-            if (config.WorkingDir == null || !Directory.Exists(config.WorkingDir))
-            {
-                config.WorkingDirFallback = !string.IsNullOrEmpty(config.ConfiguredWorkingDir);
-                config.WorkingDir = Shell.Home();
-            }
-
             // Manual Config objects (tests/extensions) and old callers may set only
             // the effective fields. Fill the raw display slots with those defaults
             // without overwriting a real ini value.
@@ -283,8 +267,8 @@ namespace PiWebTray
         }
 
         // Relative config paths are resolved against the executable directory, not
-        // the shell's current directory. The service later starts with WorkingDir,
-        // so letting these two use different roots could execute a different file.
+        // the shell's current directory, so a different launch directory cannot
+        // silently select another file.
         internal static string ResolvePath(string baseDir, string value)
         {
             try
@@ -443,9 +427,6 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.portC"));
                 sb.AppendLine("Port=30141");
-                sb.AppendLine();
-                sb.AppendLine(L.T("ini.workdirC"));
-                sb.AppendLine("WorkingDir=%USERPROFILE%");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.autoInstallC"));
                 sb.AppendLine("AutoInstall=1");

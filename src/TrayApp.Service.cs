@@ -1546,7 +1546,7 @@ namespace PiWebTray
                 ProcessStartInfo psi = new ProcessStartInfo();
                 psi.FileName = Shell.ComSpec();
                 psi.Arguments = Shell.CmdLine(command);
-                psi.WorkingDirectory = _config.WorkingDir;
+                psi.WorkingDirectory = Shell.Home();
                 psi.UseShellExecute = false;
                 psi.CreateNoWindow = true;
 
@@ -1940,18 +1940,8 @@ namespace PiWebTray
 
         private void StopWithCli(string script, string node)
         {
-            string workingDir = _config.WorkingDir;
-            try
-            {
-                if (_server != null && !_server.HasExited
-                    && !string.IsNullOrEmpty(_serviceWorkingDir))
-                {
-                    workingDir = _serviceWorkingDir;
-                }
-            }
-            catch (Exception)
-            {
-            }
+            string workingDir = _serviceWorkingDir;
+            if (string.IsNullOrEmpty(workingDir)) workingDir = Shell.Home();
             try
             {
                 ProcessRunner.Run(node, Shell.Quote(script) + " stop --port " + _port,

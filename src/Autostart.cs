@@ -1832,7 +1832,7 @@ namespace PiWebTray
         // (server.log, install.log, update.log, diag.txt, state*) is deliberately
         // excluded: those files are created by the tray's normal user token and a
         // user-owned log must not make an otherwise protected installation look
-        // replaceable. The ini is included because it controls working directory,
+        // replaceable. The ini is included because it controls runtime settings,
         // Node path and registry/proxy settings for the elevated service.
         internal static bool IsElevatedLoadedFile(string path)
         {

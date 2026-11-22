@@ -17,7 +17,6 @@ namespace PiWebTray
             Config config = new Config();
             config.IniPath = "pi-web-tray.ini";
             config.OutputDir = ".";
-            config.WorkingDir = ".";
             config.LogFile = "server.log";
             config.InstallLogFile = "install.log";
             config.UpdateLogFile = "update.log";
@@ -37,7 +36,7 @@ namespace PiWebTray
                 foreach (DataGridView table in tables)
                 {
                     if (table.Columns.Count == 4 && table.Rows.Count == 4) runtimeTable = true;
-                    if (table.Columns.Count == 2 && table.Rows.Count == 10) softwareTable = true;
+                    if (table.Columns.Count == 2 && table.Rows.Count == 9) softwareTable = true;
                 }
                 Assert.IsTrue(runtimeTable, "Runtime components table has an unexpected shape.");
                 Assert.IsTrue(softwareTable, "Application information table has an unexpected shape.");
@@ -67,7 +66,6 @@ namespace PiWebTray
         {
             Config config = new Config();
             config.Port = 30141;
-            config.WorkingDir = Path.GetTempPath();
             config.Language = L.Auto;
             config.InstallTag = "latest";
             config.IniPath = "pi-web-tray.ini";
@@ -195,7 +193,6 @@ namespace PiWebTray
         {
             Config config = new Config();
             config.Port = 30141;
-            config.WorkingDir = Path.GetTempPath();
             config.Language = L.Auto;
             config.InstallTag = "latest";
             using (SettingsForm form = new SettingsForm(config))
@@ -228,7 +225,6 @@ namespace PiWebTray
         {
             Config config = new Config();
             config.Port = 30141;
-            config.WorkingDir = Path.GetTempPath();
             config.Language = L.Auto;
             config.InstallTag = "latest";
 
@@ -236,10 +232,59 @@ namespace PiWebTray
             {
                 List<Button> browse = FindControls<Button>(form).FindAll(
                     delegate (Button button) { return button.Text == L.T("settings.browse"); });
-                Assert.AreEqual(2, browse.Count, "Settings should have two Browse buttons.");
+                Assert.AreEqual(1, browse.Count, "Settings should have one Browse button.");
                 foreach (Button button in browse)
                     Assert.IsFalse(button.Enabled,
                         "Elevated Settings must not open shell file pickers.");
+
+                bool restricted = false;
+                RichTextBox noteBox = null;
+                foreach (RichTextBox note in FindControls<RichTextBox>(form))
+                {
+                    if (note.Text.Contains(L.T("settings.nodePath")))
+                    {
+                        restricted = true;
+                        noteBox = note;
+                    }
+                }
+                Assert.IsTrue(restricted,
+                    "Elevated Settings must explain the restricted settings policy.");
+                Assert.IsNotNull(noteBox);
+                Assert.IsTrue(noteBox.Height > 20,
+                    "The formatted settings note must get a usable height.");
+                int nodePathIndex = noteBox.Text.IndexOf(L.T("settings.nodePath"),
+                    StringComparison.Ordinal);
+                Assert.IsTrue(nodePathIndex >= 0);
+                noteBox.Select(nodePathIndex, L.T("settings.nodePath").Length);
+                Assert.IsTrue(noteBox.SelectionFont.Bold,
+                    "Option labels in the settings note must be bold.");
+                noteBox.Select(0, 0);
+
+                foreach (string fieldName in new string[]
+                    { "_nodePath" })
+                {
+                    FieldInfo field = typeof(SettingsForm).GetField(fieldName,
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Assert.IsNotNull(field, fieldName + " must exist.");
+                    Assert.IsTrue(((TextBox)field.GetValue(form)).ReadOnly,
+                        fieldName + " must be read-only while elevated.");
+                }
+                foreach (string fieldName in new string[] { "_autoInstall", "_installPi" })
+                {
+                    FieldInfo field = typeof(SettingsForm).GetField(fieldName,
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Assert.IsNotNull(field, fieldName + " must exist.");
+                    Assert.IsTrue(((CheckBox)field.GetValue(form)).Enabled,
+                        fieldName + " must remain editable while elevated.");
+                }
+                foreach (string fieldName in new string[] { "_installTag", "_npmRegistry" })
+                {
+                    FieldInfo field = typeof(SettingsForm).GetField(fieldName,
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Assert.IsNotNull(field, fieldName + " must exist.");
+                    Assert.IsFalse(((TextBox)field.GetValue(form)).ReadOnly,
+                        fieldName + " must remain editable while elevated.");
+                }
             }
         }
 
@@ -247,7 +292,6 @@ namespace PiWebTray
         public void SettingsFormPreservesUnknownConfiguredLanguage()
         {
             Config config = new Config();
-            config.WorkingDir = Path.GetTempPath();
             config.Language = "fr";
             config.InstallTag = "latest";
 
@@ -275,7 +319,6 @@ namespace PiWebTray
                 Config config = new Config();
                 config.IniPath = ini;
                 config.OutputDir = Path.GetTempPath();
-                config.WorkingDir = Path.GetTempPath();
                 config.Port = 30141;
                 config.Language = L.Auto;
                 config.InstallTag = "latest";
@@ -318,7 +361,7 @@ namespace PiWebTray
                 DataGridView software = null;
                 foreach (DataGridView table in FindControls<DataGridView>(form))
                 {
-                    if (table.Columns.Count == 2 && table.Rows.Count == 10)
+                    if (table.Columns.Count == 2 && table.Rows.Count == 9)
                     {
                         software = table;
                         break;
@@ -360,7 +403,6 @@ namespace PiWebTray
             Config config = new Config();
             config.IniPath = "pi-web-tray.ini";
             config.OutputDir = ".";
-            config.WorkingDir = ".";
             config.LogFile = "server.log";
             config.InstallLogFile = "install.log";
             config.UpdateLogFile = "update.log";
@@ -373,7 +415,6 @@ namespace PiWebTray
             Config config = new Config();
             config.IniPath = "pi-web-tray.ini";
             config.OutputDir = ".";
-            config.WorkingDir = ".";
             config.LogFile = "server.log";
             config.InstallLogFile = "install.log";
             config.UpdateLogFile = "update.log";
@@ -391,12 +432,12 @@ namespace PiWebTray
                         "A report table must remain inside the client area.");
                 }
 
-                // The software table occupies the Percent row; growing the form must
-                // grow the table instead of leaving an empty row below it.
+                // Both tables are content-sized; resizing the form must not
+                // stretch the software table into an empty area.
                 DataGridView softwareTable = null;
                 foreach (DataGridView table in FindControls<DataGridView>(form))
                 {
-                    if (table.Columns.Count == 2 && table.Rows.Count == 10)
+                    if (table.Columns.Count == 2 && table.Rows.Count == 9)
                     {
                         softwareTable = table;
                         break;
@@ -418,6 +459,8 @@ namespace PiWebTray
                 Assert.IsNotNull(buttonRow, "The buttons must live in a button row.");
                 Assert.IsTrue(buttonRow.Top - softwareGroup.Bottom <= 10,
                     "The table and the button row must not be separated by a large gap.");
+                Assert.IsTrue(form.ClientSize.Height - buttonRow.Bottom <= 20,
+                    "The form must not open with a large gap below the buttons.");
 
                 // Refreshing replaces the rows and summary. It must not turn the
                 // software group into an AutoSize control again.
@@ -430,17 +473,8 @@ namespace PiWebTray
 
                 form.ClientSize = new Size(1000, 800);
                 form.PerformLayout();
-                bool softwareTableGrew = false;
-                foreach (DataGridView table in FindControls<DataGridView>(form))
-                {
-                    if (table.Columns.Count == 2 && table.Rows.Count == 10
-                        && table.Height > 150)
-                    {
-                        softwareTableGrew = true;
-                    }
-                }
-                Assert.IsTrue(softwareTableGrew,
-                    "The software table must fill the remaining vertical space.");
+                Assert.IsTrue(softwareTable.Height - contentHeight <= 8,
+                    "Resizing the form must not stretch the software table.");
                 foreach (Button button in FindControls<Button>(form))
                 {
                     Assert.IsTrue(button.Parent != null, "A button must have a parent.");

@@ -88,6 +88,7 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _copyUrlItem;
         private readonly ToolStripMenuItem _shortcutItem;
         private readonly ToolStripMenuItem _restartAdminItem;
+        private readonly ToolStripMenuItem _restartStandardItem;
         private readonly ToolStripMenuItem _autostartItem;
         private readonly ToolStripMenuItem _adminAutostartItem;
         private readonly ToolStripMenuItem _aboutItem;
@@ -95,8 +96,8 @@ namespace PiWebTray
 
         private Process _server;
         // The working directory the tracked service was actually started with.
-        // Settings may update _config.WorkingDir before a restart; the running
-        // service must still be stopped with its original directory.
+        // The service must still be stopped with its original directory even if
+        // the launch environment changes before a restart.
         private string _serviceWorkingDir;
         private InstallForm _installForm;
 
@@ -207,6 +208,8 @@ namespace PiWebTray
         // replacement uses --restart, so it waits for this tray to finish stopping
         // the old service instead of racing an elevated takeover against the port.
         private bool _replaceWithElevated;
+        // Set only while ExitApp is replacing this tray with a standard-user one.
+        private bool _replaceWithStandardUser;
         // A timer tick can be delivered while OnTick is showing a modal dialog
         // (MessageBox or the missing-Node prompt). Never run a second state-machine
         // pass inside that nested message loop.
@@ -429,8 +432,14 @@ namespace PiWebTray
             _restartAdminItem = new ToolStripMenuItem(L.T("menu.restartAdmin"));
             // Disable immediately in an elevated process; do not wait for the first
             // environment-check UpdateUi(), because the menu may be opened before it.
+            _restartAdminItem.Visible = !_elevated;
             _restartAdminItem.Enabled = !_elevated;
             _restartAdminItem.Click += delegate { RestartAsAdministrator(); };
+
+            _restartStandardItem = new ToolStripMenuItem(L.T("menu.restartStandard"));
+            _restartStandardItem.Visible = _elevated;
+            _restartStandardItem.Enabled = _elevated;
+            _restartStandardItem.Click += delegate { RestartAsStandardUser(); };
 
             _aboutItem = new ToolStripMenuItem(L.T("menu.about"));
             _aboutItem.Click += delegate { ShowAbout(); };
@@ -461,6 +470,7 @@ namespace PiWebTray
             _menu.Items.Add(_adminAutostartItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_restartAdminItem);
+            _menu.Items.Add(_restartStandardItem);
             _menu.Items.Add(_updateItem);
             _menu.Items.Add(_aboutItem);
             _menu.Items.Add(_exitItem);
@@ -514,21 +524,6 @@ namespace PiWebTray
 
             RefreshAutostartItems();
             if (!_elevated) Autostart.RepairRunValue(Application.ExecutablePath);
-
-            if (_config.WorkingDirFallback)
-            {
-                try
-                {
-                    Updater.AppendLog(_config.UpdateLogFile,
-                        "working directory not found: " + _config.ConfiguredWorkingDir
-                        + "; using " + _config.WorkingDir);
-                }
-                catch (Exception) { }
-                NotifyWarningOnce("config-workingdir",
-                    L.T("notify.workingDirFallbackTitle"),
-                    L.T("notify.workingDirFallbackBody",
-                        _config.ConfiguredWorkingDir, _config.WorkingDir));
-            }
             if (_config.NodePathInvalid)
             {
                 try

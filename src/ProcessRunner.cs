@@ -218,7 +218,7 @@ namespace PiWebTray
         // Prepend a directory to PATH so npm's child processes find node. Never put
         // an empty or relative entry in PATH: Windows treats an empty entry as the
         // current directory and a relative entry may resolve differently in the
-        // service's WorkingDir.
+        // service process directory.
         internal static string PathPrefix(string directory)
         {
             if (string.IsNullOrEmpty(directory)) return "";

@@ -373,10 +373,10 @@ namespace PiWebTray
         // npm reads its configuration from the user profile .npmrc and, when
         // the working directory is a project with a package.json, from that
         // project's .npmrc too. Run dependency commands from the user's home
-        // directory: this is npm's normal user-config location, but a separate
-        // project WorkingDir cannot inject project-level registry, prefix,
-        // cache or script policy into a global install.
-        internal static string NpmWorkingDirectory(Config config)
+        // directory: this is npm's normal user-config location, and a project
+        // directory cannot inject project-level registry, prefix, cache or
+        // script policy into a global install.
+        internal static string NpmWorkingDirectory()
         {
             try
             {
@@ -436,7 +436,7 @@ namespace PiWebTray
             ProcessResult version = ProcessRunner.Run(
                 result.NodePath,
                 Shell.Quote(result.NpmCliPath) + " --version",
-                NpmWorkingDirectory(config), 20000, null, env);
+                NpmWorkingDirectory(), 20000, null, env);
 
             // A file on disk is not enough: a broken npm must be treated like a missing npm,
             // otherwise the tray claims the environment is ready and every install fails.
@@ -457,7 +457,7 @@ namespace PiWebTray
             ProcessResult prefix = ProcessRunner.Run(
                 result.NodePath,
                 Shell.Quote(result.NpmCliPath) + " prefix -g",
-                NpmWorkingDirectory(config), 20000, null, env);
+                NpmWorkingDirectory(), 20000, null, env);
 
             if (prefix.Started && prefix.ExitCode == 0)
             {
