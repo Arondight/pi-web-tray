@@ -576,6 +576,8 @@ namespace PiWebTray
 
             string issue = _probe.NeedsNode ? _probe.NodeIssue()
                 : _probe.NeedsPiWeb ? L.T("probe.needPiweb")
+                : _probe.PiWebVersionMismatch && !string.IsNullOrEmpty(_probe.PiWebVersionIssue)
+                    ? _probe.PiWebVersionIssue
                 : L.T("probe.needPiCli");
             if (!string.IsNullOrEmpty(issue)) summary += "\r\n" + issue;
             return summary;

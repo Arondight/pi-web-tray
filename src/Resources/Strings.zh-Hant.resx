@@ -352,6 +352,9 @@
   <data name="notify.startFailedExited" xml:space="preserve">
     <value>處理程序已結束。</value>
   </data>
+  <data name="notify.startFailedNull" xml:space="preserve">
+    <value>無法建立服務處理序。</value>
+  </data>
   <data name="notify.startFailedTimeout" xml:space="preserve">
     <value>連接埠 {0} 在逾時時間內無回應。</value>
   </data>

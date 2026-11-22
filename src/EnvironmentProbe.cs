@@ -45,6 +45,10 @@ namespace PiWebTray
         // False when InstallPi=0. Pi Web runs without the separate Pi, so a
         // missing Pi must not keep the environment from being ready in that mode.
         internal bool PiCliRequired = true;
+        // A configured exact InstallTag can be checked before the tray starts a
+        // service or the CLI reports the environment as ready.
+        internal bool PiWebVersionMismatch;
+        internal string PiWebVersionIssue = "";
 
         internal string ForcedReason = "";
 
@@ -71,7 +75,11 @@ namespace PiWebTray
 
         internal bool Ready
         {
-            get { return !NeedsNode && !NeedsPiWeb && !NeedsPiCli; }
+            get
+            {
+                return !NeedsNode && !NeedsPiWeb && !NeedsPiCli
+                    && !PiWebVersionMismatch;
+            }
         }
 
         internal string NodeIssue()
@@ -98,6 +106,8 @@ namespace PiWebTray
             string verdict = Ready ? L.T("probe.ready")
                 : NeedsNode ? NodeIssue()
                 : NeedsPiWeb ? L.T("probe.needPiweb")
+                : PiWebVersionMismatch && !string.IsNullOrEmpty(PiWebVersionIssue)
+                    ? PiWebVersionIssue
                 : L.T("probe.needPiCli");
             sb.AppendLine(Row(L.T("probe.verdict"), verdict));
             // Only list the test-hook note when the verdict does not already include it
@@ -160,7 +170,24 @@ namespace PiWebTray
                 result.PiCliVersion = "";
             }
 
+            ApplyInstallTag(result, config);
+
             return result;
+        }
+
+        internal static void ApplyInstallTag(ProbeResult result, Config config)
+        {
+            if (result == null || config == null) return;
+            result.PiWebVersionMismatch = false;
+            result.PiWebVersionIssue = "";
+            if (Installer.NeedsPiWebVersionInstall(result, config))
+            {
+                result.PiWebVersionMismatch = true;
+                result.PiWebVersionIssue = L.T("notify.needsPiwebVersionBody",
+                    string.IsNullOrEmpty(result.PiWebVersion)
+                        ? L.T("probe.unknown") : result.PiWebVersion,
+                    Installer.SafeTag(config.InstallTag));
+            }
         }
 
         private static bool IsTruthy(string value)

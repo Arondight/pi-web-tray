@@ -558,7 +558,16 @@ namespace PiWebTray
                 }
             });
             worker.IsBackground = true;
-            worker.Start();
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                _testProxy.Enabled = true;
+                _testProxy.Text = L.T("settings.testProxy");
+                ShowError(ex.Message);
+            }
         }
 
         private bool SaveSettings(bool restart)

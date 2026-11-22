@@ -1444,6 +1444,10 @@ namespace PiWebTray
                     PathSafety.ContainsHardLinkInTree(root));
                 Check("a hard link is another name for the same file",
                     PathSafety.SameFile(target, link));
+                Check("a hard link is still a local file identity",
+                    PathSafety.SameLocalFile(target, link));
+                Check("a hard link is not a trusted task identity",
+                    !PathSafety.SameSingleLinkLocalFile(target, link));
                 string other = Path.Combine(root, "other.txt");
                 File.WriteAllText(other, "different-file");
                 Check("different files are not the same file",
@@ -1538,9 +1542,99 @@ namespace PiWebTray
                 document.GetElementsByTagName("Command", "*")[0].InnerText);
             CheckEqual("task XML arguments", "--autostart",
                 document.GetElementsByTagName("Arguments", "*")[0].InnerText);
+            XmlDocument win7Document = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(
+                Autostart.BuildTaskXml(exe, sid, new Version(6, 1, 7601))))
+            {
+                win7Document.Load(stream);
+            }
+            Check("Windows 7 task XML omits the optional schema version",
+                !win7Document.DocumentElement.HasAttribute("version"));
+            XmlDocument win10Document = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(
+                Autostart.BuildTaskXml(exe, sid, new Version(10, 0, 19045))))
+            {
+                win10Document.Load(stream);
+            }
+            CheckEqual("Windows 8+ task XML uses the 1.1 task version", "1.1",
+                win10Document.DocumentElement.GetAttribute("version"));
+
             Check("generated task XML is enabled", Autostart.IsTaskXmlEnabled(document));
             Check("generated task XML has safe admin settings",
                 Autostart.TaskXmlSupportsAdminAutostart(document));
+
+            // Build with the real test executable and current user so path and
+            // ownership identity can be evaluated.
+            string actualSid;
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                actualSid = identity.User == null ? "" : identity.User.Value;
+            }
+            Check("the test process has a user SID", actualSid.Length > 0);
+            byte[] actualBytes = Autostart.BuildTaskXml(
+                System.Windows.Forms.Application.ExecutablePath, actualSid);
+            XmlDocument currentTask = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(actualBytes))
+            {
+                currentTask.Load(stream);
+            }
+            Autostart.TaskXmlEvaluation currentEvaluation =
+                Autostart.EvaluateTaskXml("current-task", currentTask);
+            Check("an explicit current-user task is accepted",
+                currentEvaluation != null && currentEvaluation.MatchesExecutable);
+
+            XmlDocument noUserTask = (XmlDocument)currentTask.CloneNode(true);
+            List<XmlNode> userNodes = new List<XmlNode>();
+            foreach (XmlNode node in noUserTask.GetElementsByTagName("UserId", "*"))
+                userNodes.Add(node);
+            foreach (XmlNode node in userNodes)
+                if (node.ParentNode != null) node.ParentNode.RemoveChild(node);
+            Autostart.TaskXmlEvaluation noUserEvaluation =
+                Autostart.EvaluateTaskXml("current-task", noUserTask);
+            Check("a no-user current task is not treated as the current user's task",
+                noUserEvaluation != null && !noUserEvaluation.MatchesExecutable);
+            Autostart.TaskXmlEvaluation legacyUserEvaluation =
+                Autostart.EvaluateTaskXml(Autostart.LegacyTaskName, noUserTask);
+            Check("a no-user legacy task remains recognizable",
+                legacyUserEvaluation != null && legacyUserEvaluation.MatchesExecutable);
+
+            XmlDocument missingTriggerUser = (XmlDocument)currentTask.CloneNode(true);
+            XmlNode triggerUser = missingTriggerUser.SelectSingleNode(
+                "//*[local-name()='LogonTrigger']/*[local-name()='UserId']");
+            if (triggerUser != null && triggerUser.ParentNode != null)
+                triggerUser.ParentNode.RemoveChild(triggerUser);
+            Check("a task without a trigger user is not explicit",
+                !Autostart.HasExplicitTaskUsers(missingTriggerUser));
+            Check("a task without a trigger user is not admin-safe",
+                !Autostart.TaskXmlSupportsAdminAutostart(missingTriggerUser));
+            Autostart.TaskXmlEvaluation missingTriggerEvaluation =
+                Autostart.EvaluateTaskXml("current-task", missingTriggerUser);
+            Check("a task without a trigger user is not treated as ours",
+                missingTriggerEvaluation != null && !missingTriggerEvaluation.MatchesExecutable);
+
+            XmlDocument extraAction = new XmlDocument();
+            using (MemoryStream stream = new MemoryStream(actualBytes))
+            {
+                extraAction.Load(stream);
+            }
+            XmlElement actions = (XmlElement)extraAction.GetElementsByTagName(
+                "Actions", "*")[0];
+            XmlElement extraExec = extraAction.CreateElement(
+                "Exec", extraAction.DocumentElement.NamespaceURI);
+            XmlElement extraCommand = extraAction.CreateElement(
+                "Command", extraAction.DocumentElement.NamespaceURI);
+            extraCommand.InnerText = "cmd.exe";
+            extraExec.AppendChild(extraCommand);
+            actions.AppendChild(extraExec);
+            Check("a task with an extra action is not a single-action task",
+                !Autostart.HasSingleExecAction(extraAction));
+            Check("a task with an extra action is not admin-safe",
+                !Autostart.TaskXmlSupportsAdminAutostart(extraAction));
+            Autostart.TaskXmlEvaluation extraEvaluation =
+                Autostart.EvaluateTaskXml("current-task", extraAction);
+            Check("a task with an extra action is not treated as our task",
+                extraEvaluation != null && !extraEvaluation.MatchesExecutable);
+
             XmlDocument leastPrivilege = new XmlDocument();
             using (MemoryStream stream = new MemoryStream(bytes))
             {
@@ -2292,6 +2386,38 @@ namespace PiWebTray
                 !optionalCli.NeedsPiCli && optionalCli.Ready);
             Check("missing Pi still needs installation when enabled",
                 new ProbeResult().NeedsPiCli);
+
+            ProbeResult versionMismatch = new ProbeResult();
+            versionMismatch.NodeFound = true;
+            versionMismatch.NodeRunnable = true;
+            versionMismatch.NpmFound = true;
+            versionMismatch.NodeVersion = ProbeResult.NodeMinimum;
+            versionMismatch.PiWebFound = true;
+            versionMismatch.PiWebVersion = "1.2.4";
+            versionMismatch.PiCliRequired = false;
+            Check("a matching probe starts ready", versionMismatch.Ready);
+            versionMismatch.PiWebVersionMismatch = true;
+            versionMismatch.PiWebVersionIssue = "configured exact version differs";
+            Check("an exact-version mismatch is not ready", !versionMismatch.Ready);
+            Check("the version mismatch is visible in the probe summary",
+                versionMismatch.Summary().Contains("configured exact version differs"));
+            Config exactProbeConfig = new Config();
+            exactProbeConfig.InstallTag = "1.2.3";
+            ProbeResult detectedMismatch = new ProbeResult();
+            detectedMismatch.PiWebFound = true;
+            detectedMismatch.PiWebVersion = "1.2.4";
+            EnvironmentProbe.ApplyInstallTag(detectedMismatch, exactProbeConfig);
+            Check("detected exact-version mismatch marks the probe",
+                detectedMismatch.PiWebVersionMismatch);
+            Check("detected exact-version mismatch is not ready",
+                !detectedMismatch.Ready);
+            exactProbeConfig.InstallTag = "latest";
+            ProbeResult detectedMatch = new ProbeResult();
+            detectedMatch.PiWebFound = true;
+            detectedMatch.PiWebVersion = "1.2.4";
+            EnvironmentProbe.ApplyInstallTag(detectedMatch, exactProbeConfig);
+            Check("a dist-tag probe does not get a version mismatch",
+                !detectedMatch.PiWebVersionMismatch);
 
             Check("exact version tag is recognised", Installer.IsExactVersionTag("1.2.3"));
             Check("leading v is an exact version tag", Installer.IsExactVersionTag("v1.2.3"));

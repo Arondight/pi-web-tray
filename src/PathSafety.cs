@@ -384,6 +384,31 @@ namespace PiWebTray
             return SameFile(left, right);
         }
 
+        // A task command is a trust identity, not merely a check that two names
+        // resolve to one file object. A hard link is another directory entry a user
+        // can replace while the original file remains trusted, so reject it here.
+        internal static bool SameSingleLinkLocalFile(string left, string right)
+        {
+            if (!SameLocalFile(left, right)) return false;
+            return HasSingleLink(left) && HasSingleLink(right);
+        }
+
+        private static bool HasSingleLink(string path)
+        {
+            try
+            {
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    return !HasMultipleLinks(stream.SafeFileHandle);
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // A recursive icacls operation follows hard links because they are just
         // additional directory entries for the same file object. Such a link can
         // redirect an elevated ACL reset/owner change to a protected file, and it is

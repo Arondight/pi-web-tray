@@ -384,7 +384,7 @@ namespace PiWebTray
                 out adminSettingsSafe);
         }
 
-        private sealed class TaskXmlEvaluation
+        internal sealed class TaskXmlEvaluation
         {
             internal bool Enabled;
             internal bool UserMatches;
@@ -398,7 +398,7 @@ namespace PiWebTray
 
         // A task definition is evaluated independently of where it came from:
         // schtasks' XML output, or the task file the Task Scheduler keeps.
-        private static TaskXmlEvaluation EvaluateTaskXml(string name, XmlDocument document)
+        internal static TaskXmlEvaluation EvaluateTaskXml(string name, XmlDocument document)
         {
             if (document == null) return null;
             TaskXmlEvaluation result = new TaskXmlEvaluation();
@@ -419,7 +419,7 @@ namespace PiWebTray
                     // executable. Compare the file object, not the spelling, so a
                     // valid task is not reported as foreign. A different junction
                     // alias is rejected conservatively by SameLocalFile.
-                    pathMatches = PathSafety.SameLocalFile(
+                    pathMatches = PathSafety.SameSingleLinkLocalFile(
                         expandedCommand, Application.ExecutablePath);
                 }
                 catch (Exception)
@@ -433,15 +433,53 @@ namespace PiWebTray
             // add a second Run value or claim a disable succeeded while the task
             // remains active. Keep the stricter match for the current task name:
             // a weak current task should still be offered for repair/recreation.
-            bool startsAtLogin = pathMatches
-                && TaskArgumentsStartService(result.Arguments) && result.UserMatches;
-            bool adminSafe = startsAtLogin && TaskXmlSupportsAdminAutostart(document);
             bool legacyTaskName = string.Equals(name, LegacyTaskName,
                 StringComparison.OrdinalIgnoreCase);
+            // A current-user task must say which user it belongs to. A no-user
+            // definition is the legacy machine-wide form and is only accepted for
+            // the legacy task name. Also require exactly one Exec action: a task
+            // with an extra elevated action must not be treated as our task.
+            bool userScopeMatches = result.UserMatches
+                && (legacyTaskName
+                    || (result.ExplicitUser && HasExplicitTaskUsers(document)));
+            bool startsAtLogin = pathMatches && HasSingleExecAction(document)
+                && TaskArgumentsStartService(result.Arguments) && userScopeMatches;
+            bool adminSafe = startsAtLogin && TaskXmlSupportsAdminAutostart(document);
             result.AdminSettingsSafe = adminSafe;
             result.MatchesExecutable = startsAtLogin
                 && (legacyTaskName || adminSafe);
             return result;
+        }
+
+        internal static bool HasExplicitTaskUsers(XmlDocument document)
+        {
+            if (document == null) return false;
+            XmlNodeList principals = document.SelectNodes(
+                "//*[local-name()='Principal']/*[local-name()='UserId']");
+            XmlNodeList triggers = document.SelectNodes(
+                "//*[local-name()='LogonTrigger']/*[local-name()='UserId']");
+            return principals != null && principals.Count == 1
+                && triggers != null && triggers.Count == 1;
+        }
+
+        internal static bool HasSingleExecAction(XmlDocument document)
+        {
+            if (document == null) return false;
+            XmlNodeList actionsNodes = document.SelectNodes(
+                "/*[local-name()='Task']/*[local-name()='Actions']");
+            if (actionsNodes == null || actionsNodes.Count != 1) return false;
+            XmlNode actions = actionsNodes[0];
+            int count = 0;
+            foreach (XmlNode child in actions.ChildNodes)
+            {
+                if (child.NodeType != XmlNodeType.Element) continue;
+                count++;
+                if (count != 1
+                    || !string.Equals(child.LocalName, "Exec",
+                        StringComparison.OrdinalIgnoreCase))
+                    return false;
+            }
+            return count == 1;
         }
 
         private static string TaskFileDirectory()
@@ -730,7 +768,8 @@ namespace PiWebTray
         // as not enabled so the tray can offer to recreate it.
         internal static bool TaskXmlSupportsAdminAutostart(XmlDocument document)
         {
-            if (document == null) return false;
+            if (document == null || !HasSingleExecAction(document)
+                || !HasExplicitTaskUsers(document)) return false;
             if (!string.Equals(ReadTaskElement(document, "LogonType"),
                     "InteractiveToken", StringComparison.OrdinalIgnoreCase))
                 return false;
@@ -2106,6 +2145,12 @@ namespace PiWebTray
 
         internal static byte[] BuildTaskXml(string executablePath, string principal)
         {
+            return BuildTaskXml(executablePath, principal, WindowsVersion.Current);
+        }
+
+        internal static byte[] BuildTaskXml(string executablePath, string principal,
+            Version windows)
+        {
             // The Task Scheduler accepts UTF-16LE with a BOM; schtasks rejects an
             // encoding declaration that does not match the file bytes.
             using (MemoryStream memory = new MemoryStream())
@@ -2123,8 +2168,8 @@ namespace PiWebTray
                     // (and version="1.0" rejects the logon trigger); omit the optional
                     // attribute there. Windows 8 and newer accept the 1.1 task version,
                     // so keep the existing definition on those systems.
-                    Version windows = WindowsVersion.Current;
-                    if (!(windows.Major == 6 && windows.Minor == 1))
+                    if (windows == null
+                        || !(windows.Major == 6 && windows.Minor == 1))
                         writer.WriteAttributeString("version", "1.1");
 
                     // A user-scoped logon trigger. Without <UserId> the task fires

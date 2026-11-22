@@ -352,6 +352,9 @@
   <data name="notify.startFailedExited" xml:space="preserve">
     <value>进程已退出。</value>
   </data>
+  <data name="notify.startFailedNull" xml:space="preserve">
+    <value>无法创建服务进程。</value>
+  </data>
   <data name="notify.startFailedTimeout" xml:space="preserve">
     <value>端口 {0} 在超时时间内无响应。</value>
   </data>

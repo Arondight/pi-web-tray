@@ -748,11 +748,13 @@ namespace PiWebTray
                         NotifyError(L.T("notify.restartFailed"), Application.ExecutablePath);
                         return false;
                     }
-                    // The replacement waits for this tray's mutex, so an immediate
+                    // The replacement waits for this tray's mutex, so an early
                     // exit means it failed before taking over (for example the ACL
                     // check or config load failed). Keep the old tray alive instead
-                    // of exiting into no tray at all.
-                    if (child.WaitForExit(500))
+                    // of exiting into no tray at all. This is not a full ready
+                    // handshake; the child cannot signal ready until this tray
+                    // releases the mutex.
+                    if (child.WaitForExit(2000))
                     {
                         NotifyError(L.T("notify.restartFailed"),
                             Application.ExecutablePath + " (exit " + child.ExitCode + ")");

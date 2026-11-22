@@ -113,7 +113,8 @@ namespace PiWebTray
                             && !File.Exists(dataIni) && File.Exists(localIni))
                         {
                             File.Copy(localIni, dataIni);
-                            config.ProtectInstallFile(dataIni);
+                            if (!config.ProtectInstallFile(dataIni))
+                                config.IniWriteFailed = true;
                         }
                     }
                     catch (Exception)
@@ -495,7 +496,7 @@ namespace PiWebTray
                         return;
                     }
                     File.Move(temp, IniPath);
-                    ProtectInstallFile(IniPath);
+                    if (!ProtectInstallFile(IniPath)) IniWriteFailed = true;
                 }
                 finally
                 {

@@ -1584,6 +1584,13 @@ namespace PiWebTray
                 ClearServiceStopIntent();
                 _server = Process.Start(psi);
                 _serviceWorkingDir = psi.WorkingDirectory;
+                if (_server == null)
+                {
+                    // Process.Start can return null without throwing. Do not wait
+                    // for the three-minute startup deadline with no process.
+                    FailStart(L.T("notify.startFailedNull"));
+                    return;
+                }
                 ServiceProbe.Invalidate();
 
                 lock (_readyLock)

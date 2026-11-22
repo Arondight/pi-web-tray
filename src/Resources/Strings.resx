@@ -352,6 +352,9 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="notify.startFailedExited" xml:space="preserve">
     <value>The process exited.</value>
   </data>
+  <data name="notify.startFailedNull" xml:space="preserve">
+    <value>The service process could not be created</value>
+  </data>
   <data name="notify.startFailedTimeout" xml:space="preserve">
     <value>Port {0} did not respond in time.</value>
   </data>
