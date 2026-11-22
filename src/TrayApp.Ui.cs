@@ -488,6 +488,7 @@ namespace PiWebTray
             if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             int previousPort = _port;
             bool installPiBefore = _config.InstallPi;
+            string installTagBefore = _config.InstallTag;
             bool restartRequested = false;
             // A running/starting/stopping service owns the old port. Changing the
             // configured port without restarting the whole tray would make CLI
@@ -645,10 +646,16 @@ namespace PiWebTray
                     }
                     if (!portRejected)
                     {
-                        // Turning Pi installation on/off changes readiness without
-                        // changing the installed packages. Refresh the cached probe so
-                        // the tray icon and menu stop/start offering the wrong action.
-                        if (_config.InstallPi != installPiBefore && !IsServiceActionInProgress())
+                        // Turning Pi installation on/off or changing an exact InstallTag
+                        // changes readiness without changing the installed packages.
+                        // Refresh the cached probe so the tray icon and menu stop/start
+                        // offering the wrong action. Re-evaluate the tag against the
+                        // already-detected installed version; ProbeResult.Ready still
+                        // contains the old mismatch until ApplyInstallTag runs.
+                        bool readinessChanged = _config.InstallPi != installPiBefore
+                            || !string.Equals(_config.InstallTag, installTagBefore,
+                                StringComparison.Ordinal);
+                        if (readinessChanged && !IsServiceActionInProgress())
                         {
                             if (_probe == null)
                             {
@@ -657,6 +664,7 @@ namespace PiWebTray
                             else
                             {
                                 _probe.PiCliRequired = _config.InstallPi;
+                                EnvironmentProbe.ApplyInstallTag(_probe, _config);
                                 ApplyProbeResult(_probe);
                             }
                         }

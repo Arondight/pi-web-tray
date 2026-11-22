@@ -392,6 +392,7 @@ namespace PiWebTray
             internal string Command = "";
             internal string Arguments = "";
             internal string CommandPath = "";
+            internal bool TargetsExecutable;
             internal bool MatchesExecutable;
             internal bool AdminSettingsSafe;
         }
@@ -411,21 +412,26 @@ namespace PiWebTray
             result.CommandPath = result.Command.Length > 0 ? expandedCommand : "";
 
             bool pathMatches = false;
+            bool pathTargets = false;
             if (expandedCommand.Length > 0)
             {
                 try
                 {
-                    // Task Scheduler can retain an 8.3 spelling of the same
-                    // executable. Compare the file object, not the spelling, so a
-                    // valid task is not reported as foreign. A different junction
-                    // alias is rejected conservatively by SameLocalFile.
+                    // The strict match rejects a hard-link alias for the task's
+                    // identity. A separate loose match is needed when deciding
+                    // whether an unowned task still targets this executable for
+                    // deletion/reporting purposes.
                     pathMatches = PathSafety.SameSingleLinkLocalFile(
+                        expandedCommand, Application.ExecutablePath);
+                    pathTargets = PathSafety.SameLocalFile(
                         expandedCommand, Application.ExecutablePath);
                 }
                 catch (Exception)
                 {
                 }
             }
+            result.TargetsExecutable = pathTargets
+                && TaskArgumentsStartService(result.Arguments);
 
             // Whether the task starts this executable is independent from whether
             // it meets the stronger current administrator-task settings. The
@@ -2257,7 +2263,7 @@ namespace PiWebTray
                 // A no-user task is not ours to delete. Report that it still exists
                 // when it targets this installation, so the caller does not claim a
                 // successful disable while the startup entry remains active.
-                return !QueryTaskMatchesCurrentExecutable(name);
+                return !QueryTaskTargetsCurrentExecutable(name);
             }
             return DeleteTaskByName(elevated, name);
         }
@@ -2269,6 +2275,23 @@ namespace PiWebTray
             string commandPath;
             return QueryTaskDetails(name, out enabled, out matchesExecutable, out commandPath)
                 && matchesExecutable;
+        }
+
+        // DeleteTaskIfOwned uses the identity check separately from the full
+        // current-user/admin-settings match. A no-user task that still launches this
+        // executable must not be reported as successfully removed just because its
+        // user scope is invalid for the current task name.
+        private static bool QueryTaskTargetsCurrentExecutable(string name)
+        {
+            XmlDocument document;
+            if (TryLoadTaskFileXml(name, out document))
+            {
+                TaskXmlEvaluation evaluation = EvaluateTaskXml(name, document);
+                if (evaluation != null) return evaluation.TargetsExecutable;
+            }
+            // Cannot safely prove that an existing task is unrelated; fail closed
+            // for an unknown/null result too.
+            return QueryTaskOrUnknown(name) != false;
         }
 
         private static bool DeleteTaskByName(bool elevated, string name)

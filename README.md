@@ -27,33 +27,26 @@ Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft
 
 ## Recommended software
 
-Pi Web Tray does not require Python 3, PowerShell, or Git Bash, but installing them extends what Pi can do.
+Pi Web Tray does not require Python 3, PowerShell, or Git Bash, but installing them extends what Pi can do. The older Python releases listed for Windows 7/8.1 are compatibility-only and no longer receive security updates. For Python, enable **Add python.exe to PATH** during installation.
 
 ### Python 3
 
-Windows 10 and 11: use the [official download page](https://www.python.org/downloads/). Tick **Add python.exe to PATH**.
-
-Older Windows releases no longer receive current Python installers. The newest releases that still ship one for the Windows versions supported by Pi Web Tray:
-
-| System        | Newest release with an installer                                         |
+| System        | Recommended version                                                      |
 | ------------- | ------------------------------------------------------------------------ |
-| Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 10/11 | [Latest Python 3](https://www.python.org/downloads/)                     |
 | Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
-
-These older Python releases are for compatibility only and no longer receive security updates.
+| Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
 
 ### PowerShell
 
-| System            | Recommended PowerShell                                                                             |
+| System            | Recommended version                                                                                |
 | ----------------- | -------------------------------------------------------------------------------------------------- |
 | Windows 8.1/10/11 | [Latest PowerShell release](https://github.com/PowerShell/PowerShell/releases)                     |
 | Windows 7 SP1     | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
 
 ### Git Bash
 
-Git Bash is included with Git for Windows:
-
-| System        | Download                                                                                                  |
+| System        | Recommended version                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------------------- |
 | Windows 10/11 | [Git for Windows installer](https://git-scm.com/install/windows)                                          |
 | Windows 8.1   | [Git for Windows 2.55.0.windows.5](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.5) |

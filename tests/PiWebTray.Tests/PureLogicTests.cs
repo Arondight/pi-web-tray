@@ -1593,6 +1593,8 @@ namespace PiWebTray
                 Autostart.EvaluateTaskXml("current-task", noUserTask);
             Check("a no-user current task is not treated as the current user's task",
                 noUserEvaluation != null && !noUserEvaluation.MatchesExecutable);
+            Check("a no-user current task is still recognized as targeting us",
+                noUserEvaluation != null && noUserEvaluation.TargetsExecutable);
             Autostart.TaskXmlEvaluation legacyUserEvaluation =
                 Autostart.EvaluateTaskXml(Autostart.LegacyTaskName, noUserTask);
             Check("a no-user legacy task remains recognizable",

@@ -32,7 +32,7 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 
 Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI:
 
-The unit tests can run from any shell. `verify.ps1` handles an elevated shell by copying the executable to a protected Program Files folder; for a local user-writable build, use a non-elevated shell.
+The unit tests can run from any shell on a supported build host. `verify.ps1` handles an elevated shell by copying the executable to a protected Program Files folder; for a local user-writable build, use a non-elevated shell.
 
 ```powershell
 .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe
@@ -62,7 +62,7 @@ Before a release, manually check:
 - dependency update while Pi Web is running (service must stop before npm runs);
 - dependency update while Pi Web is stopped (the service must stay stopped);
 - Pi version changes after a forced dependency update;
-- Node.js download link on Windows 7 (confirmation) and 8.1/10;
+- Node.js download link on Windows 7 (confirmation) and 8.1/10/11;
 - desktop shortcut creation, including removal of the old "Pi Web.lnk";
 - stale-file cleanup from a release manifest;
 - Windows 7 SP1 + .NET Framework 4.8 when changing OS-facing code.
