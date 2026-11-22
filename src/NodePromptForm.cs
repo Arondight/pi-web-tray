@@ -2,7 +2,7 @@
 //
 // A modal warning shown when Node.js is unavailable. The tray may keep running
 // and detect a later installation instead of exiting.
-// It uses the same custom-window styling as the other Pi Web Tray dialogs
+// It uses the same custom-window styling as the other tray dialogs
 // instead of a native MessageBox.
 
 using System;

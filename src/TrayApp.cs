@@ -80,6 +80,7 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _installItem;
         private readonly ToolStripMenuItem _updateItem;
         private readonly ToolStripMenuItem _nodeItem;
+        private readonly ToolStripMenuItem _networkItem;
         private readonly ToolStripMenuItem _checkItem;
         private readonly ToolStripMenuItem _settingsItem;
         private readonly ToolStripMenuItem _logsItem;
@@ -388,6 +389,12 @@ namespace PiWebTray
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
             _nodeItem.Click += delegate { OpenNodeDownload(); };
 
+            _networkItem = new ToolStripMenuItem(_config.NetworkAccess
+                ? L.T("menu.networkDisable")
+                : L.T("menu.networkEnable"));
+            _networkItem.CheckOnClick = false;
+            _networkItem.Click += delegate { ToggleNetworkAccess(); };
+
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
             _checkItem.Click += delegate { RunSelfCheck(); };
 
@@ -453,6 +460,8 @@ namespace PiWebTray
             _menu.Items.Add(_startItem);
             _menu.Items.Add(_stopItem);
             _menu.Items.Add(_restartItem);
+            _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(_networkItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_installItem);
             _menu.Items.Add(_nodeItem);

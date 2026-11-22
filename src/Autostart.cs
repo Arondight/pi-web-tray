@@ -86,7 +86,7 @@ namespace PiWebTray
             }
         }
 
-        private static string CurrentUserKey()
+        internal static string CurrentUserKey()
         {
             try
             {

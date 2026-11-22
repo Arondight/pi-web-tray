@@ -90,7 +90,7 @@
   <data name="menu.node" xml:space="preserve">
     <value>Download Node.js</value>
   </data>
-  <data name="node.communityTitle" xml:space="preserve">
+<data name="node.communityTitle" xml:space="preserve">
     <value>Node.js for Windows 7</value>
   </data>
   <data name="node.communityBody" xml:space="preserve">
@@ -120,6 +120,12 @@ Keep the tray running and retry after Node.js is installed.</value>
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 builds are unsigned community builds; this project cannot verify them.</value>
+  </data>
+  <data name="menu.networkEnable" xml:space="preserve">
+    <value>Allow network access</value>
+  </data>
+  <data name="menu.networkDisable" xml:space="preserve">
+    <value>Disable network access</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>Environment check</value>
@@ -227,7 +233,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Result</value>
   </data>
   <data name="probe.ready" xml:space="preserve">
-    <value>Ready to start Pi Web</value>
+    <value>Ready to start the service</value>
   </data>
   <data name="probe.needPiweb" xml:space="preserve">
     <value>Pi Web is not installed</value>
@@ -290,7 +296,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Ready</value>
   </data>
   <data name="install.unverifiedBody" xml:space="preserve">
-    <value>npm reported success, but Pi Web was not found. Check permissions and the global npm directory. Log: {0}</value>
+    <value>npm reported success, but the Pi Web package was not found. Check permissions and the global npm directory. Log: {0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
     <value>npm reported success, but Pi was not found. Check the global npm directory. Log: {0}</value>
@@ -329,25 +335,25 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Environment information:</value>
   </data>
   <data name="install.stopFirst" xml:space="preserve">
-    <value>Stopping Pi Web first (npm cannot update it while it runs).</value>
+    <value>Stopping the service first (npm cannot update Pi Web while it runs).</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web was stopped for this install and was not restarted because no tray is running.</value>
+    <value>The service was stopped for this install and was not restarted because no tray is running.</value>
   </data>
   <data name="install.stoppedByUser" xml:space="preserve">
-    <value>Pi Web was not restarted because a stop was requested during the install.</value>
+    <value>The service was not restarted because a stop was requested during the install.</value>
   </data>
   <data name="install.stoppedLegacyTray" xml:space="preserve">
-    <value>Pi Web was stopped for this install but was not restarted automatically. Start it again from the tray menu.</value>
+    <value>The service was stopped for this install but was not restarted automatically. Start it again from the tray menu.</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
-    <value>Pi Web did not open port {0} after the install. Check the service log.</value>
+    <value>The service did not open port {0} after the install. Check the service log.</value>
   </data>
   <data name="notify.readyTitle" xml:space="preserve">
-    <value>Pi Web is ready</value>
+    <value>Service ready</value>
   </data>
   <data name="notify.startFailedTitle" xml:space="preserve">
-    <value>Pi Web failed to start</value>
+    <value>Service failed to start</value>
   </data>
   <data name="notify.startFailedExited" xml:space="preserve">
     <value>The process exited.</value>
@@ -374,13 +380,13 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Cannot open the link</value>
   </data>
   <data name="notify.noPiwebTitle" xml:space="preserve">
-    <value>Pi Web was not found</value>
+    <value>Pi Web not found</value>
   </data>
   <data name="notify.noPiwebBody" xml:space="preserve">
     <value>Use the menu to install or update the service.</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
-    <value>Cannot start Pi Web</value>
+    <value>Cannot start the service</value>
   </data>
   <data name="notify.installBusyTitle" xml:space="preserve">
     <value>Installation in progress</value>
@@ -389,7 +395,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Installation in progress</value>
   </data>
   <data name="exit.installingBody" xml:space="preserve">
-    <value>npm is still installing packages. Exiting now aborts the installation and may leave Pi Web partially installed.
+    <value>npm is still installing packages. Exiting now aborts the installation and may leave Pi Web or Pi partially installed.
 
 Exit anyway?</value>
   </data>
@@ -418,7 +424,7 @@ Exit anyway?</value>
     <value>Desktop shortcut unavailable</value>
   </data>
   <data name="notify.shortcutAdminBody" xml:space="preserve">
-    <value>Restart Pi Web Tray as a standard user to create a desktop shortcut. The elevated tray does not load user-controlled COM handlers.</value>
+    <value>Restart the tray as a standard user to create a desktop shortcut. The elevated tray does not load user-controlled COM handlers.</value>
   </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>Desktop shortcut created</value>
@@ -481,7 +487,7 @@ Exit anyway?</value>
     <value>Node.js no longer available</value>
   </data>
   <data name="notify.nodeMissingBody" xml:space="preserve">
-    <value>Pi Web is still running, but restarting it will fail until Node.js is installed again.</value>
+    <value>The service is still running, but restarting it will fail until Node.js is installed again.</value>
   </data>
   <data name="notify.nodeRestoredTitle" xml:space="preserve">
     <value>Node.js is available again</value>
@@ -686,10 +692,10 @@ Use --help to see the supported options.</value>
     <value>Usage:</value>
   </data>
   <data name="help.launch" xml:space="preserve">
-    <value>Start Pi Web, install missing dependencies, and open the browser.</value>
+    <value>Start the service, install missing dependencies, and open the browser.</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>Used by start-at-login; starts Pi Web in the background without opening a browser.</value>
+    <value>Used by start-at-login; starts the service in the background without opening a browser.</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>Stop the service; the tray keeps running if present.</value>
@@ -752,7 +758,7 @@ Use --help to see the supported options.</value>
     <value>; Changes take effect after a restart</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
-    <value>; Pi Web port (default 30141)</value>
+    <value>; Service port (default 30141)</value>
   </data>
 <data name="ini.autoInstallC" xml:space="preserve">
     <value>; Install missing dependencies at startup (first installation usually takes 10-20 minutes)</value>
@@ -761,13 +767,16 @@ Use --help to see the supported options.</value>
     <value>; Also install Pi alongside Pi Web (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
-    <value>; npm dist-tag or exact version</value>
+    <value>; Pi Web npm dist-tag or exact version; Pi always uses latest</value>
   </data>
   <data name="ini.registryC" xml:space="preserve">
     <value>; Custom npm registry; empty uses the npm default (e.g. https://registry.npmmirror.com)</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; Optional HTTP or SOCKS5 proxy for update checks and downloads; empty uses the system proxy</value>
+    <value>; Optional HTTP or SOCKS5 proxy for Pi Web Tray update checks and downloads; empty uses the system proxy</value>
+  </data>
+  <data name="ini.networkC" xml:space="preserve">
+    <value>; Allow other devices on the network to access the service (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; Leave empty for automatic detection; override only if required</value>
@@ -965,7 +974,7 @@ See {1} for details.</value>
     <value>The new version could not start. The previous files were restored when possible.</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
-    <value>Pi Web is still using port {0}. The update was not applied; stop the service and try again.</value>
+    <value>The service is still using port {0}. The update was not applied; stop the service and try again.</value>
   </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>The previous files could not be fully restored. A backup was kept at: {0}</value>
@@ -1031,16 +1040,16 @@ See {1} for details.</value>
     <value>The process listening on port {0} could not be identified. The running service was left alone; retry the action from the tray menu.</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
-    <value>Pi Web stopped</value>
+    <value>Service stopped</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>Pi Web stopped unexpectedly. Click the notification or icon to restart it.</value>
+    <value>The service stopped unexpectedly. Click the notification or icon to restart it.</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0} (listening={1}, owner={2})</value>
   </data>
   <data name="check.ownerPiweb" xml:space="preserve">
-    <value>Pi Web</value>
+    <value>Pi Web service</value>
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>another program or unknown</value>
@@ -1082,10 +1091,10 @@ See {1} for details.</value>
     <value>Also install Pi (optional)</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
-    <value>Restart Pi Web automatically if it stops</value>
+    <value>Restart the service automatically if it stops</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
-    <value>Check for updates at startup</value>
+    <value>Check for Pi Web Tray updates at startup</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
     <value>Pi Web npm tag / version</value>
@@ -1094,7 +1103,7 @@ See {1} for details.</value>
     <value>npm registry (optional)</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Update proxy (empty = system proxy)</value>
+    <value>Pi Web Tray update proxy (empty = system proxy)</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>Test</value>
@@ -1154,7 +1163,7 @@ See {1} for details.</value>
     <value>Port in use</value>
   </data>
   <data name="settings.portRequiresStopped" xml:space="preserve">
-    <value>Stop Pi Web before changing the port.</value>
+    <value>Stop the service before changing the port.</value>
   </data>
   <data name="settings.portInUseBody" xml:space="preserve">
     <value>Port {0} is used by another program. Save anyway?</value>
@@ -1203,6 +1212,42 @@ See {1} for details.</value>
   </data>
   <data name="notify.urlCopiedTitle" xml:space="preserve">
     <value>URL copied</value>
+  </data>
+  <data name="network.invalidPort" xml:space="preserve">
+    <value>The service port is invalid.</value>
+  </data>
+  <data name="network.portConflict" xml:space="preserve">
+    <value>The configured port is already used by another program. Change the port before enabling network access.</value>
+  </data>
+  <data name="network.portBusy" xml:space="preserve">
+    <value>The new port is already used by another program. Network access was not changed; choose a free port.</value>
+  </data>
+  <data name="network.firewallFailed" xml:space="preserve">
+    <value>Windows Firewall could not be updated. Network access was not changed.</value>
+  </data>
+  <data name="network.elevationCanceled" xml:space="preserve">
+    <value>Administrator approval was cancelled. Network access was not changed.</value>
+  </data>
+  <data name="network.failedTitle" xml:space="preserve">
+    <value>Network setting was not changed</value>
+  </data>
+  <data name="network.disabledBody" xml:space="preserve">
+    <value>The service is available only on this computer.</value>
+  </data>
+  <data name="network.disabledTitle" xml:space="preserve">
+    <value>Network access disabled</value>
+  </data>
+  <data name="network.enabledBody" xml:space="preserve">
+    <value>The service is available to trusted devices on the network.</value>
+  </data>
+  <data name="network.enabledTitle" xml:space="preserve">
+    <value>Network access allowed</value>
+  </data>
+  <data name="network.confirmBody" xml:space="preserve">
+    <value>The service will be available to other devices on the network without a separate login. Enable only on a trusted network.</value>
+  </data>
+  <data name="network.confirmTitle" xml:space="preserve">
+    <value>Allow network access?</value>
   </data>
   <data name="notify.copyFailed" xml:space="preserve">
     <value>Could not copy the URL</value>
@@ -1274,10 +1319,10 @@ See {1} for details.</value>
     <value>Installing {0}/{1} · {2}</value>
   </data>
   <data name="notify.autoRestartTitle" xml:space="preserve">
-    <value>Restarting Pi Web</value>
+    <value>Restarting the service</value>
   </data>
   <data name="notify.autoRestartBody" xml:space="preserve">
-    <value>Pi Web will restart in {0} seconds.</value>
+    <value>The service will restart in {0} seconds.</value>
   </data>
   <data name="menu.updateAvailable" xml:space="preserve">
     <value>Update available: {0}</value>
@@ -1325,16 +1370,16 @@ See {1} for details.</value>
     <value>Could not reach GitHub. Check the network and proxy settings.</value>
   </data>
   <data name="ini.autoRestartC" xml:space="preserve">
-    <value>; Restart Pi Web automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
+    <value>; Restart the service automatically if it stops unexpectedly (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
-    <value>; Check for updates at startup (1 = enabled, 0 = disabled)</value>
+    <value>; Check for Pi Web Tray updates at startup (1 = enabled, 0 = disabled)</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>Start without Pi Web.</value>
+    <value>Start without the service.</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>Start Pi Web without opening the browser (used after updates).</value>
+    <value>Start the service without opening the browser (used after updates).</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>Update</value>
@@ -1411,7 +1456,7 @@ See {1} for details.</value>
   <data name="help.envNoPicli" xml:space="preserve">
     <value>Test hook: simulate missing Pi.</value>
   </data>
-  <data name="settings.portEnvOverrideNote" xml:space="preserve">
+<data name="settings.portEnvOverrideNote" xml:space="preserve">
     <value>PI_WEB_TRAY_PORT currently overrides the configured port. Remove the environment variable to use this value.</value>
   </data>
   <data name="notify.updateBusyTitle" xml:space="preserve">

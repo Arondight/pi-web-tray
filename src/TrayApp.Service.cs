@@ -1565,7 +1565,8 @@ namespace PiWebTray
                 // Pi Web reads PI_WEB_HOSTNAME from the environment and would otherwise
                 // let a user-controlled value bind the service outside loopback. Pin the
                 // documented address; the tray readiness checks also use 127.0.0.1.
-                psi.EnvironmentVariables["PI_WEB_HOSTNAME"] = "127.0.0.1";
+                psi.EnvironmentVariables["PI_WEB_HOSTNAME"] =
+                    _config.NetworkAccess ? "0.0.0.0" : "127.0.0.1";
 
                 // The Proxy setting is deliberately not exported here: it applies only to
                 // Pi Web Tray update traffic. Do not change the Node/pi-web environment.

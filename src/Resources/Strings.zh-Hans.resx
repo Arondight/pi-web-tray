@@ -90,7 +90,7 @@
   <data name="menu.node" xml:space="preserve">
     <value>下载 Node.js</value>
   </data>
-  <data name="node.communityTitle" xml:space="preserve">
+<data name="node.communityTitle" xml:space="preserve">
     <value>Windows 7 的 Node.js</value>
   </data>
   <data name="node.communityBody" xml:space="preserve">
@@ -120,6 +120,12 @@
   </data>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 使用未签名的社区构建，本项目无法验证其安全性。</value>
+  </data>
+  <data name="menu.networkEnable" xml:space="preserve">
+    <value>允许网络访问</value>
+  </data>
+  <data name="menu.networkDisable" xml:space="preserve">
+    <value>禁止网络访问</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>环境检查</value>
@@ -227,10 +233,10 @@
     <value>结论</value>
   </data>
   <data name="probe.ready" xml:space="preserve">
-    <value>可以启动 Pi Web</value>
+    <value>可以启动服务</value>
   </data>
   <data name="probe.needPiweb" xml:space="preserve">
-    <value>Pi Web 尚未安装</value>
+    <value>尚未安装 Pi Web</value>
   </data>
   <data name="probe.note" xml:space="preserve">
     <value>注意</value>
@@ -290,7 +296,7 @@
     <value>已就绪</value>
   </data>
   <data name="install.unverifiedBody" xml:space="preserve">
-    <value>npm 报告成功，但未找到 Pi Web。请检查权限或全局 npm 目录。日志：{0}</value>
+    <value>npm 报告成功，但未找到 Pi Web 包。请检查权限或全局 npm 目录。日志：{0}</value>
   </data>
   <data name="install.unverifiedPiBody" xml:space="preserve">
     <value>npm 报告成功，但未找到 Pi。请检查全局 npm 目录。日志：{0}</value>
@@ -329,25 +335,25 @@
     <value>环境信息：</value>
   </data>
   <data name="install.stopFirst" xml:space="preserve">
-    <value>正在先停止 Pi Web（npm 无法在它运行时更新）。</value>
+    <value>正在先停止服务（npm 无法在服务运行时更新 Pi Web）。</value>
   </data>
   <data name="install.stoppedNoTray" xml:space="preserve">
-    <value>Pi Web 已为本次安装停止，且未重新启动，因为当前没有正在运行的托盘。</value>
+    <value>服务已为本次安装停止，且未重新启动，因为当前没有正在运行的托盘。</value>
   </data>
   <data name="install.stoppedByUser" xml:space="preserve">
-    <value>安装期间收到了停止请求，因此未重新启动 Pi Web。</value>
+    <value>安装期间收到了停止请求，因此未重新启动服务。</value>
   </data>
   <data name="install.stoppedLegacyTray" xml:space="preserve">
-    <value>Pi Web 已为本次安装停止，但未自动重新启动。请从托盘菜单重新启动。</value>
+    <value>服务已为本次安装停止，但未自动重新启动。请从托盘菜单重新启动。</value>
   </data>
   <data name="install.restartFailed" xml:space="preserve">
-    <value>安装后 Pi Web 没有打开端口 {0}。请查看服务日志。</value>
+    <value>安装后服务没有打开端口 {0}。请查看服务日志。</value>
   </data>
   <data name="notify.readyTitle" xml:space="preserve">
-    <value>Pi Web 已就绪</value>
+    <value>服务已就绪</value>
   </data>
   <data name="notify.startFailedTitle" xml:space="preserve">
-    <value>Pi Web 启动失败</value>
+    <value>服务启动失败</value>
   </data>
   <data name="notify.startFailedExited" xml:space="preserve">
     <value>进程已退出。</value>
@@ -380,7 +386,7 @@
     <value>请使用菜单安装或更新服务。</value>
   </data>
   <data name="notify.cannotStart" xml:space="preserve">
-    <value>无法启动 Pi Web</value>
+    <value>无法启动服务</value>
   </data>
   <data name="notify.installBusyTitle" xml:space="preserve">
     <value>安装进行中</value>
@@ -389,7 +395,7 @@
     <value>安装进行中</value>
   </data>
   <data name="exit.installingBody" xml:space="preserve">
-    <value>npm 仍在安装依赖。现在退出将中断安装，可能导致 Pi Web 处于未完成状态。
+    <value>npm 仍在安装依赖。现在退出将中断安装，可能导致 Pi Web 或 Pi 仅部分安装。
 
 仍要退出吗？</value>
   </data>
@@ -418,7 +424,7 @@
     <value>无法创建桌面快捷方式</value>
   </data>
   <data name="notify.shortcutAdminBody" xml:space="preserve">
-    <value>请以标准用户身份重新启动 Pi Web Tray 后再创建桌面快捷方式。管理员托盘不会加载用户可控制的 COM 处理程序。</value>
+    <value>请以标准用户身份重新启动托盘后再创建桌面快捷方式。管理员托盘不会加载用户可控制的 COM 处理程序。</value>
   </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已创建桌面快捷方式</value>
@@ -481,7 +487,7 @@
     <value>Node.js 已不可用</value>
   </data>
   <data name="notify.nodeMissingBody" xml:space="preserve">
-    <value>Pi Web 仍在运行，但在重新安装 Node.js 前无法重启服务。</value>
+    <value>服务仍在运行，但在重新安装 Node.js 前无法重启服务。</value>
   </data>
   <data name="notify.nodeRestoredTitle" xml:space="preserve">
     <value>Node.js 已恢复</value>
@@ -499,7 +505,7 @@
     <value>请使用菜单安装或更新服务。</value>
   </data>
   <data name="notify.needsPiwebTitle" xml:space="preserve">
-    <value>Pi Web 尚未安装</value>
+    <value>尚未安装 Pi Web</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
     <value>请使用菜单安装或更新服务。</value>
@@ -686,10 +692,10 @@
     <value>用法：</value>
   </data>
   <data name="help.launch" xml:space="preserve">
-    <value>启动 Pi Web，安装缺失的依赖，并打开浏览器。</value>
+    <value>启动服务，安装缺失的依赖，并打开浏览器。</value>
   </data>
   <data name="help.autostart" xml:space="preserve">
-    <value>由开机自启动使用；在后台启动 Pi Web，但不打开浏览器。</value>
+    <value>由开机自启动使用；在后台启动服务，但不打开浏览器。</value>
   </data>
   <data name="help.stop" xml:space="preserve">
     <value>停止服务；如托盘正在运行则保留。</value>
@@ -752,7 +758,7 @@
     <value>; 修改后重启生效</value>
   </data>
   <data name="ini.portC" xml:space="preserve">
-    <value>; Pi Web 端口，默认 30141</value>
+    <value>; 服务端口，默认 30141</value>
   </data>
 <data name="ini.autoInstallC" xml:space="preserve">
     <value>; 启动时自动安装缺失依赖（首次约需 10~20 分钟）</value>
@@ -761,13 +767,16 @@
     <value>; 可选：随 Pi Web 一并安装 Pi（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="ini.tagC" xml:space="preserve">
-    <value>; 安装的 npm 版本标签，可改成具体版本号</value>
+    <value>; Pi Web 的 npm 版本标签或具体版本号；Pi 始终使用 latest</value>
   </data>
   <data name="ini.registryC" xml:space="preserve">
     <value>; 自定义 npm 来源，留空使用 npm 默认值（例如 https://registry.npmmirror.com）</value>
   </data>
   <data name="ini.proxyC" xml:space="preserve">
-    <value>; 可选的 HTTP 或 SOCKS5 代理，用于更新检查和下载；留空时使用系统代理</value>
+    <value>; 可选的 HTTP 或 SOCKS5 代理，用于 Pi Web Tray 更新检查和下载；留空时使用系统代理</value>
+  </data>
+  <data name="ini.networkC" xml:space="preserve">
+    <value>; 允许网络上的其他设备访问服务（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="ini.lookupC" xml:space="preserve">
     <value>; 以下项留空时将自动检测，通常无需修改</value>
@@ -965,7 +974,7 @@
     <value>新版本无法启动；已尽可能恢复旧文件。</value>
   </data>
   <data name="update.error.serviceStillRunning" xml:space="preserve">
-    <value>Pi Web 仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
+    <value>服务仍占用端口 {0}，更新未应用；请停止服务后重试。</value>
   </data>
   <data name="update.rollbackBackup" xml:space="preserve">
     <value>未能完整恢复旧文件。备份保留在：{0}</value>
@@ -1031,16 +1040,16 @@
     <value>无法识别监听端口 {0} 的进程。正在运行的服务未被改动；请从托盘菜单重试该操作。</value>
   </data>
   <data name="notify.serviceStoppedTitle" xml:space="preserve">
-    <value>Pi Web 已停止</value>
+    <value>服务已停止</value>
   </data>
   <data name="notify.serviceStoppedBody" xml:space="preserve">
-    <value>Pi Web 意外退出。点击通知或图标重新启动。</value>
+    <value>服务意外退出。点击通知或图标重新启动。</value>
   </data>
   <data name="check.portState" xml:space="preserve">
     <value>{0}（监听中={1}，所有者={2}）</value>
   </data>
   <data name="check.ownerPiweb" xml:space="preserve">
-    <value>Pi Web</value>
+    <value>Pi Web 服务</value>
   </data>
   <data name="check.ownerOther" xml:space="preserve">
     <value>其他程序或未知</value>
@@ -1082,10 +1091,10 @@
     <value>同时安装 Pi（可选）</value>
   </data>
   <data name="settings.autoRestart" xml:space="preserve">
-    <value>Pi Web 停止后自动重启</value>
+    <value>服务停止后自动重启</value>
   </data>
   <data name="settings.autoCheckUpdates" xml:space="preserve">
-    <value>启动时检查更新</value>
+    <value>启动时检查 Pi Web Tray 更新</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
     <value>Pi Web npm 标签 / 版本</value>
@@ -1094,7 +1103,7 @@
     <value>npm 源（可选）</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>更新代理（留空使用系统代理）</value>
+    <value>Pi Web Tray 更新代理（留空使用系统代理）</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>测试</value>
@@ -1154,7 +1163,7 @@
     <value>端口已被占用</value>
   </data>
   <data name="settings.portRequiresStopped" xml:space="preserve">
-    <value>请先停止 Pi Web 再修改端口。</value>
+    <value>请先停止服务再修改端口。</value>
   </data>
   <data name="settings.portInUseBody" xml:space="preserve">
     <value>端口 {0} 已被其他程序占用。仍要保存吗？</value>
@@ -1203,6 +1212,42 @@
   </data>
   <data name="notify.urlCopiedTitle" xml:space="preserve">
     <value>已复制地址</value>
+  </data>
+  <data name="network.invalidPort" xml:space="preserve">
+    <value>服务端口无效。</value>
+  </data>
+  <data name="network.portConflict" xml:space="preserve">
+    <value>配置的端口已被其他程序占用。请先修改端口，再允许网络访问。</value>
+  </data>
+  <data name="network.portBusy" xml:space="preserve">
+    <value>新端口已被其他程序占用。网络设置未更改，请选择空闲端口。</value>
+  </data>
+  <data name="network.firewallFailed" xml:space="preserve">
+    <value>无法更新 Windows 防火墙，网络设置未更改。</value>
+  </data>
+  <data name="network.elevationCanceled" xml:space="preserve">
+    <value>管理员授权已取消，网络设置未更改。</value>
+  </data>
+  <data name="network.failedTitle" xml:space="preserve">
+    <value>网络设置未更改</value>
+  </data>
+  <data name="network.disabledBody" xml:space="preserve">
+    <value>服务仅允许本机访问。</value>
+  </data>
+  <data name="network.disabledTitle" xml:space="preserve">
+    <value>已禁止网络访问</value>
+  </data>
+  <data name="network.enabledBody" xml:space="preserve">
+    <value>服务已对可信网络设备开放。</value>
+  </data>
+  <data name="network.enabledTitle" xml:space="preserve">
+    <value>已允许网络访问</value>
+  </data>
+  <data name="network.confirmBody" xml:space="preserve">
+    <value>服务将对网络中的其他设备开放，且没有独立登录。请仅在可信网络中启用。</value>
+  </data>
+  <data name="network.confirmTitle" xml:space="preserve">
+    <value>允许网络访问？</value>
   </data>
   <data name="notify.copyFailed" xml:space="preserve">
     <value>无法复制地址</value>
@@ -1274,10 +1319,10 @@
     <value>正在安装 {0}/{1} · {2}</value>
   </data>
   <data name="notify.autoRestartTitle" xml:space="preserve">
-    <value>正在重启 Pi Web</value>
+    <value>正在重启服务</value>
   </data>
   <data name="notify.autoRestartBody" xml:space="preserve">
-    <value>Pi Web 将在 {0} 秒后重启。</value>
+    <value>服务将在 {0} 秒后重启。</value>
   </data>
   <data name="menu.updateAvailable" xml:space="preserve">
     <value>有可用更新：{0}</value>
@@ -1325,16 +1370,16 @@
     <value>无法连接 GitHub，请检查网络和代理设置。</value>
   </data>
   <data name="ini.autoRestartC" xml:space="preserve">
-    <value>; Pi Web 意外停止时自动重启（1 = 启用，0 = 禁用）</value>
+    <value>; 服务意外停止时自动重启（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="ini.autoCheckC" xml:space="preserve">
-    <value>; 启动时检查更新（1 = 启用，0 = 禁用）</value>
+    <value>; 启动时检查 Pi Web Tray 更新（1 = 启用，0 = 禁用）</value>
   </data>
   <data name="help.trayOnly" xml:space="preserve">
-    <value>不启动 Pi Web。</value>
+    <value>不启动服务。</value>
   </data>
   <data name="help.startNoOpen" xml:space="preserve">
-    <value>启动 Pi Web，但不打开浏览器（更新后使用）。</value>
+    <value>启动服务，但不打开浏览器（更新后使用）。</value>
   </data>
   <data name="update.progressTitle" xml:space="preserve">
     <value>更新</value>
@@ -1411,7 +1456,7 @@
   <data name="help.envNoPicli" xml:space="preserve">
     <value>测试钩子：模拟未安装 Pi。</value>
   </data>
-  <data name="settings.portEnvOverrideNote" xml:space="preserve">
+<data name="settings.portEnvOverrideNote" xml:space="preserve">
     <value>当前 PI_WEB_TRAY_PORT 覆盖了配置端口。移除此环境变量后才会使用此值。</value>
   </data>
   <data name="notify.updateBusyTitle" xml:space="preserve">

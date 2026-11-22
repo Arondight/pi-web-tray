@@ -88,6 +88,136 @@ namespace PiWebTray
             return false;
         }
 
+        internal static string LocalIPv4Address()
+        {
+            try
+            {
+                NetworkInterface[] adapters = NetworkInterface.GetAllNetworkInterfaces();
+
+                // Prefer the physical Ethernet/Wi-Fi adapter that actually owns
+                // the default gateway. A first-up adapter or the OS best-route
+                // query can otherwise select a Hyper-V/VMware virtual switch,
+                // whose address is not reachable from another device.
+                foreach (NetworkInterface adapter in adapters)
+                {
+                    if (adapter == null || !IsUsableAdapter(adapter)) continue;
+                    if (adapter.NetworkInterfaceType != NetworkInterfaceType.Ethernet
+                        && adapter.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
+                        continue;
+                    if (!HasIPv4Gateway(adapter)) continue;
+                    string address = IPv4AddressOf(adapter);
+                    if (!string.IsNullOrEmpty(address)) return address;
+                }
+
+                // Some VPN/remote adapters expose a default gateway but are not
+                // ordinary Ethernet/Wi-Fi; accept any usable gateway after the
+                // physical candidates above.
+                foreach (NetworkInterface adapter in adapters)
+                {
+                    if (adapter == null || !IsUsableAdapter(adapter)) continue;
+                    if (!HasIPv4Gateway(adapter)) continue;
+                    string address = IPv4AddressOf(adapter);
+                    if (!string.IsNullOrEmpty(address)) return address;
+                }
+
+                // If there is no default gateway, still prefer a physical
+                // Ethernet/Wi-Fi address over a virtual switch.
+                foreach (NetworkInterface adapter in adapters)
+                {
+                    if (adapter == null || !IsUsableAdapter(adapter)) continue;
+                    if (adapter.NetworkInterfaceType != NetworkInterfaceType.Ethernet
+                        && adapter.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
+                        continue;
+                    string address = IPv4AddressOf(adapter);
+                    if (!string.IsNullOrEmpty(address) && !IsLinkLocal(address)) return address;
+                }
+
+                foreach (NetworkInterface adapter in adapters)
+                {
+                    if (adapter == null || !IsUsableAdapter(adapter)) continue;
+                    string address = IPv4AddressOf(adapter);
+                    if (!string.IsNullOrEmpty(address) && !IsLinkLocal(address)) return address;
+                }
+
+                foreach (NetworkInterface adapter in adapters)
+                {
+                    if (adapter == null || !IsUsableAdapter(adapter)) continue;
+                    string address = IPv4AddressOf(adapter);
+                    if (!string.IsNullOrEmpty(address)) return address;
+                }
+
+                foreach (IPAddress address in Dns.GetHostAddresses(Dns.GetHostName()))
+                {
+                    if (address.AddressFamily == AddressFamily.InterNetwork
+                        && !IPAddress.IsLoopback(address))
+                        return address.ToString();
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return "";
+        }
+
+        private static bool IsUsableAdapter(NetworkInterface adapter)
+        {
+            return adapter.OperationalStatus == OperationalStatus.Up
+                && adapter.NetworkInterfaceType != NetworkInterfaceType.Loopback
+                && adapter.NetworkInterfaceType != NetworkInterfaceType.Tunnel;
+        }
+
+        private static bool HasIPv4Gateway(NetworkInterface adapter)
+        {
+            try
+            {
+                foreach (GatewayIPAddressInformation gateway in
+                    adapter.GetIPProperties().GatewayAddresses)
+                {
+                    if (gateway != null && gateway.Address != null
+                        && gateway.Address.AddressFamily == AddressFamily.InterNetwork
+                        && !gateway.Address.Equals(IPAddress.Any))
+                        return true;
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return false;
+        }
+
+        private static bool IsLinkLocal(string address)
+        {
+            try
+            {
+                byte[] bytes = IPAddress.Parse(address).GetAddressBytes();
+                return bytes.Length == 4 && bytes[0] == 169 && bytes[1] == 254;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static string IPv4AddressOf(NetworkInterface adapter)
+        {
+            try
+            {
+                foreach (UnicastIPAddressInformation unicast in
+                    adapter.GetIPProperties().UnicastAddresses)
+                {
+                    if (unicast == null || unicast.Address == null) continue;
+                    if (unicast.Address.AddressFamily != AddressFamily.InterNetwork)
+                        continue;
+                    if (IPAddress.IsLoopback(unicast.Address)) continue;
+                    return unicast.Address.ToString();
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return "";
+        }
+
         internal static bool WaitPortOpen(int port, int timeoutMs)
         {
             int waited = 0;

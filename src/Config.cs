@@ -33,6 +33,7 @@ namespace PiWebTray
         internal string InstallTag = "latest";
         internal string NpmRegistry = "";
         internal string Proxy = "";
+        internal bool NetworkAccess;
         // Raw ini values (before %ENV% expansion). Settings writes these back so a
         // deliberate template is not silently replaced by the expanded value.
         internal string ConfiguredNodePath = "";
@@ -205,6 +206,9 @@ namespace PiWebTray
                                     config.Proxy = value;
                                     config.ConfiguredProxy = rawValue;
                                 }
+                                break;
+                            case "networkaccess":
+                                config.NetworkAccess = IsTruthy(value, false);
                                 break;
                             case "language":
                                 if (value.Length > 0)
@@ -448,6 +452,9 @@ namespace PiWebTray
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.proxyC"));
                 sb.AppendLine("Proxy=");
+                sb.AppendLine();
+                sb.AppendLine(L.T("ini.networkC"));
+                sb.AppendLine("NetworkAccess=0");
                 sb.AppendLine();
                 sb.AppendLine(L.T("ini.lookupC"));
                 sb.AppendLine("NodePath=");

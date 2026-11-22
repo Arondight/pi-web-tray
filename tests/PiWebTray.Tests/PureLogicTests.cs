@@ -278,6 +278,7 @@ namespace PiWebTray
             AutoRestartStopIntentTests();
             ConfiguredValuesTests();
             NpmWorkingDirectoryTests();
+            FirewallRuleTests();
             LocalizationTests();
             IconEncodingTests();
             InstallArgumentsTests();
@@ -1762,6 +1763,30 @@ namespace PiWebTray
                 TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false, true));
         }
 
+        private static void FirewallRuleTests()
+        {
+            string add = Firewall.BuildAddRuleArguments(30141);
+            Check("firewall add rule uses the service port", add.Contains("localport=30141"));
+            Check("firewall add rule allows inbound TCP", add.Contains("dir=in")
+                && add.Contains("action=allow") && add.Contains("protocol=TCP"));
+            Check("firewall add rule covers all network profiles",
+                add.Contains("profile=domain,private,public"));
+            string set = Firewall.BuildSetRuleArguments(30141);
+            Check("firewall set rule keeps one rule and updates its port",
+                set.Contains("set rule name=") && set.Contains("localport=30141"));
+            Check("firewall set rule restores the expected policy",
+                set.Contains("dir=in") && set.Contains("action=allow")
+                && set.Contains("protocol=TCP") && set.Contains("enable=yes")
+                && set.Contains("profile=domain,private,public"));
+            string delete = Firewall.BuildDeleteRuleArguments();
+            Check("firewall delete rule targets the same name",
+                delete.Contains("delete rule name=")
+                && delete.Contains(Shell.Quote(Firewall.RuleName())));
+            Check("firewall show rule targets the same name",
+                Firewall.BuildShowRuleArguments().Contains("show rule name=")
+                && Firewall.BuildShowRuleArguments().Contains(Shell.Quote(Firewall.RuleName())));
+        }
+
         private static void NpmWorkingDirectoryTests()
         {
             Config config = new Config();
@@ -1877,7 +1902,7 @@ namespace PiWebTray
                 File.WriteAllText(iniPath,
                     "Port=30211\nWorkingDir=%USERPROFILE%\nLanguage=en\nInstallPi=0\n"
                     + "NodePath=%NODE_TEST%\nNpmRegistry=%REG_TEST%\n"
-                    + "Proxy=%PROXY_TEST%\nInstallTag=%TAG_TEST%\n",
+                    + "Proxy=%PROXY_TEST%\nNetworkAccess=1\nInstallTag=%TAG_TEST%\n",
                     new UTF8Encoding(false));
 
                 Environment.SetEnvironmentVariable("PI_WEB_TRAY_HOME", temp);
@@ -1902,6 +1927,7 @@ namespace PiWebTray
                     "%PROXY_TEST%", config.ConfiguredProxy);
                 CheckEqual("proxy is expanded for use",
                     "http://127.0.0.1:1", config.Proxy);
+                Check("network access can be enabled from the ini", config.NetworkAccess);
                 CheckEqual("tag keeps its raw ini value",
                     "%TAG_TEST%", config.ConfiguredInstallTag);
                 CheckEqual("tag is expanded for use", "latest", config.InstallTag);
@@ -1931,6 +1957,8 @@ namespace PiWebTray
                     saved.Contains("NpmRegistry=%REG_TEST%"));
                 Check("settings preserves the proxy template",
                     saved.Contains("Proxy=%PROXY_TEST%"));
+                Check("settings preserves network access",
+                    saved.Contains("NetworkAccess=1"));
                 Check("settings preserves the tag template",
                     saved.Contains("InstallTag=%TAG_TEST%"));
                 CheckEqual("environment port is still effective after save", 30222, config.Port);
@@ -3942,6 +3970,7 @@ namespace PiWebTray
                 CheckEqual("field default install tag", "latest", fresh.InstallTag);
                 CheckEqual("field default registry is empty", "", fresh.NpmRegistry);
                 CheckEqual("field default proxy is empty", "", fresh.Proxy);
+                Check("field default network access is off", !fresh.NetworkAccess);
                 CheckEqual("field default language", "auto", fresh.Language);
                 Check("field default admin autostart is off", !fresh.AutostartAdmin);
 
@@ -3956,6 +3985,7 @@ namespace PiWebTray
                 CheckEqual("default install tag", "latest", config.InstallTag);
                 CheckEqual("default registry is empty", "", config.NpmRegistry);
                 CheckEqual("default proxy is empty", "", config.Proxy);
+                Check("default network access is off", !config.NetworkAccess);
                 CheckEqual("default language", "auto", config.Language);
                 Check("default admin autostart is off", !config.AutostartAdmin);
                 CheckEqual("default node path is empty", "", config.NodePath ?? "");
@@ -3969,10 +3999,11 @@ namespace PiWebTray
                 Check("ini documents the install tag", content.Contains("InstallTag=latest"));
                 Check("ini documents npm registry", content.Contains("NpmRegistry="));
                 Check("ini documents proxy", content.Contains("Proxy="));
+                Check("ini documents network access", content.Contains("NetworkAccess=0"));
                 Check("ini documents node path", content.Contains("NodePath="));
                 Check("ini documents the admin autostart", content.Contains("AutostartAdmin=0"));
                 Check("ini documents the language", content.Contains("Language=auto"));
-                CheckEqual("ini documents exactly the 11 documented keys", 11, CountIniKeys(content));
+                CheckEqual("ini documents exactly the 12 documented keys", 12, CountIniKeys(content));
             }
             finally
             {
