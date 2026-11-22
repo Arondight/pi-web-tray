@@ -19,7 +19,7 @@ Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 解决方案，提供运行环
 | .NET Framework 运行时 | 4.8 — 必需；Windows 10 20H2+ 和 11 也支持 4.8.1 |
 | Node.js               | 22.19 或更新版本，含 npm                        |
 
-Windows 7 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Pi Web 终端需要 ConPTY（Windows 10 1809+），因此在旧系统上 Pi Web 可以运行，但终端功能可能异常。
+Windows 7 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。在 Windows 7 上，Pi Web 的终端不可用：其 PTY 层需要 ConPTY（Windows 10 1809+）。Next.js 在该系统上也无法加载原生 SWC 插件，会回退到 WebAssembly 构建，启动会明显变慢。
 
 ### 旧版本 Windows 运行库
 
@@ -157,6 +157,8 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 - **Build Tools for Visual Studio 2022**（仅使用 MSBuild）。
 
 两者都需要 **.NET Framework 4.8 Targeting Pack**；独立的 **.NET Framework 4.8 Developer Pack** 已包含它。
+
+构建主机必须是 Windows 10/11（或 Windows Server CI runner）；Windows 7 仅作为运行目标。兼容性检查脚本还需要 PowerShell 7。
 
 **Visual Studio 2022 或更高版本** + **.NET 桌面开发**工作负载是可选的 IDE，不是额外的构建要求。程序目标仍然是 **.NET Framework 4.8**，不是 .NET 8。最终用户只需要 **.NET Framework 4.8 运行时**（系统支持时可用 4.8.1）。
 

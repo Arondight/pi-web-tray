@@ -440,8 +440,12 @@ namespace PiWebTray
 
             if (result.NpmPrefix.Length == 0)
             {
-                string fallback = Path.Combine(Shell.AppDataRoaming(), "npm");
-                if (Directory.Exists(fallback)) result.NpmPrefix = fallback;
+                string roaming = Shell.AppDataRoaming();
+                if (!string.IsNullOrEmpty(roaming))
+                {
+                    string fallback = Path.Combine(roaming, "npm");
+                    if (Directory.Exists(fallback)) result.NpmPrefix = fallback;
+                }
             }
         }
 

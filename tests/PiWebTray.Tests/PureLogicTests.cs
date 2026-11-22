@@ -1472,6 +1472,12 @@ namespace PiWebTray
                 {
                     Check("a hard-linked handle is detected",
                         PathSafety.HasMultipleLinks(stream.SafeFileHandle));
+                    Check("a handle and its path identify the same file",
+                        PathSafety.SameFile(stream.SafeFileHandle, link));
+                    Check("a handle and an alias identify the same file",
+                        PathSafety.SameFile(stream.SafeFileHandle, target));
+                    Check("a handle and another file do not compare equal",
+                        !PathSafety.SameFile(stream.SafeFileHandle, other));
                 }
             }
             finally
@@ -1502,8 +1508,18 @@ namespace PiWebTray
                     .SelectNodes("descendant::*[local-name()='UserId']").Count == 1);
             CheckEqual("task XML uses the user SID in both UserId fields", 2,
                 document.GetElementsByTagName("UserId", "*").Count);
-            CheckEqual("task XML uses the Windows 7-compatible schema", "1.1",
-                document.DocumentElement.GetAttribute("version"));
+            bool windows7 = WindowsVersion.Current.Major == 6
+                && WindowsVersion.Current.Minor == 1;
+            if (windows7)
+            {
+                Check("Windows 7 task XML does not pin a schema version",
+                    !document.DocumentElement.HasAttribute("version"));
+            }
+            else
+            {
+                CheckEqual("Windows 8+ task XML uses the 1.1 task version", "1.1",
+                    document.DocumentElement.GetAttribute("version"));
+            }
             CheckEqual("task XML trigger user", sid,
                 ((XmlElement)document.GetElementsByTagName("LogonTrigger", "*")[0])
                     .GetElementsByTagName("UserId", "*")[0].InnerText);

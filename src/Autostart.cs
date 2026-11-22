@@ -384,6 +384,165 @@ namespace PiWebTray
                 out adminSettingsSafe);
         }
 
+        private sealed class TaskXmlEvaluation
+        {
+            internal bool Enabled;
+            internal bool UserMatches;
+            internal bool ExplicitUser;
+            internal string Command = "";
+            internal string Arguments = "";
+            internal string CommandPath = "";
+            internal bool MatchesExecutable;
+            internal bool AdminSettingsSafe;
+        }
+
+        // A task definition is evaluated independently of where it came from:
+        // schtasks' XML output, or the task file the Task Scheduler keeps.
+        private static TaskXmlEvaluation EvaluateTaskXml(string name, XmlDocument document)
+        {
+            if (document == null) return null;
+            TaskXmlEvaluation result = new TaskXmlEvaluation();
+            result.Enabled = IsTaskXmlEnabled(document);
+            result.UserMatches = TaskXmlUserMatchesCurrentUser(document,
+                out result.ExplicitUser);
+            result.Command = ReadTaskElement(document, "Command");
+            result.Arguments = ReadTaskElement(document, "Arguments");
+            string expandedCommand = ExpandTaskCommand(result.Command);
+            result.CommandPath = result.Command.Length > 0 ? expandedCommand : "";
+
+            bool pathMatches = false;
+            if (expandedCommand.Length > 0)
+            {
+                try
+                {
+                    // Task Scheduler can retain an 8.3 spelling of the same
+                    // executable. Compare the file object, not the spelling, so a
+                    // valid task is not reported as foreign. A different junction
+                    // alias is rejected conservatively by SameLocalFile.
+                    pathMatches = PathSafety.SameLocalFile(
+                        expandedCommand, Application.ExecutablePath);
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            // Whether the task starts this executable is independent from whether
+            // it meets the stronger current administrator-task settings. The
+            // legacy any-user task must still be recognised so the tray does not
+            // add a second Run value or claim a disable succeeded while the task
+            // remains active. Keep the stricter match for the current task name:
+            // a weak current task should still be offered for repair/recreation.
+            bool startsAtLogin = pathMatches
+                && TaskArgumentsStartService(result.Arguments) && result.UserMatches;
+            bool adminSafe = startsAtLogin && TaskXmlSupportsAdminAutostart(document);
+            bool legacyTaskName = string.Equals(name, LegacyTaskName,
+                StringComparison.OrdinalIgnoreCase);
+            result.AdminSettingsSafe = adminSafe;
+            result.MatchesExecutable = startsAtLogin
+                && (legacyTaskName || adminSafe);
+            return result;
+        }
+
+        private static string TaskFileDirectory()
+        {
+            try
+            {
+                string system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+                return string.IsNullOrEmpty(system) ? "" : Path.Combine(system, "Tasks");
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        private static bool TryGetTaskFilePath(string name, out string path)
+        {
+            path = "";
+            if (string.IsNullOrEmpty(name)) return false;
+            if (name.IndexOf('\\') >= 0 || name.IndexOf('/') >= 0
+                || name.IndexOf(':') >= 0 || name == "." || name == "..")
+                return false;
+            string directory = TaskFileDirectory();
+            if (string.IsNullOrEmpty(directory)) return false;
+            path = Path.Combine(directory, name);
+            return true;
+        }
+
+        // true = state known (exists false/true); false = cannot tell.
+        private static bool TryGetTaskFileState(string name, out bool exists)
+        {
+            exists = false;
+            string path;
+            if (!TryGetTaskFilePath(name, out path)) return false;
+            try
+            {
+                if (File.Exists(path))
+                {
+                    exists = true;
+                    return true;
+                }
+                try
+                {
+                    FileAttributes attributes = File.GetAttributes(path);
+                    // A directory with the task name is a task folder, not a task.
+                    exists = (attributes & FileAttributes.Directory) == 0;
+                    return true;
+                }
+                catch (FileNotFoundException)
+                {
+                    return true;
+                }
+                catch (DirectoryNotFoundException)
+                {
+                    return true;
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return false;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static bool TryLoadTaskFileXml(string name, out XmlDocument document)
+        {
+            document = null;
+            string path;
+            if (!TryGetTaskFilePath(name, out path)) return false;
+            try
+            {
+                if (!File.Exists(path)) return false;
+                if (PathSafety.ContainsReparsePoint(path)) return false;
+                FileInfo info = new FileInfo(path);
+                if (!info.Exists || info.Length <= 0 || info.Length > 1024 * 1024)
+                    return false;
+                using (FileStream stream = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    XmlDocument loaded = new XmlDocument();
+                    // Task definitions are local files; do not resolve external
+                    // entities from a file that an administrator could modify.
+                    loaded.XmlResolver = null;
+                    loaded.Load(stream);
+                    document = loaded;
+                    return true;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         private static bool QueryTaskDetails(string name, out bool enabled,
             out bool matchesExecutable, out string commandPath,
             out bool userMatches, out bool explicitUser, out bool xmlParsed,
@@ -398,6 +557,35 @@ namespace PiWebTray
             explicitUser = false;
             xmlParsed = false;
             adminSettingsSafe = false;
+
+            // The Task Scheduler stores a root task as one XML file. Reading that
+            // file avoids schtasks' localized column resources (missing on some
+            // Windows installations) and is the same definition the service uses.
+            bool fileExists;
+            if (TryGetTaskFileState(name, out fileExists))
+            {
+                if (!fileExists) return false;
+
+                XmlDocument fileDocument;
+                if (TryLoadTaskFileXml(name, out fileDocument))
+                {
+                    TaskXmlEvaluation fileEvaluation = EvaluateTaskXml(name, fileDocument);
+                    if (fileEvaluation != null)
+                    {
+                        enabled = fileEvaluation.Enabled;
+                        matchesExecutable = fileEvaluation.MatchesExecutable;
+                        commandPath = fileEvaluation.CommandPath;
+                        userMatches = fileEvaluation.UserMatches;
+                        explicitUser = fileEvaluation.ExplicitUser;
+                        xmlParsed = true;
+                        adminSettingsSafe = fileEvaluation.AdminSettingsSafe;
+                        return true;
+                    }
+                }
+                // The file exists but could not be read or parsed. Fall through to
+                // schtasks; if that also fails, QueryTaskOrUnknown still reports the
+                // task as present, but it remains unverified.
+            }
 
             bool parsed = false;
             bool parsedEnabled = false;
@@ -414,18 +602,12 @@ namespace PiWebTray
                 if (!run.Started || run.TimedOut || run.ExitCode != 0)
                 {
                     // A failed /xml query does not prove that the task is absent.
-                    // A plain /query can still distinguish "task exists but XML
-                    // is unavailable" from a genuine "task not found".
+                    // A plain /query or the task file can still distinguish "task
+                    // exists but XML is unavailable" from a genuine "task not found".
                     bool? taskExists = QueryTaskOrUnknown(name);
                     if (taskExists == true)
                     {
                         enabled = true;
-                        matchesExecutable = false;
-                        commandPath = "";
-                        userMatches = false;
-                        explicitUser = false;
-                        xmlParsed = false;
-                        adminSettingsSafe = false;
                         return true;
                     }
                     return false;
@@ -448,71 +630,46 @@ namespace PiWebTray
                     continue;
                 }
 
+                TaskXmlEvaluation evaluation = EvaluateTaskXml(name, document);
+                if (evaluation == null) continue;
                 parsed = true;
                 xmlParsed = true;
-                parsedEnabled = IsTaskXmlEnabled(document);
-                parsedUserMatches = TaskXmlUserMatchesCurrentUser(document,
-                    out parsedExplicitUser);
-                userMatches = parsedUserMatches;
-                explicitUser = parsedExplicitUser;
-                string command = ReadTaskElement(document, "Command");
-                string arguments = ReadTaskElement(document, "Arguments");
-                string expandedCommand = ExpandTaskCommand(command);
-                parsedCommand = command.Length > 0 ? expandedCommand : parsedCommand;
+                parsedEnabled = evaluation.Enabled;
+                parsedUserMatches = evaluation.UserMatches;
+                parsedExplicitUser = evaluation.ExplicitUser;
+                if (evaluation.Command.Length > 0) parsedCommand = evaluation.CommandPath;
 
-                bool pathMatches = false;
-                if (expandedCommand.Length > 0)
+                if (evaluation.MatchesExecutable)
                 {
-                    try
-                    {
-                        // Task Scheduler can retain an 8.3 spelling of the same
-                        // executable. Compare the file object, not the spelling, so a
-                        // valid task is not reported as foreign. A different junction
-                        // alias is rejected conservatively by SameLocalFile.
-                        pathMatches = PathSafety.SameLocalFile(
-                            expandedCommand, Application.ExecutablePath);
-                    }
-                    catch (Exception)
-                    {
-                    }
-                }
-
-                // Whether the task starts this executable is independent from whether
-                // it meets the stronger current administrator-task settings. The
-                // legacy any-user task must still be recognised so the tray does not
-                // add a second Run value or claim a disable succeeded while the task
-                // remains active. Keep the stricter match for the current task name:
-                // a weak current task should still be offered for repair/recreation.
-                bool startsAtLogin = pathMatches
-                    && TaskArgumentsStartService(arguments) && userMatches;
-                bool adminSafe = startsAtLogin
-                    && TaskXmlSupportsAdminAutostart(document);
-                bool legacyTaskName = string.Equals(name, LegacyTaskName,
-                    StringComparison.OrdinalIgnoreCase);
-                if (startsAtLogin && (legacyTaskName || adminSafe))
-                {
-                    enabled = parsedEnabled;
+                    enabled = evaluation.Enabled;
                     matchesExecutable = true;
-                    commandPath = expandedCommand;
-                    adminSettingsSafe = adminSafe;
+                    commandPath = evaluation.CommandPath;
+                    userMatches = evaluation.UserMatches;
+                    explicitUser = evaluation.ExplicitUser;
+                    adminSettingsSafe = evaluation.AdminSettingsSafe;
                     return true;
                 }
 
                 // ASCII data is unaffected by the code page. No other encoding can
                 // turn a genuine path/argument mismatch into a match.
-                if (IsAscii(command) && IsAscii(arguments))
+                if (IsAscii(evaluation.Command) && IsAscii(evaluation.Arguments))
                 {
-                    enabled = parsedEnabled;
-                    commandPath = expandedCommand;
+                    enabled = evaluation.Enabled;
+                    matchesExecutable = false;
+                    commandPath = evaluation.CommandPath;
+                    userMatches = evaluation.UserMatches;
+                    explicitUser = evaluation.ExplicitUser;
+                    adminSettingsSafe = false;
                     return true;
                 }
 
-                if (command.Length == 0) break;
+                if (evaluation.Command.Length == 0) break;
             }
 
             if (parsed)
             {
                 enabled = parsedEnabled;
+                matchesExecutable = false;
                 commandPath = parsedCommand;
                 userMatches = parsedUserMatches;
                 explicitUser = parsedExplicitUser;
@@ -737,14 +894,18 @@ namespace PiWebTray
             return enabled;
         }
 
-        // null means "could not determine"; false means schtasks completed and
-        // reported that the task does not exist. Mutation paths must fail closed
-        // on null instead of creating a second autostart mechanism. schtasks uses
-        // a non-zero exit code for not-found tasks, access denied and Task
-        // Scheduler failures alike, so only the localized "file not found" OS
-        // message proves absence; every other non-zero result is unknown.
+        // null means "could not determine"; false means the task is known to be
+        // absent. Mutation paths must fail closed on null instead of creating a
+        // second autostart mechanism. The Task Scheduler stores a root task as one
+        // XML file, so its presence/absence is definitive without schtasks' MUI
+        // resources. When the file state cannot be inspected, fall back to the
+        // localized schtasks result; only the "file not found" OS message proves
+        // absence there, every other non-zero result is unknown.
         private static bool? QueryTaskOrUnknown(string name)
         {
+            bool exists;
+            if (TryGetTaskFileState(name, out exists)) return exists;
+
             try
             {
                 ProcessResult run = ProcessRunner.Run(
@@ -1842,7 +2003,11 @@ namespace PiWebTray
                 if (elevated)
                 {
                     string protectError;
-                    if (!ProtectFileOwner(xmlPath, out protectError)) return false;
+                    if (!ProtectFileOwner(xmlPath, out protectError))
+                    {
+                        LogTask("task XML owner repair failed: " + protectError);
+                        return false;
+                    }
                 }
 
                 guard = new FileStream(xmlPath, FileMode.Open, FileAccess.Read,
@@ -1853,7 +2018,11 @@ namespace PiWebTray
                 // guard prevents further writes, so compare the bytes read through the
                 // guard with the XML we built. This turns the former TOCTOU into a
                 // failed task creation instead of registering attacker-controlled XML.
-                if (!BytesEqual(xml, File.ReadAllBytes(xmlPath))) return false;
+                if (!BytesEqual(xml, File.ReadAllBytes(xmlPath)))
+                {
+                    LogTask("task XML changed before registration");
+                    return false;
+                }
 
                 string args = "/create /f /tn " + Shell.Quote(TaskName)
                     + " /xml " + Shell.Quote(xmlPath);
@@ -1892,10 +2061,12 @@ namespace PiWebTray
                     }
                     if (++verificationAttempts >= 4) return false;
                 }
+                LogTask("task creation was not observed: " + TaskName);
                 return false;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                LogTask("task creation failed: " + ex.Message);
                 return false;
             }
             finally
@@ -1948,10 +2119,13 @@ namespace PiWebTray
                     writer.WriteStartDocument();
                     writer.WriteStartElement("Task",
                         "http://schemas.microsoft.com/windows/2004/02/mit/task");
-                    // Schema 1.2 was introduced with Windows 8. The elements used
-                    // here are all available in the Windows 7 schema (1.1), which is
-                    // required for the supported Windows 7 SP1 target.
-                    writer.WriteAttributeString("version", "1.1");
+                    // Windows 7's schtasks rejects version="1.1" for this definition
+                    // (and version="1.0" rejects the logon trigger); omit the optional
+                    // attribute there. Windows 8 and newer accept the 1.1 task version,
+                    // so keep the existing definition on those systems.
+                    Version windows = WindowsVersion.Current;
+                    if (!(windows.Major == 6 && windows.Minor == 1))
+                        writer.WriteAttributeString("version", "1.1");
 
                     // A user-scoped logon trigger. Without <UserId> the task fires
                     // for every account that logs on, and the administrator service
@@ -2065,28 +2239,62 @@ namespace PiWebTray
                 bool? after = QueryTaskOrUnknown(name);
                 if (after == false) return true;
             }
-            return QueryTaskOrUnknown(name) == false;
+            bool removed = QueryTaskOrUnknown(name) == false;
+            if (!removed) LogTask("task removal was not observed: " + name);
+            return removed;
         }
 
-        // Run directly when already elevated; otherwise go through runas (one UAC prompt)
+        // Run directly when already elevated; otherwise go through runas (one UAC prompt).
+        // When already elevated, capture schtasks' output and exit code so a failure is
+        // written to update.log instead of disappearing. The runas path cannot capture
+        // the child's output, but creation/removal is still verified by the task file.
         private static bool Launch(bool elevated, string args)
         {
             try
             {
                 if (elevated)
                 {
-                    Process p = Sys.StartHidden(Sys.SystemExecutable("schtasks.exe"), args,
-                        Sys.SystemDirectory);
-                    if (p == null) return false;
-                    p.Dispose();
+                    ProcessResult run = ProcessRunner.Run(
+                        Sys.SystemExecutable("schtasks.exe"), args, Sys.SystemDirectory,
+                        30000, null, null, null, 256 * 1024, ProcessRunner.OemEncoding());
+                    if (!run.Started || run.TimedOut)
+                    {
+                        LogTask("schtasks did not complete: " + args
+                            + (run.TimedOut ? " (timeout)" : ""));
+                        return false;
+                    }
+                    if (run.ExitCode != 0)
+                    {
+                        LogTask("schtasks failed (exit " + run.ExitCode + "): " + args
+                            + " " + (run.Output ?? "").Trim());
+                        return false;
+                    }
                     return true;
                 }
-                return Sys.RunElevated(Sys.SystemExecutable("schtasks.exe"), args, true,
-                    Sys.SystemDirectory);
+                bool started = Sys.RunElevated(Sys.SystemExecutable("schtasks.exe"), args,
+                    true, Sys.SystemDirectory);
+                if (!started)
+                    LogTask("schtasks elevation was cancelled or failed: " + args);
+                return started;
+            }
+            catch (Exception ex)
+            {
+                LogTask("schtasks launch failed: " + ex.Message + " (" + args + ")");
+                return false;
+            }
+        }
+
+        private static void LogTask(string message)
+        {
+            try
+            {
+                string folder = TrayState.Folder;
+                if (string.IsNullOrEmpty(folder)) return;
+                Updater.AppendLog(Path.Combine(folder, "update.log"),
+                    "autostart: " + message);
             }
             catch (Exception)
             {
-                return false;
             }
         }
 

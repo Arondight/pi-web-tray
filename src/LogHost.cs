@@ -203,8 +203,28 @@ namespace PiWebTray
                     final = final.Substring(4);
                 final = Path.GetFullPath(final);
                 expected = Path.GetFullPath(expected);
-                return string.Equals(final, expected, StringComparison.OrdinalIgnoreCase)
-                    && !PathSafety.ContainsReparsePoint(final);
+                if (!string.Equals(final, expected, StringComparison.OrdinalIgnoreCase))
+                {
+                    // A subst drive, an 8.3 alias or a mapped drive can name the
+                    // same file with a different spelling. Compare the opened
+                    // handle with the expected path, but still reject a reparse
+                    // point at the expected name before opening it again.
+                    if (PathSafety.ContainsReparsePoint(expected)) return false;
+                    if (!PathSafety.SameFile(stream.SafeFileHandle, expected))
+                    {
+                        // A file created with FileShare.None cannot be opened a
+                        // second time for the identity check. Resolve its parent
+                        // directory instead; the reparse check above still applies.
+                        string canonicalExpected = PathSafety.CanonicalParentPath(expected);
+                        if (string.IsNullOrEmpty(canonicalExpected)
+                            || !string.Equals(final, canonicalExpected,
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            return false;
+                        }
+                    }
+                }
+                return !PathSafety.ContainsReparsePoint(final);
             }
             catch (Exception)
             {

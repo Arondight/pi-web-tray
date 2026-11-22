@@ -19,7 +19,7 @@ Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides r
 | .NET Framework Runtime | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
 | Node.js                | 22.19 or later, with npm                                           |
 
-Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Pi Web's terminal needs ConPTY (Windows 10 1809+), so Pi Web can run on legacy systems, but terminal functionality may be impaired.
+Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. On Windows 7, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js also cannot load its native SWC addon there and falls back to the WebAssembly build, so startup is noticeably slower.
 
 ### Older Windows runtime
 
@@ -157,6 +157,8 @@ Choose one build tool:
 - **Build Tools for Visual Studio 2022** (MSBuild only).
 
 Either tool requires the **.NET Framework 4.8 Targeting Pack**. The standalone **.NET Framework 4.8 Developer Pack** includes it.
+
+The build host must be Windows 10/11 (or the Windows Server CI runner); Windows 7 is only a runtime target. The compatibility check script also requires PowerShell 7.
 
 **Visual Studio 2022 or later** with the **.NET desktop development** workload is an optional IDE, not a separate requirement. The application targets **.NET Framework 4.8**, not .NET 8. End users only need the **.NET Framework 4.8 Runtime** (or 4.8.1 where supported).
 

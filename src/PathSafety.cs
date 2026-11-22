@@ -295,6 +295,72 @@ namespace PiWebTray
             }
         }
 
+        // Resolve the parent directory and keep the final file name. This is the
+        // fallback for a newly created file opened with FileShare.None, where a
+        // second handle cannot be opened for the identity check but the parent
+        // directory can still be resolved through a subst drive or an 8.3 alias.
+        internal static string CanonicalParentPath(string path)
+        {
+            try
+            {
+                string full = Path.GetFullPath(path);
+                string parent = Path.GetDirectoryName(full);
+                if (string.IsNullOrEmpty(parent)) return full;
+                string canonical = CanonicalPath(parent);
+                if (string.IsNullOrEmpty(canonical)) return full;
+                return Path.Combine(canonical, Path.GetFileName(full));
+            }
+            catch (Exception)
+            {
+                return "";
+            }
+        }
+
+        // Compares an already-opened handle with a path. This is used where the
+        // caller has proved that the path is the intended name (for example a subst
+        // drive or an 8.3 alias) and only the spelling differs from the final path.
+        // The caller must still reject reparse points and hard links where those
+        // matter; this helper only establishes file identity.
+        internal static bool SameFile(SafeFileHandle handle, string path)
+        {
+            if (handle == null || handle.IsInvalid || string.IsNullOrEmpty(path)) return false;
+            try
+            {
+                using (FileStream other = new FileStream(path, FileMode.Open,
+                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                {
+                    return SameFile(handle, other.SafeFileHandle);
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        internal static bool SameFile(SafeFileHandle first, SafeFileHandle second)
+        {
+            if (first == null || first.IsInvalid || second == null || second.IsInvalid)
+                return false;
+            try
+            {
+                ByHandleFileInformation a;
+                ByHandleFileInformation b;
+                if (!GetFileInformationByHandle(first, out a)
+                    || !GetFileInformationByHandle(second, out b))
+                {
+                    return false;
+                }
+                return a.VolumeSerialNumber == b.VolumeSerialNumber
+                    && a.FileIndexHigh == b.FileIndexHigh
+                    && a.FileIndexLow == b.FileIndexLow;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Like SameFile, but refuses reparse-point paths. Used for paths supplied by
         // task/state/command-line data where opening a junction could escape to a
         // network or device location.

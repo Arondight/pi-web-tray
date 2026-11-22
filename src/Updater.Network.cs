@@ -128,6 +128,10 @@ namespace PiWebTray
                 case WebExceptionStatus.ProxyNameResolutionFailure:
                 case WebExceptionStatus.ConnectFailure:
                 case WebExceptionStatus.Timeout:
+                case WebExceptionStatus.ReceiveFailure:
+                case WebExceptionStatus.ConnectionClosed:
+                case WebExceptionStatus.SecureChannelFailure:
+                case WebExceptionStatus.TrustFailure:
                     return L.T("update.error.network");
                 default:
                     return ex.Message;
