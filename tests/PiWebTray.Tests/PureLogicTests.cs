@@ -8,6 +8,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -268,6 +269,7 @@ namespace PiWebTray
             ServiceRestoreTests();
             UpdateCancellationTests();
             UpdateCopyTests();
+            UpdateManifestHardlinkTests();
             UpdateCleanupTests();
             WriteDiagTests();
             UpdateRollbackTests();
@@ -778,10 +780,16 @@ namespace PiWebTray
             {
                 Directory.CreateDirectory(root);
                 Check("no pending install initially", !Installer.HasPending(config));
-                File.WriteAllText(Installer.PendingMarker(config), "partial", Encoding.UTF8);
+                Check("pending marker can be written", Installer.MarkPending(config));
                 Check("pending install is detected", Installer.HasPending(config));
                 Installer.ClearPending(config);
                 Check("pending install can be cleared", !Installer.HasPending(config));
+
+                string file = Path.Combine(root, "not-a-directory");
+                File.WriteAllText(file, "x");
+                config.OutputDir = file;
+                Check("pending marker reports an unusable output directory",
+                    !Installer.MarkPending(config));
             }
             finally
             {
@@ -1268,6 +1276,29 @@ namespace PiWebTray
                         "pi-web-tray-no-such-user-" + Guid.NewGuid().ToString("N")));
                 Check("task without UserId is the legacy any-user task",
                     Autostart.TaskUserIdMatchesCurrentUser(""));
+                Check("task-not-found output is recognized",
+                    Autostart.IsTaskNotFoundOutput("ERROR: " + new Win32Exception(2).Message));
+                Check("access-denied output is not treated as absent",
+                    !Autostart.IsTaskNotFoundOutput("ERROR: " + new Win32Exception(5).Message));
+                MethodInfo queryTask = typeof(Autostart).GetMethod("QueryTaskOrUnknown",
+                    BindingFlags.Static | BindingFlags.NonPublic);
+                Check("task query helper is available", queryTask != null);
+                if (queryTask != null)
+                {
+                    object missingTask = null;
+                    try
+                    {
+                        missingTask = queryTask.Invoke(null, new object[]
+                        {
+                            "PiWebTray-NoSuch-" + Guid.NewGuid().ToString("N")
+                        });
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    Check("a genuinely missing task is reported absent",
+                        missingTask is bool && (bool)missingTask == false);
+                }
 
                 string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
                 if (!string.IsNullOrEmpty(programFiles))
@@ -1619,6 +1650,12 @@ namespace PiWebTray
 
         private static void AutoRestartStopIntentTests()
         {
+            Check("a failed stop keeps the intent through PortConflict",
+                !TrayApp.ShouldClearUserStopMarker(Phase.PortConflict));
+            Check("a failed stop keeps the intent through Failed",
+                !TrayApp.ShouldClearUserStopMarker(Phase.Failed));
+            Check("a stopped service clears an old stop marker",
+                TrayApp.ShouldClearUserStopMarker(Phase.Stopped));
             TrayApp app = (TrayApp)System.Runtime.Serialization.FormatterServices
                 .GetUninitializedObject(typeof(TrayApp));
             BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -2247,8 +2284,32 @@ namespace PiWebTray
             Check("exact tag pi step is recognised",
                 Installer.IsPiCliStep(exactSteps[1], exactConfig));
 
+            ProbeResult exactOld = new ProbeResult();
+            exactOld.PiWebFound = true;
+            exactOld.PiWebScript = "C:\\pi-web\\pi-web.js";
+            exactOld.PiWebVersion = "1.2.2";
+            exactOld.PiCliFound = true;
+            List<InstallStep> repairExact = Installer.StepsToInstall(exactOld, exactConfig, false);
+            Check("a different exact version triggers a reinstall",
+                repairExact.Count > 0
+                && repairExact[0].Packages.Contains("@agegr/pi-web@1.2.3"));
+            Check("an exact-version reinstall also refreshes Pi",
+                repairExact.Count > 1
+                && repairExact[1].Packages.Contains("@earendil-works/pi-coding-agent@latest"));
+
+            exactOld.PiWebVersion = "1.2.3";
+            Check("a matching exact version needs no install",
+                Installer.StepsToInstall(exactOld, exactConfig, false).Count == 0);
+
             Config nextConfig = new Config();
             nextConfig.InstallTag = "next";
+            ProbeResult nextOld = new ProbeResult();
+            nextOld.PiWebFound = true;
+            nextOld.PiWebScript = "C:\\pi-web\\pi-web.js";
+            nextOld.PiWebVersion = "0.9.0";
+            nextOld.PiCliFound = true;
+            Check("a dist tag still uses presence-based installation",
+                Installer.StepsToInstall(nextOld, nextConfig, false).Count == 0);
             CheckEqual("dist tag is shared with the pi", "next",
                 Installer.PiCliTag(nextConfig));
 
@@ -2639,6 +2700,15 @@ namespace PiWebTray
 
         private static void PortChangeTests()
         {
+            Check("settings probes an owned listener while stopped",
+                TrayApp.NeedsListenerOwnerProbeForPortChange(Phase.Stopped));
+            Check("settings probes a missing-dependency listener",
+                TrayApp.NeedsListenerOwnerProbeForPortChange(Phase.NeedsDeps));
+            Check("settings does not probe a port-conflict phase",
+                !TrayApp.NeedsListenerOwnerProbeForPortChange(Phase.PortConflict));
+            Check("settings does not probe a running service",
+                !TrayApp.NeedsListenerOwnerProbeForPortChange(Phase.Running));
+
             Check("port change allows a foreign listener while stopped",
                 TrayApp.CanApplyPortChange(Phase.Stopped, true, false));
             Check("port change allows a foreign listener in a port conflict",
@@ -2840,6 +2910,40 @@ namespace PiWebTray
             }
             finally
             {
+                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        private static void UpdateManifestHardlinkTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-manifest-link-" + Guid.NewGuid().ToString("N"));
+            string target = Path.Combine(root, "target.txt");
+            string link = Path.Combine(root, "pi-web-tray.files.txt");
+            try
+            {
+                Directory.CreateDirectory(root);
+                File.WriteAllText(target, "original", new UTF8Encoding(false));
+                if (!CreateHardLinkW(link, target, IntPtr.Zero))
+                {
+                    Console.WriteLine("[skip] hard links are unavailable on this temp volume");
+                    return;
+                }
+
+                List<string> files = new List<string>();
+                files.Add("pi-web-tray.exe");
+                string error;
+                Check("manifest write accepts a hard-linked destination",
+                    Updater.WriteManifest(link, files, out error));
+                Check("manifest hard-link write leaves its target unchanged",
+                    File.ReadAllText(target) == "original");
+                Check("manifest write replaces the link entry",
+                    File.ReadAllText(link).Contains("pi-web-tray.exe"));
+            }
+            finally
+            {
+                try { File.Delete(link); } catch (Exception) { }
+                try { File.Delete(target); } catch (Exception) { }
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
             }
         }
@@ -3374,12 +3478,18 @@ namespace PiWebTray
                     File.ReadAllText(TrayState.SessionStatePath()).Contains("Port=30141"));
                 TrayState.ClearServiceStopRequest();
                 Check("no service stop marker by default", !TrayState.ServiceStopRequested());
-                TrayState.RequestServiceStop();
+                Check("service stop marker can be written", TrayState.RequestServiceStop());
                 Check("service stop marker is persisted", TrayState.ServiceStopRequested());
                 CheckEqual("service stop marker content", "1",
                     File.ReadAllText(TrayState.ServiceStopRequestPath()).Trim());
-                TrayState.ClearServiceStopRequest();
-                Check("service stop marker can be cleared", !TrayState.ServiceStopRequested());
+                using (FileStream locked = new FileStream(TrayState.ServiceStopRequestPath(),
+                    FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+                {
+                    Check("a locked stop marker reports that it was not cleared",
+                        !TrayState.ClearServiceStopRequest());
+                }
+                Check("service stop marker can be cleared", TrayState.ClearServiceStopRequest());
+                Check("cleared service stop marker is gone", !TrayState.ServiceStopRequested());
                 string content = File.ReadAllText(TrayState.StatePath());
                 Check("state has pid", content.Contains("Pid=0"));
                 Check("state has port", content.Contains("Port=30141"));

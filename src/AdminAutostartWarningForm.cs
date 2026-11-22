@@ -6,6 +6,7 @@
 
 using System;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -194,15 +195,42 @@ namespace PiWebTray
             {
                 string message;
                 bool repaired;
+                OperationLock repairLock = null;
+                // Mark the repair busy before acquiring the lock so ExitApp cannot
+                // slip through the short window between TryAcquire and the actual
+                // icacls/UAC operation.
+                Autostart.BeginRepair();
                 try
                 {
-                    repaired = Autostart.SecureInstallDirectory(
-                        _repairExecutablePath, out message);
+                    string directory = Path.GetDirectoryName(_repairExecutablePath);
+                    if (!string.IsNullOrEmpty(directory))
+                    {
+                        repairLock = OperationLock.TryAcquire(
+                            OperationLock.UpdateName(directory));
+                    }
+                    if (repairLock == null)
+                    {
+                        repaired = false;
+                        message = L.T("update.error.busy");
+                    }
+                    else
+                    {
+                        repaired = Autostart.SecureInstallDirectory(
+                            _repairExecutablePath, out message);
+                    }
                 }
                 catch (Exception ex)
                 {
                     repaired = false;
                     message = L.T("auto.repairFailed", ex.Message);
+                }
+                finally
+                {
+                    Autostart.EndRepair();
+                    if (repairLock != null)
+                    {
+                        try { repairLock.Dispose(); } catch (Exception) { }
+                    }
                 }
 
                 try

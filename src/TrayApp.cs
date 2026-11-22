@@ -94,6 +94,10 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _exitItem;
 
         private Process _server;
+        // The working directory the tracked service was actually started with.
+        // Settings may update _config.WorkingDir before a restart; the running
+        // service must still be stopped with its original directory.
+        private string _serviceWorkingDir;
         private InstallForm _installForm;
 
         private Phase _phase = Phase.Checking;
@@ -527,6 +531,18 @@ namespace PiWebTray
                     L.T("notify.nodePathInvalidTitle"),
                     L.T("notify.nodePathInvalidBody", _config.NodePath));
             }
+            if (_config.IniReadFailed || _config.IniWriteFailed)
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "configuration file could not be read or written: " + _config.IniPath);
+                }
+                catch (Exception) { }
+                NotifyWarningOnce("config-ini",
+                    L.T("notify.configIniTitle"),
+                    L.T("notify.configIniBody", _config.IniPath));
+            }
 
             _timer.Interval = 500;
             _timer.Tick += OnTick;
@@ -544,7 +560,18 @@ namespace PiWebTray
             // The update helper uses this file as its first sign that the new process
             // reached a usable state. It is not a full health check, so a backup is
             // cleaned up only after the service has reached Running (see OnTick).
-            TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port);
+            if (!TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port))
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "runtime state could not be written: " + TrayState.Folder);
+                }
+                catch (Exception) { }
+                NotifyWarningOnce("state-save",
+                    L.T("notify.stateSaveTitle"),
+                    L.T("notify.stateSaveBody", TrayState.Folder));
+            }
             _updateBackupCleanupAt = DateTime.Now.AddSeconds(90);
         }
 
@@ -715,7 +742,7 @@ namespace PiWebTray
             // escalated Stopped phase can outlive the worker; retry once the worker
             // has released StopName, never while it is still running.
             if (!_stopWorkerRunning && !_installAfterStop && _pendingStart
-                && !_exiting && _modalDepth == 0
+                && !AutostartOperationBusy() && !_exiting && _modalDepth == 0
                 && _phase != Phase.Stopping && _phase != Phase.Installing
                 && _phase != Phase.Checking && _phase != Phase.Starting)
             {
@@ -730,6 +757,7 @@ namespace PiWebTray
             // same retry rule must consume it; otherwise Restart can appear to do
             // nothing when the phase is Running/Unverified rather than Stopping.
             if (!_stopWorkerRunning && !_installAfterStop && _pendingRestart
+                && !AutostartOperationBusy()
                 && !_stopAfterOwnerCheck && !_ownerCheckRunning
                 && !_exiting && _modalDepth == 0 && _updateStage != UpdateStage.Applying
                 && _phase != Phase.Stopping && _phase != Phase.Installing

@@ -69,11 +69,19 @@ namespace PiWebTray
 
         private static void SetRunningPid(int pid, DateTime start, Process process)
         {
+            Process previous;
             lock (PidLock)
             {
+                previous = _runningProcess;
                 _runningPid = pid;
                 _runningStart = start;
                 _runningProcess = process;
+            }
+            if (previous != null && !ReferenceEquals(previous, process))
+            {
+                // Do not dispose a still-running handle: Installer.Abort may have
+                // captured it for a concurrent kill. Reclaim only exited handles.
+                try { if (previous.HasExited) previous.Dispose(); } catch (Exception) { }
             }
         }
 
@@ -208,7 +216,12 @@ namespace PiWebTray
             string webTag = SafeTag(config.InstallTag);
             string cliTag = PiCliTag(config);
 
-            if (force || !probe.PiWebFound)
+            // A configured exact version must also be enforced when a different
+            // version is already present. Dist-tags and ranges cannot be compared
+            // locally and continue to use the presence check.
+            bool installWeb = force || !probe.PiWebFound
+                || NeedsPiWebVersionInstall(probe, config);
+            if (installWeb)
             {
                 InstallStep web = new InstallStep();
                 web.Packages.Add(Config.InstallerPackage + "@" + webTag);
@@ -219,7 +232,7 @@ namespace PiWebTray
             // When pi-web is being installed, also update pi even if an older
             // version is already present. First-run auto-install must not leave pi stale.
             // Exact Pi Web versions/ranges are not applied to the independent Pi package.
-            if (config.InstallPi && (force || !probe.PiWebFound || !probe.PiCliFound))
+            if (config.InstallPi && (installWeb || !probe.PiCliFound))
             {
                 InstallStep cli = new InstallStep();
                 cli.Packages.Add(Config.PiCliPackage + "@" + cliTag);
@@ -376,16 +389,17 @@ namespace PiWebTray
             catch (Exception) { return false; }
         }
 
-        private static void MarkPending(Config config)
+        internal static bool MarkPending(Config config)
         {
             try
             {
                 Directory.CreateDirectory(config.OutputDir);
                 string marker = PendingMarker(config);
-                if (PathSafety.ContainsReparsePoint(marker)) return;
-                // The marker is one-shot; an existing file already records the
-                // interrupted install. CreateNew also avoids following a link and
-                // truncating an existing target before the handle check.
+                if (PathSafety.ContainsReparsePoint(marker)) return false;
+                // The marker is one-shot; an existing regular file already records
+                // the interrupted install. CreateNew also avoids following a link
+                // and truncating an existing target before the handle check.
+                if (File.Exists(marker)) return true;
                 FileStream stream = null;
                 try
                 {
@@ -396,7 +410,7 @@ namespace PiWebTray
                         stream.Dispose();
                         stream = null;
                         try { File.Delete(marker); } catch (Exception) { }
-                        return;
+                        return false;
                     }
                     byte[] data = new UTF8Encoding(false).GetBytes(DateTime.UtcNow.ToString("o"));
                     stream.Write(data, 0, data.Length);
@@ -408,9 +422,11 @@ namespace PiWebTray
                         try { stream.Dispose(); } catch (Exception) { }
                     }
                 }
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 
@@ -497,7 +513,15 @@ namespace PiWebTray
                 }
 
                 ApplyRegistryEnvironment(config, env);
-                MarkPending(config);
+                if (!MarkPending(config))
+                {
+                    result.Success = false;
+                    result.Message = L.T("install.pendingMarkerBody", config.OutputDir);
+                    result.Elapsed = DateTime.Now - started;
+                    AppendLog(config, "install.pending could not be written: " + config.OutputDir);
+                    Update(0, steps.Count, L.T("install.failedTitle"), "", DateTime.Now - started, false);
+                    return result;
+                }
                 ProcessResult last = null;
                 bool ok = true;
                 bool piCliFailed = false;
@@ -690,6 +714,16 @@ namespace PiWebTray
                 digit = true;
             }
             return digit && parts == 2;
+        }
+
+        // Exact InstallTag values are a pin, not just a command-line hint. A
+        // matching version is required before the tray treats Pi Web as ready.
+        internal static bool NeedsPiWebVersionInstall(ProbeResult probe, Config config)
+        {
+            if (probe == null || config == null || !probe.PiWebFound) return false;
+            string tag = SafeTag(config.InstallTag);
+            return IsExactVersionTag(tag)
+                && !VersionMatchesTag(probe.PiWebVersion, tag);
         }
 
         internal static bool VersionMatchesTag(string installed, string tag)

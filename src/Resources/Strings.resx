@@ -304,6 +304,9 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="install.crashBody" xml:space="preserve">
     <value>The installation failed unexpectedly: {0}</value>
   </data>
+  <data name="install.pendingMarkerBody" xml:space="preserve">
+    <value>Cannot record the pending install state in {0}. Check the data directory permissions and try again.</value>
+  </data>
   <data name="install.cannot" xml:space="preserve">
     <value>Cannot install: {0}</value>
   </data>
@@ -402,6 +405,9 @@ Exit anyway?</value>
   <data name="notify.autostartTitle" xml:space="preserve">
     <value>Start at login</value>
   </data>
+  <data name="notify.autostartBusyBody" xml:space="preserve">
+    <value>A start-at-login update or permission repair is still running. Try again when it finishes.</value>
+  </data>
   <data name="notify.autostartFailed" xml:space="preserve">
     <value>Start at login: update failed</value>
   </data>
@@ -425,6 +431,24 @@ Exit anyway?</value>
   </data>
   <data name="notify.nodePathInvalidBody" xml:space="preserve">
     <value>The configured Node.js path does not exist: {0}. Automatic detection will be used.</value>
+  </data>
+  <data name="notify.stateSaveTitle" xml:space="preserve">
+    <value>Runtime state unavailable</value>
+  </data>
+  <data name="notify.stateSaveBody" xml:space="preserve">
+    <value>The tray could not write its runtime state in {0}. Command-line stop/quit may not find the correct port; check the data directory permissions.</value>
+  </data>
+  <data name="notify.stopMarkerTitle" xml:space="preserve">
+    <value>Stop request was not saved</value>
+  </data>
+  <data name="notify.stopMarkerBody" xml:space="preserve">
+    <value>The tray could not record that you stopped the service in {0}. An update or restart may start it again; check the data directory permissions.</value>
+  </data>
+  <data name="notify.configIniTitle" xml:space="preserve">
+    <value>Configuration file problem</value>
+  </data>
+  <data name="notify.configIniBody" xml:space="preserve">
+    <value>The configuration file could not be read or written safely: {0}. Default settings are in use; check the path and permissions.</value>
   </data>
   <data name="notify.shortcutExistsTitle" xml:space="preserve">
     <value>Shortcut already exists</value>
@@ -482,6 +506,12 @@ Exit anyway?</value>
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
     <value>Use the menu to install or update the service.</value>
+  </data>
+  <data name="notify.needsPiwebVersionTitle" xml:space="preserve">
+    <value>Pi Web version mismatch</value>
+  </data>
+  <data name="notify.needsPiwebVersionBody" xml:space="preserve">
+    <value>Pi Web {0} is installed, but the configured exact version is {1}. Use the menu to install or update the service.</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>Cannot install: Node.js is missing.</value>
@@ -1454,6 +1484,9 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
   </data>
   <data name="auto.repairParentUnsafe" xml:space="preserve">
     <value>The installation path contains a folder that standard users can rename or replace. Move Pi Web Tray to a protected folder such as Program Files, or use standard-user start at login.</value>
+  </data>
+  <data name="auto.repairPortableUnsafe" xml:space="preserve">
+    <value>Pi Web Tray is using portable mode beside the executable. Repairing its ACL would make pi-web-tray.ini and server.log read-only for standard users. Disable portable mode or move the program to a protected location such as Program Files.</value>
   </data>
   <data name="auto.repairHardLinkUnsafe" xml:space="preserve">
     <value>The installation folder contains a hard-linked file that cannot be repaired safely. Move Pi Web Tray to a protected folder such as Program Files, or use standard-user start at login.</value>

@@ -1014,6 +1014,9 @@ namespace PiWebTray
             out string error)
         {
             error = "";
+            string temp = null;
+            string backup = null;
+            bool keepBackup = false;
             try
             {
                 List<string> files = new List<string>(relativeFiles);
@@ -1027,14 +1030,129 @@ namespace PiWebTray
                     if (string.Equals(normalized, ManifestName, StringComparison.OrdinalIgnoreCase)) continue;
                     sb.Append(normalized).Append('\n');
                 }
-                File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+
+                // Do not truncate a manifest that was replaced by a reparse point
+                // or another file between the target checks and this write. Write a
+                // verified sibling and rename it into place instead.
+                if (PathSafety.ContainsReparsePoint(path))
+                {
+                    error = "manifest path crosses a reparse point";
+                    return false;
+                }
+                temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                backup = path + "." + Guid.NewGuid().ToString("N") + ".bak";
+                if (PathSafety.ContainsReparsePoint(temp)
+                    || PathSafety.ContainsReparsePoint(backup))
+                {
+                    error = "manifest temporary path crosses a reparse point";
+                    return false;
+                }
+
+                FileStream stream = null;
+                try
+                {
+                    stream = new FileStream(temp, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None);
+                    if (!LogHost.HandleMatchesExpectedPath(stream, temp))
+                    {
+                        stream.Dispose();
+                        stream = null;
+                        try { File.Delete(temp); } catch (Exception) { }
+                        error = "manifest temporary path changed";
+                        return false;
+                    }
+                    using (StreamWriter writer = new StreamWriter(
+                        stream, new UTF8Encoding(false)))
+                    {
+                        writer.Write(sb.ToString());
+                    }
+                }
+                finally
+                {
+                    if (stream != null)
+                    {
+                        try { stream.Dispose(); } catch (Exception) { }
+                    }
+                }
+
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        File.Replace(temp, path, backup, true);
+                    }
+                    catch (Exception)
+                    {
+                        // ReplaceFile is unavailable on some file systems, or it
+                        // failed after moving the old file aside. Move the old
+                        // manifest only if it is still at the destination, then
+                        // restore it if the replacement cannot be installed. Moving
+                        // a hard link moves only that directory entry, not the
+                        // linked target.
+                        bool movedOld = false;
+                        if (File.Exists(path))
+                        {
+                            File.Move(path, backup);
+                            movedOld = true;
+                        }
+                        else if (File.Exists(backup))
+                        {
+                            movedOld = true;
+                        }
+                        if (!movedOld) throw;
+                        try
+                        {
+                            File.Move(temp, path);
+                        }
+                        catch (Exception)
+                        {
+                            try
+                            {
+                                if (!File.Exists(path) && File.Exists(backup))
+                                    File.Move(backup, path);
+                            }
+                            catch (Exception)
+                            {
+                                // Keep the old manifest if it could not be
+                                // restored; the next cleanup must not delete the
+                                // only recoverable copy.
+                                if (!File.Exists(path) && File.Exists(backup))
+                                    keepBackup = true;
+                            }
+                            throw;
+                        }
+                    }
+                }
+                else
+                {
+                    File.Move(temp, path);
+                }
 
                 // A manifest created by the elevated helper must not make the
                 // protected installation look user-writable to the next start.
                 if (Elevation.IsElevated()
                     && !Autostart.ProtectFileOwner(path, out error))
                 {
-                    try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+                    // Restore the previous manifest instead of deleting the only
+                    // copy when ownership repair fails.
+                    bool restored = false;
+                    if (File.Exists(backup))
+                    {
+                        try
+                        {
+                            if (File.Exists(path)) File.Delete(path);
+                            File.Move(backup, path);
+                            restored = true;
+                        }
+                        catch (Exception)
+                        {
+                        }
+                    }
+                    if (!restored)
+                    {
+                        try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
+                        keepBackup = File.Exists(backup);
+                    }
                     return false;
                 }
                 return true;
@@ -1042,8 +1160,12 @@ namespace PiWebTray
             catch (Exception ex)
             {
                 error = ex.Message;
-                try { if (File.Exists(path)) File.Delete(path); } catch (Exception) { }
                 return false;
+            }
+            finally
+            {
+                try { if (temp != null && File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                try { if (!keepBackup && backup != null && File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
             }
         }
 

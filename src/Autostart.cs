@@ -39,6 +39,26 @@ namespace PiWebTray
         private static readonly SecurityIdentifier TrustedInstallerSid =
             new SecurityIdentifier(TrustedInstallerSidValue);
 
+        // The ACL repair form runs outside TrayApp's normal autostart worker. This
+        // flag lets the tray keep Exit/Stop/Restart disabled while icacls/UAC runs,
+        // even when the modal form itself is not the active window.
+        private static volatile bool _repairRunning;
+
+        internal static bool RepairRunning
+        {
+            get { return _repairRunning; }
+        }
+
+        internal static void BeginRepair()
+        {
+            _repairRunning = true;
+        }
+
+        internal static void EndRepair()
+        {
+            _repairRunning = false;
+        }
+
         // Named instances must not read, overwrite or delete the default installation's
         // start-at-login entries. Keep each instance's Run value and task names scoped by
         // the same suffix as its mutex and data directory.
@@ -391,7 +411,25 @@ namespace PiWebTray
                     "/query /tn " + Shell.Quote(name) + " /xml",
                     Sys.SystemDirectory, 5000, null, null, null,
                     256 * 1024, encoding);
-                if (!run.Started || run.TimedOut || run.ExitCode != 0) return false;
+                if (!run.Started || run.TimedOut || run.ExitCode != 0)
+                {
+                    // A failed /xml query does not prove that the task is absent.
+                    // A plain /query can still distinguish "task exists but XML
+                    // is unavailable" from a genuine "task not found".
+                    bool? taskExists = QueryTaskOrUnknown(name);
+                    if (taskExists == true)
+                    {
+                        enabled = true;
+                        matchesExecutable = false;
+                        commandPath = "";
+                        userMatches = false;
+                        explicitUser = false;
+                        xmlParsed = false;
+                        adminSettingsSafe = false;
+                        return true;
+                    }
+                    return false;
+                }
 
                 string xml = run.Output.TrimStart('\uFEFF');
                 int xmlStart = xml.IndexOf('<');
@@ -701,43 +739,51 @@ namespace PiWebTray
 
         // null means "could not determine"; false means schtasks completed and
         // reported that the task does not exist. Mutation paths must fail closed
-        // on null instead of creating a second autostart mechanism.
+        // on null instead of creating a second autostart mechanism. schtasks uses
+        // a non-zero exit code for not-found tasks, access denied and Task
+        // Scheduler failures alike, so only the localized "file not found" OS
+        // message proves absence; every other non-zero result is unknown.
         private static bool? QueryTaskOrUnknown(string name)
         {
             try
             {
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = Sys.SystemExecutable("schtasks.exe");
-                psi.Arguments = "/query /tn " + Shell.Quote(name);
-                psi.WorkingDirectory = Sys.SystemDirectory;
-                psi.UseShellExecute = false;
-                psi.CreateNoWindow = true;
-                psi.RedirectStandardOutput = true;
-                psi.RedirectStandardError = true;
-                using (Process p = Process.Start(psi))
-                {
-                    if (p == null) return null;
-                    p.BeginOutputReadLine();
-                    p.BeginErrorReadLine();
-                    if (!p.WaitForExit(5000))
-                    {
-                        // A stuck Task Scheduler could otherwise leave one child
-                        // behind after every menu refresh or autostart poll. Do not
-                        // kill a PID that has just exited and could have been reused.
-                        try
-                        {
-                            if (!p.HasExited) Sys.KillTree(p.Id, Sys.ProcessStartTime(p), p);
-                        }
-                        catch (Exception) { }
-                        return null;
-                    }
-                    return p.HasExited && p.ExitCode == 0;
-                }
+                ProcessResult run = ProcessRunner.Run(
+                    Sys.SystemExecutable("schtasks.exe"),
+                    "/query /tn " + Shell.Quote(name),
+                    Sys.SystemDirectory, 5000, null, null, null,
+                    256 * 1024, ProcessRunner.OemEncoding());
+                if (!run.Started || run.TimedOut) return null;
+                if (run.ExitCode == 0) return true;
+                return IsTaskNotFoundOutput(run.Output) ? (bool?)false : null;
             }
             catch (Exception)
             {
                 return null;
             }
+        }
+
+        // schtasks writes its errors through the console code page and localizes
+        // them. Compare against the OS error text for FILE_NOT_FOUND / PATH_NOT_FOUND
+        // instead of hard-coding English or treating every non-zero exit as absent.
+        internal static bool IsTaskNotFoundOutput(string output)
+        {
+            if (string.IsNullOrEmpty(output)) return false;
+            foreach (int code in new int[] { 2, 3 })
+            {
+                try
+                {
+                    string message = new Win32Exception(code).Message;
+                    if (!string.IsNullOrEmpty(message)
+                        && output.IndexOf(message, StringComparison.CurrentCultureIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                }
+            }
+            return false;
         }
 
         private static bool QueryTask(string name)
@@ -1110,6 +1156,21 @@ namespace PiWebTray
             }
         }
 
+        // Portable mode keeps the ini and logs beside the executable. Repairing the
+        // installation ACL would leave Users with RX only, making those runtime files
+        // read-only for the same standard user who has to run the tray. Refuse the
+        // repair instead of silently breaking configuration and logging; the user can
+        // disable portable mode or move the program to Program Files.
+        private static bool UsesPortableBaseDirectory(string directory)
+        {
+            string home = (Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME") ?? "").Trim();
+            if (home.Length > 0) return false;
+            if (Instance.Suffix.Length != 0) return false;
+            if (!Config.IsEnabled(Environment.GetEnvironmentVariable("PI_WEB_TRAY_PORTABLE")))
+                return false;
+            return !Config.IsSystemDirectory(directory);
+        }
+
         // Repair the installation directory so the existing administrator logon task
         // cannot be hijacked by a standard user. This needs one UAC prompt unless the
         // tray is already elevated. icacls exists on Windows 7 through 11.
@@ -1137,6 +1198,12 @@ namespace PiWebTray
             {
                 message = L.T("auto.repairAlreadySafe");
                 return true;
+            }
+
+            if (UsesPortableBaseDirectory(directory))
+            {
+                message = L.T("auto.repairPortableUnsafe");
+                return false;
             }
 
             // icacls interprets wildcards in a path. A wildcard in an installation
@@ -1594,6 +1661,16 @@ namespace PiWebTray
                         // check above, but their owner/DACL must not turn the install
                         // into a false "user-writable" result.
                         if (!isDirectory && !IsElevatedLoadedFile(entry)) continue;
+
+                        if (!isDirectory)
+                        {
+                            using (FileStream stream = new FileStream(entry, FileMode.Open,
+                                FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                            {
+                                if (PathSafety.HasMultipleLinks(stream.SafeFileHandle))
+                                    return true;
+                            }
+                        }
 
                         FileSystemSecurity security = isDirectory
                             ? (FileSystemSecurity)new DirectoryInfo(entry).GetAccessControl(

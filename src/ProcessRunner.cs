@@ -111,7 +111,9 @@ namespace PiWebTray
                     if (!process.WaitForExit(timeoutMs))
                     {
                         result.TimedOut = true;
-                        try { Sys.KillTree(process.Id, processStart); } catch (Exception) { }
+                        // Pass the process handle as a fallback so a timeout still
+                        // kills the whole tree when the creation time is unavailable.
+                        try { Sys.KillTree(process.Id, processStart, process); } catch (Exception) { }
                         try { process.WaitForExit(5000); } catch (Exception) { }
                         // A failed taskkill is not proof that the child stopped.
                         // Prefer killing the original process handle over a reused PID.

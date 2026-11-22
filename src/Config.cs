@@ -47,6 +47,11 @@ namespace PiWebTray
         // must not disappear silently.
         internal bool WorkingDirFallback;
         internal bool NodePathInvalid;
+        // Set when an existing ini cannot be read safely or the default file
+        // cannot be created. The tray surfaces this instead of silently using
+        // defaults that may point at the wrong port or directories.
+        internal bool IniReadFailed;
+        internal bool IniWriteFailed;
 
         // ---- runtime paths ----
         internal string BaseDir;
@@ -140,7 +145,13 @@ namespace PiWebTray
                 // Never parse a symlink planted at the known ini name. Reading it could
                 // copy protected file contents into configuration values and logs.
                 string[] iniLines = ReadVerifiedLines(config.IniPath);
-                if (iniLines != null)
+                if (iniLines == null)
+                {
+                    if (File.Exists(config.IniPath) || Directory.Exists(config.IniPath)
+                        || PathSafety.ContainsReparsePoint(config.IniPath))
+                        config.IniReadFailed = true;
+                }
+                else
                 {
                     foreach (string rawLine in iniLines)
                     {
@@ -473,8 +484,16 @@ namespace PiWebTray
                 string temp = IniPath + ".tmp-" + Guid.NewGuid().ToString("N");
                 try
                 {
-                    if (!WriteVerifiedText(temp, sb.ToString())) return;
+                    // Do not test-write a sibling when the configuration already
+                    // exists. The read path decides whether it is safe; a read-only
+                    // directory must not turn a successfully loaded config into a
+                    // misleading "default settings are in use" warning.
                     if (File.Exists(IniPath)) return;
+                    if (!WriteVerifiedText(temp, sb.ToString()))
+                    {
+                        IniWriteFailed = true;
+                        return;
+                    }
                     File.Move(temp, IniPath);
                     ProtectInstallFile(IniPath);
                 }
@@ -485,6 +504,7 @@ namespace PiWebTray
             }
             catch (Exception)
             {
+                IniWriteFailed = true;
             }
         }
 

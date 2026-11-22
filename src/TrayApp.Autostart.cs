@@ -57,7 +57,7 @@ namespace PiWebTray
             bool updateLockHeld = !OperationLock.IsAvailable(
                 OperationLock.UpdateName(_config.BaseDir));
             bool busy = serviceBusy || AutostartBusy() || UpdateBusy()
-                || _autostartSyncing || updateLockHeld;
+                || _autostartSyncing || updateLockHeld || Autostart.RepairRunning;
 
             // A task that exists but is disabled or points at an older installation
             // does not make the current installation start at login.
@@ -316,11 +316,12 @@ namespace PiWebTray
         private bool BeginAutostartOp(bool enable, bool admin)
         {
             if (_exiting || UpdateBusy() || _phase == Phase.Checking
-                || IsServiceActionInProgress() || _installUpdateLock != null)
+                || IsServiceActionInProgress() || _installUpdateLock != null
+                || Autostart.RepairRunning)
                 return false;
             lock (_autoLock)
             {
-                if (_autoBusy) return false;
+                if (_autoBusy || _autostartUpdateLock != null || _autoDone) return false;
             }
 
             // Hold the same cross-process lock as npm and the update helper for the
@@ -599,7 +600,8 @@ namespace PiWebTray
                 // usable. A disabled task plus a working Run value is still the
                 // user's only working startup path.
                 if ((TaskEnabled(false) || LegacyTaskEnabled(false))
-                    && IsRunKeyEnabled() && !AutostartBusy())
+                    && IsRunKeyEnabled() && !AutostartBusy()
+                    && !Autostart.RepairRunning)
                 {
                     Autostart.ClearRunValue();
                 }
@@ -629,6 +631,25 @@ namespace PiWebTray
         private bool AutostartBusy()
         {
             lock (_autoLock) return _autoBusy;
+        }
+
+        private bool AutostartOperationBusy()
+        {
+            return AutostartBusy() || Autostart.RepairRunning;
+        }
+
+        private void ReleaseAutostartUpdateLock()
+        {
+            OperationLock updateLock;
+            lock (_autoLock)
+            {
+                updateLock = _autostartUpdateLock;
+                _autostartUpdateLock = null;
+            }
+            if (updateLock != null)
+            {
+                try { updateLock.Dispose(); } catch (Exception) { }
+            }
         }
     }
 }

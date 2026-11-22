@@ -35,6 +35,25 @@ namespace PiWebTray
                 return false;
             }
 
+            // A CLI install or external update helper owns UpdateName while it
+            // rewrites the package tree. Do not let Exit abandon that operation; the
+            // update helper's own exit is exempt because it must release its gate.
+            if (ForeignUpdateBusy() && !_exitForUpdateApply)
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"),
+                    L.T("notify.updateBusyBody"));
+                return false;
+            }
+
+            // Do not abandon an autostart task operation or ACL repair process. The
+            // update helper's own exit is exempt because it must release its gate.
+            if (AutostartOperationBusy() && !_exitForUpdateApply)
+            {
+                NotifyWarning(L.T("notify.autostartTitle"),
+                    L.T("notify.autostartBusyBody"));
+                return false;
+            }
+
             // The updater calls ExitApp only after its helper has been started. Any other
             // update stage can still be abandoned, but the user should confirm it.
             if (UpdateBusy() && _updateStage != UpdateStage.Applying)
@@ -170,7 +189,7 @@ namespace PiWebTray
             // Let a running `pi-web stop` worker release the package directory before
             // the process exits. ProcessRunner allows the stop child up to 20 seconds
             // plus its kill/flush grace, so the wait must cover the whole worker.
-            WaitForStopWorker(30000);
+            WaitForStopWorker(45000);
 
             // Normal exit means "stop the service". If the wrapper is still alive
             // while the port is already closed (a hung start or a detached child),
@@ -203,6 +222,18 @@ namespace PiWebTray
                 NotifyWarning(L.T("update.busyTitle"), L.T("update.exitDuringApplyBody"));
                 return;
             }
+            if (ForeignUpdateBusy())
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"),
+                    L.T("notify.updateBusyBody"));
+                return;
+            }
+            if (AutostartOperationBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"),
+                    L.T("notify.autostartBusyBody"));
+                return;
+            }
             BeginExitUi();
 
             // Keep an external/older service alive, but never leave a service that
@@ -222,7 +253,7 @@ namespace PiWebTray
             lock (_updateLock) cancellation = _updateCancellation;
             if (cancellation != null) cancellation.Cancel();
 
-            WaitForStopWorker(30000);
+            WaitForStopWorker(45000);
             TrayState.Delete();
             Cleanup();
             ExitThread();
@@ -287,6 +318,9 @@ namespace PiWebTray
             // winding down; otherwise another CLI/update helper can start replacing
             // files while the aborted worker is still probing or running npm.
             if (!_installWorkerRunning) ReleaseInstallUpdateLock();
+            // The autostart worker stores its shared update lock until the UI poll
+            // consumes it. Exiting before that poll must release it explicitly.
+            ReleaseAutostartUpdateLock();
             // A still-running stop worker owns StopName. Closing it here would let a
             // waiting CLI install start npm before the `pi-web stop` child has
             // released the package directory. The worker releases the lock itself.

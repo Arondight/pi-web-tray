@@ -129,19 +129,25 @@ namespace PiWebTray
             bool applying = _updateStage == UpdateStage.Applying;
             bool serviceBusy = IsServiceActionInProgress()
                 || _phase == Phase.Checking;
-            bool busy = serviceBusy || updateBusy || AutostartBusy() || _autostartSyncing;
+            bool autostartBusy = AutostartBusy() || _autostartSyncing
+                || Autostart.RepairRunning;
+            bool busy = serviceBusy || updateBusy || autostartBusy;
             bool running = _phase == Phase.Running || _phase == Phase.RunningUnverified;
             bool portConflict = _phase == Phase.PortConflict;
-            bool ready = _probe != null && _probe.Ready;
+            bool versionMismatch = _probe != null
+                && Installer.NeedsPiWebVersionInstall(_probe, _config);
+            bool ready = _probe != null && _probe.Ready && !versionMismatch;
             // Pi and npm are install-time requirements; a runnable Pi Web can be
             // started without them. Pi installation itself can be disabled in
             // Settings. Keep the menu consistent with CanStartServiceFromProbe and
             // with the thenStart path in ApplyCheckResult.
-            bool canRun = CanStartServiceFromProbe(_probe, File.Exists);
+            bool canRun = !versionMismatch
+                && CanStartServiceFromProbe(_probe, File.Exists);
             // A stopped tray can still have a probe that reports missing Pi Web or
             // Node.js. The Open action then installs/checks instead of starting, so
             // the label must reflect that instead of saying "Start service".
-            bool needsSetup = _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
+            bool needsSetup = (versionMismatch && !running)
+                || _phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
                 || (!running && _probe != null
                     && (_probe.NeedsNode || _probe.NeedsPiWeb));
             bool trackedAlive = TrackedServerAlive();
@@ -153,10 +159,11 @@ namespace PiWebTray
             // Checking or downloading an update does not affect the running service.
             // Keep normal open/stop/restart actions available; only Applying is exclusive.
             _openItem.Enabled = !serviceBusy && !portConflict && !applying;
-            _startItem.Enabled = !serviceBusy && !running && canRun && !portConflict && !applying;
+            _startItem.Enabled = !serviceBusy && !running && canRun && !portConflict
+                && !applying && !autostartBusy;
             _stopItem.Enabled = (running || _phase == Phase.Starting || trackedStopAvailable)
-                && !applying;
-            _restartItem.Enabled = !serviceBusy && running && !applying;
+                && !applying && !autostartBusy;
+            _restartItem.Enabled = !serviceBusy && running && !applying && !autostartBusy;
             _installItem.Enabled = !busy;
             // When the service is installed the action updates/reinstalls it; when
             // it is missing the same action also has to install it. Keep the two
@@ -197,7 +204,7 @@ namespace PiWebTray
             // cancelled safely. Exiting at that point would leave the update and the
             // service in an unpredictable state, so keep the action unavailable until
             // the updater itself calls ExitApp.
-            _exitItem.Enabled = !applying;
+            _exitItem.Enabled = !applying && !autostartBusy;
 
             if (needsSetup) _openItem.Text = L.T("menu.setupFirst");
             if (portConflict) _openItem.Text = L.T("menu.portConflict");
@@ -221,12 +228,6 @@ namespace PiWebTray
             // Applying replaces the executable and restarts the tray; no service action
             // should begin during that short window. Checking/downloading is not exclusive.
             if (_updateStage == UpdateStage.Applying) return;
-            // This is an explicit user request. It overrides an earlier stop even
-            // when the click only opens an already-running service or shows a
-            // conflict; otherwise a stale marker could make a later update leave the
-            // service down.
-            _serviceStoppedByUser = false;
-            TrayState.ClearServiceStopRequest();
             if (UpdateBusy() && (_phase == Phase.NeedsDeps || _phase == Phase.PortConflict))
             {
                 NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
@@ -250,11 +251,13 @@ namespace PiWebTray
                 ShowSettings();
                 return;
             }
+            // This is an explicit user request. It overrides an earlier stop even
+            // when the click only opens an already-running service. PortConflict is
+            // handled above because it may just display Settings and does not prove
+            // that a failed user stop should be forgotten.
+            ClearServiceStopIntent();
             if (_phase == Phase.Running)
             {
-                // This click is an explicit open request. Do not leave an older
-                // "user stopped" marker behind for the next update decision.
-                _serviceStoppedByUser = false;
                 OpenBrowser();
                 return;
             }
@@ -263,24 +266,25 @@ namespace PiWebTray
                 // The port is open but the owner could not be verified. Opening the
                 // local URL is still useful; do not start a second service or claim
                 // that the listener is ours.
-                _serviceStoppedByUser = false;
                 NotifyWarning(L.T("notify.ownerCheckFailedTitle"),
                     L.T("notify.ownerCheckFailedBody", _port));
                 OpenBrowser();
                 return;
             }
-            if (_phase == Phase.Stopped && _probe != null && _probe.NeedsPiWeb)
+            if (_phase == Phase.Stopped && _probe != null
+                && (_probe.NeedsPiWeb
+                    || Installer.NeedsPiWebVersionInstall(_probe, _config)))
             {
                 // The service may have been running when a self-check found the
-                // package missing. Once it stops, a click on Open should repair the
-                // dependency instead of only showing a warning.
+                // package missing or a different exact version. Once it stops, a
+                // click on Open should repair the dependency instead of only showing
+                // a warning.
                 if (UpdateBusy())
                 {
                     NotifyWarning(L.T("notify.updateBusyTitle"), L.T("notify.updateBusyBody"));
                     return;
                 }
                 // Explicit start/open consent for the install that follows.
-                _serviceStoppedByUser = false;
                 BeginInstall(false, true, true);
                 return;
             }
@@ -295,7 +299,6 @@ namespace PiWebTray
             {
                 // A click while the first probe is running should not be lost. Queue
                 // an explicit start/open request behind the in-flight check instead.
-                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
@@ -304,7 +307,6 @@ namespace PiWebTray
                 // A silent start (autostart or post-update) may not have asked for a
                 // browser. A click during Starting is an explicit request to open it
                 // once the service is ready.
-                _serviceStoppedByUser = false;
                 _openWhenReady = true;
                 return;
             }
@@ -319,7 +321,6 @@ namespace PiWebTray
             {
                 // The background watcher normally continues after Node.js is installed;
                 // clicking the tray is also an explicit retry if that was missed.
-                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
@@ -327,19 +328,16 @@ namespace PiWebTray
             {
                 // Re-probe first: the failure may have been a start timeout, not a broken
                 // installation. ApplyCheckResult decides whether to retry install or start.
-                _serviceStoppedByUser = false;
                 BeginEnvironmentCheck(true, true);
                 return;
             }
             if (_phase == Phase.NeedsDeps)
             {
                 // The user clicked the icon, which counts as consent to install or repair
-                _serviceStoppedByUser = false;
                 if (_probe == null || _probe.NeedsNode) BeginEnvironmentCheck(true, true);
                 else BeginInstall(false, true, true);
                 return;
             }
-            _serviceStoppedByUser = false;
             StartServer(true);
         }
 
@@ -419,6 +417,17 @@ namespace PiWebTray
             }
         }
 
+        // These stable phases can own the old port without a tracked _server
+        // handle (for example a service that was already running when this tray
+        // started). The Settings dialog must probe the listener before allowing a
+        // port change in any of them; PortConflict is intentionally excluded
+        // because changing the port is its resolution path.
+        internal static bool NeedsListenerOwnerProbeForPortChange(Phase phase)
+        {
+            return phase == Phase.Stopped || phase == Phase.NeedsNode
+                || phase == Phase.NeedsDeps || phase == Phase.Failed;
+        }
+
         // A foreign listener on the old port must not prevent the user from choosing
         // a free port. Only a service phase that may still manage the old listener (or
         // a tracked wrapper that actually owns it) blocks the change; PortConflict is
@@ -442,24 +451,38 @@ namespace PiWebTray
             return !trackedServiceOwnsPort || phase == Phase.PortConflict;
         }
 
-        private bool ListenerLooksOurs()
+        private bool ListenerLooksOurs(bool unknownIsOurs = false)
         {
             try
             {
                 if (!Net.IsPortOpen(_port, 200)) return false;
                 ServiceProbe.Invalidate();
                 PortOwnerInfo owner = ServiceProbe.Inspect(_port, ExpectedPiWebScript());
+                if (owner == null || owner.CheckFailed || owner.ProbeIncomplete)
+                    return unknownIsOurs;
                 return IsOurPiWeb(owner) || TrayOwnsPort(owner);
             }
             catch (Exception)
             {
-                return false;
+                return unknownIsOurs;
             }
         }
 
         private void ShowSettings()
         {
             if (_exiting) return;
+            if (ForeignUpdateBusy())
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"),
+                    L.T("notify.updateBusyBody"));
+                return;
+            }
+            if (AutostartOperationBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"),
+                    L.T("notify.autostartBusyBody"));
+                return;
+            }
             if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
             int previousPort = _port;
             bool installPiBefore = _config.InstallPi;
@@ -470,19 +493,54 @@ namespace PiWebTray
             // Also check an external pi-web listener that this tray did not start;
             // otherwise the dialog would accept a port change and reject it only on OK.
             bool oldPortListening = Net.IsPortOpen(_port, 200);
-            bool listenerIsOurs = false;
             // These are the phases where a service can be alive without a tracked
-            // _server handle. Avoid an owner probe for the more common foreign-listener
-            // conflict; opening Settings must stay responsive.
-            if (_phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
-                || _phase == Phase.Failed)
-            {
-                listenerIsOurs = oldPortListening && ListenerLooksOurs();
-            }
+            // _server handle. Assume the listener is ours until the background
+            // owner probe proves otherwise, so the port field starts disabled and
+            // the UI thread never waits for netstat/HTTP.
+            Phase phaseAtSettings = _phase;
+            bool needOwnerProbe = oldPortListening
+                && NeedsListenerOwnerProbeForPortChange(_phase);
             bool allowPortChange = CanApplyPortChange(_phase, oldPortListening,
-                TrackedServerAlive(), listenerIsOurs);
+                TrackedServerAlive(), needOwnerProbe);
             using (SettingsForm form = new SettingsForm(_config, allowPortChange, _elevated))
             {
+                if (needOwnerProbe)
+                {
+                    form.Shown += delegate
+                    {
+                        Thread worker = new Thread(delegate ()
+                        {
+                            bool portOpenAtProbe = false;
+                            bool ownerIsOurs = true;
+                            try
+                            {
+                                portOpenAtProbe = Net.IsPortOpen(_port, 200);
+                                if (portOpenAtProbe) ownerIsOurs = ListenerLooksOurs(true);
+                                else ownerIsOurs = false;
+                            }
+                            catch (Exception) { }
+                            try
+                            {
+                                form.BeginInvoke(new Action(delegate ()
+                                {
+                                    if (form.IsDisposed) return;
+                                    if (!ownerIsOurs && _phase == phaseAtSettings
+                                        && CanApplyPortChange(_phase, oldPortListening,
+                                            TrackedServerAlive(), false))
+                                    {
+                                        form.SetPortChangeAllowed(true);
+                                    }
+                                }));
+                            }
+                            catch (Exception)
+                            {
+                            }
+                        });
+                        worker.IsBackground = true;
+                        try { worker.Start(); }
+                        catch (Exception) { }
+                    };
+                }
                 DialogResult result;
                 BeginModal();
                 try
@@ -506,11 +564,13 @@ namespace PiWebTray
                         // changing the port is exactly how the user resolves a conflict.
                         bool currentOldPortListening = Net.IsPortOpen(previousPort, 200);
                         bool currentListenerIsOurs = false;
-                        if (_phase == Phase.NeedsNode || _phase == Phase.NeedsDeps
-                            || _phase == Phase.Failed || _phase == Phase.Stopped)
+                        if (NeedsListenerOwnerProbeForPortChange(_phase)
+                            && currentOldPortListening)
                         {
-                            currentListenerIsOurs = currentOldPortListening
-                                && ListenerLooksOurs();
+                            // Re-probe on the final commit path. The background probe
+                            // only keeps the dialog responsive; ownership can change
+                            // while the dialog is open.
+                            currentListenerIsOurs = ListenerLooksOurs(true);
                         }
                         bool canApplyPort = CanApplyPortChange(_phase, currentOldPortListening,
                             _server != null && !_server.HasExited, currentListenerIsOurs);
@@ -552,7 +612,13 @@ namespace PiWebTray
                             _lastOwnerCheck = DateTime.MinValue;
                             _lastNotified = "";
                             if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
-                            TrayState.Save(Process.GetCurrentProcess().Id, _elevated, _port);
+                            if (!TrayState.Save(Process.GetCurrentProcess().Id,
+                                _elevated, _port))
+                            {
+                                NotifyWarningOnce("state-save",
+                                    L.T("notify.stateSaveTitle"),
+                                    L.T("notify.stateSaveBody", TrayState.Folder));
+                            }
                             UpdateUi();
                         }
                     }
@@ -675,6 +741,16 @@ namespace PiWebTray
                     if (child == null)
                     {
                         NotifyError(L.T("notify.restartFailed"), Application.ExecutablePath);
+                        return false;
+                    }
+                    // The replacement waits for this tray's mutex, so an immediate
+                    // exit means it failed before taking over (for example the ACL
+                    // check or config load failed). Keep the old tray alive instead
+                    // of exiting into no tray at all.
+                    if (child.WaitForExit(500))
+                    {
+                        NotifyError(L.T("notify.restartFailed"),
+                            Application.ExecutablePath + " (exit " + child.ExitCode + ")");
                         return false;
                     }
                 }

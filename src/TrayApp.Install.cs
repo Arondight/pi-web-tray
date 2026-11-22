@@ -17,7 +17,8 @@ namespace PiWebTray
     {
         private void FlushPendingInstallAfterAutostart()
         {
-            if (!_installAfterAutostart || AutostartBusy() || _exiting) return;
+            if (!_installAfterAutostart || AutostartBusy()
+                || Autostart.RepairRunning || _exiting) return;
             bool force = _installAfterAutostartForce;
             bool start = _installAfterAutostartStart;
             bool open = _installAfterAutostartOpen;
@@ -34,8 +35,30 @@ namespace PiWebTray
         private void BeginInstall(bool force, bool thenStart, bool thenOpen)
         {
             if (_exiting) return;
+            // A new request must not interfere with an install worker that already
+            // owns the update lock. PollInstall will consume its result.
+            if (_phase == Phase.Installing || _installWorkerRunning) return;
             if (ElevatedInstallUnsafe())
             {
+                // This can happen when BeginInstall is re-entered from
+                // ContinueInstallAfterStop: the update lock was acquired before
+                // the service was stopped. Release it before returning, otherwise
+                // every later CLI install/update/update-helper attempt sees a busy
+                // installation until this process exits.
+                ReleaseInstallUpdateLock();
+                _installAfterStop = false;
+                _installAfterStopForce = false;
+                _installRestartService = false;
+                _installStartAfter = false;
+                _installOpenAfter = false;
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "dependency update aborted: elevated installation directory became writable");
+                }
+                catch (Exception)
+                {
+                }
                 NotifyWarningOnce("elevated-writable-install",
                     L.T("notify.elevatedWritableTitle"),
                     L.T("notify.elevatedWritableBody"));
@@ -64,11 +87,16 @@ namespace PiWebTray
                     RestoreServiceAfterInstall();
                 return;
             }
-            if (AutostartBusy())
+            bool autostartPending;
+            lock (_autoLock)
+            {
+                autostartPending = _autostartUpdateLock != null || _autoDone;
+            }
+            if (AutostartBusy() || Autostart.RepairRunning || autostartPending)
             {
                 // Do not leave the tray in Checking when an automatic install is
-                // requested while the autostart worker owns the busy gate. Preserve
-                // the install intent and replay it when that worker finishes.
+                // requested while the autostart worker/ACL repair owns the busy gate.
+                // Preserve the install intent and replay it when that worker finishes.
                 _installAfterAutostart = true;
                 _installAfterAutostartForce = _installAfterAutostartForce || force;
                 _installAfterAutostartStart = _installAfterAutostartStart || thenStart;

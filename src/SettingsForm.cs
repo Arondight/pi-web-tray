@@ -54,6 +54,15 @@ namespace PiWebTray
 
         internal bool RestartRequested { get; private set; }
 
+        // The settings dialog can open while the tray is still verifying whether
+        // the old port belongs to it. Keep the port field disabled until that
+        // background check proves the listener is foreign.
+        internal void SetPortChangeAllowed(bool allow)
+        {
+            if (IsDisposed) return;
+            try { _port.Enabled = allow; } catch (Exception) { }
+        }
+
         internal SettingsForm(Config config, bool allowPortChange)
             : this(config, allowPortChange, false)
         {

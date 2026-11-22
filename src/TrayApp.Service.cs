@@ -306,6 +306,33 @@ namespace PiWebTray
             }
         }
 
+        // Same check as ExternalUpdateBusy but ignores this tray's own dependency
+        // install, whose phase/lock is already handled by the install state machine.
+        // Used by user actions that must not overlap a CLI install or update helper.
+        private bool ForeignUpdateBusy()
+        {
+            if (_installUpdateLock != null) return false;
+            // The autostart worker owns the same cross-process gate; report that
+            // condition through AutostartOperationBusy so the user sees the right
+            // message instead of a generic update-busy warning.
+            lock (_autoLock)
+            {
+                if (_autostartUpdateLock != null) return false;
+            }
+            try
+            {
+                using (OperationLock probe = OperationLock.TryAcquire(
+                    OperationLock.UpdateName(_config.BaseDir)))
+                {
+                    return probe == null;
+                }
+            }
+            catch (Exception)
+            {
+                return true;
+            }
+        }
+
         private bool RefuseStartForExternalUpdate(bool openBrowser)
         {
             if (!ExternalUpdateBusy()) return false;
@@ -883,19 +910,39 @@ namespace PiWebTray
             ScheduleAutoRestart();
         }
 
+        // A user stop that failed leaves the phase Failed/PortConflict; keep the
+        // intent in that case. Once the state machine has observed a stopped or
+        // dependency-missing state and a listener later appears, the old stop
+        // marker is stale and must not make an update leave the running service down.
+        internal static bool ShouldClearUserStopMarker(Phase previousPhase)
+        {
+            return previousPhase == Phase.Stopped || previousPhase == Phase.Checking
+                || previousPhase == Phase.NeedsDeps || previousPhase == Phase.NeedsNode
+                || previousPhase == Phase.RunningUnverified;
+        }
+
         private void ClearUserStopMarkerOnObservedRun(Phase previousPhase)
         {
-            // A user stop that failed leaves the phase Failed/PortConflict; keep the
-            // intent in that case. Once the state machine has observed a stopped or
-            // dependency-missing state and a listener later appears, the old stop
-            // marker is stale and must not make an update leave the running service down.
-            if (previousPhase == Phase.Stopped || previousPhase == Phase.Checking
-                || previousPhase == Phase.NeedsDeps || previousPhase == Phase.NeedsNode
-                || previousPhase == Phase.PortConflict
-                || previousPhase == Phase.RunningUnverified)
+            if (ShouldClearUserStopMarker(previousPhase)) ClearServiceStopIntent();
+        }
+
+        // Keep the in-memory stop intent if the cross-process marker could not be
+        // removed. Otherwise a later AutoRestart/update decision can disagree with
+        // a marker that is still present on disk.
+        private void ClearServiceStopIntent()
+        {
+            if (TrayState.ClearServiceStopRequest())
             {
                 _serviceStoppedByUser = false;
-                TrayState.ClearServiceStopRequest();
+                return;
+            }
+            try
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "could not clear the service stop marker");
+            }
+            catch (Exception)
+            {
             }
         }
 
@@ -978,11 +1025,13 @@ namespace PiWebTray
             _probe = result;
             _nodePresenceKnown = true;
             _nodePresent = result.NodeFound;
+            bool versionMismatch = Installer.NeedsPiWebVersionInstall(result, _config);
 
             // A successful self-check or settings refresh must clear stale
             // NotifyWarningOnce keys, otherwise a later missing dependency with the
             // same key is silently ignored.
-            if (!result.NeedsNode && !result.NeedsPiWeb && !result.NeedsPiCli)
+            if (!result.NeedsNode && !result.NeedsPiWeb && !result.NeedsPiCli
+                && !versionMismatch)
                 _lastNotified = "";
 
             if (KeepRunningWhenListening(false)) return;
@@ -996,11 +1045,21 @@ namespace PiWebTray
                 _nodePresenceNotified = false;
                 // Keep this in sync with ApplyCheckResult: a missing Pi is an
                 // environment problem too, not only a missing Pi Web package.
-                if (result.NeedsPiWeb || result.NeedsPiCli) _phase = Phase.NeedsDeps;
+                if (result.NeedsPiWeb || result.NeedsPiCli || versionMismatch)
+                    _phase = Phase.NeedsDeps;
                 else RequestResolveServicePhase();
             }
 
             UpdateUi();
+            if (versionMismatch && !result.NeedsPiWeb && !result.NeedsPiCli)
+            {
+                NotifyWarningOnce("needs-piweb-version",
+                    L.T("notify.needsPiwebVersionTitle"),
+                    L.T("notify.needsPiwebVersionBody",
+                        string.IsNullOrEmpty(result.PiWebVersion)
+                            ? L.T("probe.unknown") : result.PiWebVersion,
+                        Installer.SafeTag(_config.InstallTag)));
+            }
             if (_phase == Phase.PortConflict) NotifyPortConflict();
         }
 
@@ -1120,7 +1179,7 @@ namespace PiWebTray
         private void StartServer(bool openBrowser)
         {
             if (_exiting) return;
-            if (AutostartBusy())
+            if (AutostartBusy() || Autostart.RepairRunning)
             {
                 _pendingStart = true;
                 _pendingStartOpen = _pendingStartOpen || openBrowser;
@@ -1167,8 +1226,7 @@ namespace PiWebTray
             // lock, and PollStopping retries once the phase is stable.
             if (_phase == Phase.Stopping)
             {
-                _serviceStoppedByUser = false;
-                TrayState.ClearServiceStopRequest();
+                ClearServiceStopIntent();
                 _pendingStart = true;
                 _pendingStartOpen = _pendingStartOpen || openBrowser;
                 // A stop-for-install is already in progress. Let that install restore
@@ -1184,8 +1242,7 @@ namespace PiWebTray
             }
             if (_phase == Phase.Installing)
             {
-                _serviceStoppedByUser = false;
-                TrayState.ClearServiceStopRequest();
+                ClearServiceStopIntent();
                 _pendingStart = true;
                 _pendingStartOpen = _pendingStartOpen || openBrowser;
                 UpdateUi();
@@ -1234,8 +1291,7 @@ namespace PiWebTray
                 // This is an explicit start request, even while the probe is in
                 // flight. It must override a previous deliberate stop; otherwise a
                 // later update could think the user still wants the service down.
-                _serviceStoppedByUser = false;
-                TrayState.ClearServiceStopRequest();
+                ClearServiceStopIntent();
                 bool deferred = false;
                 lock (_checkLock)
                 {
@@ -1253,8 +1309,7 @@ namespace PiWebTray
 
             if (_phase == Phase.Starting)
             {
-                _serviceStoppedByUser = false;
-                TrayState.ClearServiceStopRequest();
+                ClearServiceStopIntent();
                 if (openBrowser) _openWhenReady = true;
                 return;
             }
@@ -1265,8 +1320,7 @@ namespace PiWebTray
             // A new explicit start overrides an earlier deliberate stop. This matters
             // when an update is still downloading: a user stop must not be undone by
             // the update's auto-restart logic, while a later explicit start should be.
-            _serviceStoppedByUser = false;
-            TrayState.ClearServiceStopRequest();
+            ClearServiceStopIntent();
 
             // The fingerprint watcher can see node.exe disappear while a running service
             // is still using the already-loaded image. Re-probe before creating the next
@@ -1331,6 +1385,14 @@ namespace PiWebTray
                 BeginEnvironmentCheck(true, openBrowser);
                 return;
             }
+            if (_probe != null && Installer.NeedsPiWebVersionInstall(_probe, _config))
+            {
+                // An exact InstallTag is a pin. Refresh the probe (which also lets
+                // ApplyCheckResult start/install according to AutoInstall) instead of
+                // launching a version that no longer matches the configuration.
+                BeginEnvironmentCheck(true, openBrowser);
+                return;
+            }
 
             if (owner != null && owner.CheckFailed)
             {
@@ -1345,7 +1407,7 @@ namespace PiWebTray
             {
                 if (IsOurPiWeb(owner))
                 {
-                    TrayState.ClearServiceStopRequest();
+                    ClearServiceStopIntent();
                     _phase = Phase.Running;
                     _lastNotified = "";
                     _lastOwnerCheck = DateTime.Now;
@@ -1360,7 +1422,7 @@ namespace PiWebTray
                 {
                     if (TrayOwnsPort(owner))
                     {
-                        TrayState.ClearServiceStopRequest();
+                        ClearServiceStopIntent();
                         _phase = Phase.Running;
                         _lastNotified = "";
                         _lastOwnerCheck = DateTime.Now;
@@ -1390,9 +1452,12 @@ namespace PiWebTray
 
             if (string.IsNullOrEmpty(script) || !File.Exists(script))
             {
-                _phase = Phase.NeedsDeps;
-                UpdateUi();
-                NotifyWarningOnce("no-script", L.T("notify.noPiwebTitle"), L.T("notify.noPiwebBody"));
+                // The cached probe can be stale after a CLI --install, an npm
+                // update, or an external package change. Refresh it before
+                // declaring the dependency missing; otherwise a Start signal from
+                // the CLI can arrive after a successful install and still be
+                // discarded as NeedsDeps.
+                BeginEnvironmentCheck(true, openBrowser);
                 return;
             }
 
@@ -1517,8 +1582,9 @@ namespace PiWebTray
                 catch (Exception)
                 {
                 }
-                TrayState.ClearServiceStopRequest();
+                ClearServiceStopIntent();
                 _server = Process.Start(psi);
+                _serviceWorkingDir = psi.WorkingDirectory;
                 ServiceProbe.Invalidate();
 
                 lock (_readyLock)
@@ -1584,6 +1650,18 @@ namespace PiWebTray
 
         private void StopServerFromUser()
         {
+            if (ForeignUpdateBusy())
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"),
+                    L.T("notify.updateBusyBody"));
+                return;
+            }
+            if (AutostartOperationBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"),
+                    L.T("notify.autostartBusyBody"));
+                return;
+            }
             // A user stop must survive an install that is already stopping or has
             // already restarted the service. StopServer still refuses to touch npm,
             // but the install's restore/start intent must be cancelled so the
@@ -1592,7 +1670,20 @@ namespace PiWebTray
             // Persist the stop intent across the tray exit that an update helper may
             // perform. The helper reads this marker before choosing whether to start
             // the service again.
-            TrayState.RequestServiceStop();
+            if (!TrayState.RequestServiceStop())
+            {
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "could not record the service stop marker");
+                }
+                catch (Exception)
+                {
+                }
+                NotifyWarningOnce("stop-marker",
+                    L.T("notify.stopMarkerTitle"),
+                    L.T("notify.stopMarkerBody", TrayState.Folder));
+            }
             // A stop that arrives while a restart is already in Stopping must
             // cancel the queued start; otherwise PollStopping brings the service
             // back after the user explicitly asked for it to stay down.
@@ -1837,10 +1928,22 @@ namespace PiWebTray
 
         private void StopWithCli(string script, string node)
         {
+            string workingDir = _config.WorkingDir;
+            try
+            {
+                if (_server != null && !_server.HasExited
+                    && !string.IsNullOrEmpty(_serviceWorkingDir))
+                {
+                    workingDir = _serviceWorkingDir;
+                }
+            }
+            catch (Exception)
+            {
+            }
             try
             {
                 ProcessRunner.Run(node, Shell.Quote(script) + " stop --port " + _port,
-                    _config.WorkingDir, 20000, null, null);
+                    workingDir, 20000, null, null);
             }
             catch (Exception)
             {
@@ -1876,6 +1979,18 @@ namespace PiWebTray
 
         private void RestartServer(bool openBrowser)
         {
+            if (ForeignUpdateBusy())
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"),
+                    L.T("notify.updateBusyBody"));
+                return;
+            }
+            if (AutostartOperationBusy())
+            {
+                NotifyWarning(L.T("notify.autostartTitle"),
+                    L.T("notify.autostartBusyBody"));
+                return;
+            }
             if (_phase == Phase.Starting || _phase == Phase.Stopping || _phase == Phase.Installing) return;
             // Restart is an explicit recovery action, not an automatic retry.
             _autoRestartAttempts = 0;

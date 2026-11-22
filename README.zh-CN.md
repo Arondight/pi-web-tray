@@ -90,24 +90,24 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 `pi-web-tray.ini` 默认位于 `%LOCALAPPDATA%\pi-web-tray`，不同 Windows 用户不会共享设置。设置 `PI_WEB_TRAY_PORTABLE=1` 可将 ini 和日志放在可执行文件旁（受保护的系统目录会忽略此设置）。带注释的样例见 [`config/pi-web-tray.ini`](config/pi-web-tray.ini)。
 
-| 键                 | 默认值          | 说明                                                               |
-| ------------------ | --------------- | ------------------------------------------------------------------ |
-| `Port`             | `30141`         | Pi Web 监听端口。                                                  |
-| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录。                                                     |
-| `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                           |
-| `InstallPi`        | `1`             | 随 Pi Web 一并安装/更新 Pi；设为 `0` 可跳过。                      |
-| `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                        |
-| `AutoCheckUpdates` | `0`             | 启动后检查 Pi Web Tray 更新。                                      |
-| `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号。                               |
-| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。               |
-| `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。 |
-| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                    |
-| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                           |
-| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                               |
+| 键                 | 默认值          | 说明                                                                                   |
+| ------------------ | --------------- | -------------------------------------------------------------------------------------- |
+| `Port`             | `30141`         | Pi Web 监听端口。                                                                      |
+| `WorkingDir`       | `%USERPROFILE%` | 服务工作目录。                                                                         |
+| `AutoInstall`      | `1`             | 启动时自动安装缺失依赖。                                                               |
+| `InstallPi`        | `1`             | 随 Pi Web 一并安装/更新 Pi；设为 `0` 可跳过。                                          |
+| `AutoRestart`      | `0`             | Pi Web 意外停止后自动重启。                                                            |
+| `AutoCheckUpdates` | `0`             | 启动后检查 Pi Web Tray 更新。                                                          |
+| `InstallTag`       | `latest`        | Pi Web 的 npm 分发标签或具体版本号；具体版本号会与已安装版本核对并在不匹配时重新安装。 |
+| `NpmRegistry`      | 空              | 自定义 npm 源，如 `https://registry.npmmirror.com`。                                   |
+| `Proxy`            | 空              | 仅用于更新检查和下载的可选 HTTP 或 SOCKS5 代理；留空使用系统代理。                     |
+| `NodePath`         | 空              | 指定 `node.exe`；留空自动检测。                                                        |
+| `Language`         | `auto`          | `auto`、`en`、`zh`（简体）或 `zh-Hant`。                                               |
+| `AutostartAdmin`   | `0`             | 自启动使用管理员权限（由菜单维护）。                                                   |
 
 值支持 `%ENV%` 展开。含 `;` 或 `#` 的值可加引号。注释符号前需有空白。相对的 `WorkingDir` 和 `NodePath` 值会相对于可执行文件目录解析。
 
-当 Pi Web Tray 安装目录、路径中的任一父目录、或提权进程会加载的任一文件可被标准用户修改或重命名时，开启管理员自启动会被拒绝，且不会改变当前设置。安全警告窗口提供 **修复** 按钮；只有在路径其余部分受保护时，才会通过 UAC 修复目录 ACL。对于便携版或用户配置目录中的安装，修复操作会提示将程序移到 Program Files 等受保护位置；可被标准用户替换的父目录无法安全修复。如果管理员偏好不可用，而用户从主菜单开启自启动，Pi Web Tray 会清除该偏好并改用标准用户自启动。
+当 Pi Web Tray 安装目录、路径中的任一父目录、或提权进程会加载的任一文件可被标准用户修改或重命名时，开启管理员自启动会被拒绝，且不会改变当前设置。安全警告窗口提供 **修复** 按钮；只有在路径其余部分受保护时，才会通过 UAC 修复目录 ACL。对于便携版或用户配置目录中的安装，修复操作会提示将程序移到 Program Files 等受保护位置；可被标准用户替换的父目录无法安全修复。如果便携模式会把 ini 和日志放在可执行文件旁，修复操作也会拒绝，因为修复后的 ACL 会使这些运行时文件对标准用户只读；请关闭便携模式或将程序移到 Program Files。如果管理员偏好不可用，而用户从主菜单开启自启动，Pi Web Tray 会清除该偏好并改用标准用户自启动。
 
 数据目录按用户隔离。Pi Web Tray 会在日志中隐藏 URL 用户信息和 token 查询参数。设置 `Proxy` 后，只有 Pi Web Tray 的更新检查和下载会使用该代理。留空时使用系统代理。该设置不会传递给 Node、npm 或 Pi Web 子进程。设置窗口中的 **测试** 按钮只测试代理连通性，不会保存。
 

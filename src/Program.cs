@@ -367,7 +367,7 @@ namespace PiWebTray
                 // A closed port does not mean the tray's `pi-web stop` child has
                 // released the package directory. Wait so `--stop && --install` does
                 // not start npm too early.
-                return WaitForStopWorker(30000) ? 0 : 1;
+                return WaitForStopWorker(45000) ? 0 : 1;
             }
 
             if (isQuit)
@@ -377,7 +377,7 @@ namespace PiWebTray
                 // tray itself exited. Wait for the single-instance mutex so a
                 // following command sees a genuinely free instance.
                 // ExitApp may spend up to 8 seconds stopping the listener and
-                // another 30 seconds waiting for a `pi-web stop` worker.
+                // another 45 seconds waiting for a `pi-web stop` worker.
                 if (!WaitForTrayExit(60000)) return 1;
                 // The tray may have exited while a privileged or foreign listener
                 // survived the stop. Do not report success in that case.
@@ -476,7 +476,7 @@ namespace PiWebTray
             Mutex taken;
             bool denied;
             // Leave enough time for the old tray to finish a `pi-web stop` worker
-            // before starting the replacement (ExitWithout waits up to 30 seconds).
+            // before starting the replacement (ExitWithout waits up to 45 seconds).
             if (TryAcquireMutex(60000, out taken, out denied))
             {
                 StopOldServiceForElevatedTakeover(config, isTrayOnly);
@@ -917,8 +917,9 @@ namespace PiWebTray
         {
             ConsoleHost.TryAttach();
 
-            // Do not run npm with an elevated token from a user-writable installation.
-            // The dry run is read-only and remains usable for diagnostics.
+            // The startup guard already rejects an elevated start from a
+            // user-writable installation before config/resources load, including the
+            // dry run. Repeat the check for an ACL that changed after startup.
             if (!dryRun && Elevation.IsElevated()
                 && Autostart.IsUserWritableInstall(Application.ExecutablePath))
             {
@@ -1044,7 +1045,7 @@ namespace PiWebTray
                 if (!dryRun && trayRunning && serviceWasRunning) stopped = true;
                 // A tray may have closed the port for a prior stop while its
                 // `pi-web stop` child is still releasing the package directory.
-                if (!dryRun && trayRunning && !WaitForStopWorker(30000))
+                if (!dryRun && trayRunning && !WaitForStopWorker(45000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -1117,7 +1118,7 @@ namespace PiWebTray
                 // The port can close while the tray's `pi-web stop` child is still
                 // finishing. Starting npm now can hit a locked package directory; wait
                 // for the same lock the tray holds until that child exits.
-                if (!WaitForStopWorker(30000))
+                if (!WaitForStopWorker(45000))
                 {
                     ConsoleHost.WriteError(L.T("notify.stopFailedBody", port));
                     return false;
@@ -1537,16 +1538,66 @@ namespace PiWebTray
 
         private static bool ExportIconFile(string baseDir)
         {
+            string path = Path.Combine(baseDir, "pi-web-tray.ico");
+            string temp = null;
+            string backup = null;
+            bool keepBackup = false;
             try
             {
-                File.WriteAllBytes(
-                    Path.Combine(baseDir, "pi-web-tray.ico"),
-                    Icons.BuildIco(Icons.RunningColor, new int[] { 16, 20, 24, 32, 40, 48, 64, 256 }));
+                if (PathSafety.ContainsReparsePoint(path)) return false;
+                temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                backup = path + "." + Guid.NewGuid().ToString("N") + ".bak";
+                if (PathSafety.ContainsReparsePoint(temp)
+                    || PathSafety.ContainsReparsePoint(backup)) return false;
+                byte[] bytes = Icons.BuildIco(Icons.RunningColor,
+                    new int[] { 16, 20, 24, 32, 40, 48, 64, 256 });
+                FileStream stream = null;
+                try
+                {
+                    stream = new FileStream(temp, FileMode.CreateNew,
+                        FileAccess.Write, FileShare.None);
+                    if (!LogHost.HandleMatchesExpectedPath(stream, temp)) return false;
+                    stream.Write(bytes, 0, bytes.Length);
+                }
+                finally
+                {
+                    if (stream != null)
+                    {
+                        try { stream.Dispose(); } catch (Exception) { }
+                    }
+                }
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        File.Replace(temp, path, backup, true);
+                    }
+                    catch (Exception)
+                    {
+                        // ReplaceFile may have moved the old image aside before
+                        // failing. Restore it rather than deleting the only copy.
+                        if (!File.Exists(path) && File.Exists(backup))
+                        {
+                            try { File.Move(backup, path); }
+                            catch (Exception) { keepBackup = true; }
+                        }
+                        return false;
+                    }
+                }
+                else
+                {
+                    File.Move(temp, path);
+                }
                 return true;
             }
             catch (Exception)
             {
                 return false;
+            }
+            finally
+            {
+                try { if (temp != null && File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
+                try { if (!keepBackup && backup != null && File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
             }
         }
     }

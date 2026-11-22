@@ -158,12 +158,12 @@ namespace PiWebTray
             return Path.Combine(folder ?? Folder, ServiceStopRequestName);
         }
 
-        internal static void RequestServiceStop()
+        internal static bool RequestServiceStop()
         {
-            RequestServiceStop(Folder);
+            return RequestServiceStop(Folder);
         }
 
-        internal static void RequestServiceStop(string folder)
+        internal static bool RequestServiceStop(string folder)
         {
             try
             {
@@ -172,8 +172,8 @@ namespace PiWebTray
                 // The marker is one-shot: if it already exists the stop intent is
                 // already recorded. Never delete and recreate it, which would leave a
                 // window in which an update helper could miss the marker.
-                if (File.Exists(path)) return;
-                if (PathSafety.ContainsReparsePoint(path)) return;
+                if (PathSafety.ContainsReparsePoint(path)) return false;
+                if (File.Exists(path)) return true;
                 // CreateNew cannot follow a reparse point planted at the marker name
                 // between the check and the write. The marker is user intent, but an
                 // elevated tray must not turn it into an arbitrary file write.
@@ -183,26 +183,31 @@ namespace PiWebTray
                     byte[] data = new UTF8Encoding(false).GetBytes("1");
                     stream.Write(data, 0, data.Length);
                 }
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 
-        internal static void ClearServiceStopRequest()
+        internal static bool ClearServiceStopRequest()
         {
-            ClearServiceStopRequest(Folder);
+            return ClearServiceStopRequest(Folder);
         }
 
-        internal static void ClearServiceStopRequest(string folder)
+        internal static bool ClearServiceStopRequest(string folder)
         {
             try
             {
                 string path = ServiceStopRequestPath(folder);
+                if (PathSafety.ContainsReparsePoint(path)) return false;
                 if (File.Exists(path)) File.Delete(path);
+                return !File.Exists(path) && !PathSafety.ContainsReparsePoint(path);
             }
             catch (Exception)
             {
+                return false;
             }
         }
 
@@ -224,7 +229,7 @@ namespace PiWebTray
             }
         }
 
-        internal static void Save(int pid, bool elevated, int port)
+        internal static bool Save(int pid, bool elevated, int port)
         {
             try
             {
@@ -243,20 +248,22 @@ namespace PiWebTray
 
                 // Write both files. New readers use the per-session file first; the
                 // legacy file keeps older helpers and CLI versions working.
-                SaveToPath(SessionStatePath(), content);
-                SaveToPath(StatePath(), content);
+                bool sessionSaved = SaveToPath(SessionStatePath(), content);
+                bool legacySaved = SaveToPath(StatePath(), content);
+                return sessionSaved || legacySaved;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 
-        private static void SaveToPath(string path, string content)
+        private static bool SaveToPath(string path, string content)
         {
             try
             {
                 // Never follow a symlink planted at a known state-file name.
-                if (PathSafety.ContainsReparsePoint(path)) return;
+                if (PathSafety.ContainsReparsePoint(path)) return false;
 
                 // Write beside the destination and replace it atomically. A CLI process
                 // can read this file at any time; a partially written Pid/Port line must
@@ -264,7 +271,7 @@ namespace PiWebTray
                 string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 string backup = path + "." + Guid.NewGuid().ToString("N") + ".bak";
                 if (PathSafety.ContainsReparsePoint(temp)
-                    || PathSafety.ContainsReparsePoint(backup)) return;
+                    || PathSafety.ContainsReparsePoint(backup)) return false;
                 try
                 {
                     FileStream stream = null;
@@ -277,7 +284,7 @@ namespace PiWebTray
                             stream.Dispose();
                             stream = null;
                             try { File.Delete(temp); } catch (Exception) { }
-                            return;
+                            return false;
                         }
                         using (StreamWriter writer = new StreamWriter(
                             stream, new UTF8Encoding(true)))
@@ -311,9 +318,11 @@ namespace PiWebTray
                     try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
                     try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
                 }
+                return true;
             }
             catch (Exception)
             {
+                return false;
             }
         }
 

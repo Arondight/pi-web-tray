@@ -304,6 +304,9 @@
   <data name="install.crashBody" xml:space="preserve">
     <value>安裝過程中發生錯誤：{0}</value>
   </data>
+  <data name="install.pendingMarkerBody" xml:space="preserve">
+    <value>無法在 {0} 記錄待處理安裝狀態。請檢查資料目錄權限後重試。</value>
+  </data>
   <data name="install.cannot" xml:space="preserve">
     <value>無法安裝：{0}</value>
   </data>
@@ -402,6 +405,9 @@
   <data name="notify.autostartTitle" xml:space="preserve">
     <value>開機自動啟動</value>
   </data>
+  <data name="notify.autostartBusyBody" xml:space="preserve">
+    <value>開機自動啟動更新或權限修復仍在進行中。請在完成後重試。</value>
+  </data>
   <data name="notify.autostartFailed" xml:space="preserve">
     <value>開機自動啟動：設定失敗</value>
   </data>
@@ -425,6 +431,24 @@
   </data>
   <data name="notify.nodePathInvalidBody" xml:space="preserve">
     <value>設定的 Node.js 路徑不存在：{0}。將使用自動偵測。</value>
+  </data>
+  <data name="notify.stateSaveTitle" xml:space="preserve">
+    <value>執行階段狀態無法使用</value>
+  </data>
+  <data name="notify.stateSaveBody" xml:space="preserve">
+    <value>托盤無法在 {0} 寫入執行階段狀態。命令列停止/結束可能找不到正確連接埠；請檢查資料目錄權限。</value>
+  </data>
+  <data name="notify.stopMarkerTitle" xml:space="preserve">
+    <value>停止請求未儲存</value>
+  </data>
+  <data name="notify.stopMarkerBody" xml:space="preserve">
+    <value>托盤無法在 {0} 記錄你已停止服務。更新或重新啟動後服務可能再次啟動；請檢查資料目錄權限。</value>
+  </data>
+  <data name="notify.configIniTitle" xml:space="preserve">
+    <value>設定檔有問題</value>
+  </data>
+  <data name="notify.configIniBody" xml:space="preserve">
+    <value>無法安全讀取或寫入設定檔：{0}。正在使用預設設定；請檢查路徑和權限。</value>
   </data>
   <data name="notify.shortcutExistsTitle" xml:space="preserve">
     <value>捷徑已存在</value>
@@ -482,6 +506,12 @@
   </data>
   <data name="notify.needsPiwebBody" xml:space="preserve">
     <value>請使用功能表安裝或更新服務。</value>
+  </data>
+  <data name="notify.needsPiwebVersionTitle" xml:space="preserve">
+    <value>Pi Web 版本不符</value>
+  </data>
+  <data name="notify.needsPiwebVersionBody" xml:space="preserve">
+    <value>目前安裝的是 Pi Web {0}，但設定要求特定版本 {1}。請使用功能表安裝或更新服務。</value>
   </data>
   <data name="notify.noNodeInstallTitle" xml:space="preserve">
     <value>無法安裝：缺少 Node.js</value>
@@ -1454,6 +1484,9 @@
   </data>
   <data name="auto.repairParentUnsafe" xml:space="preserve">
     <value>安裝路徑中包含標準使用者可重新命名或取代的資料夾。請將 Pi Web Tray 移到 Program Files 等受保護的資料夾，或使用標準使用者自啟動。</value>
+  </data>
+  <data name="auto.repairPortableUnsafe" xml:space="preserve">
+    <value>Pi Web Tray 正在使用可執行檔旁的攜帶模式。修復其 ACL 會使標準使用者無法寫入 pi-web-tray.ini 和 server.log。請關閉攜帶模式，或將程式移到 Program Files 等受保護的位置。</value>
   </data>
   <data name="auto.repairHardLinkUnsafe" xml:space="preserve">
     <value>安裝目錄中包含無法安全修復的硬連結檔案。請將 Pi Web Tray 移到 Program Files 等受保護的資料夾，或使用標準使用者自啟動。</value>

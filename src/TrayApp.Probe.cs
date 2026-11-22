@@ -538,7 +538,8 @@ namespace PiWebTray
             _firstCheck = false;
             _firstCheckRetries = 0;
 
-            if (result.NeedsPiWeb || result.NeedsPiCli)
+            bool versionMismatch = Installer.NeedsPiWebVersionInstall(result, _config);
+            if (result.NeedsPiWeb || result.NeedsPiCli || versionMismatch)
             {
                 // Auto-install is a startup behavior. A --tray-only instance must
                 // not run npm or install packages just because it refreshed the
@@ -572,8 +573,8 @@ namespace PiWebTray
                 // NeedsDeps just because Pi is absent.
                 bool installQueued;
                 lock (_checkLock) installQueued = _installAfterCheck;
-                if (thenStart && !result.NeedsPiWeb && !installQueued
-                    && CanStartServiceFromProbe(result, File.Exists))
+                if (thenStart && !result.NeedsPiWeb && !versionMismatch
+                    && !installQueued && CanStartServiceFromProbe(result, File.Exists))
                 {
                     _phase = Phase.Stopped;
                     StartServer(openBrowser);
@@ -587,11 +588,20 @@ namespace PiWebTray
                         L.T("notify.needsPiwebTitle"),
                         L.T("notify.needsPiwebBody"));
                 }
-                else
+                else if (result.NeedsPiCli)
                 {
                     NotifyWarningOnce("needs-picli",
                         L.T("notify.needsPiCliTitle"),
                         L.T("notify.needsPiCliBody"));
+                }
+                else
+                {
+                    NotifyWarningOnce("needs-piweb-version",
+                        L.T("notify.needsPiwebVersionTitle"),
+                        L.T("notify.needsPiwebVersionBody",
+                            string.IsNullOrEmpty(result.PiWebVersion)
+                                ? L.T("probe.unknown") : result.PiWebVersion,
+                            Installer.SafeTag(_config.InstallTag)));
                 }
                 return;
             }
