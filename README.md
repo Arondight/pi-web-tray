@@ -25,6 +25,40 @@ Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confir
 
 Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
+## Recommended software
+
+Pi Web Tray does not require Python 3, PowerShell, or Git Bash, but installing them extends what Pi can do.
+
+### Python 3
+
+Windows 10 and 11: use the [official download page](https://www.python.org/downloads/). Tick **Add python.exe to PATH**.
+
+Older Windows releases no longer receive current Python installers. The newest releases that still ship one for the Windows versions supported by Pi Web Tray:
+
+| System        | Newest release with an installer                                         |
+| ------------- | ------------------------------------------------------------------------ |
+| Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
+
+These older Python releases are for compatibility only and no longer receive security updates.
+
+### PowerShell
+
+| System            | Recommended PowerShell                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| Windows 8.1/10/11 | [Latest PowerShell release](https://github.com/PowerShell/PowerShell/releases)                     |
+| Windows 7 SP1     | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
+
+### Git Bash
+
+Git Bash is included with Git for Windows:
+
+| System        | Download                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| Windows 10/11 | [Git for Windows installer](https://git-scm.com/install/windows)                                          |
+| Windows 8.1   | [Git for Windows 2.55.0.windows.5](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.5) |
+| Windows 7 SP1 | [Git for Windows 2.46.1.windows.1](https://github.com/git-for-windows/git/releases/tag/v2.46.1.windows.1) |
+
 ## Quick start
 
 1. Download and extract the release archive.

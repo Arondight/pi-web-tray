@@ -25,6 +25,40 @@ Windows 7 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后
 
 Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) 而非 4.8.1。如果 Windows 7 下检查更新无法访问 GitHub，请安装 [TLS 1.2 更新补丁](https://support.microsoft.com/help/3140245)。
 
+## 推荐安装的软件
+
+本软件不依赖 Python 3、PowerShell 或 Git Bash，但是安装它们可以增强 Pi 的能力。
+
+### Python 3
+
+Windows 10 / 11：使用[官方下载页](https://www.python.org/downloads/)，安装时勾选 **Add python.exe to PATH**。
+
+旧版 Windows 已不再获得当前 Python 版本的安装包，以下是本程序支持的 Windows 版本中最新仍提供安装包的版本：
+
+| 系统          | 最新仍提供安装包的版本                                                   |
+| ------------- | ------------------------------------------------------------------------ |
+| Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+| Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
+
+这些旧版 Python 仅用于兼容性，已不再获得安全更新。
+
+### PowerShell
+
+| 系统              | 推荐 PowerShell                                                                                    |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| Windows 8.1/10/11 | [最新 PowerShell](https://github.com/PowerShell/PowerShell/releases)                               |
+| Windows 7 SP1     | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
+
+### Git Bash
+
+Git Bash 随 Git for Windows 一起安装：
+
+| 系统          | 下载                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| Windows 10/11 | [Git for Windows 安装程序](https://git-scm.com/install/windows)                                           |
+| Windows 8.1   | [Git for Windows 2.55.0.windows.5](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.5) |
+| Windows 7 SP1 | [Git for Windows 2.46.1.windows.1](https://github.com/git-for-windows/git/releases/tag/v2.46.1.windows.1) |
+
 ## 快速开始
 
 1. 下载并解压发布包。
