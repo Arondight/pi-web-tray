@@ -29,6 +29,41 @@ namespace PiWebTray
             BeginInstall(force, start, open);
         }
 
+        private void ClearPendingInstallAfterStopWorker()
+        {
+            _installAfterStopWorker = false;
+            _installAfterStopWorkerForce = false;
+            _installAfterStopWorkerStart = false;
+            _installAfterStopWorkerOpen = false;
+        }
+
+        internal static bool CanStartInstallAfterStopWorker(Phase phase,
+            bool stopWorkerRunning, bool installAfterStop)
+        {
+            if (stopWorkerRunning || installAfterStop) return false;
+            return phase != Phase.Stopping && phase != Phase.Starting
+                && phase != Phase.Installing && phase != Phase.Checking;
+        }
+
+        private void FlushPendingInstallAfterStopWorker()
+        {
+            if (!_installAfterStopWorker || _exiting
+                || AutostartBusy() || Autostart.RepairRunning)
+                return;
+            if (!CanStartInstallAfterStopWorker(_phase, _stopWorkerRunning,
+                    _installAfterStop))
+                return;
+
+            bool force = _installAfterStopWorkerForce;
+            bool start = _installAfterStopWorkerStart;
+            bool open = _installAfterStopWorkerOpen;
+            _installAfterStopWorker = false;
+            _installAfterStopWorkerForce = false;
+            _installAfterStopWorkerStart = false;
+            _installAfterStopWorkerOpen = false;
+            BeginInstall(force, start, open);
+        }
+
         // thenStart/thenOpen describe what to do after a successful install. A menu-driven
         // dependency update must not start a service the user had stopped; a startup install
         // or an icon click passes its own intent instead of reusing _autoStartService.
@@ -37,7 +72,23 @@ namespace PiWebTray
             if (_exiting) return;
             // A new request must not interfere with an install worker that already
             // owns the update lock. PollInstall will consume its result.
-            if (_phase == Phase.Installing || _installWorkerRunning) return;
+            if (_phase == Phase.Installing || _installWorkerRunning)
+            {
+                ClearPendingInstallAfterStopWorker();
+                return;
+            }
+            if (_stopWorkerRunning)
+            {
+                _installAfterStopWorker = true;
+                _installAfterStopWorkerForce = _installAfterStopWorkerForce || force;
+                _installAfterStopWorkerStart = _installAfterStopWorkerStart || thenStart;
+                _installAfterStopWorkerOpen = _installAfterStopWorkerOpen || thenOpen;
+                UpdateUi();
+                return;
+            }
+            // This request is starting now; a previously queued stop-worker replay
+            // must not run again after this install finishes.
+            ClearPendingInstallAfterStopWorker();
             if (ElevatedInstallUnsafe())
             {
                 // This can happen when BeginInstall is re-entered from
@@ -460,15 +511,23 @@ namespace PiWebTray
             _phase = Phase.Installing;
             _installStartedAt = DateTime.Now;
             _installTicks = 0;
-            ShowInstallForm();
-            lock (_installLock)
+            try
             {
-                _installDone = false;
-                _installResult = null;
+                ShowInstallForm();
+                lock (_installLock)
+                {
+                    _installDone = false;
+                    _installResult = null;
+                }
+                UpdateUi();
+                Notify(L.T("install.startTitle"),
+                    L.T("install.startBody", string.Join(", ", packages.ToArray())));
             }
-            UpdateUi();
-
-            Notify(L.T("install.startTitle"), L.T("install.startBody", string.Join(", ", packages.ToArray())));
+            catch (Exception ex)
+            {
+                AbortInstallStartup(ex);
+                return;
+            }
 
             _installWorkerRunning = true;
             Thread worker = new Thread(delegate ()
@@ -670,6 +729,35 @@ namespace PiWebTray
             // service. Re-probe first; suppress auto-install so this recovery cannot
             // turn into an endless install loop.
             BeginEnvironmentCheck(true, openBrowser, 0, true);
+        }
+
+        private void AbortInstallStartup(Exception ex)
+        {
+            bool restore = _installRestartService;
+            _installRestartService = false;
+            _installStartAfter = false;
+            _installOpenAfter = false;
+            ReleaseInstallUpdateLock();
+            CloseInstallForm();
+            _phase = Phase.Failed;
+            try
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "install UI startup failed: " + ex);
+            }
+            catch (Exception)
+            {
+            }
+            try { UpdateUi(); } catch (Exception) { }
+            try
+            {
+                NotifyError(L.T("install.failedTitle"),
+                    L.T("install.crashBody", ex.Message));
+            }
+            catch (Exception)
+            {
+            }
+            if (restore) RestoreServiceAfterInstall();
         }
 
         private void ShowInstallForm()

@@ -431,7 +431,11 @@ namespace PiWebTray
                         return 1;
                     }
 
-                    if (!WaitForParent(parentPid, 60000, Application.ExecutablePath))
+                    // ExitApp can spend up to 45 seconds waiting for the stop
+                    // worker, plus port/probe/kill grace before it exits. Keep this
+                    // budget well above that path so a legitimate slow stop is not
+                    // mistaken for a dead parent.
+                    if (!WaitForParent(parentPid, 120000, Application.ExecutablePath))
                     {
                         AppendLog(logPath, "parent did not exit");
                         MessageBox.Show(L.T("update.error.parentTimeout"), L.T("update.applyFailedTitle"),

@@ -149,6 +149,12 @@ namespace PiWebTray
         private bool _installAfterAutostartForce;
         private bool _installAfterAutostartStart;
         private bool _installAfterAutostartOpen;
+        // A install requested while a pi-web stop child still owns the package
+        // directory. Replayed only after _stopWorkerRunning clears.
+        private bool _installAfterStopWorker;
+        private bool _installAfterStopWorkerForce;
+        private bool _installAfterStopWorkerStart;
+        private bool _installAfterStopWorkerOpen;
         private bool _installRestartService;   // a running service was stopped and must come back
         private bool _installStartAfter;       // start the service after a successful install
         private bool _installOpenAfter;        // open the browser once that service is ready
@@ -216,6 +222,10 @@ namespace PiWebTray
         private DateTime _stopEscalatedAt = DateTime.MinValue;
         private volatile bool _stopWorkerRunning;
         private volatile int _stopWorkerGeneration;
+        // The stop worker changes this flag from its background thread. Observe the
+        // true -> false transition on the UI timer so controls disabled while it was
+        // running are enabled even when the phase itself did not change.
+        private bool _stopWorkerUiWasRunning;
         // Held while the background pi-web stop command runs. The CLI install path
         // waits for this lock after the port closes before starting npm.
         private OperationLock _stopWorkerLock;
@@ -664,6 +674,7 @@ namespace PiWebTray
             if (_modalDepth == 0)
             {
                 FlushPendingInstallAfterAutostart();
+                FlushPendingInstallAfterStopWorker();
                 PollEnvironmentCheck();
                 PollInstall();
                 PollUpdate();
@@ -781,6 +792,13 @@ namespace PiWebTray
             {
                 _updateTicks++;
                 if (_updateTicks % 4 == 0) UpdateUi();
+            }
+
+            bool stopWorkerRunning = _stopWorkerRunning;
+            if (_stopWorkerUiWasRunning != stopWorkerRunning)
+            {
+                _stopWorkerUiWasRunning = stopWorkerRunning;
+                if (!stopWorkerRunning) UpdateUi();
             }
 
             PollNotifications();

@@ -245,7 +245,9 @@ namespace PiWebTray
             {
                 Mutex restartMutex;
                 bool restartDenied;
-                if (TryAcquireMutex(60000, out restartMutex, out restartDenied))
+                // Leave a margin over ExitApp's stop-worker and port-stop waits;
+                // 60 seconds was too close to the old tray's worst-case exit path.
+                if (TryAcquireMutex(90000, out restartMutex, out restartDenied))
                 {
                     RunTray(config, elevated, !isTrayOnly, restartMutex,
                         !isTrayOnly && !isStartNoOpen);

@@ -64,13 +64,23 @@ namespace PiWebTray
                 generation = _updateGeneration;
             }
 
-            if (!silent) ShowUpdateForm();
-            _updatePercent = -1;
-            _updateTicks = 0;
-            UpdateUi();
-            Updater.AppendLog(_config.UpdateLogFile,
-                "check start (current " + Program.Version + (silent ? ", automatic" : "") + ")");
-            if (!silent) Notify(L.T("update.checkingTitle"), L.T("update.checkingBody", Program.Version));
+            try
+            {
+                if (!silent) ShowUpdateForm();
+                _updatePercent = -1;
+                _updateTicks = 0;
+                UpdateUi();
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "check start (current " + Program.Version + (silent ? ", automatic" : "") + ")");
+                if (!silent)
+                    Notify(L.T("update.checkingTitle"), L.T("update.checkingBody", Program.Version));
+            }
+            catch (Exception ex)
+            {
+                AbortUpdateStartup(ex, !silent,
+                    L.T("update.checkFailedTitle"), L.T("update.checkFailedBody", ex.Message));
+                return;
+            }
 
             Thread worker = new Thread(delegate ()
             {
@@ -307,11 +317,21 @@ namespace PiWebTray
                 generation = _updateGeneration;
             }
 
-            ShowUpdateForm();
-            _updatePercent = -1;
-            _updateTicks = 0;
-            UpdateUi();
-            Notify(L.T("update.downloadingTitle"), L.T("update.downloadingBody", release.Version));
+            try
+            {
+                ShowUpdateForm();
+                _updatePercent = -1;
+                _updateTicks = 0;
+                UpdateUi();
+                Notify(L.T("update.downloadingTitle"),
+                    L.T("update.downloadingBody", release.Version));
+            }
+            catch (Exception ex)
+            {
+                AbortUpdateStartup(ex, true, L.T("update.downloadFailedTitle"),
+                    L.T("update.downloadFailedBody", ex.Message, _config.UpdateLogFile));
+                return;
+            }
 
             Thread worker = new Thread(delegate ()
             {
@@ -481,11 +501,21 @@ namespace PiWebTray
                 generation = _updateGeneration;
             }
 
-            ShowUpdateForm();
-            _updatePercent = -1;
-            _updateTicks = 0;
-            UpdateUi();
-            Notify(L.T("update.applyingTitle"), L.T("update.applyingBody", release.Version));
+            try
+            {
+                ShowUpdateForm();
+                _updatePercent = -1;
+                _updateTicks = 0;
+                UpdateUi();
+                Notify(L.T("update.applyingTitle"),
+                    L.T("update.applyingBody", release.Version));
+            }
+            catch (Exception ex)
+            {
+                AbortUpdateStartup(ex, true, L.T("update.applyFailedTitle"),
+                    L.T("update.applyFailedBody", ex.Message, _config.UpdateLogFile));
+                return;
+            }
 
             bool elevated = _elevated;
             bool stoppedByUser = _serviceStoppedByUser;
@@ -632,6 +662,22 @@ namespace PiWebTray
             {
                 ScheduleAutoRestart();
             }
+        }
+
+        private void AbortUpdateStartup(Exception ex, bool showError,
+            string title, string body)
+        {
+            try
+            {
+                Updater.AppendLog(_config.UpdateLogFile,
+                    "update UI startup failed: " + ex);
+            }
+            catch (Exception)
+            {
+            }
+            try { EndUpdate(); } catch (Exception) { }
+            if (!showError) return;
+            try { ShowUpdateError(title, body); } catch (Exception) { }
         }
 
         private void ShowUpdateForm()

@@ -691,12 +691,11 @@ namespace PiWebTray
                 else if (DateTime.Now > _stopEscalatedAt.AddSeconds(6))
                 {
                     // The kill may still not have closed the port (a privileged listener,
-                    // or the pid was reused). Re-derive the phase from the real owner
-                    // instead of hard-coding Running, which would show a green icon while
-                    // someone else's process holds the port. Leave Stopping first so the
-                    // asynchronous resolve continuation is allowed to replace the phase.
-                    _phase = Phase.Stopped;
-                    RequestResolveServicePhase();
+                    // or the pid was reused). Use Failed rather than Stopped: the listener
+                    // may still be ours, and a Stopped/RunningUnverified transition would
+                    // clear the user's stop marker as if the stop had succeeded. PollPortSync
+                    // can still reclassify a live owner to Running/PortConflict later.
+                    _phase = Phase.Failed;
                     _pendingRestart = false;
                     _pendingOpenBrowser = false;
                     AbortInstallAfterStop(false);
@@ -1703,6 +1702,12 @@ namespace PiWebTray
             // install itself remains queued.
             _installAfterAutostartStart = false;
             _installAfterAutostartOpen = false;
+            // A user stop supersedes any install that was waiting only for a
+            // previous stop worker to finish.
+            _installAfterStopWorker = false;
+            _installAfterStopWorkerForce = false;
+            _installAfterStopWorkerStart = false;
+            _installAfterStopWorkerOpen = false;
 
             // A stop requested while an environment probe is deciding whether to
             // start the service must also cancel that queued start.

@@ -201,7 +201,31 @@ namespace PiWebTray
             // for this explicit confirmation. Signal it only after all exit guards
             // and the service stop have succeeded. A blocked ExitApp never reaches
             // this point, so a later normal exit cannot apply the cancelled update.
-            if (_exitForUpdateApply) SignalUpdateHelperGate();
+            if (_exitForUpdateApply && !SignalUpdateHelperGate())
+            {
+                // The update helper is already waiting. Do not leave it with a
+                // missing confirmation while this tray silently exits: restore the
+                // old tray state, cancel the helper's apply attempt and let the
+                // normal update error path run. The helper will time out or observe
+                // the removed gate instead of replacing files behind our back.
+                _exitForUpdateApply = false;
+                CancelExitUi();
+                try
+                {
+                    Updater.AppendLog(_config.UpdateLogFile,
+                        "update gate could not be written; tray exit cancelled");
+                }
+                catch (Exception)
+                {
+                }
+                bool restartService = !_serviceStoppedByUser
+                    && (_updateStartedWithServiceRunning || _restartAfterUpdate);
+                EndUpdate();
+                NotifyWarning(L.T("update.applyFailedTitle"),
+                    L.T("update.error.notConfirmed"));
+                if (restartService) RestoreServiceAfterInstall();
+                return false;
+            }
 
             TrayState.Delete();
             Cleanup();
@@ -268,6 +292,16 @@ namespace PiWebTray
             try { _timer.Stop(); } catch (Exception) { }
             try { _tray.Visible = false; } catch (Exception) { }
             try { _menu.Enabled = false; } catch (Exception) { }
+        }
+
+        // Undo BeginExitUi when the final update handoff could not be confirmed.
+        // The service may already be stopped; the caller decides whether to restore.
+        private void CancelExitUi()
+        {
+            _exiting = false;
+            try { _tray.Visible = true; } catch (Exception) { }
+            try { _menu.Enabled = true; } catch (Exception) { }
+            try { _timer.Start(); } catch (Exception) { }
         }
 
         private void WaitForStopWorker(int timeoutMs)

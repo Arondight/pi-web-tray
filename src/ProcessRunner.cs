@@ -29,11 +29,14 @@ namespace PiWebTray
             return Run(fileName, arguments, workingDir, timeoutMs, onLine, environment, null);
         }
 
-        // onStarted receives the pid right after the child is created, so callers can kill it on exit.
+        // onStarted receives the pid and the runner-owned process handle right after
+        // the child is created, so callers can kill it on exit even when the creation
+        // time could not be read.
         // outputEncoding defaults to UTF-8 (Node/npm); system tools that write their console
         // code page (schtasks) must pass OemEncoding() explicitly.
         internal static ProcessResult Run(string fileName, string arguments, string workingDir, int timeoutMs,
-            Action<string> onLine, IDictionary<string, string> environment, Action<int> onStarted,
+            Action<string> onLine, IDictionary<string, string> environment,
+            Action<int, Process> onStarted,
             int outputLimit = 256 * 1024, Encoding outputEncoding = null)
         {
             Encoding encoding = outputEncoding ?? Encoding.UTF8;
@@ -99,7 +102,7 @@ namespace PiWebTray
 
                     if (onStarted != null)
                     {
-                        try { onStarted(process.Id); } catch (Exception) { }
+                        try { onStarted(process.Id, process); } catch (Exception) { }
                     }
 
                     // npm waits on stdin in some cases; close it so we never hang

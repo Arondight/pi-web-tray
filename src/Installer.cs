@@ -576,31 +576,17 @@ namespace PiWebTray
                                 }
                             },
                             env,
-                            delegate (int pid)
+                            delegate (int pid, Process runnerProcess)
                             {
                                 DateTime start = Sys.ProcessStartTime(pid);
-                                Process process = null;
-                                // Only keep a handle when the creation time was
-                                // captured. Opening a process after the time is
-                                // unavailable can attach to a reused, unrelated PID.
-                                if (start != DateTime.MinValue)
-                                {
-                                    try
-                                    {
-                                        process = Process.GetProcessById(pid);
-                                        if (Sys.ProcessStartTime(process) != start)
-                                        {
-                                            process.Dispose();
-                                            process = null;
-                                        }
-                                    }
-                                    catch (Exception)
-                                    {
-                                        process = null;
-                                    }
-                                }
-                                SetRunningPid(pid, start, process);
-                                if (Aborted) Sys.KillTree(pid, start, process);
+                                // ProcessRunner owns this handle for the lifetime of
+                                // the child. Keep it as a fallback even when the
+                                // creation time cannot be read; unlike a later
+                                // GetProcessById(pid), it cannot attach to a reused
+                                // PID. ProcessRunner disposes it after Run returns,
+                                // and SetRunningPid only reclaims an exited handle.
+                                SetRunningPid(pid, start, runnerProcess);
+                                if (Aborted) Sys.KillTree(pid, start, runnerProcess);
                             });
                     }
                     finally

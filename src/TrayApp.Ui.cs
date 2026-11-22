@@ -164,7 +164,9 @@ namespace PiWebTray
             _stopItem.Enabled = (running || _phase == Phase.Starting || trackedStopAvailable)
                 && !applying && !autostartBusy;
             _restartItem.Enabled = !serviceBusy && running && !applying && !autostartBusy;
-            _installItem.Enabled = !busy;
+            // The stop child still owns the package directory after the phase
+            // becomes stable; do not let a new npm install race it.
+            _installItem.Enabled = !busy && !_stopWorkerRunning;
             // When the service is installed the action updates/reinstalls it; when
             // it is missing the same action also has to install it. Keep the two
             // labels accurate instead of showing "update" for a clean install.
@@ -714,8 +716,11 @@ namespace PiWebTray
 
             // NeedsNode/NeedsDeps/Failed can still have an external listener that
             // belongs to pi-web (for example a service that was already running when
-            // this tray started). Do not choose --tray-only for it.
-            return ListenerLooksOurs();
+            // this tray started). Do not choose --tray-only for it. Treat an
+            // inconclusive owner probe as "possibly ours": the old ExitApp will
+            // verify again, and choosing --tray-only would leave a service it stops
+            // permanently down.
+            return ListenerLooksOurs(true);
         }
 
         private bool StartRestartProcess()

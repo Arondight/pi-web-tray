@@ -86,6 +86,28 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void ProcessRunnerProvidesACallerOwnedHandleToOnStarted()
+        {
+            Process observed = null;
+            int observedPid = 0;
+            bool killed = false;
+            ProcessResult result = ProcessRunner.Run(
+                Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe",
+                "/c ping -n 30 127.0.0.1 >nul", null, 10000, null, null,
+                delegate (int pid, Process process)
+                {
+                    observedPid = pid;
+                    observed = process;
+                    Sys.KillTree(pid, DateTime.MinValue, process);
+                    try { killed = process.WaitForExit(5000); } catch (Exception) { }
+                });
+            Assert.IsTrue(result.Started, "ProcessRunner did not start the test child.");
+            Assert.IsTrue(observedPid > 0, "OnStarted did not receive a PID.");
+            Assert.IsNotNull(observed, "OnStarted did not receive the owned process handle.");
+            Assert.IsTrue(killed, "The caller-owned handle could not terminate the test child.");
+        }
+
+        [TestMethod]
         public void EffectivePortPrefersTheRecordedLivePort()
         {
             string originalHome = Environment.GetEnvironmentVariable("PI_WEB_TRAY_HOME");
@@ -1656,6 +1678,14 @@ namespace PiWebTray
                 !TrayApp.ShouldClearUserStopMarker(Phase.Failed));
             Check("a stopped service clears an old stop marker",
                 TrayApp.ShouldClearUserStopMarker(Phase.Stopped));
+            Check("install waits while the stop worker is running",
+                !TrayApp.CanStartInstallAfterStopWorker(Phase.Stopped, true, false));
+            Check("install waits for the install-stop continuation",
+                !TrayApp.CanStartInstallAfterStopWorker(Phase.Stopped, false, true));
+            Check("install waits while the phase is still stopping",
+                !TrayApp.CanStartInstallAfterStopWorker(Phase.Stopping, false, false));
+            Check("install can start after the stop worker is stable",
+                TrayApp.CanStartInstallAfterStopWorker(Phase.Stopped, false, false));
             TrayApp app = (TrayApp)System.Runtime.Serialization.FormatterServices
                 .GetUninitializedObject(typeof(TrayApp));
             BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
