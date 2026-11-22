@@ -10,13 +10,13 @@ Thanks for taking the time to contribute. This project is a Windows tray applica
 
 ## Development environment
 
-| Tool                       | Requirement                                                               |
-| -------------------------- | ------------------------------------------------------------------------- |
-| Windows                    | 10 or 11 for development (the product targets Windows 7 to 11)            |
-| Build tool (choose one)    | .NET SDK 8.0 or later **or** Build Tools for Visual Studio 2022 (MSBuild) |
-| Build reference assemblies | .NET Framework 4.8 Targeting Pack (included in the Developer Pack)        |
-| Runtime target             | .NET Framework 4.8; 4.8.1 is compatible where supported                   |
-| IDE (optional)             | Visual Studio 2022 or later with the .NET desktop development workload    |
+| Tool                       | Requirement                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| Windows                    | 10 or 11 for development (the product targets Windows 7 to 11)                     |
+| Build tool (choose one)    | .NET SDK 8.0 or later **or** Build Tools for Visual Studio 2022 or later (MSBuild) |
+| Build reference assemblies | .NET Framework 4.8 Targeting Pack (included in the Developer Pack)                 |
+| Runtime target             | .NET Framework 4.8; 4.8.1 is compatible where supported                            |
+| IDE (optional)             | Visual Studio 2022 or later with the .NET desktop development workload             |
 
 The application targets .NET Framework 4.8, not .NET 8. Visual Studio is optional. If you use it, open `PiWebTray.sln`; otherwise build from a terminal:
 
@@ -30,7 +30,7 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 
 ## Tests
 
-Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI:
+Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI.
 
 The unit tests can run from any shell on a supported build host. `verify.ps1` handles an elevated shell by copying the executable to a protected Program Files folder; for a local user-writable build, use a non-elevated shell.
 
@@ -42,6 +42,7 @@ Useful individual checks:
 
 ```powershell
 dotnet test .\tests\PiWebTray.Tests\PiWebTray.Tests.csproj -c Release
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-compat.ps1 -ArtifactDir .\artifacts
 .\artifacts\pi-web-tray.exe --lang-check
 .\artifacts\pi-web-tray.exe --check
 .\artifacts\pi-web-tray.exe --install --dry-run
@@ -70,7 +71,7 @@ Before a release, manually check:
 ## Formatting
 
 - C# and project files: `dotnet format .\PiWebTray.sln --no-restore`
-- Documentation (Markdown, YAML, JSON): `prettier --write "**/*.{md,yml,yaml,json}"`
+- Documentation (Markdown, YAML, JSON): `npx --yes prettier@3.9.6 --write "**/*.{md,yml,yaml,json}"`
 
 Run both before committing. `.prettierignore` excludes C# sources, build output, binary assets and configuration files; `dotnet format` uses `.editorconfig` and `Directory.Build.props`.
 

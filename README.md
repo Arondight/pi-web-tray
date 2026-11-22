@@ -27,28 +27,29 @@ Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft
 
 ## Recommended software
 
-Pi Web Tray does not require Python 3, PowerShell, or Git Bash, but installing them extends what Pi can do. The older Python releases listed for Windows 7/8.1 are compatibility-only and no longer receive security updates. For Python, enable **Add python.exe to PATH** during installation.
+Pi Web Tray does not require Python 3, PowerShell, or Git Bash to run, but installing them extends what Pi Web can do. The Python 3.8.10 release for Windows 7 is compatibility-only and no longer receives security updates; Python 3.13.17 is the last Windows 8.1 installer release and is in security-only maintenance. PowerShell 7.2 is the last PowerShell 7 release compatible with Windows 8.1 and is no longer maintained. For Python, enable **Add python.exe to PATH** during installation.
 
 ### Python 3
 
 | System        | Recommended version                                                      |
 | ------------- | ------------------------------------------------------------------------ |
-| Windows 10/11 | [Latest Python 3](https://www.python.org/downloads/)                     |
+| Windows 10/11 | [Latest Python 3 release](https://www.python.org/downloads/)             |
 | Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 | Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
 
 ### PowerShell
 
-| System            | Recommended version                                                                                |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| Windows 8.1/10/11 | [Latest PowerShell release](https://github.com/PowerShell/PowerShell/releases)                     |
-| Windows 7 SP1     | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
+| System        | Recommended version                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| Windows 10/11 | [Latest PowerShell release](https://github.com/PowerShell/PowerShell/releases)                     |
+| Windows 8.1   | [PowerShell 7.2.24](https://github.com/PowerShell/PowerShell/releases/tag/v7.2.24)                 |
+| Windows 7 SP1 | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
 
 ### Git Bash
 
 | System        | Recommended version                                                                                       |
 | ------------- | --------------------------------------------------------------------------------------------------------- |
-| Windows 10/11 | [Git for Windows installer](https://git-scm.com/install/windows)                                          |
+| Windows 10/11 | [Latest Git for Windows release](https://git-scm.com/install/windows)                                     |
 | Windows 8.1   | [Git for Windows 2.55.0.windows.5](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.5) |
 | Windows 7 SP1 | [Git for Windows 2.46.1.windows.1](https://github.com/git-for-windows/git/releases/tag/v2.46.1.windows.1) |
 
@@ -112,6 +113,8 @@ Exit and stop service
 - If Pi Web stops unexpectedly, Pi Web Tray reports it. With `AutoRestart=1` it restarts automatically for up to three consecutive rapid failures (5/15/30 s delays); a service that stays up for 60 s resets the retry counter. An explicit user **Stop** is never overridden by AutoRestart. With `AutoCheckUpdates=1` it checks for a new release after startup.
 
 ## Configuration
+
+Normal use does not require editing the configuration file. The **Settings** window in the tray menu exposes the supported options; the ini documentation below is for advanced deployment, automation, and troubleshooting.
 
 ### Configuration file
 
@@ -181,7 +184,7 @@ Unknown arguments return exit code 2.
 Choose one build tool:
 
 - **.NET SDK 8.0 or later** (recommended for command-line builds), or
-- **Build Tools for Visual Studio 2022** (MSBuild only).
+- **Build Tools for Visual Studio 2022 or later** (MSBuild only).
 
 Either tool requires the **.NET Framework 4.8 Targeting Pack**. The standalone **.NET Framework 4.8 Developer Pack** includes it.
 

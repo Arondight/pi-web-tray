@@ -27,7 +27,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 ## 推荐安装的软件
 
-本软件不依赖 Python 3、PowerShell 或 Git Bash，但是安装它们可以增强 Pi 的能力。Windows 7/8.1 使用的旧版 Python 仅用于兼容性，已不再获得安全更新。安装 Python 时请勾选 **Add python.exe to PATH**。
+本软件运行时不需要 Python 3、PowerShell 或 Git Bash，但是安装它们可以增强 Pi Web 的能力。Windows 7 使用的 Python 3.8.10 仅用于兼容性，已不再获得安全更新；Python 3.13.17 是最后一个提供 Windows 8.1 安装包的版本，处于仅安全维护阶段。PowerShell 7.2 是最后一个兼容 Windows 8.1 的 PowerShell 7 版本，且已停止维护。安装 Python 时请勾选 **Add python.exe to PATH**。
 
 ### Python 3
 
@@ -39,16 +39,17 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 ### PowerShell
 
-| 系统              | 推荐版本                                                                                           |
-| ----------------- | -------------------------------------------------------------------------------------------------- |
-| Windows 8.1/10/11 | [最新 PowerShell](https://github.com/PowerShell/PowerShell/releases)                               |
-| Windows 7 SP1     | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
+| 系统          | 推荐版本                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| Windows 10/11 | [最新 PowerShell](https://github.com/PowerShell/PowerShell/releases)                               |
+| Windows 8.1   | [PowerShell 7.2.24](https://github.com/PowerShell/PowerShell/releases/tag/v7.2.24)                 |
+| Windows 7 SP1 | [Windows Management Framework 5.1](https://www.microsoft.com/en-us/download/details.aspx?id=54616) |
 
 ### Git Bash
 
 | 系统          | 推荐版本                                                                                                  |
 | ------------- | --------------------------------------------------------------------------------------------------------- |
-| Windows 10/11 | [Git for Windows 安装程序](https://git-scm.com/install/windows)                                           |
+| Windows 10/11 | [最新 Git for Windows](https://git-scm.com/install/windows)                                               |
 | Windows 8.1   | [Git for Windows 2.55.0.windows.5](https://github.com/git-for-windows/git/releases/tag/v2.55.0.windows.5) |
 | Windows 7 SP1 | [Git for Windows 2.46.1.windows.1](https://github.com/git-for-windows/git/releases/tag/v2.46.1.windows.1) |
 
@@ -112,6 +113,8 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 - Pi Web 意外退出会通知。`AutoRestart=1` 时最多连续快速重启 3 次（间隔 5/15/30 秒）；服务稳定运行 60 秒后重试计数会重置。用户显式点击 **停止** 后，AutoRestart 不会覆盖该决定。`AutoCheckUpdates=1` 会在启动后检查新版本。
 
 ## 配置
+
+正常使用不需要编辑配置文件。托盘菜单中的 **设置** 窗口已提供受支持的选项；下面的 ini 说明仅用于高级部署、自动化和故障排查。
 
 ### 配置文件
 
@@ -181,7 +184,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 构建工具二选一：
 
 - **.NET SDK 8.0 或更高版本**（推荐命令行构建），或
-- **Build Tools for Visual Studio 2022**（仅使用 MSBuild）。
+- **Build Tools for Visual Studio 2022 或更高版本**（仅使用 MSBuild）。
 
 两者都需要 **.NET Framework 4.8 Targeting Pack**；独立的 **.NET Framework 4.8 Developer Pack** 已包含它。
 
