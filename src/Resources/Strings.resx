@@ -179,7 +179,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Enabled. An icon appears in the notification area after login (standard user).</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
-    <value>The scheduled task could not be created (the UAC prompt may have been cancelled).</value>
+    <value>The scheduled task could not be created. See "View software update log" in the tray menu for the Task Scheduler error.</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
     <value>Disabled. No automatic start at login.</value>

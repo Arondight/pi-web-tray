@@ -2172,11 +2172,12 @@ namespace PiWebTray
                         "http://schemas.microsoft.com/windows/2004/02/mit/task");
                     // Windows 7's schtasks rejects version="1.1" for this definition
                     // (and version="1.0" rejects the logon trigger); omit the optional
-                    // attribute there. Windows 8 and newer accept the 1.1 task version,
-                    // so keep the existing definition on those systems.
+                    // attribute there. The LogonTrigger UserId element requires the
+                    // 1.2 schema on Windows 8 and newer; version="1.1" is rejected by
+                    // current Task Scheduler versions with "unexpected node: UserId".
                     if (windows == null
                         || !(windows.Major == 6 && windows.Minor == 1))
-                        writer.WriteAttributeString("version", "1.1");
+                        writer.WriteAttributeString("version", "1.2");
 
                     // A user-scoped logon trigger. Without <UserId> the task fires
                     // for every account that logs on, and the administrator service

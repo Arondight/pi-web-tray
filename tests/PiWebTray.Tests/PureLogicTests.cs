@@ -1522,7 +1522,7 @@ namespace PiWebTray
             }
             else
             {
-                CheckEqual("Windows 8+ task XML uses the 1.1 task version", "1.1",
+                CheckEqual("Windows 8+ task XML uses the 1.2 task version", "1.2",
                     document.DocumentElement.GetAttribute("version"));
             }
             CheckEqual("task XML trigger user", sid,
@@ -1557,7 +1557,7 @@ namespace PiWebTray
             {
                 win10Document.Load(stream);
             }
-            CheckEqual("Windows 8+ task XML uses the 1.1 task version", "1.1",
+            CheckEqual("Windows 8+ task XML uses the 1.2 task version", "1.2",
                 win10Document.DocumentElement.GetAttribute("version"));
 
             Check("generated task XML is enabled", Autostart.IsTaskXmlEnabled(document));

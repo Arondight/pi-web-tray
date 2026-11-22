@@ -179,7 +179,7 @@
     <value>已启用。登录后通知区域将显示图标（标准用户权限）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
-    <value>无法创建计划任务（可能取消了 UAC 授权）。</value>
+    <value>无法创建计划任务。请从托盘菜单打开“查看软件更新日志”，查看任务计划程序错误。</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
     <value>已禁用。登录时不会自动启动。</value>

@@ -179,7 +179,7 @@
     <value>已啟用。登入後通知區域將顯示圖示（標準使用者權限）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
-    <value>無法建立排程工作（可能取消了 UAC 授權）。</value>
+    <value>無法建立排程工作。請從托盤功能表開啟「檢視軟體更新記錄」，查看工作排程器錯誤。</value>
   </data>
   <data name="auto.disabled" xml:space="preserve">
     <value>已停用。登入時不會自動啟動。</value>
