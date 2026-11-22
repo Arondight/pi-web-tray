@@ -1184,7 +1184,7 @@
     <value>繁體中文</value>
   </data>
   <data name="menu.logs" xml:space="preserve">
-    <value>記錄</value>
+    <value>檢視記錄...</value>
   </data>
   <data name="menu.updateLog" xml:space="preserve">
     <value>檢視軟體更新記錄</value>
@@ -1196,7 +1196,7 @@
     <value>開啟設定檔</value>
   </data>
   <data name="menu.settings" xml:space="preserve">
-    <value>設定...</value>
+    <value>設定</value>
   </data>
   <data name="menu.copyUrl" xml:space="preserve">
     <value>複製網頁連結位址</value>

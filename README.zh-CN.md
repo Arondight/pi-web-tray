@@ -27,7 +27,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 
 ## 推荐安装的软件
 
-本软件运行时不需要 Python 3、PowerShell 或 Git Bash，但是安装它们可以增强 Pi Web 的能力。Windows 7 使用的 Python 3.8.10 仅用于兼容性，已不再获得安全更新；Python 3.13.17 是最后一个提供 Windows 8.1 安装包的版本，处于仅安全维护阶段。PowerShell 7.2 是最后一个兼容 Windows 8.1 的 PowerShell 7 版本，且已停止维护。安装 Python 时请勾选 **Add python.exe to PATH**。
+本软件运行时不需要 Python 3、PowerShell 或 Git Bash，但是安装它们可以增强 Pi Web 的能力。
 
 ### Python 3
 
@@ -36,6 +36,8 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 | Windows 10/11 | [最新 Python 3](https://www.python.org/downloads/)                       |
 | Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 | Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+
+安装 Python 时请勾选 **Add python.exe to PATH**。
 
 ### PowerShell
 
@@ -90,8 +92,8 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 下载 Node.js
 ---------------------------------------
 环境检查
-设置...
-日志 >
+设置
+查看日志...
   查看服务运行日志
   查看服务安装/更新日志
   查看软件更新日志

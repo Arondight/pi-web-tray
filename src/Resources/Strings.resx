@@ -1184,7 +1184,7 @@ See {1} for details.</value>
     <value>繁體中文</value>
   </data>
   <data name="menu.logs" xml:space="preserve">
-    <value>Logs</value>
+    <value>View logs...</value>
   </data>
   <data name="menu.updateLog" xml:space="preserve">
     <value>View software update log</value>
@@ -1196,7 +1196,7 @@ See {1} for details.</value>
     <value>Open configuration file</value>
   </data>
   <data name="menu.settings" xml:space="preserve">
-    <value>Settings...</value>
+    <value>Settings</value>
   </data>
   <data name="menu.copyUrl" xml:space="preserve">
     <value>Copy page link</value>

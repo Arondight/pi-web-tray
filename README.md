@@ -27,7 +27,7 @@ Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft
 
 ## Recommended software
 
-Pi Web Tray does not require Python 3, PowerShell, or Git Bash to run, but installing them extends what Pi Web can do. The Python 3.8.10 release for Windows 7 is compatibility-only and no longer receives security updates; Python 3.13.17 is the last Windows 8.1 installer release and is in security-only maintenance. PowerShell 7.2 is the last PowerShell 7 release compatible with Windows 8.1 and is no longer maintained. For Python, enable **Add python.exe to PATH** during installation.
+Pi Web Tray does not require Python 3, PowerShell, or Git Bash to run, but installing them extends what Pi Web can do.
 
 ### Python 3
 
@@ -36,6 +36,8 @@ Pi Web Tray does not require Python 3, PowerShell, or Git Bash to run, but insta
 | Windows 10/11 | [Latest Python 3 release](https://www.python.org/downloads/)             |
 | Windows 8.1   | [Python 3.13.17](https://www.python.org/downloads/release/python-31317/) |
 | Windows 7 SP1 | [Python 3.8.10](https://www.python.org/downloads/release/python-3810/)   |
+
+Enable **Add python.exe to PATH** during installation.
 
 ### PowerShell
 
@@ -90,8 +92,8 @@ Update service
 Download Node.js
 ---------------------------------------
 Environment check
-Settings...
-Logs >
+Settings
+View logs...
   View service runtime log
   View service install/update log
   View software update log

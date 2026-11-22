@@ -1184,7 +1184,7 @@
     <value>繁體中文</value>
   </data>
   <data name="menu.logs" xml:space="preserve">
-    <value>日志</value>
+    <value>查看日志...</value>
   </data>
   <data name="menu.updateLog" xml:space="preserve">
     <value>查看软件更新日志</value>
@@ -1196,7 +1196,7 @@
     <value>打开配置文件</value>
   </data>
   <data name="menu.settings" xml:space="preserve">
-    <value>设置...</value>
+    <value>设置</value>
   </data>
   <data name="menu.copyUrl" xml:space="preserve">
     <value>复制网页链接地址</value>
