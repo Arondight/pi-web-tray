@@ -62,14 +62,12 @@ namespace PiWebTray
             // A task that exists but is disabled or points at an older installation
             // does not make the current installation start at login.
             taskEnabled = taskEnabled || legacyTask;
-            _autostartItem.Text = busy
-                ? L.T("menu.autostartBusy")
-                : L.T("menu.autostart", Autostart.Describe(taskEnabled, run));
-            _autostartItem.Checked = taskEnabled || run;
+            _autostartItem.Text = L.T("menu.autostart");
+            SetMenuCheckBox(_autostartItem, taskEnabled || run);
             _autostartItem.Enabled = !busy;
 
-            _adminAutostartItem.Text = L.T("menu.adminAutostart", _config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no"));
-            _adminAutostartItem.Checked = _config.AutostartAdmin;
+            _adminAutostartItem.Text = L.T("menu.adminAutostart");
+            SetMenuCheckBox(_adminAutostartItem, _config.AutostartAdmin);
             _adminAutostartItem.Enabled = !busy;
         }
 

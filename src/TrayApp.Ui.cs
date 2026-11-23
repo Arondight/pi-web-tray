@@ -193,10 +193,10 @@ namespace PiWebTray
             // replacing files, a modal loop would hold up PollUpdate and the tray's
             // confirmation to exit, leaving the helper waiting indefinitely.
             _nodeItem.Enabled = !applying;
-            _networkItem.Text = L.T("menu.network",
-                _config.NetworkAccess ? L.T("network.enabledState") : L.T("network.disabledState"));
-            _networkItem.Checked = _config.NetworkAccess;
+            _networkItem.Text = L.T("menu.network");
+            SetMenuCheckBox(_networkItem, _config.NetworkAccess);
             _networkItem.Enabled = !busy && !_stopWorkerRunning;
+            if (_menuOpen) UpdateAutostartItems();
             _aboutItem.Enabled = !applying;
             _checkItem.Enabled = !busy && !_selfCheckRunning;
             _settingsItem.Enabled = !busy;

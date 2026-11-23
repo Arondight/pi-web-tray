@@ -1323,8 +1323,10 @@ namespace PiWebTray
             sb.AppendLine(L.T("diag.task") + " : " + (task ? L.T("diag.exists") : L.T("diag.absent")));
             sb.AppendLine(L.T("diag.legacyTask") + " : " + (legacyTask ? L.T("diag.exists") : L.T("diag.absent")));
             sb.AppendLine(L.T("diag.runKey") + " : " + (run ? L.T("diag.exists") : L.T("diag.absent")));
-            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart", Autostart.Describe(taskStartsAtLogin, run)));
-            sb.AppendLine(L.T("diag.menuAdmin") + " : " + L.T("menu.adminAutostart", config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no")));
+            sb.AppendLine(L.T("diag.menuAutostart") + " : " + L.T("menu.autostart")
+                + " (" + Autostart.Describe(taskStartsAtLogin, run) + ")");
+            sb.AppendLine(L.T("diag.menuAdmin") + " : " + L.T("menu.adminAutostart")
+                + " (" + (config.AutostartAdmin ? L.T("bool.yes") : L.T("bool.no")) + ")");
 
             string state = L.T("diag.none");
             try

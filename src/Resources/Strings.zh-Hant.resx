@@ -43,7 +43,7 @@
     <value>已停止</value>
   </data>
   <data name="status.admin" xml:space="preserve">
-    <value>（系統管理員）</value>
+    <value>（系統管理員模式）</value>
   </data>
   <data name="status.adminLong" xml:space="preserve">
     <value> · 系統管理員模式</value>
@@ -122,13 +122,7 @@
     <value>Windows 7 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
   </data>
   <data name="menu.network" xml:space="preserve">
-    <value>來自區域網路的連線：{0}</value>
-  </data>
-  <data name="network.enabledState" xml:space="preserve">
-    <value>已啟用</value>
-  </data>
-  <data name="network.disabledState" xml:space="preserve">
-    <value>已停用</value>
+    <value>允許來自區域網路的連線</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>環境檢查</value>
@@ -143,13 +137,10 @@
     <value>建立桌面捷徑</value>
   </data>
   <data name="menu.autostart" xml:space="preserve">
-    <value>開機自動啟動：{0}</value>
-  </data>
-  <data name="menu.autostartBusy" xml:space="preserve">
-    <value>開機自動啟動：更新中…</value>
+    <value>開機時啟動程式</value>
   </data>
   <data name="menu.adminAutostart" xml:space="preserve">
-    <value>自動啟動時使用系統管理員權限：{0}</value>
+    <value>開機啟動時使用系統管理員權限</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
     <value>退出並停止服務</value>
@@ -167,19 +158,19 @@
     <value>不滿足</value>
   </data>
   <data name="auto.onAdmin" xml:space="preserve">
-    <value>已啟用（系統管理員權限）</value>
+    <value>已啟用（系統管理員模式）</value>
   </data>
   <data name="auto.onUser" xml:space="preserve">
-    <value>已啟用（標準使用者權限）</value>
+    <value>已啟用（標準使用者模式）</value>
   </data>
   <data name="auto.off" xml:space="preserve">
     <value>已停用</value>
   </data>
   <data name="auto.enabledAdmin" xml:space="preserve">
-    <value>已啟用。登入後將自動以系統管理員權限執行。</value>
+    <value>已啟用。登入後將自動以系統管理員模式執行。</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>已啟用。登入後通知區域將顯示圖示（標準使用者權限）。</value>
+    <value>已啟用。登入後通知區域將顯示圖示（標準使用者模式）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>無法建立排程工作。請從托盤功能表開啟「檢視軟體更新記錄」，查看工作排程器錯誤。</value>
@@ -427,7 +418,7 @@
     <value>無法建立桌面捷徑</value>
   </data>
   <data name="notify.shortcutAdminBody" xml:space="preserve">
-    <value>請以標準使用者身分重新啟動托盤後再建立桌面捷徑。管理員托盤不會載入使用者可控制的 COM 處理常式。</value>
+    <value>請以標準使用者模式重新啟動托盤後再建立桌面捷徑。系統管理員模式托盤不會載入使用者可控制的 COM 處理常式。</value>
   </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已建立桌面捷徑</value>
@@ -589,7 +580,7 @@
     <value>連接埠 {0}（接聽中={1}）</value>
   </data>
 <data name="sc.admin" xml:space="preserve">
-    <value>系統管理員權限</value>
+    <value>系統管理員模式</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
     <value>服務執行記錄</value>
@@ -640,7 +631,7 @@
     <value>開機自啟動功能表文字</value>
   </data>
   <data name="diag.menuAdmin" xml:space="preserve">
-    <value>管理員自啟動功能表文字</value>
+    <value>系統管理員自啟動功能表文字</value>
   </data>
   <data name="diag.stateFile" xml:space="preserve">
     <value>狀態檔案</value>
@@ -652,7 +643,7 @@
     <value>閒置（未執行）</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
-    <value>由具備系統管理員權限的執行個體佔用</value>
+    <value>由系統管理員模式執行個體佔用</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
     <value>由其他程式佔用</value>
@@ -661,15 +652,15 @@
     <value>環境偵測失敗：{0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>已在系統管理員權限下執行</value>
+    <value>已以系統管理員模式執行</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>已在系統管理員權限下執行。
+    <value>已以系統管理員模式執行。
 
 要啟動服務，請使用通知圖示功能表，或以滑鼠右鍵按一下桌面捷徑並選擇「以系統管理員身分執行」。</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
-    <value>提權接管失敗</value>
+    <value>系統管理員模式接管失敗</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>先前的程序未結束。
@@ -1205,10 +1196,10 @@
     <value>複製網頁連結位址</value>
   </data>
   <data name="menu.restartStandard" xml:space="preserve">
-    <value>以標準使用者身分重新啟動</value>
+    <value>以標準使用者模式重新啟動</value>
   </data>
 <data name="menu.restartAdmin" xml:space="preserve">
-    <value>以系統管理員身分重新啟動</value>
+    <value>以系統管理員模式重新啟動</value>
   </data>
   <data name="menu.folder" xml:space="preserve">
     <value>開啟程式目錄</value>
@@ -1229,7 +1220,7 @@
     <value>無法更新 Windows 防火牆，網路設定未變更。</value>
   </data>
   <data name="network.elevationCanceled" xml:space="preserve">
-    <value>系統管理員授權已取消，網路設定未變更。</value>
+    <value>系統管理員權限要求已取消，網路設定未變更。</value>
   </data>
   <data name="network.failedTitle" xml:space="preserve">
     <value>網路設定未變更</value>
@@ -1262,10 +1253,10 @@
     <value>無法開啟設定檔</value>
   </data>
   <data name="notify.adminRestartTitle" xml:space="preserve">
-    <value>以系統管理員身分重新啟動</value>
+    <value>以系統管理員模式重新啟動</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以系統管理員權限重新啟動？服務會保持目前的執行狀態。</value>
+    <value>是否以系統管理員模式重新啟動？服務會保持目前的執行狀態。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>重新啟動失敗</value>
@@ -1283,10 +1274,10 @@
     <value>正在套用更新，請完成後再重新啟動。</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
-    <value>無法以系統管理員身分重新啟動</value>
+    <value>無法以系統管理員模式重新啟動</value>
   </data>
   <data name="notify.adminRestartFailedBody" xml:space="preserve">
-    <value>提權要求已取消或失敗。</value>
+    <value>系統管理員模式重新啟動要求已取消或失敗。</value>
   </data>
   <data name="settings.savedTitle" xml:space="preserve">
     <value>設定已儲存</value>
@@ -1433,7 +1424,7 @@
     <value>此安裝已有更新或安裝正在套用。</value>
   </data>
   <data name="auto.adminWritableDir" xml:space="preserve">
-    <value>目前托盤安裝目錄可被標準使用者修改，未開啟管理員自啟動。請將 Pi Web Tray 移至受保護目錄，或使用標準使用者自啟動。</value>
+    <value>目前托盤安裝目錄可被標準使用者修改，未開啟系統管理員自啟動。請將 Pi Web Tray 移至受保護目錄，或使用標準使用者自啟動。</value>
   </data>
   <data name="auto.enabledAdminRunLeft" xml:space="preserve">
     <value>系統管理員自啟動已啟用，但無法刪除舊的 Run 登錄值。請手動刪除，以免登入時啟動兩次。</value>
@@ -1469,36 +1460,36 @@
     <value>請等待目前更新檢查或下載完成後再修改相依套件。</value>
   </data>
   <data name="auto.adminWritableTitle" xml:space="preserve">
-    <value>管理員自啟動被拒絕</value>
+    <value>系統管理員自啟動被拒絕</value>
   </data>
   <data name="auto.adminAccountTitle" xml:space="preserve">
-    <value>需要管理員帳戶</value>
+    <value>需要系統管理員帳戶</value>
   </data>
   <data name="auto.adminAccountRequired" xml:space="preserve">
-    <value>管理員自啟動要求目前 Windows 帳戶屬於 Administrators 群組。請改用標準使用者自啟動。</value>
+    <value>系統管理員自啟動要求目前 Windows 帳戶屬於 Administrators 群組。請改用標準使用者自啟動。</value>
   </data>
   <data name="auto.adminWritableBalloon" xml:space="preserve">
-    <value>因安全性問題，已拒絕在目前所在目錄開啟管理員自啟動，點擊查看詳情</value>
+    <value>因安全性問題，已拒絕在目前所在目錄開啟系統管理員自啟動，點擊查看詳情</value>
   </data>
   <data name="auto.adminWritableDetails" xml:space="preserve">
-    <value>未開啟管理員權限自啟動，因為該目錄可被標準使用者修改
+    <value>未開啟系統管理員自啟動，因為該目錄可被標準使用者修改
 {0}
 
-從該位置執行的自啟動工作可能因實際程式被取代而導致安全性問題。點擊「修復」保護此目錄，然後重新開啟管理員自啟動。也可以改用標準使用者自啟動。</value>
+從該位置執行的自啟動工作可能因實際程式被取代而導致安全性問題。點擊「修復」保護此目錄，然後重新開啟系統管理員自啟動。也可以改用標準使用者自啟動。</value>
   </data>
   <data name="auto.adminWritableExistingTitle" xml:space="preserve">
-    <value>管理員自啟動工作不安全</value>
+    <value>系統管理員自啟動工作不安全</value>
   </data>
   <data name="auto.adminWritableExistingBalloon" xml:space="preserve">
-    <value>因安全性問題，偵測到目前目錄已有管理員權限的自啟動工作，點擊查看詳情</value>
+    <value>因安全性問題，偵測到目前目錄已有系統管理員自啟動工作，點擊查看詳情</value>
   </data>
   <data name="auto.adminWritableExistingDetails" xml:space="preserve">
-    <value>此安裝已啟用管理員權限的開機自啟動工作（{0}）：
+    <value>此安裝已啟用系統管理員自啟動工作（{0}）：
 {1}
 
-標準使用者可修改此目錄，托盤或其檔案可能被取代並以管理員權限執行。點擊「修復」保護此目錄，或在托盤功能表中停用管理員自啟動。
+標準使用者可修改此目錄，托盤或其檔案可能被取代並以系統管理員模式執行。點擊「修復」保護此目錄，或在托盤功能表中停用系統管理員自啟動。
 
-此檢查只涵蓋托盤目錄；Node.js、npm、Pi Web 以及使用者可寫的設定/工作目錄仍會以管理員權限執行。</value>
+此檢查只涵蓋托盤目錄；Node.js、npm、Pi Web 以及使用者可寫的設定/工作目錄仍會以系統管理員模式執行。</value>
   </data>
   <data name="auto.repair" xml:space="preserve">
     <value>修復</value>
@@ -1549,10 +1540,10 @@
     <value>目錄權限已修復</value>
   </data>
   <data name="auto.repairSuccessExisting" xml:space="preserve">
-    <value>安裝目錄現在受保護，管理員自啟動工作已安全。</value>
+    <value>安裝目錄現在受保護，系統管理員自啟動工作已安全。</value>
   </data>
   <data name="auto.repairSuccessRetry" xml:space="preserve">
-    <value>安裝目錄現在受保護。請重新開啟管理員自啟動以完成操作。</value>
+    <value>安裝目錄現在受保護。請重新開啟系統管理員自啟動以完成操作。</value>
   </data>
   <data name="status.unverified" xml:space="preserve">
     <value>執行中 · 連接埠 {0}（擁有者未驗證）</value>
@@ -1561,24 +1552,24 @@
     <value>更新檔案超過允許的大小，或解壓縮後過大。</value>
   </data>
   <data name="update.error.writableInstall" xml:space="preserve">
-    <value>安裝目錄可被標準使用者修改。請以一般權限重新啟動 Pi Web Tray 後再更新。</value>
+    <value>安裝目錄可被標準使用者修改。請以標準使用者模式重新啟動 Pi Web Tray 後再更新。</value>
   </data>
   <data name="notify.adminRestartWritableBody" xml:space="preserve">
-    <value>Pi Web Tray 安裝在一個可被標準使用者修改的目錄中。從該位置以管理員身分啟動，可能讓其他處理程序取代程式。請將其移到 Program Files 等受保護目錄，或以一般權限執行；也可以點擊此通知修復目錄權限。</value>
+    <value>Pi Web Tray 安裝在一個可被標準使用者修改的目錄中。從該位置以系統管理員模式啟動，可能讓其他處理程序取代程式。請將其移到 Program Files 等受保護目錄，或以標準使用者模式執行；也可以點擊此通知修復目錄權限。</value>
   </data>
   <data name="notify.adminRestartFixDetails" xml:space="preserve">
-    <value>管理員模式未開啟，因為該目錄可被標準使用者修改
+    <value>系統管理員模式未開啟，因為該目錄可被標準使用者修改
 {0}
 
-點擊「修復」透過一次 UAC 授權取得所有權並重設資料夾 ACL，然後重新選擇「以管理員身分重新啟動」。也可以一般權限執行 Pi Web Tray。</value>
+點擊「修復」透過一次 UAC 授權取得所有權並重設資料夾 ACL，然後重新選擇「以系統管理員模式重新啟動」。也可以以標準使用者模式執行 Pi Web Tray。</value>
   </data>
   <data name="notify.adminAccountBody" xml:space="preserve">
-    <value>只有屬於 Administrators 群組的帳戶才能以管理員身分重新啟動 Pi Web Tray。請使用自己的管理員帳戶，或以一般權限執行托盤。</value>
+    <value>只有屬於 Administrators 群組的帳戶才能以系統管理員模式重新啟動 Pi Web Tray。請使用自己的系統管理員帳戶，或以標準使用者模式執行托盤。</value>
   </data>
   <data name="notify.elevatedWritableTitle" xml:space="preserve">
-    <value>管理員模式無法使用</value>
+    <value>系統管理員模式無法使用</value>
   </data>
   <data name="notify.elevatedWritableBody" xml:space="preserve">
-    <value>Pi Web Tray 正以管理員身分從一個可被標準使用者修改的目錄執行。服務啟動、相依套件安裝與自我更新已停用。請以一般權限重新啟動後再操作。</value>
+    <value>Pi Web Tray 正以系統管理員模式從一個可被標準使用者修改的目錄執行。服務啟動、相依套件安裝與自我更新已停用。請以標準使用者模式重新啟動後再操作。</value>
   </data>
 </root>

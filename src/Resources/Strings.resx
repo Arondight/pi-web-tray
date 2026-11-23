@@ -43,7 +43,7 @@
     <value>Stopped</value>
   </data>
   <data name="status.admin" xml:space="preserve">
-    <value> (administrator)</value>
+    <value> (administrator mode)</value>
   </data>
   <data name="status.adminLong" xml:space="preserve">
     <value> · administrator mode</value>
@@ -122,13 +122,7 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Windows 7 builds are unsigned community builds; this project cannot verify them.</value>
   </data>
   <data name="menu.network" xml:space="preserve">
-    <value>Connections from the local network: {0}</value>
-  </data>
-  <data name="network.enabledState" xml:space="preserve">
-    <value>Enabled</value>
-  </data>
-  <data name="network.disabledState" xml:space="preserve">
-    <value>Disabled</value>
+    <value>Allow connections from the local network</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>Environment check</value>
@@ -143,13 +137,10 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>Create desktop shortcut</value>
   </data>
   <data name="menu.autostart" xml:space="preserve">
-    <value>Start at login: {0}</value>
-  </data>
-  <data name="menu.autostartBusy" xml:space="preserve">
-    <value>Start at login: updating…</value>
+    <value>Start the program at login</value>
   </data>
   <data name="menu.adminAutostart" xml:space="preserve">
-    <value>Start at login as administrator: {0}</value>
+    <value>Use administrator rights when starting at login</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
     <value>Exit and stop service</value>
@@ -167,19 +158,19 @@ Keep the tray running and retry after Node.js is installed.</value>
     <value>off</value>
   </data>
   <data name="auto.onAdmin" xml:space="preserve">
-    <value>Enabled (administrator)</value>
+    <value>Enabled (administrator mode)</value>
   </data>
   <data name="auto.onUser" xml:space="preserve">
-    <value>Enabled (standard user)</value>
+    <value>Enabled (standard-user mode)</value>
   </data>
   <data name="auto.off" xml:space="preserve">
     <value>Disabled</value>
   </data>
   <data name="auto.enabledAdmin" xml:space="preserve">
-    <value>Enabled. Starts at login with administrator rights.</value>
+    <value>Enabled. Starts at login in administrator mode.</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>Enabled. An icon appears in the notification area after login (standard user).</value>
+    <value>Enabled. An icon appears in the notification area after login (standard-user mode).</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>The scheduled task could not be created. See "View software update log" in the tray menu for the Task Scheduler error.</value>
@@ -427,7 +418,7 @@ Exit anyway?</value>
     <value>Desktop shortcut unavailable</value>
   </data>
   <data name="notify.shortcutAdminBody" xml:space="preserve">
-    <value>Restart the tray as a standard user to create a desktop shortcut. The elevated tray does not load user-controlled COM handlers.</value>
+    <value>Restart the tray in standard-user mode to create a desktop shortcut. The administrator-mode tray does not load user-controlled COM handlers.</value>
   </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>Desktop shortcut created</value>
@@ -589,7 +580,7 @@ Exit anyway?</value>
     <value>Port {0} (listening={1})</value>
   </data>
 <data name="sc.admin" xml:space="preserve">
-    <value>Administrator</value>
+    <value>Administrator mode</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
     <value>Service runtime log</value>
@@ -652,7 +643,7 @@ Exit anyway?</value>
     <value>Free (not running)</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
-    <value>Held by an elevated instance</value>
+    <value>Held by an instance in administrator mode</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
     <value>Held by another process</value>
@@ -661,15 +652,15 @@ Exit anyway?</value>
     <value>Environment probe failed: {0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>Already running with administrator rights</value>
+    <value>Already running in administrator mode</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>Already running elevated.
+    <value>Already running in administrator mode.
 
 To start the service, use the notification icon menu, or right-click the desktop shortcut and choose “Run as administrator”.</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
-    <value>Elevation takeover failed</value>
+    <value>Administrator-mode takeover failed</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>The previous process did not exit.
@@ -944,7 +935,7 @@ See {1} for details.</value>
     <value>The update helper could not be started.</value>
   </data>
   <data name="update.error.elevationCancelled" xml:space="preserve">
-    <value>Administrator permission is required to update this installation.</value>
+    <value>Administrator mode permission is required to update this installation.</value>
   </data>
   <data name="update.error.badArgs" xml:space="preserve">
     <value>The update helper was started with invalid arguments.</value>
@@ -1205,10 +1196,10 @@ See {1} for details.</value>
     <value>Copy page link</value>
   </data>
   <data name="menu.restartStandard" xml:space="preserve">
-    <value>Restart as standard user</value>
+    <value>Restart in standard-user mode</value>
   </data>
 <data name="menu.restartAdmin" xml:space="preserve">
-    <value>Restart as administrator</value>
+    <value>Restart in administrator mode</value>
   </data>
   <data name="menu.folder" xml:space="preserve">
     <value>Open program folder</value>
@@ -1229,7 +1220,7 @@ See {1} for details.</value>
     <value>Windows Firewall could not be updated. Network access was not changed.</value>
   </data>
   <data name="network.elevationCanceled" xml:space="preserve">
-    <value>Administrator approval was cancelled. Network access was not changed.</value>
+    <value>Administrator permission request was cancelled. Network access was not changed.</value>
   </data>
   <data name="network.failedTitle" xml:space="preserve">
     <value>Network setting was not changed</value>
@@ -1262,10 +1253,10 @@ See {1} for details.</value>
     <value>Could not open the configuration file</value>
   </data>
   <data name="notify.adminRestartTitle" xml:space="preserve">
-    <value>Restart as administrator</value>
+    <value>Restart in administrator mode</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>Restart with administrator rights? The service keeps its current running state.</value>
+    <value>Restart in administrator mode? The service keeps its current running state.</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>Restart failed</value>
@@ -1283,10 +1274,10 @@ See {1} for details.</value>
     <value>An update is being applied. Try again after it finishes.</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
-    <value>Could not restart as administrator</value>
+    <value>Could not restart in administrator mode</value>
   </data>
   <data name="notify.adminRestartFailedBody" xml:space="preserve">
-    <value>The elevation request was cancelled or failed.</value>
+    <value>The administrator-mode restart request was cancelled or failed.</value>
   </data>
   <data name="settings.savedTitle" xml:space="preserve">
     <value>Settings saved</value>
@@ -1472,7 +1463,7 @@ See {1} for details.</value>
     <value>Administrator start-at-login refused</value>
   </data>
   <data name="auto.adminAccountTitle" xml:space="preserve">
-    <value>Administrator account required</value>
+    <value>Administrator mode account required</value>
   </data>
   <data name="auto.adminAccountRequired" xml:space="preserve">
     <value>Administrator start-at-login requires the current Windows account to be a member of the Administrators group. Use standard-user start-at-login instead.</value>
@@ -1496,9 +1487,9 @@ A start-at-login task running from this location could become a security risk if
     <value>An administrator start-at-login task is already enabled ({0}):
 {1}
 
-Standard users can modify this folder, so the tray or its files could be replaced and run with administrator rights. Click "Fix" to protect this folder, or disable administrator start-at-login in the tray menu.
+Standard users can modify this folder, so the tray or its files could be replaced and run in administrator mode. Click "Fix" to protect this folder, or disable administrator start-at-login in the tray menu.
 
-This check covers the tray folder only; Node.js, npm, Pi Web and user-writable config/working folders still run elevated.</value>
+This check covers the tray folder only; Node.js, npm, Pi Web and user-writable config/working folders still run in administrator mode.</value>
   </data>
   <data name="auto.repair" xml:space="preserve">
     <value>Fix</value>
@@ -1561,24 +1552,24 @@ This check covers the tray folder only; Node.js, npm, Pi Web and user-writable c
     <value>The update is larger than the allowed size or expands too far.</value>
   </data>
   <data name="update.error.writableInstall" xml:space="preserve">
-    <value>The installation directory is writable by standard users. Restart Pi Web Tray normally before updating.</value>
+    <value>The installation directory is writable by standard users. Restart Pi Web Tray in standard-user mode before updating.</value>
   </data>
   <data name="notify.adminRestartWritableBody" xml:space="preserve">
-    <value>Pi Web Tray is installed in a folder that standard users can modify. Starting it elevated from this location would let another process replace the program. Move it to a protected folder such as Program Files, run it without administrator rights, or click this notification to repair the folder permissions.</value>
+    <value>Pi Web Tray is installed in a folder that standard users can modify. Starting it in administrator mode from this location would let another process replace the program. Move it to a protected folder such as Program Files, run it in standard-user mode, or click this notification to repair the folder permissions.</value>
   </data>
   <data name="notify.adminRestartFixDetails" xml:space="preserve">
     <value>Administrator mode was not enabled because this directory can be modified by standard users
 {0}
 
-Click "Fix" to take ownership and reset the folder ACL with one UAC prompt, then choose Restart as administrator again. You can also run Pi Web Tray without administrator rights.</value>
+Click "Fix" to take ownership and reset the folder ACL with one UAC prompt, then choose Restart in administrator mode again. You can also run Pi Web Tray in standard-user mode.</value>
   </data>
   <data name="notify.adminAccountBody" xml:space="preserve">
-    <value>Only an account that is a member of the Administrators group can restart Pi Web Tray as administrator. Use your own administrator account or run the tray normally.</value>
+    <value>Only an account that is a member of the Administrators group can restart Pi Web Tray in administrator mode. Use your own administrator account or run the tray in standard-user mode.</value>
   </data>
   <data name="notify.elevatedWritableTitle" xml:space="preserve">
     <value>Administrator mode unavailable</value>
   </data>
   <data name="notify.elevatedWritableBody" xml:space="preserve">
-    <value>Pi Web Tray is running as an administrator from a folder that standard users can modify. Service start, dependency install, and self-update are disabled. Restart it normally before making changes.</value>
+    <value>Pi Web Tray is running in administrator mode from a folder that standard users can modify. Service start, dependency install, and self-update are disabled. Restart it in standard-user mode before making changes.</value>
   </data>
 </root>

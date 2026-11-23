@@ -94,6 +94,9 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _adminAutostartItem;
         private readonly ToolStripMenuItem _aboutItem;
         private readonly ToolStripMenuItem _exitItem;
+        private readonly Image _checkboxCheckedImage;
+        private readonly Image _checkboxUncheckedImage;
+        private bool _menuOpen;
 
         private Process _server;
         // The working directory the tracked service was actually started with.
@@ -361,6 +364,10 @@ namespace PiWebTray
             _quitKeepServiceSignal = new EventWaitHandle(false, EventResetMode.AutoReset,
                 Instance.QuitKeepServiceSignalName, out created);
 
+            _checkboxCheckedImage = TrayMenuCheckBoxImages.Create(true);
+            _checkboxUncheckedImage = TrayMenuCheckBoxImages.Create(false);
+            _menu.ImageScalingSize = TrayMenuCheckBoxImages.ImageSize();
+
             _statusItem = new ToolStripMenuItem(L.T("status.checkingShort"));
             _statusItem.Enabled = false;
 
@@ -390,9 +397,10 @@ namespace PiWebTray
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
             _nodeItem.Click += delegate { OpenNodeDownload(); };
 
-            _networkItem = new ToolStripMenuItem(L.T("menu.network",
-                _config.NetworkAccess ? L.T("network.enabledState") : L.T("network.disabledState")));
-            _networkItem.Checked = _config.NetworkAccess;
+            _networkItem = new ToolStripMenuItem(L.T("menu.network"));
+            _networkItem.Image = _config.NetworkAccess
+                ? _checkboxCheckedImage : _checkboxUncheckedImage;
+            _networkItem.ImageScaling = ToolStripItemImageScaling.None;
             _networkItem.Click += delegate { ToggleNetworkAccess(); };
 
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
@@ -430,10 +438,15 @@ namespace PiWebTray
             _shortcutItem = new ToolStripMenuItem(L.T("menu.shortcut"));
             _shortcutItem.Click += delegate { CreateDesktopShortcut(); };
 
-            _autostartItem = new ToolStripMenuItem(L.T("menu.autostart", L.T("auto.off")));
+            _autostartItem = new ToolStripMenuItem(L.T("menu.autostart"));
+            _autostartItem.Image = _checkboxUncheckedImage;
+            _autostartItem.ImageScaling = ToolStripItemImageScaling.None;
             _autostartItem.Click += delegate { ToggleAutostart(); };
 
-            _adminAutostartItem = new ToolStripMenuItem(L.T("menu.adminAutostart", L.T("bool.no")));
+            _adminAutostartItem = new ToolStripMenuItem(L.T("menu.adminAutostart"));
+            _adminAutostartItem.Image = _config.AutostartAdmin
+                ? _checkboxCheckedImage : _checkboxUncheckedImage;
+            _adminAutostartItem.ImageScaling = ToolStripItemImageScaling.None;
             _adminAutostartItem.Click += delegate { ToggleAdminAutostart(); };
 
             _restartAdminItem = new ToolStripMenuItem(L.T("menu.restartAdmin"));
@@ -483,13 +496,21 @@ namespace PiWebTray
             _menu.Items.Add(_aboutItem);
             _menu.Items.Add(_exitItem);
 
-            // The check margin must stay: turning off only ShowImageMargin clips the check box, which makes
-            // Checked look like a no-op. The state is therefore written into the text as well.
-            _menu.ShowImageMargin = false;
-            _menu.ShowCheckMargin = true;
+            // ToolStripMenuItem normally paints a check mark only when checked.
+            // Use native checkbox images for the three stateful items so an
+            // unchecked item still shows an empty box.
+            _menu.ShowImageMargin = true;
+            _menu.ShowCheckMargin = false;
+            SetMenuCheckBox(_networkItem, _config.NetworkAccess);
+            SetMenuCheckBox(_autostartItem, false);
+            SetMenuCheckBox(_adminAutostartItem, _config.AutostartAdmin);
 
-            // Re-read the real system state whenever the menu opens (cached, so the menu stays responsive)
+            // Re-read the real system state whenever the menu opens (cached, so the menu stays responsive).
+            // Keep refreshing the stateful items while the menu remains open, because
+            // task creation/removal and permission checks finish asynchronously.
             _menu.Opening += delegate { UpdateAutostartItems(); };
+            _menu.Opened += delegate { _menuOpen = true; UpdateAutostartItems(); };
+            _menu.Closed += delegate { _menuOpen = false; };
 
             _tray.ContextMenuStrip = _menu;
             _tray.Visible = true;
@@ -586,6 +607,13 @@ namespace PiWebTray
                     L.T("notify.stateSaveBody", TrayState.Folder));
             }
             _updateBackupCleanupAt = DateTime.Now.AddSeconds(90);
+        }
+
+        private void SetMenuCheckBox(ToolStripMenuItem item, bool selected)
+        {
+            if (item == null) return;
+            item.Checked = selected;
+            item.Image = selected ? _checkboxCheckedImage : _checkboxUncheckedImage;
         }
 
         // NotifyIcon does not reliably report Click count for notification-area
@@ -685,6 +713,9 @@ namespace PiWebTray
             }
             PollTaskRefresh();
             if (_exiting) return;
+            // Keep the three stateful menu items current even when the menu is
+            // left open while an asynchronous task/ACL operation completes.
+            if (_menuOpen) UpdateAutostartItems();
 
             if (_modalDepth == 0) RetryPendingStartAfterUpdate();
 

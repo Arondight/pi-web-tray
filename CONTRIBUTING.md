@@ -32,7 +32,7 @@ The output is copied to `artifacts\pi-web-tray.exe`, `artifacts\pi-web-tray.exe.
 
 Tests in `tests/PiWebTray.Tests` cover the pure logic, native process inspection, update manifest cleanup, the update apply/restart lifecycle and the construction of the main dialogs; the CI smoke script exercises the built CLI.
 
-The unit tests can run from any shell on a supported build host. `verify.ps1` handles an elevated shell by copying the executable to a protected Program Files folder; for a local user-writable build, use a non-elevated shell.
+The unit tests can run from any shell on a supported build host. `verify.ps1` handles an administrator-mode shell by copying the executable to a protected Program Files folder; for a local user-writable build, use a standard-user-mode shell.
 
 ```powershell
 .\scripts\verify.ps1 -ExePath .\artifacts\pi-web-tray.exe
@@ -55,7 +55,7 @@ Before a release, manually check:
 - first start without Node.js (dialogue, download page, detects a later install while running);
 - Node.js removed while running (warning, running service continues, next start is guarded);
 - start-at-login in both normal and admin mode;
-- elevated takeover;
+- administrator-mode takeover;
 - high-DPI scaling and the Settings window on a small screen;
 - log pause/resume and filtering;
 - update cancellation while a download is in progress;
@@ -80,7 +80,7 @@ Run both before committing. `.prettierignore` excludes C# sources, build output,
 - Keep the application dependency-free: **no NuGet packages in `src`** and no third-party runtime DLLs. Test-only packages under `tests/` are allowed.
 - Target `.NET Framework 4.8` only. Do not use APIs that are unavailable on Windows 7 SP1 or .NET Framework 4.8 (for example `System.Text.Json`, `TaskDialog`, or WinRT APIs).
 - Do not add a manifest DPI mode that Windows 7 cannot parse. The current `dpiAware=true` setting is deliberate.
-- All user-visible UI text lives in `src/Resources/Strings.resx` (English neutral), `src/Resources/Strings.zh-Hans.resx` (Simplified Chinese) and `src/Resources/Strings.zh-Hant.resx` (Traditional Chinese). The pre-localization elevated-install refusal and low-level exception details are the only intended exceptions. Add all keys and run `--lang-check` afterwards.
+- All user-visible UI text lives in `src/Resources/Strings.resx` (English neutral), `src/Resources/Strings.zh-Hans.resx` (Simplified Chinese) and `src/Resources/Strings.zh-Hant.resx` (Traditional Chinese). The pre-localization administrator-mode install refusal and low-level exception details are the only intended exceptions. Add all keys and run `--lang-check` afterwards.
 - UI work belongs on the WinForms thread. Slow operations (probe, npm, `schtasks`, HTTP checks) stay on background threads and report through locked fields.
 - Catch exceptions at the boundary (UI action, worker callback), not around every line. Never silently swallow an exception that leaves the UI in a lying state.
 - Keep comments in English and write them for the next maintainer.

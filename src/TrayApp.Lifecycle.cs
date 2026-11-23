@@ -361,6 +361,8 @@ namespace PiWebTray
             if (!_stopWorkerRunning) ReleaseStopWorkerLock();
             try { _tray.Visible = false; _tray.Dispose(); } catch (Exception) { }
             try { _menu.Dispose(); } catch (Exception) { }
+            try { if (_checkboxCheckedImage != null) _checkboxCheckedImage.Dispose(); } catch (Exception) { }
+            try { if (_checkboxUncheckedImage != null) _checkboxUncheckedImage.Dispose(); } catch (Exception) { }
             try { _openSignal.Close(); } catch (Exception) { }
             try { _startSignal.Close(); } catch (Exception) { }
             try { _stopSignal.Close(); } catch (Exception) { }

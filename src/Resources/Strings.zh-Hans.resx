@@ -43,7 +43,7 @@
     <value>已停止</value>
   </data>
   <data name="status.admin" xml:space="preserve">
-    <value>（管理员）</value>
+    <value>（管理员模式）</value>
   </data>
   <data name="status.adminLong" xml:space="preserve">
     <value> · 管理员模式</value>
@@ -122,13 +122,7 @@
     <value>Windows 7 使用未签名的社区构建，本项目无法验证其安全性。</value>
   </data>
   <data name="menu.network" xml:space="preserve">
-    <value>来自局域网的连接：{0}</value>
-  </data>
-  <data name="network.enabledState" xml:space="preserve">
-    <value>已启用</value>
-  </data>
-  <data name="network.disabledState" xml:space="preserve">
-    <value>已禁用</value>
+    <value>允许来自局域网的连接</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>环境检查</value>
@@ -143,13 +137,10 @@
     <value>创建桌面快捷方式</value>
   </data>
   <data name="menu.autostart" xml:space="preserve">
-    <value>开机自启动：{0}</value>
-  </data>
-  <data name="menu.autostartBusy" xml:space="preserve">
-    <value>开机自启动：更新中…</value>
+    <value>开机时启动程序</value>
   </data>
   <data name="menu.adminAutostart" xml:space="preserve">
-    <value>自启动时使用管理员权限：{0}</value>
+    <value>开机启动时使用管理员权限</value>
   </data>
   <data name="menu.exit" xml:space="preserve">
     <value>退出并停止服务</value>
@@ -167,19 +158,19 @@
     <value>不满足</value>
   </data>
   <data name="auto.onAdmin" xml:space="preserve">
-    <value>已启用（管理员权限）</value>
+    <value>已启用（管理员模式）</value>
   </data>
   <data name="auto.onUser" xml:space="preserve">
-    <value>已启用（标准用户权限）</value>
+    <value>已启用（标准用户模式）</value>
   </data>
   <data name="auto.off" xml:space="preserve">
     <value>已禁用</value>
   </data>
   <data name="auto.enabledAdmin" xml:space="preserve">
-    <value>已启用。登录后将自动以管理员权限运行。</value>
+    <value>已启用。登录后将自动以管理员模式运行。</value>
   </data>
   <data name="auto.enabledUser" xml:space="preserve">
-    <value>已启用。登录后通知区域将显示图标（标准用户权限）。</value>
+    <value>已启用。登录后通知区域将显示图标（标准用户模式）。</value>
   </data>
   <data name="auto.taskFailed" xml:space="preserve">
     <value>无法创建计划任务。请从托盘菜单打开“查看软件更新日志”，查看任务计划程序错误。</value>
@@ -427,7 +418,7 @@
     <value>无法创建桌面快捷方式</value>
   </data>
   <data name="notify.shortcutAdminBody" xml:space="preserve">
-    <value>请以标准用户身份重新启动托盘后再创建桌面快捷方式。管理员托盘不会加载用户可控制的 COM 处理程序。</value>
+    <value>请以标准用户模式重新启动托盘后再创建桌面快捷方式。管理员模式下的托盘不会加载用户可控制的 COM 处理程序。</value>
   </data>
   <data name="notify.shortcutCreated" xml:space="preserve">
     <value>已创建桌面快捷方式</value>
@@ -589,7 +580,7 @@
     <value>端口 {0}（监听中={1}）</value>
   </data>
 <data name="sc.admin" xml:space="preserve">
-    <value>管理员权限</value>
+    <value>管理员模式</value>
   </data>
   <data name="sc.serverLog" xml:space="preserve">
     <value>服务运行日志</value>
@@ -652,7 +643,7 @@
     <value>空闲（未运行）</value>
   </data>
   <data name="diag.mutexAdmin" xml:space="preserve">
-    <value>由具有管理员权限的实例占用</value>
+    <value>由管理员模式实例占用</value>
   </data>
   <data name="diag.mutexOther" xml:space="preserve">
     <value>由其他进程占用</value>
@@ -661,15 +652,15 @@
     <value>环境探测失败：{0}</value>
   </data>
   <data name="prog.adminAlreadyTitle" xml:space="preserve">
-    <value>已在管理员权限下运行</value>
+    <value>已以管理员模式运行</value>
   </data>
   <data name="prog.adminAlreadyBody" xml:space="preserve">
-    <value>已在管理员权限下运行。
+    <value>已以管理员模式运行。
 
 要启动服务，请使用通知图标菜单，或右键单击桌面快捷方式并选择“以管理员身份运行”。</value>
   </data>
   <data name="prog.takeoverTitle" xml:space="preserve">
-    <value>提权接管失败</value>
+    <value>管理员模式接管失败</value>
   </data>
   <data name="prog.takeoverBody" xml:space="preserve">
     <value>先前的进程未退出。
@@ -1205,10 +1196,10 @@
     <value>复制网页链接地址</value>
   </data>
   <data name="menu.restartStandard" xml:space="preserve">
-    <value>以标准用户身份重启</value>
+    <value>以标准用户模式重启</value>
   </data>
 <data name="menu.restartAdmin" xml:space="preserve">
-    <value>以管理员身份重启</value>
+    <value>以管理员模式重启</value>
   </data>
   <data name="menu.folder" xml:space="preserve">
     <value>打开程序目录</value>
@@ -1229,7 +1220,7 @@
     <value>无法更新 Windows 防火墙，网络设置未更改。</value>
   </data>
   <data name="network.elevationCanceled" xml:space="preserve">
-    <value>管理员授权已取消，网络设置未更改。</value>
+    <value>管理员权限请求已取消，网络设置未更改。</value>
   </data>
   <data name="network.failedTitle" xml:space="preserve">
     <value>网络设置未更改</value>
@@ -1262,10 +1253,10 @@
     <value>无法打开配置文件</value>
   </data>
   <data name="notify.adminRestartTitle" xml:space="preserve">
-    <value>以管理员身份重启</value>
+    <value>以管理员模式重启</value>
   </data>
   <data name="notify.adminRestartBody" xml:space="preserve">
-    <value>是否以管理员权限重启？服务会保持当前的运行状态。</value>
+    <value>是否以管理员模式重启？服务会保持当前的运行状态。</value>
   </data>
   <data name="notify.restartFailed" xml:space="preserve">
     <value>重启失败</value>
@@ -1283,10 +1274,10 @@
     <value>正在应用更新，请完成后再重启。</value>
   </data>
   <data name="notify.adminRestartFailed" xml:space="preserve">
-    <value>无法以管理员身份重启</value>
+    <value>无法以管理员模式重启</value>
   </data>
   <data name="notify.adminRestartFailedBody" xml:space="preserve">
-    <value>提权请求已取消或失败。</value>
+    <value>管理员模式重启请求已取消或失败。</value>
   </data>
   <data name="settings.savedTitle" xml:space="preserve">
     <value>设置已保存</value>
@@ -1481,7 +1472,7 @@
     <value>因安全问题，已拒绝在当前所在目录开启管理员自启动，点击查看详情</value>
   </data>
   <data name="auto.adminWritableDetails" xml:space="preserve">
-    <value>未开启管理员权限自启动，因为该目录可被标准用户修改
+    <value>未开启管理员自启动，因为该目录可被标准用户修改
 {0}
 
 从该位置运行的自启动任务可能因实际程序被替换而导致安全性问题。点击“修复”保护此目录，然后重新开启管理员自启动。也可以改用标准用户自启动。</value>
@@ -1490,15 +1481,15 @@
     <value>管理员自启动任务不安全</value>
   </data>
   <data name="auto.adminWritableExistingBalloon" xml:space="preserve">
-    <value>因安全问题，检测到当前目录已有管理员权限的自启动任务，点击查看详情</value>
+    <value>因安全问题，检测到当前目录已有管理员自启动任务，点击查看详情</value>
   </data>
   <data name="auto.adminWritableExistingDetails" xml:space="preserve">
-    <value>此安装已启用管理员权限的开机自启动任务（{0}）：
+    <value>此安装已启用管理员自启动任务（{0}）：
 {1}
 
-标准用户可修改此目录，托盘或其文件可能被替换并以管理员权限运行。点击“修复”保护此目录，或在托盘菜单中禁用管理员自启动。
+标准用户可修改此目录，托盘或其文件可能被替换并以管理员模式运行。点击“修复”保护此目录，或在托盘菜单中禁用管理员自启动。
 
-此检查只覆盖托盘目录；Node.js、npm、Pi Web 以及用户可写的配置/工作目录仍会以管理员权限运行。</value>
+此检查只覆盖托盘目录；Node.js、npm、Pi Web 以及用户可写的配置/工作目录仍会以管理员模式运行。</value>
   </data>
   <data name="auto.repair" xml:space="preserve">
     <value>修复</value>
@@ -1525,7 +1516,7 @@
     <value>安装路径中包含标准用户可重命名或替换的文件夹。请将 Pi Web Tray 移到 Program Files 等受保护的文件夹，或使用标准用户自启动。</value>
   </data>
   <data name="auto.repairPortableUnsafe" xml:space="preserve">
-    <value>Pi Web Tray 正在使用可执行文件旁的便携模式。修复其 ACL 会使普通用户无法写入 pi-web-tray.ini 和 server.log。请关闭便携模式，或将程序移到 Program Files 等受保护的位置。</value>
+    <value>Pi Web Tray 正在使用可执行文件旁的便携模式。修复其 ACL 会使标准用户无法写入 pi-web-tray.ini 和 server.log。请关闭便携模式，或将程序移到 Program Files 等受保护的位置。</value>
   </data>
   <data name="auto.repairHardLinkUnsafe" xml:space="preserve">
     <value>安装目录中包含无法安全修复的硬链接文件。请将 Pi Web Tray 移到 Program Files 等受保护的文件夹，或使用标准用户自启动。</value>
@@ -1534,7 +1525,7 @@
     <value>无法完整恢复原有权限；请手动检查目录 ACL。</value>
   </data>
   <data name="auto.repairStillUnsafe" xml:space="preserve">
-    <value>修复后安装目录仍可被普通用户写入。</value>
+    <value>修复后安装目录仍可被标准用户写入。</value>
   </data>
   <data name="auto.repairAlreadySafe" xml:space="preserve">
     <value>安装目录权限已经安全。</value>
@@ -1561,24 +1552,24 @@
     <value>更新文件超过允许的大小，或解压后过大。</value>
   </data>
   <data name="update.error.writableInstall" xml:space="preserve">
-    <value>安装目录可被标准用户修改。请以普通权限重新启动 Pi Web Tray 后再更新。</value>
+    <value>安装目录可被标准用户修改。请以标准用户模式重新启动 Pi Web Tray 后再更新。</value>
   </data>
   <data name="notify.adminRestartWritableBody" xml:space="preserve">
-    <value>Pi Web Tray 安装在一个可被标准用户修改的目录中。从该位置以管理员身份启动，可能让其他进程替换程序。请将其移到 Program Files 等受保护目录，或以普通权限运行；也可以点击此通知修复目录权限。</value>
+    <value>Pi Web Tray 安装在一个可被标准用户修改的目录中。从该位置以管理员模式启动，可能让其他进程替换程序。请将其移到 Program Files 等受保护目录，或以标准用户模式运行；也可以点击此通知修复目录权限。</value>
   </data>
   <data name="notify.adminRestartFixDetails" xml:space="preserve">
     <value>管理员模式未开启，因为该目录可被标准用户修改
 {0}
 
-点击“修复”通过一次 UAC 授权取得所有权并重置文件夹 ACL，然后重新选择“以管理员身份重启”。也可以以普通权限运行 Pi Web Tray。</value>
+点击“修复”通过一次 UAC 授权取得所有权并重置文件夹 ACL，然后重新选择“以管理员模式重启”。也可以以标准用户模式运行 Pi Web Tray。</value>
   </data>
   <data name="notify.adminAccountBody" xml:space="preserve">
-    <value>只有属于 Administrators 组的账户才能以管理员身份重新启动 Pi Web Tray。请使用自己的管理员账户，或以普通权限运行托盘。</value>
+    <value>只有属于 Administrators 组的账户才能以管理员模式重新启动 Pi Web Tray。请使用自己的管理员账户，或以标准用户模式运行托盘。</value>
   </data>
   <data name="notify.elevatedWritableTitle" xml:space="preserve">
     <value>管理员模式不可用</value>
   </data>
   <data name="notify.elevatedWritableBody" xml:space="preserve">
-    <value>Pi Web Tray 正以管理员身份从一个可被标准用户修改的目录运行。服务启动、依赖安装和自更新已禁用。请以普通权限重新启动后再操作。</value>
+    <value>Pi Web Tray 正以管理员模式从一个可被标准用户修改的目录运行。服务启动、依赖安装和自更新已禁用。请以标准用户模式重新启动后再操作。</value>
   </data>
 </root>
