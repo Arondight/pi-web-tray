@@ -121,11 +121,14 @@
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 使用未签名的社区构建，本项目无法验证其安全性。</value>
   </data>
-  <data name="menu.networkEnable" xml:space="preserve">
-    <value>允许网络访问</value>
+  <data name="menu.network" xml:space="preserve">
+    <value>来自局域网的连接：{0}</value>
   </data>
-  <data name="menu.networkDisable" xml:space="preserve">
-    <value>禁止网络访问</value>
+  <data name="network.enabledState" xml:space="preserve">
+    <value>已启用</value>
+  </data>
+  <data name="network.disabledState" xml:space="preserve">
+    <value>已禁用</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>环境检查</value>

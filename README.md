@@ -86,8 +86,6 @@ Start service
 Stop service
 Restart service
 ---------------------------------------
-Allow network access
----------------------------------------
 Update service
 Download Node.js
 ---------------------------------------
@@ -103,6 +101,7 @@ Open configuration file
 Copy page link
 Create desktop shortcut
 ---------------------------------------
+Connections from the local network: Disabled
 Start at login: Enabled (standard user)
 Start at login as administrator: no
 ---------------------------------------
@@ -210,7 +209,7 @@ cd .\pi-web-tray
 - Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user. Standard-user over-the-shoulder UAC and manual elevation are refused. The eligibility check includes files the elevated tray loads, not only `pi-web-tray.exe`. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported. A task with the current user's principal is removed when autostart is next changed; a task without an explicit user or for another account is left untouched.
 - `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs elevated, use an elevated console for `--stop` / `--quit`. The tray menu always works. A non-elevated tray may fall back to the unredacted, non-rotating `1>>` path described in [SECURITY.md](SECURITY.md) only when the log host is known to be unavailable. An elevated tray never uses that path; if the log host is unavailable or its state is unknown, service output is discarded. If the configured log path is a reparse point or a hard link, service output is discarded instead of following it.
 - The administrator start-at-login task is scoped to the current Windows user and keeps running on battery power. It does not inherit the environment of the shell that enabled it.
-- **Allow network access** is opt-in. It binds the service to all interfaces and adds an inbound Windows Firewall TCP rule for the service port. A standard-user tray asks for UAC to update the firewall; an elevated tray updates it directly. Change `NetworkAccess` and `Port` through the tray menu and Settings so the rule stays in sync. The service has no separate login by default, so anyone who can reach the PC may control Pi and access project files. Only enable it on a trusted network; use **Copy page link** for the network address.
+- **Connections from the local network** is opt-in. It binds the service to all interfaces and adds an inbound Windows Firewall TCP rule for the service port. A standard-user tray asks for UAC to update the firewall; an elevated tray updates it directly. Change `NetworkAccess` and `Port` through the tray menu and Settings so the rule stays in sync. The service has no separate login by default, so anyone who can reach the PC may control Pi and access project files. Only enable it on a trusted network; use **Copy page link** for the network address.
 
 ## Related projects
 

@@ -121,11 +121,14 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 builds are unsigned community builds; this project cannot verify them.</value>
   </data>
-  <data name="menu.networkEnable" xml:space="preserve">
-    <value>Allow network access</value>
+  <data name="menu.network" xml:space="preserve">
+    <value>Connections from the local network: {0}</value>
   </data>
-  <data name="menu.networkDisable" xml:space="preserve">
-    <value>Disable network access</value>
+  <data name="network.enabledState" xml:space="preserve">
+    <value>Enabled</value>
+  </data>
+  <data name="network.disabledState" xml:space="preserve">
+    <value>Disabled</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>Environment check</value>

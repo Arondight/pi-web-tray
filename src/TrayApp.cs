@@ -390,10 +390,9 @@ namespace PiWebTray
             _nodeItem = new ToolStripMenuItem(L.T("menu.node"));
             _nodeItem.Click += delegate { OpenNodeDownload(); };
 
-            _networkItem = new ToolStripMenuItem(_config.NetworkAccess
-                ? L.T("menu.networkDisable")
-                : L.T("menu.networkEnable"));
-            _networkItem.CheckOnClick = false;
+            _networkItem = new ToolStripMenuItem(L.T("menu.network",
+                _config.NetworkAccess ? L.T("network.enabledState") : L.T("network.disabledState")));
+            _networkItem.Checked = _config.NetworkAccess;
             _networkItem.Click += delegate { ToggleNetworkAccess(); };
 
             _checkItem = new ToolStripMenuItem(L.T("menu.selfCheck"));
@@ -462,8 +461,6 @@ namespace PiWebTray
             _menu.Items.Add(_stopItem);
             _menu.Items.Add(_restartItem);
             _menu.Items.Add(new ToolStripSeparator());
-            _menu.Items.Add(_networkItem);
-            _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(_installItem);
             _menu.Items.Add(_nodeItem);
             _menu.Items.Add(new ToolStripSeparator());
@@ -476,6 +473,7 @@ namespace PiWebTray
             _menu.Items.Add(_copyUrlItem);
             _menu.Items.Add(_shortcutItem);
             _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(_networkItem);
             _menu.Items.Add(_autostartItem);
             _menu.Items.Add(_adminAutostartItem);
             _menu.Items.Add(new ToolStripSeparator());

@@ -121,11 +121,14 @@
   <data name="node.communityNote" xml:space="preserve">
     <value>Windows 7 使用未簽章的社群建置，本專案無法驗證其安全性。</value>
   </data>
-  <data name="menu.networkEnable" xml:space="preserve">
-    <value>允許網路存取</value>
+  <data name="menu.network" xml:space="preserve">
+    <value>來自區域網路的連線：{0}</value>
   </data>
-  <data name="menu.networkDisable" xml:space="preserve">
-    <value>禁止網路存取</value>
+  <data name="network.enabledState" xml:space="preserve">
+    <value>已啟用</value>
+  </data>
+  <data name="network.disabledState" xml:space="preserve">
+    <value>已停用</value>
   </data>
   <data name="menu.selfCheck" xml:space="preserve">
     <value>環境檢查</value>
