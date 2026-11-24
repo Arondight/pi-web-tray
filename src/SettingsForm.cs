@@ -74,15 +74,7 @@ namespace PiWebTray
             _elevated = elevated;
 
             Text = L.T("settings.title");
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.Sizable;
-            MaximizeBox = true;
-            MinimizeBox = true;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            // Scaling runs on ResumeLayout, after the whole control tree exists.
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(720, 560);
             MinimumSize = new Size(560, 420);
             Icon = Icons.WindowIcon();

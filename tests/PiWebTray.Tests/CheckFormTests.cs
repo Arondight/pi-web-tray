@@ -25,7 +25,7 @@ namespace PiWebTray
             using (CheckForm form = new CheckForm(config, probe, false))
             {
                 Assert.AreEqual(L.T("sc.title"), form.Text);
-                Assert.IsTrue(form.MinimizeBox, "A resizable taskbar window should minimize.");
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
 
                 List<DataGridView> tables = FindControls<DataGridView>(form);
@@ -92,7 +92,7 @@ namespace PiWebTray
             {
                 Assert.AreEqual(L.T("about.title"), form.Text);
                 Assert.IsTrue(form.Controls.Count > 0);
-                Assert.IsTrue(form.ShowInTaskbar, "About should have a taskbar window.");
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
 
                 List<Button> buttons = FindControls<Button>(form);
@@ -140,6 +140,7 @@ namespace PiWebTray
             using (NodePromptForm form = new NodePromptForm("Node.js required", "Body", true))
             {
                 Assert.AreEqual("Node.js required", form.Text);
+                AssertStandardWindowChrome(form);
                 Assert.AreEqual(3, FindControls<Button>(form).Count);
                 Assert.IsNotNull(form.CancelButton);
                 Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
@@ -150,6 +151,7 @@ namespace PiWebTray
             using (NodePromptForm form = new NodePromptForm("Unsupported", "Body", false))
             {
                 Assert.AreEqual("Unsupported", form.Text);
+                AssertStandardWindowChrome(form);
                 Assert.AreEqual(2, FindControls<Button>(form).Count);
                 Assert.IsNotNull(form.CancelButton);
                 Assert.AreEqual(DialogResult.Ignore, form.CancelButton.DialogResult,
@@ -168,6 +170,7 @@ namespace PiWebTray
                 Assert.AreEqual(L.T("auto.adminWritableExistingTitle"), form.Text);
                 Assert.IsFalse(form.RepairSucceeded,
                     "Opening the warning must not run the repair.");
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
                 Assert.AreEqual(1, FindControls<Label>(form).FindAll(
                     delegate (Label label) { return label.Text == "Body"; }).Count);
@@ -198,11 +201,8 @@ namespace PiWebTray
             using (SettingsForm form = new SettingsForm(config))
             {
                 Assert.AreEqual(L.T("settings.title"), form.Text);
-                Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle);
-                Assert.IsTrue(form.ShowInTaskbar, "Settings should have a taskbar window.");
-                Assert.IsTrue(form.MinimizeBox, "Settings should minimize like the other dialogs.");
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
-                Assert.IsTrue(form.MinimumSize.Width > 0);
 
                 List<Button> buttons = FindControls<Button>(form);
                 bool save = false;
@@ -490,6 +490,7 @@ namespace PiWebTray
             using (UpdateForm form = new UpdateForm(null))
             {
                 Assert.AreEqual(L.T("update.progressTitle"), form.Text);
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
 
                 List<ProgressBar> bars = FindControls<ProgressBar>(form);
@@ -510,6 +511,7 @@ namespace PiWebTray
             using (InstallForm form = new InstallForm())
             {
                 Assert.AreEqual(L.T("install.progressTitle"), form.Text);
+                AssertStandardWindowChrome(form);
                 AssertDpiScaling(form);
             }
         }
@@ -539,6 +541,7 @@ namespace PiWebTray
                     Assert.AreEqual(2, FindControls<TextBox>(form).Count);
                     Assert.AreEqual(L.T("log.refresh"), ((Button)form.AcceptButton).Text,
                         "Enter in the filter box must refresh, not close the viewer.");
+                    AssertStandardWindowChrome(form);
                     AssertDpiScaling(form);
                 }
             }
@@ -546,6 +549,18 @@ namespace PiWebTray
             {
                 try { File.Delete(path); } catch (Exception) { }
             }
+        }
+
+        private static void AssertStandardWindowChrome(Form form)
+        {
+            Assert.AreEqual(FormBorderStyle.Sizable, form.FormBorderStyle,
+                "Every tray window must be resizable.");
+            Assert.IsTrue(form.ControlBox, "Every tray window must keep its caption buttons.");
+            Assert.IsTrue(form.MinimizeBox, "Every tray window must minimize.");
+            Assert.IsTrue(form.MaximizeBox, "Every tray window must maximize.");
+            Assert.IsTrue(form.ShowInTaskbar, "Every tray window must appear in the taskbar.");
+            Assert.IsTrue(form.MinimumSize.Width > 0 && form.MinimumSize.Height > 0,
+                "A resizable tray window needs a minimum size.");
         }
 
         private static void AssertDpiScaling(Form form)

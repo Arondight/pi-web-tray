@@ -31,15 +31,9 @@ namespace PiWebTray
         {
             SuspendLayout();
             Text = title;
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(560, 300);
+            MinimumSize = new Size(460, 260);
             try
             {
                 Icon cached = Icons.Create(Icons.SetupColor);

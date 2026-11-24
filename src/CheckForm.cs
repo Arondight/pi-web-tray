@@ -42,16 +42,7 @@ namespace PiWebTray
             _refreshOnShown = refreshOnShown;
 
             Text = L.T("sc.title");
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.Sizable;
-            // Resizable windows with a taskbar button should really minimize; otherwise
-            // the system menu shows a dead "Minimize" item.
-            MinimizeBox = true;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            // Scaling runs on ResumeLayout, after the whole control tree exists.
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(920, 640);
             MinimumSize = new Size(760, 540);
             Icon = Icons.WindowIcon();

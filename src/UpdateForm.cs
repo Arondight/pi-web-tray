@@ -17,6 +17,7 @@ namespace PiWebTray
         private readonly Button _cancel;
         private readonly Action _onCancel;
         private bool _allowClose;
+        private bool _userResized;
 
         internal bool Cancelled { get; private set; }
 
@@ -26,29 +27,21 @@ namespace PiWebTray
             _onCancel = onCancel;
 
             Text = L.T("update.progressTitle");
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ControlBox = false;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            // Scaling runs on ResumeLayout, after the whole control tree exists.
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(560, 190);
+            MinimumSize = new Size(480, 220);
             Icon = Icons.WindowIcon();
 
             TableLayoutPanel root = new TableLayoutPanel();
             root.Dock = DockStyle.Fill;
             root.Padding = new Padding(14);
             root.ColumnCount = 1;
-            root.RowCount = 3;
+            root.RowCount = 4;
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            // The button row follows the progress bar directly. The old fourth
-            // Percent row had no control and left an empty gap inside the dialog.
+            // The button row stays at the bottom when the window is resized.
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             _root = root;
 
@@ -81,8 +74,11 @@ namespace PiWebTray
 
             root.Controls.Add(_status, 0, 0);
             root.Controls.Add(_progress, 0, 1);
-            root.Controls.Add(buttons, 0, 2);
+            root.Controls.Add(buttons, 0, 3);
             Controls.Add(root);
+
+            // A content-based fit must not undo a size the user chose.
+            ResizeBegin += delegate { _userResized = true; };
 
             ResumeLayout(false);
             PerformLayout();
@@ -100,10 +96,14 @@ namespace PiWebTray
             FormLayout.FitToWorkingArea(this);
         }
 
-        // Status messages can grow after the dialog is shown. Re-fit the fixed
-        // dialog so the button row is not clipped by a wrapped message.
+        // Status messages can grow after the dialog is shown. Re-fit the initial
+        // height so the button row is not clipped by a wrapped message; a user
+        // resize or a maximized window wins over this content-based height.
         private void FitHeight()
         {
+            // A user resize wins over the content-based default height; a
+            // maximized window must not be restored by a status update.
+            if (_userResized || WindowState != FormWindowState.Normal) return;
             try
             {
                 PerformLayout();

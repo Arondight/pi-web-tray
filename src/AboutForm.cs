@@ -42,16 +42,10 @@ namespace PiWebTray
         {
             SuspendLayout();
             Text = L.T("about.title");
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
+            WindowChrome.Apply(this);
             // Scaling runs on ResumeLayout, after the whole control tree exists.
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = new Size(500, 320);
+            MinimumSize = new Size(420, 260);
             try
             {
                 Icon cached = Icons.Create(Icons.RunningColor);
@@ -323,7 +317,7 @@ namespace PiWebTray
                 };
             }
             // Long sentence fragments (the non-link parts) must wrap inside the
-            // fixed-width dialog; a plain AutoSize Label is clipped at high DPI.
+            // default-width dialog; a plain AutoSize Label is clipped at high DPI.
             int maxWidth = line.MaximumSize.Width > 0 ? line.MaximumSize.Width : 440;
             label.MaximumSize = new Size(maxWidth, 0);
             line.Controls.Add(label);

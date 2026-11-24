@@ -24,6 +24,7 @@ namespace PiWebTray
         private Icon _formIcon;
         private Font _headingFont;
         private bool _busy;
+        private bool _userResized;
 
         internal bool RepairSucceeded { get; private set; }
 
@@ -39,14 +40,7 @@ namespace PiWebTray
                 ? Application.ExecutablePath : repairExecutablePath;
             SuspendLayout();
             Text = title;
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(620, 340);
             MinimumSize = new Size(460, 280);
             try
@@ -115,6 +109,9 @@ namespace PiWebTray
             root.Controls.Add(content, 0, 0);
             root.Controls.Add(buttons, 0, 1);
             Controls.Add(root);
+
+            // A content-based fit must not undo a size the user chose.
+            ResizeBegin += delegate { _userResized = true; };
 
             AcceptButton = _close;
             CancelButton = _close;
@@ -185,7 +182,6 @@ namespace PiWebTray
             _busy = true;
             _fix.Enabled = false;
             _close.Enabled = false;
-            ControlBox = false;
             CancelButton = null;
             UseWaitCursor = true;
             SetStatus(L.T("auto.repairRunning"), SystemColors.ControlText);
@@ -258,7 +254,6 @@ namespace PiWebTray
                 _busy = false;
                 _fix.Enabled = true;
                 _close.Enabled = true;
-                ControlBox = true;
                 CancelButton = _close;
                 UseWaitCursor = false;
                 SetStatus(L.T("auto.repairFailed", ex.Message),
@@ -272,7 +267,6 @@ namespace PiWebTray
             UseWaitCursor = false;
             _busy = false;
             _close.Enabled = true;
-            ControlBox = true;
             CancelButton = _close;
 
             if (repaired)
@@ -297,6 +291,9 @@ namespace PiWebTray
 
         private void FitToContent()
         {
+            // A user resize wins over the content-based default height; a
+            // maximized window must not be restored by a status update.
+            if (_userResized || WindowState != FormWindowState.Normal) return;
             try
             {
                 PerformLayout();

@@ -29,17 +29,9 @@ namespace PiWebTray
         {
             SuspendLayout();
             Text = L.T("install.progressTitle");
-            StartPosition = FormStartPosition.CenterScreen;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            ControlBox = false;
-            ShowInTaskbar = true;
-            Font = SystemFonts.MessageBoxFont;
-            // Scaling runs on ResumeLayout, after the whole control tree exists.
-            AutoScaleDimensions = new SizeF(96F, 96F);
-            AutoScaleMode = AutoScaleMode.Dpi;
+            WindowChrome.Apply(this);
             ClientSize = new Size(600, 320);
+            MinimumSize = new Size(520, 300);
             Icon = Icons.WindowIcon();
             _started = DateTime.Now;
 
@@ -116,7 +108,7 @@ namespace PiWebTray
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            // Keep the fixed install dialog inside a high-DPI work area.
+            // Keep the install dialog inside a high-DPI work area.
             FormLayout.FitToWorkingArea(this);
         }
 
