@@ -7,25 +7,26 @@ Pi Web Tray is a Windows 7 to 11 Harness solution based on [Pi Web](https://gith
 - **One click** — installs and manages Pi Web; start or stop the service with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
 - **Start at login** — uses the standard Run key or an administrator scheduled task.
-- **Port safe** — native process APIs identify the listener; unrelated programs are never killed.
-- **Self-update** — checks for updates, updates the app and removes files from older releases.
+- **One-click update** — checks for updates, updates the app and removes files from older releases.
 - **Portable** — no installer and no bundled runtime.
 
 ## Runtime requirements
 
-| Component              | Requirement                                                        |
-| ---------------------- | ------------------------------------------------------------------ |
-| 64-bit Windows         | 7 SP1, 8.1, 10 or 11                                               |
-| .NET Framework Runtime | 4.8 — required; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
-| Node.js                | 22.19 or later, with npm                                           |
+| Component              | Requirement                                             |
+| ---------------------- | ------------------------------------------------------- |
+| 64-bit Windows         | 7 SP1, 8.1, 10 or 11                                    |
+| .NET Framework Runtime | 4.8; 4.8.1 is also supported on Windows 10 20H2+ and 11 |
+| Node.js                | 22.19 or later, with npm                                |
 
-Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. On Windows 7, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js also cannot load its native SWC addon there and falls back to the WebAssembly build, so startup is noticeably slower.
+Windows does not include Bash. If Bash is not installed separately, open **Settings → General → Shell tool** in Pi Web and enable **Use PowerShell instead of Bash**.
 
-Windows does not include Bash. If no Bash shell is installed or otherwise provided, open **Settings → General → Shell tool** in [Pi Web](https://github.com/agegr/pi-web) and enable **Use PowerShell instead of Bash**.
+### Older Windows
 
-### Older Windows runtime
+Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 SP1 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
-Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
+Windows 7 SP1 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Windows 8.1 uses the official Node.js 22 build (Experimental). On Windows 7 SP1 and 8.1, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js also cannot load its native SWC addon there and falls back to the WebAssembly build, so startup is noticeably slower.
+
+On Windows 7 SP1 and 8.1, the recommended browser is [Supermium](https://github.com/win32ss/supermium/releases).
 
 ## Recommended software
 
@@ -60,23 +61,23 @@ Enable **Add python.exe to PATH** during installation.
 ## Quick start
 
 1. Download and extract the release archive.
-2. Run `.\pi-web-tray.exe`.
+2. Double-click `pi-web-tray.exe`.
 
-On first start the tray checks the environment, installs missing dependencies, starts the service and opens the browser. With the default `AutoInstall=1`, missing dependencies are installed automatically during a normal start. If Node.js is missing, it explains the required version and offers the download page; the tray stays running and rechecks when Node.js appears. When Node.js was installed after that prompt, automatic installation stays off: missing dependencies are reported and the menu offers **Install/update service**. If Node.js is removed while the service is running, the tray notifies you without stopping the running service and rechecks before the next start. If an install is interrupted, the next attempt reinstalls the relevant packages instead of trusting an incomplete directory.
+On first start the tray checks the environment, installs missing dependencies, starts the service and opens the browser. With the default `AutoInstall=1`, missing dependencies are installed automatically during a normal start. If Node.js is missing, it explains the required version and offers the download page; the tray stays running and rechecks when Node.js appears. If Node.js was installed after that prompt, update the service from the tray menu.
 
-Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default. Set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs beside the executable. Portable mode is ignored when the executable is in a protected system directory such as `C:\Program Files`. Even in portable mode, `state.ini` (the legacy state file), the per-session `state.<session>.ini`, `crash.log` and update work files remain in the data directory. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
+Configuration and logs live in `%LOCALAPPDATA%\pi-web-tray` by default. Set `PI_WEB_TRAY_PORTABLE=1` to keep the ini and logs beside the executable. Portable mode is ignored when the executable is in a protected system directory such as `C:\Program Files`. The `pi-web-tray.files.txt` manifest is used by future updates to remove files that are no longer shipped; do not delete it.
 
 ## Tray menu
 
 The icon colour shows the state at a glance:
 
-| Colour    | State                                                                            |
-| --------- | -------------------------------------------------------------------------------- |
-| 🟢 Green  | Running (update checks/downloads keep this colour)                               |
-| ⚪ Grey   | Stopped                                                                          |
-| 🟠 Orange | Busy: checking, installing, starting/stopping, unverified, or applying an update |
-| 🔵 Blue   | Missing prerequisites (Node.js / Pi Web)                                         |
-| 🔴 Red    | Failed or port conflict                                                          |
+| Colour    | State                                                                        |
+| --------- | ---------------------------------------------------------------------------- |
+| 🟢 Green  | Service running                                                              |
+| ⚪ Grey   | Service stopped                                                              |
+| 🟠 Orange | Tray busy (checking, installing, starting/stopping, unverified, or applying) |
+| 🔵 Blue   | Node.js or service components missing                                        |
+| 🔴 Red    | Failed (for example, port conflict)                                          |
 
 The menu follows the service state:
 
@@ -113,9 +114,8 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops the service first, reinstalls or updates [Pi Web](https://github.com/agegr/pi-web) (and [Pi](https://github.com/earendil-works/pi) when `InstallPi=1`), and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
-- A listener is treated as the tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
-- If the service stops unexpectedly, the tray reports it. With `AutoRestart=1` it restarts automatically for up to three consecutive rapid failures (5/15/30 s delays); a service that stays up for 60 s resets the retry counter. An explicit user **Stop** is never overridden by AutoRestart. With `AutoCheckUpdates=1` it checks for a new release after startup.
+- **Update service** stops the service first, reinstalls or updates Pi Web (and Pi when `InstallPi=1`). When service components are missing, the same item is shown as **Install/update service**.
+- If the service stops unexpectedly, the tray reports it. With `AutoRestart=1` it restarts automatically up to three consecutive times.
 
 ## Configuration
 
@@ -137,12 +137,12 @@ Normal use does not require editing the configuration file. The **Settings** win
 | `Proxy`            | empty    | Optional HTTP or SOCKS5 proxy for Pi Web Tray update checks/downloads; empty uses the system proxy.          |
 | `NetworkAccess`    | `0`      | Allow other devices on the network to access the service; also opens the Windows Firewall service-port rule. |
 | `NodePath`         | empty    | Explicit `node.exe`; empty enables auto-detection.                                                           |
-| `Language`         | `auto`   | `auto`, `en`, `zh` (Simplified) or `zh-Hant`.                                                                |
+| `Language`         | `auto`   | `auto`, `en`, `zh` or `zh-Hant`.                                                                             |
 | `AutostartAdmin`   | `0`      | Admin rights for start at login (menu-managed).                                                              |
 
 Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments need whitespace before the marker. Relative `NodePath` values are resolved against the executable directory.
 
-When the Pi Web Tray installation directory, any folder in its path, or any file loaded by the process in administrator mode can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation whose parent is user-writable, the Fix action reports that the program must be moved to a protected location such as Program Files; a user-writable parent cannot be repaired safely. Portable mode that keeps the ini and logs beside the executable is also refused by the Fix action, because the repaired ACL would make those runtime files read-only for the standard user; disable portable mode or move the program to Program Files. Runtime logs remain user-owned and do not make a protected installation fail this check. If the administrator preference is unavailable and the user enables start-at-login from the main menu, the tray clears that preference and uses standard-user start-at-login instead.
+When the Pi Web Tray installation directory, any folder in its path, or any file loaded by the process in administrator mode can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation whose parent is user-writable, the Fix action reports that the program must be moved to a protected location such as `C:\Program Files`; a user-writable parent cannot be repaired safely. Portable mode that keeps the ini and logs beside the executable is also refused by the Fix action, because the repaired ACL would make those runtime files read-only for the standard user. Runtime logs remain user-owned and do not make a protected installation fail this check. If the administrator preference is unavailable and the user enables start-at-login from the main menu, the tray clears that preference and uses standard-user start-at-login instead.
 
 The data directory is per user. The tray redacts URL user info and token query values from its logs. When `Proxy` is set, only the tray update checks and downloads use it. An empty value uses the system proxy. The setting is not passed to Node, npm or Pi Web child processes. The **Test** button in Settings only tests proxy connectivity and does not save.
 
@@ -193,7 +193,7 @@ Choose one build tool:
 
 Either tool requires the **.NET Framework 4.8 Targeting Pack**. The standalone **.NET Framework 4.8 Developer Pack** includes it.
 
-The build host must be Windows 10/11 (or the Windows Server CI runner); Windows 7 is only a runtime target. The compatibility check script also requires PowerShell 7.
+The build host must be Windows 10/11 (or the Windows Server CI runner). The compatibility check script also requires PowerShell 7.
 
 **Visual Studio 2022 or later** with the **.NET desktop development** workload is an optional IDE, not a separate requirement. The application targets **.NET Framework 4.8**, not .NET 8. End users only need the **.NET Framework 4.8 Runtime** (or 4.8.1 where supported).
 
@@ -205,13 +205,11 @@ cd .\pi-web-tray
 
 ## Security and limitations
 
-- Runs with the current user token (`asInvoker`); administrator mode is used only on request. No telemetry; the tray itself opens no persistent listener (the service listens on loopback). A SOCKS5 update proxy opens a process-scoped loopback listener that only the current tray process may use; it is closed when the proxy setting changes or the process exits.
-- Administrator mode requires the tray installation directory and every file loaded by the process in administrator mode (executable, `.config`, satellite resources) to be protected. Starting the tray manually in administrator mode, installing dependencies in administrator mode, and applying self-updates in administrator mode are refused when the installation directory is writable by standard users. An administrator-mode start from a user-writable installation is refused before the ini and satellite resources are loaded. A folder that was created or extracted by the current user under `Program Files` can still be owned by that user and is therefore treated as writable; the tray's **Restart in administrator mode** warning offers the same **Fix** action as administrator start-at-login to take ownership and reset its ACL. This check does **not** protect user-writable configuration or user-installed Node/npm and Pi packages; administrator mode still executes those with the administrator token. Do not enable it on a machine where the same account's standard-user-mode processes are untrusted.
-- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. The verified archive is copied into a target snapshot, re-hashed against that published checksum, extracted there, and used for the file replacement; the user-writable staging tree is not trusted. The snapshot is protected when the installation directory is protected. Releases are unsigned, so SmartScreen may warn on first run; this checksum is not a substitute for code signing.
-- Admin start-at-login requires the current Windows account to be a member of the Administrators group and creates an on-logon task for the current user. Standard-user over-the-shoulder UAC and manual administrator-mode starts are refused. The eligibility check includes files loaded by the tray in administrator mode, not only `pi-web-tray.exe`. The task name includes the user SID and named-instance suffix, so another user's or instance's task is not overwritten. A legacy `PiWebTray` task is reported. A task with the current user's principal is removed when autostart is next changed; a task without an explicit user or for another account is left untouched.
-- `server.log`, `install.log` and `update.log` rotate at 4 MB. If the tray runs in administrator mode, use an administrator-mode console for `--stop` / `--quit`. The tray menu always works. A standard-user-mode tray may fall back to the unredacted, non-rotating `1>>` path described in [SECURITY.md](SECURITY.md) only when the log host is known to be unavailable. A tray running in administrator mode never uses that path; if the log host is unavailable or its state is unknown, service output is discarded. If the configured log path is a reparse point or a hard link, service output is discarded instead of following it.
-- The administrator start-at-login task is scoped to the current Windows user and keeps running on battery power. It does not inherit the environment of the shell that enabled it.
-- **Allow connections from the local network** is opt-in. It binds the service to all interfaces and adds an inbound Windows Firewall TCP rule for the service port. A standard-user-mode tray asks for UAC to update the firewall; a tray running in administrator mode updates it directly. Change `NetworkAccess` and `Port` through the tray menu and Settings so the rule stays in sync. The service has no separate login by default, so anyone who can reach the PC may control Pi and access project files. Only enable it on a trusted network; use **Copy page link** for the network address.
+- Runs with the current user token; administrator mode is opt-in. No telemetry. The service listens on loopback unless network access is enabled.
+- Administrator mode and administrator start-at-login are refused when the installation directory or loaded files can be modified by standard users; move the program to a protected location such as `C:\Program Files`, or use the offered **Fix** action. Administrator start-at-login requires an Administrators account and creates a task for the current user only. These checks do not protect user settings, Node/npm, or Pi Web/Pi packages; do not enable administrator mode where same-account standard processes are untrusted.
+- Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. Releases are unsigned, so SmartScreen may warn on first run.
+- Logs rotate at 4 MB. In administrator mode, use an administrator console for `--stop` / `--quit`; the tray menu still works. If the log host is unavailable, a standard-user tray may write unredacted logs without rotation, while an administrator tray discards service output.
+- **Allow connections from the local network** binds the service to all interfaces and opens the firewall port. There is no separate login, so anyone who can reach the PC can control Pi and read project files. Only enable it on a trusted network.
 
 ## Related projects
 

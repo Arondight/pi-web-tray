@@ -19,7 +19,7 @@
     <value>Node.js required</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>Dependencies missing</value>
+    <value>Service components missing</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>Installing… {0}</value>

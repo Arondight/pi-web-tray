@@ -19,7 +19,7 @@
     <value>需要安裝 Node.js</value>
   </data>
   <data name="status.needsDeps" xml:space="preserve">
-    <value>缺少相依套件</value>
+    <value>缺少服務元件</value>
   </data>
   <data name="status.installing" xml:space="preserve">
     <value>安裝中… {0}</value>

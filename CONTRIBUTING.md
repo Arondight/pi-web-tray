@@ -63,7 +63,7 @@ Before a release, manually check:
 - dependency update while the service is running (it must stop before npm runs);
 - dependency update while the service is stopped (it must stay stopped);
 - Pi version changes after a forced dependency update;
-- Node.js download link on Windows 7 (confirmation) and 8.1/10/11;
+- Node.js download link on Windows 7 SP1 (confirmation) and 8.1/10/11;
 - desktop shortcut creation, including removal of the old "Pi Web.lnk";
 - stale-file cleanup from a release manifest;
 - Windows 7 SP1 + .NET Framework 4.8 when changing OS-facing code.
