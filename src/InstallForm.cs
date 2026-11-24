@@ -22,6 +22,7 @@ namespace PiWebTray
         private readonly DateTime _started;
         private string _lastLine = "";
         private bool _allowClose;
+        private volatile bool _completed;
 
         internal bool Cancelled { get; private set; }
 
@@ -118,6 +119,14 @@ namespace PiWebTray
             Close();
         }
 
+        // Mark the worker result as final before it becomes visible to PollInstall.
+        // A close/cancel that arrives after this point must not turn a completed
+        // install into a cancelled one.
+        internal void MarkCompleted()
+        {
+            _completed = true;
+        }
+
         private void RefreshProgress()
         {
             InstallProgress progress = Installer.Snapshot();
@@ -152,7 +161,7 @@ namespace PiWebTray
 
         private void CancelInstall()
         {
-            if (Cancelled) return;
+            if (Cancelled || _completed) return;
             Cancelled = true;
             _cancel.Enabled = false;
             _cancel.Text = L.T("install.cancelling");

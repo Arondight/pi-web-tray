@@ -24,7 +24,7 @@ Windows 默认不提供 Bash。如果未额外安装 Bash，请在 Pi Web 中打
 
 Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) 而非 4.8.1。如果 Windows 7 SP1 下检查更新无法访问 GitHub，请安装 [TLS 1.2 更新补丁](https://support.microsoft.com/help/3140245)。
 
-Windows 7 SP1 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Windows 8.1 使用官方 Node.js 22 构建（实验性）。在 Windows 7 SP1 和 8.1 上，Pi Web 的终端不可用：其 PTY 层需要 ConPTY（Windows 10 1809+）。Next.js 在该系统上也无法加载原生 SWC 插件，会回退到 WebAssembly 构建，启动会明显变慢。
+Windows 7 SP1 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。Windows 8.1 使用官方 Node.js 22 构建（实验性）。在 Windows 7 SP1 和 8.1 上，Pi Web 的终端不可用：其 PTY 层需要 ConPTY（Windows 10 1809+）。Next.js 在该系统上也可能无法加载原生 SWC 插件，会回退到 WebAssembly 构建，启动会明显变慢。
 
 在 Windows 7 SP1 和 8.1 上，建议使用 [Supermium](https://github.com/win32ss/supermium/releases) 浏览器。
 
@@ -206,7 +206,7 @@ cd .\pi-web-tray
 ## 安全与限制
 
 - 默认使用当前用户令牌，管理员模式仅在显式操作时启用。无遥测；除非开启网络访问，服务只监听 loopback。
-- 安装目录或加载文件可被标准用户修改时，管理员模式和管理员自启都会被拒绝；请将程序移到 `C:\Program Files` 等受保护位置，或使用提示中的 **修复** 操作。管理员自启要求账户属于 Administrators 组，并且只为当前用户创建任务。该检查不保护用户配置、Node/npm 或 Pi Web/Pi 包；不要在不可信的同用户进程环境中启用管理员模式。
+- 安装路径或加载文件可被标准用户修改时，管理员模式和管理员自启都会被拒绝；请将程序移到 `C:\Program Files` 等受保护位置，或使用提示中的 **修复** 操作。管理员自启要求账户属于 Administrators 组，并且只为当前用户创建任务。该检查不保护用户配置、Node/npm 或 Pi Web/Pi 包；不要在不可信的同用户进程环境中启用管理员模式。
 - 更新通过 GitHub HTTPS 下载并校验 SHA-256。发布包未签名，首次运行可能触发 SmartScreen。
 - 日志在 4 MB 时轮转。管理员模式托盘需在管理员控制台执行 `--stop` / `--quit`，托盘菜单仍可用。日志宿主不可用时，标准用户模式可能写入未脱敏且不轮转的日志；管理员模式会丢弃服务输出。
 - **允许来自局域网的连接** 会让服务监听所有网络接口并开放防火墙端口。服务没有独立登录，任何能访问这台电脑的人都能控制 Pi 并读取项目文件。仅在可信网络中开启。

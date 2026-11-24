@@ -24,7 +24,7 @@ Windows does not include Bash. If Bash is not installed separately, open **Setti
 
 Windows 7 SP1 and Windows 8.1 need [.NET Framework 4.8](https://dotnet.microsoft.com/en-us/download/dotnet-framework/net48) rather than 4.8.1. If checking for updates on Windows 7 SP1 cannot reach GitHub, install the [TLS 1.2 update](https://support.microsoft.com/help/3140245).
 
-Windows 7 SP1 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Windows 8.1 uses the official Node.js 22 build (Experimental). On Windows 7 SP1 and 8.1, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js also cannot load its native SWC addon there and falls back to the WebAssembly build, so startup is noticeably slower.
+Windows 7 SP1 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. Windows 8.1 uses the official Node.js 22 build (Experimental). On Windows 7 SP1 and 8.1, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js may also be unable to load its native SWC addon there and fall back to the WebAssembly build, so startup is noticeably slower.
 
 On Windows 7 SP1 and 8.1, the recommended browser is [Supermium](https://github.com/win32ss/supermium/releases).
 
@@ -206,7 +206,7 @@ cd .\pi-web-tray
 ## Security and limitations
 
 - Runs with the current user token; administrator mode is opt-in. No telemetry. The service listens on loopback unless network access is enabled.
-- Administrator mode and administrator start-at-login are refused when the installation directory or loaded files can be modified by standard users; move the program to a protected location such as `C:\Program Files`, or use the offered **Fix** action. Administrator start-at-login requires an Administrators account and creates a task for the current user only. These checks do not protect user settings, Node/npm, or Pi Web/Pi packages; do not enable administrator mode where same-account standard processes are untrusted.
+- Administrator mode and administrator start-at-login are refused when the installation path or loaded files can be modified by standard users; move the program to a protected location such as `C:\Program Files`, or use the offered **Fix** action. Administrator start-at-login requires an Administrators account and creates a task for the current user only. These checks do not protect user settings, Node/npm, or Pi Web/Pi packages; do not enable administrator mode where same-account standard processes are untrusted.
 - Updates are downloaded from GitHub over HTTPS and verified against the published SHA-256. Releases are unsigned, so SmartScreen may warn on first run.
 - Logs rotate at 4 MB. In administrator mode, use an administrator console for `--stop` / `--quit`; the tray menu still works. If the log host is unavailable, a standard-user tray may write unredacted logs without rotation, while an administrator tray discards service output.
 - **Allow connections from the local network** binds the service to all interfaces and opens the firewall port. There is no separate login, so anyone who can reach the PC can control Pi and read project files. Only enable it on a trusted network.

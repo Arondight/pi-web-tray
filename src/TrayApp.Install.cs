@@ -545,6 +545,10 @@ namespace PiWebTray
                         result.Success = false;
                         result.Message = L.T("install.crashBody", ex.Message);
                     }
+                    // Publish completion only after the form has stopped accepting
+                    // a late cancel/close. PollInstall consumes the result later.
+                    InstallForm form = _installForm;
+                    if (form != null) form.MarkCompleted();
                     lock (_installLock)
                     {
                         _installResult = result;
@@ -564,6 +568,8 @@ namespace PiWebTray
             catch (Exception ex)
             {
                 _installWorkerRunning = false;
+                InstallForm form = _installForm;
+                if (form != null) form.MarkCompleted();
                 lock (_installLock)
                 {
                     InstallResult failed = new InstallResult();

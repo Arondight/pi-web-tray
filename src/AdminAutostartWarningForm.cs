@@ -183,6 +183,10 @@ namespace PiWebTray
             _busy = true;
             _fix.Enabled = false;
             _close.Enabled = false;
+            // WinForms cannot disable only the title-bar close button. Hide the
+            // caption buttons while the elevated repair is running and restore
+            // them when the worker finishes.
+            ControlBox = false;
             CancelButton = null;
             UseWaitCursor = true;
             SetStatus(L.T("auto.repairRunning"), SystemColors.ControlText);
@@ -255,6 +259,7 @@ namespace PiWebTray
                 _busy = false;
                 _fix.Enabled = true;
                 _close.Enabled = true;
+                ControlBox = true;
                 CancelButton = _close;
                 UseWaitCursor = false;
                 SetStatus(L.T("auto.repairFailed", ex.Message),
@@ -268,6 +273,7 @@ namespace PiWebTray
             UseWaitCursor = false;
             _busy = false;
             _close.Enabled = true;
+            ControlBox = true;
             CancelButton = _close;
 
             if (repaired)
