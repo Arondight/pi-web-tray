@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 解决方案，提供运行环境检测、依赖安装与更新、服务托管和自更新。
+Pi Web Tray 是基于 [Pi Web](https://github.com/agegr/pi-web) 的 Windows 7 至 11 解决方案，提供运行环境检测、依赖安装与更新、服务托管和自更新。
 
 - **一键使用** — 安装并管理 Pi Web，一键启停。
 - **状态可见** — 彩色托盘图标、通知，以及实时日志。
@@ -20,6 +20,8 @@ Pi Web Tray 是基于 Pi Web 的 Windows 7 至 11 解决方案，提供运行环
 | Node.js               | 22.19 或更新版本，含 npm                        |
 
 Windows 7 没有官方的 Node.js 22 构建。**下载 Node.js** 会在确认后打开一个未签名的社区构建，本项目不生产也不验证该构建。在 Windows 7 上，Pi Web 的终端不可用：其 PTY 层需要 ConPTY（Windows 10 1809+）。Next.js 在该系统上也无法加载原生 SWC 插件，会回退到 WebAssembly 构建，启动会明显变慢。
+
+Windows 默认没有安装 Bash。如果未额外安装或提供 Bash，请在 [Pi Web](https://github.com/agegr/pi-web) 中打开 **设置 → 常规 → Shell 工具**，启用 **使用 PowerShell 替代 Bash**。
 
 ### 旧版本 Windows 运行库
 
@@ -111,7 +113,7 @@ Windows 7 SP1 和 Windows 8.1 需要 [.NET Framework 4.8](https://dotnet.microso
 退出并停止服务
 ```
 
-- **更新服务** 会先停止服务，重新安装或更新 Pi Web（`InstallPi=1` 时也更新 Pi），并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
+- **更新服务** 会先停止服务，重新安装或更新 [Pi Web](https://github.com/agegr/pi-web)（`InstallPi=1` 时也更新 [Pi](https://github.com/earendil-works/pi)），并且只在更新前服务运行时自动重启。缺少依赖时，同一菜单项显示为 **安装/更新服务**。进度窗口支持取消；自更新助手替换文件期间，托盘退出操作会被禁用。
 - 只有同一 Windows 会话中运行已安装 `pi-web.js` 的监听者才被视为托盘的服务。其他会话或安装会报告 **端口冲突**，托盘不会打开或停止它。如有需要，请在 **设置** 中修改 `Port`。
 - 服务意外退出会通知。`AutoRestart=1` 时最多连续快速重启 3 次（间隔 5/15/30 秒）；服务稳定运行 60 秒后重试计数会重置。用户显式点击 **停止** 后，AutoRestart 不会覆盖该决定。`AutoCheckUpdates=1` 会在启动后检查新版本。
 
@@ -213,7 +215,7 @@ cd .\pi-web-tray
 
 ## 相关项目
 
-Pi Web Tray 负责安装和启动 [Pi Web](https://github.com/agegr/pi-web)；`InstallPi=1` 时也会安装或更新 Pi。它不包含也不修改这两个项目，相关问题请提交到各自仓库。
+Pi Web Tray 负责安装和启动 [Pi Web](https://github.com/agegr/pi-web)；`InstallPi=1` 时也会安装或更新 [Pi](https://github.com/earendil-works/pi)。它不包含也不修改这两个项目，相关问题请提交到各自仓库。
 
 ## 参与贡献
 

@@ -1091,13 +1091,13 @@
     <value>启动时检查 Pi Web Tray 更新</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
-    <value>Pi Web npm 标签 / 版本</value>
+    <value>服务安装版本</value>
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm 源（可选）</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Pi Web Tray 更新代理（留空使用系统代理）</value>
+    <value>托盘更新代理（可选）</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>测试</value>

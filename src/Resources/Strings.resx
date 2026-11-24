@@ -1091,13 +1091,13 @@ See {1} for details.</value>
     <value>Check for Pi Web Tray updates at startup</value>
   </data>
   <data name="settings.installTag" xml:space="preserve">
-    <value>Pi Web npm tag / version</value>
+    <value>Service install version</value>
   </data>
   <data name="settings.npmRegistry" xml:space="preserve">
     <value>npm registry (optional)</value>
   </data>
   <data name="settings.proxy" xml:space="preserve">
-    <value>Pi Web Tray update proxy (empty = system proxy)</value>
+    <value>Tray update proxy (optional)</value>
   </data>
   <data name="settings.testProxy" xml:space="preserve">
     <value>Test</value>

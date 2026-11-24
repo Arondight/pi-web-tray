@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides runtime detection, dependency installation and updates, service hosting and self-update.
+Pi Web Tray is a Windows 7 to 11 Harness solution based on [Pi Web](https://github.com/agegr/pi-web). It provides runtime detection, dependency installation and updates, service hosting and self-update.
 
 - **One click** — installs and manages Pi Web; start or stop the service with one click.
 - **Visible state** — color-coded tray icon, notifications and live logs.
@@ -20,6 +20,8 @@ Pi Web Tray is a Windows 7 to 11 Harness solution based on Pi Web. It provides r
 | Node.js                | 22.19 or later, with npm                                           |
 
 Windows 7 has no official Node.js 22 build. **Download Node.js** asks for confirmation and then opens an unsigned community build; it is not produced or verified by this project. On Windows 7, Pi Web's terminal is unavailable: its PTY layer requires ConPTY (Windows 10 1809+). Next.js also cannot load its native SWC addon there and falls back to the WebAssembly build, so startup is noticeably slower.
+
+Windows does not include Bash. If no Bash shell is installed or otherwise provided, open **Settings → General → Shell tool** in [Pi Web](https://github.com/agegr/pi-web) and enable **Use PowerShell instead of Bash**.
 
 ### Older Windows runtime
 
@@ -111,7 +113,7 @@ About
 Exit and stop service
 ```
 
-- **Update service** stops the service first, reinstalls or updates Pi Web (and Pi when `InstallPi=1`), and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
+- **Update service** stops the service first, reinstalls or updates [Pi Web](https://github.com/agegr/pi-web) (and [Pi](https://github.com/earendil-works/pi) when `InstallPi=1`), and restarts it automatically only if the service was running before the update. When dependencies are missing, the same item is shown as **Install/update service**. The progress window supports cancellation; while the self-update helper is replacing files, the tray exit action is disabled.
 - A listener is treated as the tray's service only when it belongs to the same Windows session and runs the installed `pi-web.js`. Another session or installation is a **port conflict**, so the tray neither opens nor stops it. Change `Port` in **Settings** if needed.
 - If the service stops unexpectedly, the tray reports it. With `AutoRestart=1` it restarts automatically for up to three consecutive rapid failures (5/15/30 s delays); a service that stays up for 60 s resets the retry counter. An explicit user **Stop** is never overridden by AutoRestart. With `AutoCheckUpdates=1` it checks for a new release after startup.
 
@@ -213,7 +215,7 @@ cd .\pi-web-tray
 
 ## Related projects
 
-Pi Web Tray installs and launches [Pi Web](https://github.com/agegr/pi-web); when `InstallPi=1`, it also installs or updates Pi. It does not bundle or modify either project; report their issues to their own repositories.
+Pi Web Tray installs and launches [Pi Web](https://github.com/agegr/pi-web); when `InstallPi=1`, it also installs or updates [Pi](https://github.com/earendil-works/pi). It does not bundle or modify either project; report their issues to their own repositories.
 
 ## Contributing
 
