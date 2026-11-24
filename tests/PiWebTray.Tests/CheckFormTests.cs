@@ -499,9 +499,11 @@ namespace PiWebTray
                     "The update bar must not loop forever like a marquee.");
                 form.SetState("download", 50, true);
                 Assert.AreEqual(50, bars[0].Value);
-                form.SetState("apply", -1, true);
+                form.SetState("apply", -1, false);
                 Assert.AreEqual(50, bars[0].Value,
                     "Unknown progress must preserve the last known download value.");
+                Assert.IsFalse(form.ControlBox,
+                    "Applying an update must remove the caption buttons.");
             }
         }
 

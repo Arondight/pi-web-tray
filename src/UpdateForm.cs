@@ -137,6 +137,10 @@ namespace PiWebTray
             bool canCancel = cancellable && !Cancelled;
             _cancel.Enabled = canCancel;
             _cancel.Text = Cancelled ? L.T("update.cancelling") : L.T("update.cancel");
+            // Applying an update cannot be cancelled safely. Remove the caption
+            // buttons during that stage instead of leaving an ineffective close
+            // button visible.
+            if (ControlBox != canCancel) ControlBox = canCancel;
             if (IsHandleCreated && Visible) FitHeight();
         }
 

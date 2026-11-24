@@ -152,8 +152,9 @@ namespace PiWebTray
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             // Do not let Esc, Alt+F4, or the title-bar close button dispose the form
-            // while the elevated command is still running.
-            if (_busy)
+            // while the elevated command is still running. A Windows shutdown must
+            // not be blocked by the repair.
+            if (_busy && e.CloseReason != CloseReason.WindowsShutDown)
             {
                 e.Cancel = true;
                 return;
