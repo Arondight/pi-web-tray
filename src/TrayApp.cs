@@ -219,9 +219,10 @@ namespace PiWebTray
         // (MessageBox or the missing-Node prompt). Never run a second state-machine
         // pass inside that nested message loop.
         private bool _tickRunning;
-        // Depth of application-modal dialogs. Automatic environment/install/update
-        // actions are paused while a dialog is open; explicit stop/start signals and
-        // the service phase polls still run.
+        // Depth of application-modal dialogs. Automatic environment/install actions
+        // and a completed update check are paused while a dialog is open; an in-flight
+        // update download/apply, explicit stop/start signals and the service phase
+        // polls still run.
         private int _modalDepth;
         private bool _cleaned;
         private DateTime _startDeadline;
@@ -708,8 +709,15 @@ namespace PiWebTray
                 FlushPendingInstallAfterStopWorker();
                 PollEnvironmentCheck();
                 PollInstall();
+                // Update progress must not wait for an unrelated modal window.
+                // PollUpdate defers only a completed check (which would open
+                // another dialog) and closes blocking windows before applying.
                 PollUpdate();
                 PollNodePresence();
+            }
+            else
+            {
+                PollUpdate();
             }
             PollTaskRefresh();
             if (_exiting) return;

@@ -190,8 +190,8 @@ namespace PiWebTray
                 _updateForm.SetState(label, formPercent, canCancel);
             }
             // These actions can open a modal dialog. While the update helper is
-            // replacing files, a modal loop would hold up PollUpdate and the tray's
-            // confirmation to exit, leaving the helper waiting indefinitely.
+            // replacing files, opening one would make the updater close it again
+            // before the tray can exit, so keep them unavailable.
             _nodeItem.Enabled = !applying;
             _networkItem.Text = L.T("menu.network");
             SetMenuCheckBox(_networkItem, _config.NetworkAccess);

@@ -1761,6 +1761,15 @@ namespace PiWebTray
                 TrayApp.ShouldWaitForServicePortBeforeUpdate(false, false, false, true));
             Check("helper waits when an incomplete owner is combined with a silent service",
                 TrayApp.ShouldWaitForServicePortBeforeUpdate(true, false, false, true));
+
+            Check("a completed update check waits for an open modal window",
+                TrayApp.ShouldDeferUpdateWhileModal(UpdateStage.Checking, true));
+            Check("an update download does not wait for an open modal window",
+                !TrayApp.ShouldDeferUpdateWhileModal(UpdateStage.Downloading, true));
+            Check("applying an update does not wait for an open modal window",
+                !TrayApp.ShouldDeferUpdateWhileModal(UpdateStage.Applying, true));
+            Check("no update result is deferred without a modal window",
+                !TrayApp.ShouldDeferUpdateWhileModal(UpdateStage.Checking, false));
         }
 
         private static void FirewallRuleTests()

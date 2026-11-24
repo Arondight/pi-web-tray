@@ -130,27 +130,86 @@ namespace PiWebTray
             }
         }
 
+        // A completed check may need to show a confirmation/error dialog, so it
+        // waits for an already-open modal window to close. A download or apply in
+        // progress must keep moving: waiting at 100% until the user closes an
+        // unrelated log/report window makes the update look stuck.
+        internal static bool ShouldDeferUpdateWhileModal(UpdateStage stage, bool modalOpen)
+        {
+            return modalOpen && stage == UpdateStage.Checking;
+        }
+
         private void PollUpdate()
         {
             UpdateStage stage;
             ReleaseInfo release;
             string staging;
             string error;
+            bool closeBlockingWindows = false;
             lock (_updateLock)
             {
                 if (!_updateDone) return;
-                _updateDone = false;
                 stage = _updateStage;
                 release = _updateRelease;
                 staging = _updateStaging;
                 error = _updateError;
+
+                if (ShouldDeferUpdateWhileModal(stage, _modalDepth > 0))
+                    return;
+
+                // Close modal windows first, then consume the result on a later
+                // tick. ExitApp must not run inside their nested message loop; in
+                // the apply stage the helper is already waiting for this tray to exit.
+                if (_modalDepth > 0)
+                {
+                    closeBlockingWindows = true;
+                    return;
+                }
+
+                _updateDone = false;
                 _updateStaging = null;
                 _updateError = null;
+            }
+
+            if (closeBlockingWindows)
+            {
+                CloseModalWindowsForUpdate();
+                return;
             }
 
             if (stage == UpdateStage.Checking) HandleUpdateCheck(release, error);
             else if (stage == UpdateStage.Downloading) HandleUpdateDownload(release, staging, error);
             else if (stage == UpdateStage.Applying) HandleUpdateApply(error);
+        }
+
+        // Modal windows such as the log viewer, report and about dialog are shown
+        // with ShowDialog, so they own a nested message loop. Closing them lets the
+        // pending update result be handled by the normal timer tick instead of
+        // waiting for the user.
+        private void CloseModalWindowsForUpdate()
+        {
+            List<Form> forms = new List<Form>();
+            try
+            {
+                foreach (Form form in Application.OpenForms) forms.Add(form);
+            }
+            catch (Exception)
+            {
+                return;
+            }
+
+            // Close the topmost modal form first: a nested dialog can prevent its
+            // owner from closing, and the collection is in creation order.
+            for (int i = forms.Count - 1; i >= 0; i--)
+            {
+                Form form = forms[i];
+                if (form == null || form.IsDisposed || ReferenceEquals(form, _updateForm)) continue;
+                // Only a modal form owns the nested message loop that is holding
+                // back the update result. Modeless forms (such as the install
+                // progress window) do not need to be closed here.
+                if (!form.Modal) continue;
+                try { form.Close(); } catch (Exception) { }
+            }
         }
 
         private void HandleUpdateCheck(ReleaseInfo release, string error)
