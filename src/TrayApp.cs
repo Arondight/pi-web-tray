@@ -425,9 +425,13 @@ namespace PiWebTray
             _logsItem.DropDownItems.Add(_updateLogItem);
             // The logs submenu is a separate ToolStripDropDownMenu. Copy the
             // main menu's image-margin settings so its layout matches.
-            _logsItem.DropDown.ImageScalingSize = _menu.ImageScalingSize;
-            _logsItem.DropDown.ShowImageMargin = true;
-            _logsItem.DropDown.ShowCheckMargin = false;
+            ToolStripDropDownMenu logsMenu = _logsItem.DropDown as ToolStripDropDownMenu;
+            if (logsMenu != null)
+            {
+                logsMenu.ImageScalingSize = _menu.ImageScalingSize;
+                logsMenu.ShowImageMargin = true;
+                logsMenu.ShowCheckMargin = false;
+            }
 
             ToolStripMenuItem folderItem = new ToolStripMenuItem(L.T("menu.folder"));
             folderItem.Click += delegate { OpenFolder(_config.BaseDir); };
