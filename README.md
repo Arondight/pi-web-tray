@@ -144,7 +144,7 @@ Values support `%ENV%` expansion. Quote values containing `;` or `#`; comments n
 
 When the Pi Web Tray installation directory, any folder in its path, or any file loaded by the process in administrator mode can be modified or renamed by standard users, enabling administrator start-at-login is refused without changing the current setting. The security warning offers a **Fix** button that repairs the folder ACL through UAC when the rest of the path is protected. For a portable or user-profile installation whose parent is user-writable, the Fix action reports that the program must be moved to a protected location such as `C:\Program Files`; a user-writable parent cannot be repaired safely. Portable mode that keeps the ini and logs beside the executable is also refused by the Fix action, because the repaired ACL would make those runtime files read-only for the standard user. Runtime logs remain user-owned and do not make a protected installation fail this check. If the administrator preference is unavailable and the user enables start-at-login from the main menu, the tray clears that preference and uses standard-user start-at-login instead.
 
-The data directory is per user. The tray redacts URL user info and token query values from its logs. When `Proxy` is set, only the tray update checks and downloads use it. An empty value uses the system proxy. The setting is not passed to Node, npm or Pi Web child processes. The **Test** button in Settings only tests proxy connectivity and does not save.
+The data directory is per user. The tray redacts common credential forms from its logs. When `Proxy` is set, only the tray update checks and downloads use it. An empty value uses the system proxy. The setting is not passed to Node, npm or Pi Web child processes. The **Test** button in Settings only tests proxy connectivity and does not save.
 
 ### Environment variables
 
@@ -162,6 +162,8 @@ The data directory is per user. The tray redacts URL user info and token query v
 Named instances use separate names for their legacy start-at-login entries, but start-at-login cannot be enabled for a named instance; use the default instance for start-at-login. A Run value or scheduled task does not preserve the launching environment.
 
 ## Command line
+
+Normal use is through the tray (double-click the executable); the command line is for automation, scripting and troubleshooting.
 
 ```text
 .\pi-web-tray.exe                   Start the service and open the browser.

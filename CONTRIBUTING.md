@@ -85,7 +85,7 @@ Run both before committing. `.prettierignore` excludes C# sources, build output,
 - Catch exceptions at the boundary (UI action, worker callback), not around every line. Never silently swallow an exception that leaves the UI in a lying state.
 - Keep comments in English and write them for the next maintainer.
 - `TrayApp` and `Updater` are partial classes split by responsibility (`TrayApp.Service.cs`, `TrayApp.Update.cs`, `Updater.Files.cs`, ...). Put new code in the matching file instead of growing the main file again.
-- Prefer small, focused commits with Conventional Commit prefixes (`fix:`, `feat:`, `docs:`, `build:`, `chore:`).
+- Prefer small, focused commits with Conventional Commit prefixes (`fix:`, `feat:`, `refactor:`, `test:`, `docs:`, `build:`, `chore:`).
 
 ## Pull requests
 
