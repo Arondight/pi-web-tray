@@ -120,8 +120,16 @@ namespace PiWebTray
             @"(//[^\s""]+?/:(?:_authToken|_password|_auth|api_key|private_token|client_secret)=)[^\s""]+",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
         // Bare .npmrc keys (api_key=..., client_secret=...) have no ?/& query marker.
+        // The leading boundary also accepts '_' so npm's environment-variable form
+        // (npm_config__authToken=..., npm_config__password=...) is redacted too.
         private static readonly Regex BareSecret = new Regex(
-            @"(^|[\s;])((?:api_key|private_token|client_secret|_authToken|_password|_auth|token|password)=)[^\s"";]+",
+            @"(^|[\s;_])((?:api_key|private_token|client_secret|_authToken|_password|_auth|token|password|pwd)=)[^\s"";]+",
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // HTTP authentication headers echoed by proxies or npm diagnostics carry the
+        // credential as a Bearer token or Base64 Basic blob. Anchor on the header name
+        // so ordinary prose ("Basic setup complete") is not mangled.
+        private static readonly Regex AuthHeader = new Regex(
+            @"((?:Authorization|Proxy-Authorization)\s*:\s*(?:Bearer|Basic)\s+)[^\s"";]+",
             RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         internal static string RedactSecrets(string text)
@@ -130,6 +138,7 @@ namespace PiWebTray
             text = UrlUserInfo.Replace(text, "$1***@");
             text = QuerySecret.Replace(text, "$1***");
             text = NpmRegistrySecret.Replace(text, "$1***");
+            text = AuthHeader.Replace(text, "$1***");
             text = BareSecret.Replace(text, "$1$2***");
             return text;
         }

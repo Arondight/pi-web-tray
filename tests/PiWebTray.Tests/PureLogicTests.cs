@@ -484,6 +484,24 @@ namespace PiWebTray
             CheckEqual("redacts client_secret",
                 "https://example.test/?client_secret=***",
                 Shell.RedactSecrets("https://example.test/?client_secret=shh"));
+            CheckEqual("redacts npm environment credential form",
+                "npm_config__authToken=***",
+                Shell.RedactSecrets("npm_config__authToken=npm-secret"));
+            CheckEqual("redacts npm environment password form",
+                "npm_config__password=***",
+                Shell.RedactSecrets("npm_config__password=hunter2"));
+            CheckEqual("redacts bare pwd",
+                "pwd=***",
+                Shell.RedactSecrets("pwd=hunter2"));
+            CheckEqual("redacts Bearer token",
+                "Authorization: Bearer ***",
+                Shell.RedactSecrets("Authorization: Bearer abc123secret"));
+            CheckEqual("redacts Basic auth header",
+                "Proxy-Authorization: Basic ***",
+                Shell.RedactSecrets("Proxy-Authorization: Basic dXNlcjpwYXNz"));
+            CheckEqual("keeps ordinary words after Basic",
+                "Basic setup complete",
+                Shell.RedactSecrets("Basic setup complete"));
 
             PortOwnerInfo owner = new PortOwnerInfo
             {
