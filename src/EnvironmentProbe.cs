@@ -121,19 +121,11 @@ namespace PiWebTray
 
         private static string Row(string label, string value)
         {
-            int pad = RowWidth - VisualWidth(label);
+            int pad = RowWidth - Shell.VisualWidth(label);
             if (pad < 1) pad = 1;
             return label + new string(' ', pad) + ": " + value;
         }
 
-        // Count CJK characters as two columns, everything else as one
-        private static int VisualWidth(string text)
-        {
-            int width = 0;
-            foreach (char c in text)
-                width += c > 0x2E80 ? 2 : 1;
-            return width;
-        }
     }
 
     internal static class EnvironmentProbe

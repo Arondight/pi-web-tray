@@ -1421,17 +1421,10 @@ namespace PiWebTray
         // CJK characters take two columns, so the help output stays aligned
         private static string Line(string flag, string description, string pad)
         {
-            int width = VisualWidth(flag);
+            int width = Shell.VisualWidth(flag);
             int spaces = pad.Length - width;
             if (spaces < 2) spaces = 2;
             return flag + new string(' ', spaces) + description;
-        }
-
-        private static int VisualWidth(string text)
-        {
-            int width = 0;
-            foreach (char c in text) width += c > 0x2E80 ? 2 : 1;
-            return width;
         }
 
         private static void LogCrash(Exception exception)
@@ -1458,21 +1451,7 @@ namespace PiWebTray
         // by an elevated --diag process.
         private static string ReadStateFileVerified(string path)
         {
-            try
-            {
-                using (FileStream stream = new FileStream(path, FileMode.Open,
-                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
-                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
-                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
-                        return reader.ReadToEnd();
-                }
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+            return SafeFile.ReadVerifiedText(path);
         }
 
         // Write the diagnostic with a new temporary file, verify the opened handle,
@@ -1489,31 +1468,7 @@ namespace PiWebTray
             {
                 if (PathSafety.ContainsReparsePoint(temp)
                     || PathSafety.ContainsReparsePoint(backup)) return;
-                FileStream stream = null;
-                try
-                {
-                    stream = new FileStream(temp, FileMode.CreateNew,
-                        FileAccess.Write, FileShare.None);
-                    if (!LogHost.HandleMatchesExpectedPath(stream, temp))
-                    {
-                        stream.Dispose();
-                        stream = null;
-                        try { File.Delete(temp); } catch (Exception) { }
-                        return;
-                    }
-                    using (StreamWriter writer = new StreamWriter(
-                        stream, new UTF8Encoding(true)))
-                    {
-                        writer.Write(content);
-                    }
-                }
-                finally
-                {
-                    if (stream != null)
-                    {
-                        try { stream.Dispose(); } catch (Exception) { }
-                    }
-                }
+                if (!SafeFile.WriteVerifiedText(temp, content, true)) return;
 
                 if (File.Exists(path))
                 {
@@ -1560,21 +1515,7 @@ namespace PiWebTray
                     || PathSafety.ContainsReparsePoint(backup)) return false;
                 byte[] bytes = Icons.BuildIco(Icons.RunningColor,
                     new int[] { 16, 20, 24, 32, 40, 48, 64, 256 });
-                FileStream stream = null;
-                try
-                {
-                    stream = new FileStream(temp, FileMode.CreateNew,
-                        FileAccess.Write, FileShare.None);
-                    if (!LogHost.HandleMatchesExpectedPath(stream, temp)) return false;
-                    stream.Write(bytes, 0, bytes.Length);
-                }
-                finally
-                {
-                    if (stream != null)
-                    {
-                        try { stream.Dispose(); } catch (Exception) { }
-                    }
-                }
+                if (!SafeFile.WriteVerifiedBytes(temp, bytes)) return false;
                 if (File.Exists(path))
                 {
                     try

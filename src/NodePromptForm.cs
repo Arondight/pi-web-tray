@@ -62,12 +62,12 @@ namespace PiWebTray
             content.AutoScroll = true;
             _content = content;
 
-            Label heading = CreateLabel(title);
+            Label heading = FormHelpers.CreateLabel(title);
             heading.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
             _headingFont = heading.Font;
             heading.Margin = new Padding(0, 0, 0, 16);
 
-            Label message = CreateLabel(body);
+            Label message = FormHelpers.CreateLabel(body);
             message.MaximumSize = new Size(500, 0);
             message.Margin = new Padding(0, 0, 0, 14);
 
@@ -190,18 +190,6 @@ namespace PiWebTray
                 _headingFont = null;
             }
             base.Dispose(disposing);
-        }
-
-        private static Label CreateLabel(string text)
-        {
-            Label label = new Label();
-            label.Text = text;
-            label.AutoSize = true;
-            label.Margin = Padding.Empty;
-            label.UseCompatibleTextRendering = false;
-            // Error text can contain paths with '&'; do not treat it as a mnemonic.
-            label.UseMnemonic = false;
-            return label;
         }
 
         private static Button CreateButton(string text)

@@ -1050,31 +1050,10 @@ namespace PiWebTray
                     return false;
                 }
 
-                FileStream stream = null;
-                try
+                if (!SafeFile.WriteVerifiedText(temp, sb.ToString(), false))
                 {
-                    stream = new FileStream(temp, FileMode.CreateNew,
-                        FileAccess.Write, FileShare.None);
-                    if (!LogHost.HandleMatchesExpectedPath(stream, temp))
-                    {
-                        stream.Dispose();
-                        stream = null;
-                        try { File.Delete(temp); } catch (Exception) { }
-                        error = "manifest temporary path changed";
-                        return false;
-                    }
-                    using (StreamWriter writer = new StreamWriter(
-                        stream, new UTF8Encoding(false)))
-                    {
-                        writer.Write(sb.ToString());
-                    }
-                }
-                finally
-                {
-                    if (stream != null)
-                    {
-                        try { stream.Dispose(); } catch (Exception) { }
-                    }
+                    error = "manifest temporary path changed";
+                    return false;
                 }
 
                 if (File.Exists(path))

@@ -74,7 +74,7 @@ namespace PiWebTray
             content.AutoScroll = true;
             _content = content;
 
-            Label title = CreateTextLabel(Program.AppName);
+            Label title = FormHelpers.CreateLabel(Program.AppName);
             title.Font = new Font(Font.FontFamily, 16f, FontStyle.Bold);
             _titleFont = title.Font;
             title.Margin = new Padding(0, 0, 0, 16);
@@ -181,17 +181,6 @@ namespace PiWebTray
         // Labels use the same GDI renderer as Settings and the other dialogs.
         // LinkLabel always switches to GDI+, so the About links are ordinary
         // clickable labels with an underlined font instead.
-        private static Label CreateTextLabel(string text)
-        {
-            Label label = new Label();
-            label.Text = text;
-            label.AutoSize = true;
-            label.Margin = Padding.Empty;
-            label.UseCompatibleTextRendering = false;
-            label.UseMnemonic = false;
-            return label;
-        }
-
         private DataGridView CreateInfoTable()
         {
             DataGridView info = new DataGridView();
@@ -298,7 +287,7 @@ namespace PiWebTray
         private void AddText(FlowLayoutPanel line, string text, string url)
         {
             if (string.IsNullOrEmpty(text)) return;
-            Label label = CreateTextLabel(text);
+            Label label = FormHelpers.CreateLabel(text);
             if (!string.IsNullOrEmpty(url))
             {
                 Font linkFont = new Font(Font, FontStyle.Underline);

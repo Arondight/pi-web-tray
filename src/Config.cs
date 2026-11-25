@@ -372,28 +372,7 @@ namespace PiWebTray
         // a link swapped into place to read a protected file.
         private static string[] ReadVerifiedLines(string path)
         {
-            try
-            {
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)
-                    || PathSafety.ContainsReparsePoint(path)) return null;
-                using (FileStream stream = new FileStream(path, FileMode.Open,
-                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
-                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
-                    List<string> lines = new List<string>();
-                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null) lines.Add(line);
-                    }
-                    return lines.ToArray();
-                }
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+            return SafeFile.ReadVerifiedLines(path);
         }
 
         // Read a single key; used to pick the language before the full parse
@@ -606,35 +585,7 @@ namespace PiWebTray
 
         private static bool WriteVerifiedText(string path, string content)
         {
-            // CreateNew is important here: Create would follow a symlink/junction
-            // planted between the path check and the open and truncate its target
-            // before HandleMatchesExpectedPath can reject the handle.
-            FileStream stream = null;
-            try
-            {
-                stream = new FileStream(path, FileMode.CreateNew,
-                    FileAccess.Write, FileShare.None);
-                if (!LogHost.HandleMatchesExpectedPath(stream, path))
-                {
-                    stream.Dispose();
-                    stream = null;
-                    try { File.Delete(path); } catch (Exception) { }
-                    return false;
-                }
-                using (StreamWriter writer = new StreamWriter(
-                    stream, new UTF8Encoding(true)))
-                {
-                    writer.Write(content);
-                }
-            }
-            finally
-            {
-                if (stream != null)
-                {
-                    try { stream.Dispose(); } catch (Exception) { }
-                }
-            }
-            return true;
+            return SafeFile.WriteVerifiedText(path, content, true);
         }
 
         // File.Replace is the best choice on NTFS, but it is not supported on some

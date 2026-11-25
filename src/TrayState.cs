@@ -274,31 +274,7 @@ namespace PiWebTray
                     || PathSafety.ContainsReparsePoint(backup)) return false;
                 try
                 {
-                    FileStream stream = null;
-                    try
-                    {
-                        stream = new FileStream(temp, FileMode.CreateNew,
-                            FileAccess.Write, FileShare.None);
-                        if (!LogHost.HandleMatchesExpectedPath(stream, temp))
-                        {
-                            stream.Dispose();
-                            stream = null;
-                            try { File.Delete(temp); } catch (Exception) { }
-                            return false;
-                        }
-                        using (StreamWriter writer = new StreamWriter(
-                            stream, new UTF8Encoding(true)))
-                        {
-                            writer.Write(content);
-                        }
-                    }
-                    finally
-                    {
-                        if (stream != null)
-                        {
-                            try { stream.Dispose(); } catch (Exception) { }
-                        }
-                    }
+                    if (!SafeFile.WriteVerifiedText(temp, content, true)) return false;
                     if (File.Exists(path))
                     {
                         try { File.Replace(temp, path, backup, true); }
@@ -531,28 +507,7 @@ namespace PiWebTray
         // and reject hard links before an elevated CLI reads it.
         private static string[] ReadVerifiedLines(string path)
         {
-            try
-            {
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)
-                    || PathSafety.ContainsReparsePoint(path)) return null;
-                using (FileStream stream = new FileStream(path, FileMode.Open,
-                    FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                {
-                    if (!LogHost.HandleMatchesExpectedPath(stream, path)) return null;
-                    if (PathSafety.HasMultipleLinks(stream.SafeFileHandle)) return null;
-                    List<string> lines = new List<string>();
-                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8, true))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null) lines.Add(line);
-                    }
-                    return lines.ToArray();
-                }
-            }
-            catch (Exception)
-            {
-                return null;
-            }
+            return SafeFile.ReadVerifiedLines(path);
         }
 
     }
