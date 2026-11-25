@@ -313,6 +313,8 @@ namespace PiWebTray
             StateFileTests();
             HttpProbeTestsSkip();
             UpdaterExtractTests();
+            UpdaterTrustTests();
+            RestartEnvironmentSafetyTests();
             UpdaterSourceIdentityTests();
             ConfigDefaultTests();
 
@@ -3664,6 +3666,18 @@ namespace PiWebTray
             CheckEqual("port owner pid IPv6", 2468, ServiceProbe.ParseListenerPid(ipv6, 30141));
             CheckEqual("port owner pid no match", 0, ServiceProbe.ParseListenerPid(netstat, 30143));
             CheckEqual("port owner pid empty", 0, ServiceProbe.ParseListenerPid("", 30141));
+            // A longer port ending in the same digits is a different port.
+            string collision = "  TCP    0.0.0.0:130141         0.0.0.0:0              LISTENING       4321";
+            CheckEqual("port suffix collision is not a match", 0,
+                ServiceProbe.ParseListenerPid(collision, 30141));
+            // An established connection is not a listener even on the right port.
+            string established = "  TCP    127.0.0.1:30141        127.0.0.1:52310        ESTABLISHED     7777";
+            CheckEqual("established connection is not a listener", 0,
+                ServiceProbe.ParseListenerPid(established, 30141));
+            // netstat state text is localized; the parser must not rely on English.
+            string localized = "  TCP    0.0.0.0:30141          0.0.0.0:0              ABH\u00d6REN       8888";
+            CheckEqual("localized state text still matches", 8888,
+                ServiceProbe.ParseListenerPid(localized, 30141));
 
             Check("pi-web command line js", ServiceProbe.IsPiWebCommandLine(
                 @"""C:\Program Files\nodejs\node.exe"" ""C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js"" --no-open -p 30141"));
@@ -3702,6 +3716,40 @@ namespace PiWebTray
                     "\"C:\\Program Files\\nodejs\\node.exe\" \""
                     + decoyExpected + "\" --no-open -p 30141"));
             Check("empty command rejected", !ServiceProbe.IsPiWebCommandLine(""));
+
+            // Node options that consume a separate value must not let that value
+            // pose as the running script (node --require helper.js app.js).
+            string piWebScript = @"C:\Users\u\AppData\Roaming\npm\node_modules\@agegr\pi-web\bin\pi-web.js";
+            string nodeExe = "\"C:\\Program Files\\nodejs\\node.exe\"";
+            string[] separateValueOptions = new string[]
+            {
+                "--require", "-r", "--import", "--loader", "--experimental-loader"
+            };
+            foreach (string option in separateValueOptions)
+            {
+                string line = nodeExe + " " + option + " helper.js \"" + piWebScript + "\" --no-open -p 30141";
+                CheckEqual("option value is skipped (" + option + ")",
+                    piWebScript, ServiceProbe.ExtractScriptPath(line));
+                Check("script after option value is identified (" + option + ")",
+                    ServiceProbe.IsPiWebCommandLine(line));
+                // The option value itself is not the script the process runs.
+                string decoy = nodeExe + " " + option + " \"" + piWebScript + "\" listener.js";
+                Check("option value does not pose as the script (" + option + ")",
+                    !ServiceProbe.IsPiWebCommandLine(decoy));
+                CheckEqual("option value is not extracted as the script (" + option + ")",
+                    "", ServiceProbe.ExtractScriptPath(decoy, piWebScript));
+            }
+            // The inline form is a single token and needs no separate skip.
+            string inline = nodeExe + " --require=helper.js \"" + piWebScript + "\"";
+            CheckEqual("inline option form keeps the script", piWebScript,
+                ServiceProbe.ExtractScriptPath(inline));
+            // After the option terminator the next token is the script.
+            string terminated = nodeExe + " -- \"" + piWebScript + "\"";
+            CheckEqual("option terminator precedes the script", piWebScript,
+                ServiceProbe.ExtractScriptPath(terminated));
+            // An option after the script is an application argument, not a script.
+            string lateOption = nodeExe + " listener.js --require \"" + piWebScript + "\"";
+            Check("a late option value is not the script", !ServiceProbe.IsPiWebCommandLine(lateOption));
             CheckEqual("failed owner probe is reported as unavailable",
                 L.T("check.ownerUnavailable"),
                 ServiceProbe.OwnerText(new PortOwnerInfo
@@ -3968,11 +4016,131 @@ namespace PiWebTray
                     File.ReadAllText(Path.Combine(cleanDir, "pi-web-tray.exe")));
                 CheckEqual("clean archive extracts nested entries", "dll",
                     File.ReadAllText(Path.Combine(cleanDir, "zh-Hans", "pi-web-tray.resources.dll")));
+
+                // 4. An archive with too many entries is rejected (zip bomb guard).
+                zip = Path.Combine(root, "many.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    for (int i = 0; i <= 10000; i++) WriteZipEntry(archive, "f" + i + ".txt", "x");
+                }
+                threw = false;
+                try { Updater.Extract(zip, Path.Combine(root, "many")); }
+                catch (InvalidDataException) { threw = true; }
+                Check("archive entry count limit enforced", threw);
+
+                // 5. Explicit directory entries create directories.
+                zip = Path.Combine(root, "dirs.zip");
+                using (FileStream stream = File.Create(zip))
+                using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                {
+                    archive.CreateEntry("sub/");
+                    WriteZipEntry(archive, "sub/file.txt", "nested");
+                }
+                string dirTarget = Path.Combine(root, "dirs");
+                Updater.Extract(zip, dirTarget);
+                Check("directory entry creates the directory",
+                    Directory.Exists(Path.Combine(dirTarget, "sub")));
+                CheckEqual("file under a directory entry extracts", "nested",
+                    File.ReadAllText(Path.Combine(dirTarget, "sub", "file.txt")));
+
+                // 6. An entry whose destination crosses a junction is rejected and
+                // the junction target receives nothing.
+                string outside = Path.Combine(root, "outside");
+                Directory.CreateDirectory(outside);
+                string reparseTarget = Path.Combine(root, "reparse");
+                Directory.CreateDirectory(reparseTarget);
+                if (CreateJunction(Path.Combine(reparseTarget, "link"), outside))
+                {
+                    zip = Path.Combine(root, "reparse.zip");
+                    using (FileStream stream = File.Create(zip))
+                    using (ZipArchive archive = new ZipArchive(stream, ZipArchiveMode.Create))
+                    {
+                        WriteZipEntry(archive, "link/evil.txt", "escaped");
+                    }
+                    threw = false;
+                    try { Updater.Extract(zip, reparseTarget); }
+                    catch (InvalidDataException) { threw = true; }
+                    Check("entry through a junction is rejected", threw);
+                    Check("junction target received nothing",
+                        !File.Exists(Path.Combine(outside, "evil.txt")));
+                }
             }
             finally
             {
-                try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+                try { PathSafety.DeleteTreeSafe(root); } catch (Exception) { }
             }
+        }
+
+        // Trust decisions must reject lookalike hosts, not just unrelated ones.
+        private static void UpdaterTrustTests()
+        {
+            Check("lookalike github host rejected",
+                !Updater.IsTrustedUrl("https://github.com.evil.example/x"));
+            Check("prefix-lookalike host rejected",
+                !Updater.IsTrustedUrl("https://evilgithub.com/x"));
+            Check("lookalike objects host rejected",
+                !Updater.IsTrustedUrl("https://githubusercontent.com.evil.example/x"));
+            Check("lookalike assets host rejected",
+                !Updater.IsTrustedUrl("https://githubassets.com.evil.example/x"));
+            Check("a real github subdomain is accepted",
+                Updater.IsTrustedUrl("https://codeload.github.com/x"));
+            Check("userinfo cannot disguise the host",
+                !Updater.IsTrustedUrl("https://github.com@evil.example/x"));
+            Check("a non-https scheme is rejected",
+                !Updater.IsTrustedUrl("file://github.com/x"));
+
+            string hash = new string('a', 64);
+            CheckEqual("uppercase checksum is lowercased", hash,
+                Updater.ParseChecksum(new string('A', 64) + "  file.zip"));
+            string multi = new string('b', 64) + "  other.zip\r\n"
+                + hash + "  pi-web-tray-0.2.0-win.zip\r\n";
+            CheckEqual("checksum picks the matching line from several", hash,
+                Updater.ParseChecksum(multi, "pi-web-tray-0.2.0-win.zip"));
+
+            Check("stable is newer than its pre-release", Updater.IsNewer("1.0.0", "1.0.0-beta"));
+            Check("pre-release is not newer than stable", !Updater.IsNewer("1.0.0-beta", "1.0.0"));
+            Check("a pre-release does not satisfy the stable minimum",
+                !VersionUtil.AtLeast("1.0.0-beta", "1.0.0"));
+            Check("stable satisfies a pre-release minimum",
+                VersionUtil.AtLeast("1.0.0", "1.0.0-beta"));
+        }
+
+        // The helper decodes a restart-environment block from its command line;
+        // malformed or injected content must never become environment variables.
+        private static void RestartEnvironmentSafetyTests()
+        {
+            string block = "PI_WEB_TRAY_INSTANCE=dev\nPI_WEB_TRAY_PORT=30198\n";
+            string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(block));
+            Dictionary<string, string> decoded = Updater.DecodeRestartEnvironment(encoded);
+            CheckEqual("restart env instance round-trips", "dev", decoded["PI_WEB_TRAY_INSTANCE"]);
+            CheckEqual("restart env port round-trips", "30198", decoded["PI_WEB_TRAY_PORT"]);
+
+            string injected = Convert.ToBase64String(Encoding.UTF8.GetBytes(
+                "PI_WEB_TRAY_INSTANCE=dev\r\nEVIL=1\n"));
+            Check("restart env rejects CRLF-smuggled values",
+                Updater.DecodeRestartEnvironment(injected).Count == 0);
+
+            string unknown = Convert.ToBase64String(Encoding.UTF8.GetBytes(
+                "EVIL_NAME=x\nPI_WEB_TRAY_LANG=zh\n"));
+            Dictionary<string, string> filtered = Updater.DecodeRestartEnvironment(unknown);
+            Check("restart env filters unknown names",
+                !filtered.ContainsKey("EVIL_NAME") && filtered["PI_WEB_TRAY_LANG"] == "zh");
+
+            string junk = Convert.ToBase64String(Encoding.UTF8.GetBytes(
+                "noseparator\n=novalue\nPI_WEB_TRAY_LANG=en\n"));
+            Dictionary<string, string> junkDecoded = Updater.DecodeRestartEnvironment(junk);
+            Check("restart env ignores malformed lines",
+                junkDecoded.Count == 1 && junkDecoded["PI_WEB_TRAY_LANG"] == "en");
+
+            Check("malformed base64 restart env is ignored",
+                Updater.DecodeRestartEnvironment("!!!not-base64!!!").Count == 0);
+            Check("empty restart env is ignored",
+                Updater.DecodeRestartEnvironment("").Count == 0);
+            string oversized = Convert.ToBase64String(Encoding.UTF8.GetBytes(
+                "PI_WEB_TRAY_INSTANCE=" + new string('x', 40000) + "\n"));
+            Check("oversized restart env is ignored",
+                Updater.DecodeRestartEnvironment(oversized).Count == 0);
         }
 
         private static void UpdaterSourceIdentityTests()
