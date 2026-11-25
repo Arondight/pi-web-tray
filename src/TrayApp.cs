@@ -711,6 +711,10 @@ namespace PiWebTray
             if (startSignal) { _autoRestartAttempts = 0; StartServer(false); }
 
             PollAutostartOp();
+            PollNetworkOperation();
+            // The network completion may have started a tray restart (ExitApp);
+            // do not run more state-machine work once the tray is exiting.
+            if (_exiting) return;
             DispatchOwnerCheck();
             if (_modalDepth == 0)
             {
@@ -758,7 +762,8 @@ namespace PiWebTray
             }
 
             if (_autoUpdateCheckAt != DateTime.MinValue && DateTime.Now >= _autoUpdateCheckAt
-                && !UpdateBusy() && !AutostartBusy() && !_exiting && !_nodePromptOpen && _modalDepth == 0
+                && !UpdateBusy() && !AutostartOperationBusy() && !NetworkOperationBusy()
+                && !_exiting && !_nodePromptOpen && _modalDepth == 0
                 && !IsServiceActionInProgress()
                 && _phase != Phase.Checking)
             {

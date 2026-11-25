@@ -323,11 +323,28 @@ namespace PiWebTray
                     }
                     // Node options precede the script. A value that is not an option
                     // is the candidate script; do not scan later application arguments.
-                    if (value.Length > 0 && value[0] == '-') continue;
+                    if (value.Length > 0 && value[0] == '-')
+                    {
+                        // Some node options consume the next argument as a module/file
+                        // value (node --require helper.js app.js). That value is not the
+                        // script the process runs; skip it too.
+                        if (OptionTakesSeparateValue(value)) i++;
+                        continue;
+                    }
                 }
                 return value;
             }
             return "";
+        }
+
+        private static bool OptionTakesSeparateValue(string option)
+        {
+            // The inline "--require=x" form is a single token and is not listed here.
+            return string.Equals(option, "--require", StringComparison.Ordinal)
+                || string.Equals(option, "-r", StringComparison.Ordinal)
+                || string.Equals(option, "--import", StringComparison.Ordinal)
+                || string.Equals(option, "--loader", StringComparison.Ordinal)
+                || string.Equals(option, "--experimental-loader", StringComparison.Ordinal);
         }
 
         private static bool LooksLikeScript(string value)

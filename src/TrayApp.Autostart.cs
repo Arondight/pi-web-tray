@@ -73,7 +73,7 @@ namespace PiWebTray
 
         private void ToggleAutostart()
         {
-            if (_exiting || AutostartBusy() || UpdateBusy()
+            if (_exiting || AutostartOperationBusy() || UpdateBusy() || NetworkOperationBusy()
                 || _phase == Phase.Checking || IsServiceActionInProgress()) return;
             bool enable = !_autostartItem.Checked;
             if (enable && _config.AutostartAdmin && RefuseAdminAutostart())
@@ -92,7 +92,7 @@ namespace PiWebTray
 
         private void ToggleAdminAutostart()
         {
-            if (_exiting || AutostartBusy() || UpdateBusy()
+            if (_exiting || AutostartOperationBusy() || UpdateBusy() || NetworkOperationBusy()
                 || _phase == Phase.Checking || IsServiceActionInProgress()) return;
 
             bool enable = !_config.AutostartAdmin;

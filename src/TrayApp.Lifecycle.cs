@@ -355,6 +355,9 @@ namespace PiWebTray
             // The autostart worker stores its shared update lock until the UI poll
             // consumes it. Exiting before that poll must release it explicitly.
             ReleaseAutostartUpdateLock();
+            // The network operation likewise holds UpdateName until its result is
+            // consumed. Release it on exit so a later process is not blocked.
+            ReleaseNetworkUpdateLock();
             // A still-running stop worker owns StopName. Closing it here would let a
             // waiting CLI install start npm before the `pi-web stop` child has
             // released the package directory. The worker releases the lock itself.

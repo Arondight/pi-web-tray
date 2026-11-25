@@ -373,12 +373,6 @@
   <data name="notify.noLink" xml:space="preserve">
     <value>無法開啟連結</value>
   </data>
-  <data name="notify.noPiwebTitle" xml:space="preserve">
-    <value>未找到 Pi Web</value>
-  </data>
-  <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>請使用功能表安裝或更新服務。</value>
-  </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>無法啟動服務</value>
   </data>

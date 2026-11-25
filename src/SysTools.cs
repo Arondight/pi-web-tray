@@ -986,6 +986,11 @@ namespace PiWebTray
 
     internal static class Shell
     {
+        // Wrap a value in double quotes only. This is safe for the file paths, script
+        // paths and task/rule names it is used with today (Windows paths cannot contain
+        // a double quote and these values never end in a backslash). It does NOT escape
+        // a trailing backslash or an embedded quote; use QuoteArg for any value that may
+        // contain those, or the closing quote can be escaped and the argument merged.
         internal static string Quote(string value)
         {
             return "\"" + value + "\"";
@@ -1206,26 +1211,51 @@ namespace PiWebTray
                 if (i >= left.Length) return -1;
                 if (i >= right.Length) return 1;
 
-                int leftNumber;
-                int rightNumber;
-                bool leftNumeric = int.TryParse(left[i], NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out leftNumber);
-                bool rightNumeric = int.TryParse(right[i], NumberStyles.Integer,
-                    CultureInfo.InvariantCulture, out rightNumber);
+                bool leftNumeric = IsNumericIdentifier(left[i]);
+                bool rightNumeric = IsNumericIdentifier(right[i]);
 
                 if (leftNumeric && rightNumeric)
                 {
-                    if (leftNumber < rightNumber) return -1;
-                    if (leftNumber > rightNumber) return 1;
+                    int numeric = CompareNumericIdentifiers(left[i], right[i]);
+                    if (numeric != 0) return numeric;
                     continue;
                 }
                 if (leftNumeric != rightNumeric)
                     return leftNumeric ? -1 : 1;
 
-                int text = string.Compare(left[i], right[i], StringComparison.OrdinalIgnoreCase);
+                // Semver orders alphanumeric identifiers by ASCII sort order, which is
+                // case-sensitive; OrdinalIgnoreCase would treat "Beta" and "beta" as equal.
+                int text = string.CompareOrdinal(left[i], right[i]);
                 if (text < 0) return -1;
                 if (text > 0) return 1;
             }
+            return 0;
+        }
+
+        // A semver numeric identifier is a non-empty run of digits. int.TryParse must
+        // not be used here: it also accepts signs/whitespace and silently overflows on
+        // identifiers longer than Int32, which would fall back to a lexical compare.
+        private static bool IsNumericIdentifier(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return false;
+            foreach (char c in value)
+            {
+                if (c < '0' || c > '9') return false;
+            }
+            return true;
+        }
+
+        // Compare two digit-only identifiers of arbitrary length without overflow:
+        // strip leading zeros, the longer number is larger, and equal-length digit
+        // strings compare lexicographically in numeric order.
+        private static int CompareNumericIdentifiers(string a, string b)
+        {
+            string left = a.TrimStart('0');
+            string right = b.TrimStart('0');
+            if (left.Length != right.Length) return left.Length < right.Length ? -1 : 1;
+            int order = string.CompareOrdinal(left, right);
+            if (order < 0) return -1;
+            if (order > 0) return 1;
             return 0;
         }
 

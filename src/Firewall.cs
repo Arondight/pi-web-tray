@@ -171,7 +171,18 @@ namespace PiWebTray
                         error = L.T("network.firewallFailed");
                         return false;
                     }
-                    child.WaitForExit();
+                    // A hung netsh (stalled firewall/RPC service, security software) must
+                    // not block the caller forever. Bound the wait and kill the tree on
+                    // timeout, mirroring Autostart.RunRepairCommand. The UAC consent itself
+                    // is waited inside Process.Start and stays user-paced.
+                    if (!child.WaitForExit(60000))
+                    {
+                        try { Sys.KillTree(child.Id, Sys.ProcessStartTime(child), child); }
+                        catch (Exception) { try { child.Kill(); } catch (Exception) { } }
+                        try { child.WaitForExit(5000); } catch (Exception) { }
+                        error = L.T("network.firewallFailed");
+                        return false;
+                    }
                     if (child.ExitCode == 0) return true;
                     error = L.T("network.firewallFailed");
                     return false;

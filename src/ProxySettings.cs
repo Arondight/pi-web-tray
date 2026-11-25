@@ -579,6 +579,9 @@ namespace PiWebTray
 
                     int count = Marshal.ReadInt32(table);
                     int rowSize = Marshal.SizeOf(typeof(MibTcpRowOwnerPid));
+                    // Match the listener-table guard: a count that would run past the
+                    // allocated buffer must not be walked.
+                    if (count <= 0 || 4L + (long)count * rowSize > size) return 0;
                     for (int i = 0; i < count; i++)
                     {
                         IntPtr row = new IntPtr(table.ToInt64() + 4 + (long)i * rowSize);

@@ -39,7 +39,8 @@ namespace PiWebTray
 
         private void BeginUpdateCheck(bool silent)
         {
-            if (_exiting || AutostartBusy() || _phase == Phase.Checking
+            if (_exiting || AutostartOperationBusy() || NetworkOperationBusy()
+                || _phase == Phase.Checking
                 || IsServiceActionInProgress()) return;
 
             if (!silent) _autoUpdateCheckAt = DateTime.MinValue;
@@ -262,7 +263,8 @@ namespace PiWebTray
                         // Never start a download while an install or service action is
                         // in progress.
                         if (!_exiting && !UpdateBusy() && !IsServiceActionInProgress()
-                            && !AutostartBusy() && _phase != Phase.Checking)
+                            && !AutostartOperationBusy() && !NetworkOperationBusy()
+                            && _phase != Phase.Checking)
                         {
                             OfferUpdate(release);
                         }
@@ -275,7 +277,7 @@ namespace PiWebTray
 
         private void OfferUpdate(ReleaseInfo release)
         {
-            if (release == null || _exiting || AutostartBusy()) return;
+            if (release == null || _exiting || AutostartOperationBusy() || NetworkOperationBusy()) return;
 
             // HandleUpdateCheck calls this while its check is still the active
             // operation. A notification action calls it with no active operation.
@@ -328,13 +330,13 @@ namespace PiWebTray
                 return;
             }
 
-            if (AutostartBusy())
+            if (AutostartOperationBusy() || NetworkOperationBusy())
             {
-                // This path is only reachable when an autostart operation became
+                // This path is only reachable when a conflicting operation became
                 // busy while the confirmation dialog was open. Finish the check it
                 // belongs to instead of leaving the update form in Checking forever.
                 Updater.AppendLog(_config.UpdateLogFile,
-                    "update offer ignored: autostart operation is active");
+                    "update offer ignored: a conflicting operation is active");
                 if (ownsCheck && UpdateBusy()) EndUpdate();
                 return;
             }
@@ -349,7 +351,7 @@ namespace PiWebTray
             // owns a conflicting update lock. An offer declined here leaves the
             // caller's update state intact, so do not add a busy return without
             // making the caller finish that state.
-            if (AutostartBusy()) return;
+            if (AutostartOperationBusy() || NetworkOperationBusy()) return;
             // Keep the state from the check as well as the state at the start of the
             // download. If the service stops before the helper is launched, this still
             // preserves a service that was running when the update began.

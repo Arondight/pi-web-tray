@@ -15,6 +15,128 @@ namespace PiWebTray
 {
     internal sealed partial class TrayApp
     {
+        // ---- network access operation (background -> UI thread) ----
+        // A firewall change runs netsh (possibly through a UAC prompt) and can take
+        // seconds or hang; it must not run on the UI thread. The operation holds the
+        // same UpdateName lock as npm/update/autostart, so the existing busy gates
+        // (ExitApp, ShowSettings, service start, the update helper) already refuse to
+        // race it. The worker only runs netsh and writes the ini; the result is
+        // consumed on the UI timer, which then updates state and restarts the service.
+        private sealed class NetworkOpResult
+        {
+            internal bool Ok;
+            internal string Error = "";
+        }
+
+        private readonly object _networkLock = new object();
+        private bool _networkBusy;
+        private bool _networkDone;
+        private NetworkOpResult _networkResult;
+        private Action<NetworkOpResult> _networkCompletion;
+        private OperationLock _networkUpdateLock;
+
+        private bool NetworkOperationBusy()
+        {
+            lock (_networkLock) return _networkBusy;
+        }
+
+        // work runs on a background thread; completion runs on the UI thread after the
+        // installation lock is released. Returns false when the lock is unavailable.
+        private bool BeginNetworkOperation(Func<NetworkOpResult> work,
+            Action<NetworkOpResult> completion)
+        {
+            if (_exiting) return false;
+            lock (_networkLock)
+            {
+                if (_networkBusy) return false;
+            }
+            OperationLock updateLock = OperationLock.TryAcquire(
+                OperationLock.UpdateName(_config.BaseDir));
+            if (updateLock == null)
+            {
+                NotifyWarning(L.T("notify.updateBusyTitle"), L.T("update.error.busy"));
+                return false;
+            }
+            lock (_networkLock)
+            {
+                _networkUpdateLock = updateLock;
+                _networkBusy = true;
+                _networkDone = false;
+                _networkResult = null;
+                _networkCompletion = completion;
+            }
+            UpdateUi();
+            Thread worker = new Thread(delegate ()
+            {
+                NetworkOpResult result;
+                try { result = work(); }
+                catch (Exception ex)
+                {
+                    result = new NetworkOpResult { Ok = false, Error = ex.Message };
+                }
+                if (result == null) result = new NetworkOpResult { Ok = false, Error = "" };
+                lock (_networkLock)
+                {
+                    _networkResult = result;
+                    _networkDone = true;
+                }
+            });
+            worker.IsBackground = true;
+            try
+            {
+                worker.Start();
+            }
+            catch (Exception ex)
+            {
+                lock (_networkLock)
+                {
+                    _networkResult = new NetworkOpResult { Ok = false, Error = ex.Message };
+                    _networkDone = true;
+                }
+            }
+            return true;
+        }
+
+        private void PollNetworkOperation()
+        {
+            NetworkOpResult result;
+            Action<NetworkOpResult> completion;
+            lock (_networkLock)
+            {
+                if (!_networkDone) return;
+                // The completion may restart the service/tray; do not run it inside
+                // an unrelated modal message loop. Keep the result pending.
+                if (_modalDepth > 0) return;
+                _networkDone = false;
+                _networkBusy = false;
+                result = _networkResult;
+                _networkResult = null;
+                completion = _networkCompletion;
+                _networkCompletion = null;
+            }
+            // Release the installation lock before the completion runs so it can
+            // restart the service/tray; those actions refuse to run while UpdateName
+            // is held. Release and completion are consecutive on the UI thread, so no
+            // queued action can interleave between them.
+            ReleaseNetworkUpdateLock();
+            UpdateUi();
+            if (completion != null) completion(result);
+        }
+
+        private void ReleaseNetworkUpdateLock()
+        {
+            OperationLock updateLock;
+            lock (_networkLock)
+            {
+                updateLock = _networkUpdateLock;
+                _networkUpdateLock = null;
+            }
+            if (updateLock != null)
+            {
+                try { updateLock.Dispose(); } catch (Exception) { }
+            }
+        }
+
         private void UpdateUi()
         {
             string label;
@@ -131,7 +253,7 @@ namespace PiWebTray
                 || _phase == Phase.Checking;
             bool autostartBusy = AutostartBusy() || _autostartSyncing
                 || Autostart.RepairRunning;
-            bool busy = serviceBusy || updateBusy || autostartBusy;
+            bool busy = serviceBusy || updateBusy || autostartBusy || NetworkOperationBusy();
             bool running = _phase == Phase.Running || _phase == Phase.RunningUnverified;
             bool portConflict = _phase == Phase.PortConflict;
             bool versionMismatch = _probe != null
@@ -564,7 +686,87 @@ namespace PiWebTray
                 if (result == DialogResult.OK)
                 {
                     restartRequested = form.RestartRequested;
-                    bool portRejected = false;
+
+                    // Commit the new port once the firewall rule (if any) is in place.
+                    Action commitPort = delegate
+                    {
+                        // No usable service owns the old port. If a tracked wrapper
+                        // survived a failed start, release it before the tray starts
+                        // using a different port.
+                        KillTrackedServer();
+                        _port = _config.Port;
+                        // A probe for the old port may still be in flight. Drop it and
+                        // every action waiting for it; a stale result could make the
+                        // new port look running or conflicted.
+                        ClearPendingOwnerActions(false);
+                        _stopAfterOwnerCheck = false;
+                        InvalidateOwnerCheck();
+                        ServiceProbe.Invalidate();
+                        _lastOwnerCheck = DateTime.MinValue;
+                        _lastNotified = "";
+                        if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
+                        if (!TrayState.Save(Process.GetCurrentProcess().Id, _elevated, _port))
+                        {
+                            NotifyWarningOnce("state-save",
+                                L.T("notify.stateSaveTitle"),
+                                L.T("notify.stateSaveBody", TrayState.Folder));
+                        }
+                        UpdateUi();
+                    };
+                    Action revertPort = delegate
+                    {
+                        _config.Port = previousPort;
+                        _config.ConfiguredPort = previousPort;
+                        if (!_config.SetValue("Port", previousPort.ToString()))
+                            NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
+                    };
+                    // The settings tail runs after the port decision, which may be
+                    // asynchronous when a firewall rule must be updated first.
+                    Action<bool> finishSave = delegate (bool portRejected)
+                    {
+                        if (_config.AutoCheckUpdates)
+                        {
+                            if (_autoUpdateCheckAt == DateTime.MinValue)
+                                _autoUpdateCheckAt = DateTime.Now.AddSeconds(5);
+                        }
+                        else
+                        {
+                            _autoUpdateCheckAt = DateTime.MinValue;
+                        }
+                        if (!_config.AutoRestart)
+                        {
+                            _autoRestartAt = DateTime.MinValue;
+                            _autoRestartAttempts = 0;
+                        }
+                        if (restartRequested)
+                        {
+                            RestartTray();
+                            return;
+                        }
+                        if (!portRejected)
+                        {
+                            // Turning Pi installation on/off or changing an exact
+                            // InstallTag changes readiness without changing the
+                            // installed packages. Refresh the cached probe.
+                            bool readinessChanged = _config.InstallPi != installPiBefore
+                                || !string.Equals(_config.InstallTag, installTagBefore,
+                                    StringComparison.Ordinal);
+                            if (readinessChanged && !IsServiceActionInProgress())
+                            {
+                                if (_probe == null)
+                                {
+                                    BeginEnvironmentCheck(false, false);
+                                }
+                                else
+                                {
+                                    _probe.PiCliRequired = _config.InstallPi;
+                                    EnvironmentProbe.ApplyInstallTag(_probe, _config);
+                                    ApplyProbeResult(_probe);
+                                }
+                            }
+                            Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
+                        }
+                    };
                     if (_config.Port != previousPort)
                     {
                         // The state can change while the modal dialog is open (for example
@@ -586,11 +788,7 @@ namespace PiWebTray
                             _server != null && !_server.HasExited, currentListenerIsOurs);
                         if (!canApplyPort)
                         {
-                            _config.Port = previousPort;
-                            _config.ConfiguredPort = previousPort;
-                            if (!_config.SetValue("Port", previousPort.ToString()))
-                                NotifyError(L.T("settings.title"), L.T("settings.saveFailed"));
-                            portRejected = true;
+                            revertPort();
                             BeginModal();
                             try
                             {
@@ -603,6 +801,7 @@ namespace PiWebTray
                             {
                                 EndModal();
                             }
+                            finishSave(true);
                         }
                         else if (_config.NetworkAccess && Net.IsPortOpen(_config.Port, 200))
                         {
@@ -610,113 +809,56 @@ namespace PiWebTray
                             // by another program. The Settings dialog already warned
                             // that the new port is occupied; enable network access only
                             // after that port is free.
-                            _config.Port = previousPort;
-                            _config.ConfiguredPort = previousPort;
-                            if (!_config.SetValue("Port", previousPort.ToString()))
-                            {
-                                NotifyError(L.T("settings.title"),
-                                    L.T("settings.saveFailed"));
-                            }
-                            portRejected = true;
+                            revertPort();
                             NotifyError(L.T("network.failedTitle"), L.T("network.portBusy"));
+                            finishSave(true);
+                        }
+                        else if (_config.NetworkAccess)
+                        {
+                            // Network access keeps one rule for the current port. Update
+                            // it off the UI thread before committing the port so a failed
+                            // UAC/netsh operation does not leave a stale rule behind.
+                            int newPort = _config.Port;
+                            bool elevated = _elevated;
+                            bool started = BeginNetworkOperation(
+                                delegate ()
+                                {
+                                    string firewallError;
+                                    bool ok = Firewall.Configure(true, newPort, elevated,
+                                        out firewallError);
+                                    return new NetworkOpResult { Ok = ok, Error = firewallError };
+                                },
+                                delegate (NetworkOpResult networkResult)
+                                {
+                                    if (networkResult.Ok)
+                                    {
+                                        commitPort();
+                                        finishSave(false);
+                                    }
+                                    else
+                                    {
+                                        revertPort();
+                                        NotifyError(L.T("network.failedTitle"), networkResult.Error);
+                                        finishSave(true);
+                                    }
+                                });
+                            if (!started)
+                            {
+                                // Another install/update owns the installation lock. Keep
+                                // the old port rather than leaving ini and tray disagreeing.
+                                revertPort();
+                                finishSave(true);
+                            }
                         }
                         else
                         {
-                            // Network access keeps one rule for the current port.
-                            // Update it before committing the port so a failed UAC
-                            // or netsh operation does not leave a stale rule behind.
-                            bool firewallReady = true;
-                            if (_config.NetworkAccess)
-                            {
-                                string firewallError;
-                                if (!Firewall.Configure(true, _config.Port, _elevated,
-                                        out firewallError))
-                                {
-                                    firewallReady = false;
-                                    _config.Port = previousPort;
-                                    _config.ConfiguredPort = previousPort;
-                                    if (!_config.SetValue("Port", previousPort.ToString()))
-                                    {
-                                        NotifyError(L.T("settings.title"),
-                                            L.T("settings.saveFailed"));
-                                    }
-                                    portRejected = true;
-                                    NotifyError(L.T("network.failedTitle"), firewallError);
-                                }
-                            }
-                            if (firewallReady)
-                            {
-                                // No usable service owns the old port. If a tracked
-                                // wrapper survived a failed start, release it before the
-                                // tray starts using a different port.
-                                KillTrackedServer();
-                                _port = _config.Port;
-                                // A probe for the old port may still be in flight. Drop it
-                                // and every action that was waiting for it; otherwise a
-                                // stale result could make the new port look running or
-                                // conflicted.
-                                ClearPendingOwnerActions(false);
-                                _stopAfterOwnerCheck = false;
-                                InvalidateOwnerCheck();
-                                ServiceProbe.Invalidate();
-                                _lastOwnerCheck = DateTime.MinValue;
-                                _lastNotified = "";
-                                if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
-                                if (!TrayState.Save(Process.GetCurrentProcess().Id,
-                                    _elevated, _port))
-                                {
-                                    NotifyWarningOnce("state-save",
-                                        L.T("notify.stateSaveTitle"),
-                                        L.T("notify.stateSaveBody", TrayState.Folder));
-                                }
-                                UpdateUi();
-                            }
+                            commitPort();
+                            finishSave(false);
                         }
-                    }
-                    if (_config.AutoCheckUpdates)
-                    {
-                        if (_autoUpdateCheckAt == DateTime.MinValue)
-                            _autoUpdateCheckAt = DateTime.Now.AddSeconds(5);
                     }
                     else
                     {
-                        _autoUpdateCheckAt = DateTime.MinValue;
-                    }
-                    if (!_config.AutoRestart)
-                    {
-                        _autoRestartAt = DateTime.MinValue;
-                        _autoRestartAttempts = 0;
-                    }
-                    if (restartRequested)
-                    {
-                        RestartTray();
-                        return;
-                    }
-                    if (!portRejected)
-                    {
-                        // Turning Pi installation on/off or changing an exact InstallTag
-                        // changes readiness without changing the installed packages.
-                        // Refresh the cached probe so the tray icon and menu stop/start
-                        // offering the wrong action. Re-evaluate the tag against the
-                        // already-detected installed version; ProbeResult.Ready still
-                        // contains the old mismatch until ApplyInstallTag runs.
-                        bool readinessChanged = _config.InstallPi != installPiBefore
-                            || !string.Equals(_config.InstallTag, installTagBefore,
-                                StringComparison.Ordinal);
-                        if (readinessChanged && !IsServiceActionInProgress())
-                        {
-                            if (_probe == null)
-                            {
-                                BeginEnvironmentCheck(false, false);
-                            }
-                            else
-                            {
-                                _probe.PiCliRequired = _config.InstallPi;
-                                EnvironmentProbe.ApplyInstallTag(_probe, _config);
-                                ApplyProbeResult(_probe);
-                            }
-                        }
-                        Notify(L.T("settings.savedTitle"), L.T("settings.savedBody"));
+                        finishSave(false);
                     }
                 }
             }
@@ -928,7 +1070,10 @@ namespace PiWebTray
         private void ToggleNetworkAccess()
         {
             if (_exiting) return;
-            if (UpdateBusy() && _updateStage == UpdateStage.Applying) return;
+            // The network item is disabled during any update stage; refuse a toggle
+            // here too so it cannot hold the installation lock against an apply.
+            if (UpdateBusy()) return;
+            if (NetworkOperationBusy()) return;
             if (ForeignUpdateBusy())
             {
                 NotifyWarning(L.T("notify.updateBusyTitle"),
@@ -947,13 +1092,6 @@ namespace PiWebTray
             bool enable = !_config.NetworkAccess;
             if (enable && _phase == Phase.PortConflict)
             {
-                NotifyWarning(L.T("network.failedTitle"), L.T("network.portConflict"));
-                return;
-            }
-            if (enable && Net.IsPortOpen(_port, 200) && !ListenerLooksOurs(false))
-            {
-                // The phase can be stale between polls. Do not open the firewall
-                // for a listener that is not this installation's service.
                 NotifyWarning(L.T("network.failedTitle"), L.T("network.portConflict"));
                 return;
             }
@@ -977,27 +1115,56 @@ namespace PiWebTray
                 if (answer != DialogResult.Yes) return;
             }
 
-            string error;
-            if (!Firewall.Configure(enable, _port, _elevated, out error))
-            {
-                NotifyError(L.T("network.failedTitle"), error);
-                return;
-            }
-
-            if (!_config.SetValue("NetworkAccess", enable ? "1" : "0"))
-            {
-                // Do not leave the firewall and the saved setting disagreeing.
-                string undoError;
-                Firewall.Configure(!enable, _port, _elevated, out undoError);
-                NotifyError(L.T("network.failedTitle"), L.T("settings.saveFailed"));
-                return;
-            }
-
-            _config.NetworkAccess = enable;
-            UpdateUi();
-            if (ServiceRunningForRestart()) RestartServer(false);
-            Notify(enable ? L.T("network.enabledTitle") : L.T("network.disabledTitle"),
-                enable ? L.T("network.enabledBody") : L.T("network.disabledBody"));
+            int port = _port;
+            bool elevated = _elevated;
+            BeginNetworkOperation(
+                delegate ()
+                {
+                    // The listener owner probe and netsh can take seconds; keep them
+                    // off the UI thread. The phase can be stale between polls, so
+                    // re-check that the listener is ours before opening the firewall.
+                    if (enable && Net.IsPortOpen(port, 200) && !ListenerLooksOurs(false))
+                    {
+                        return new NetworkOpResult
+                        {
+                            Ok = false,
+                            Error = L.T("network.portConflict")
+                        };
+                    }
+                    string error;
+                    if (!Firewall.Configure(enable, port, elevated, out error))
+                    {
+                        return new NetworkOpResult { Ok = false, Error = error };
+                    }
+                    // The installation lock serializes ini writers, so this write is
+                    // safe off the UI thread. Do not leave the firewall and the saved
+                    // setting disagreeing: undo the rule if the save fails.
+                    if (!_config.SetValue("NetworkAccess", enable ? "1" : "0"))
+                    {
+                        string undoError;
+                        Firewall.Configure(!enable, port, elevated, out undoError);
+                        return new NetworkOpResult
+                        {
+                            Ok = false,
+                            Error = L.T("settings.saveFailed")
+                        };
+                    }
+                    return new NetworkOpResult { Ok = true };
+                },
+                delegate (NetworkOpResult result)
+                {
+                    if (!result.Ok)
+                    {
+                        NotifyError(L.T("network.failedTitle"), result.Error);
+                        UpdateUi();
+                        return;
+                    }
+                    _config.NetworkAccess = enable;
+                    UpdateUi();
+                    if (ServiceRunningForRestart()) RestartServer(false);
+                    Notify(enable ? L.T("network.enabledTitle") : L.T("network.disabledTitle"),
+                        enable ? L.T("network.enabledBody") : L.T("network.disabledBody"));
+                });
         }
 
         private void RestartAsStandardUser()

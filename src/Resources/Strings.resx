@@ -373,12 +373,6 @@ Keep the tray running and retry after Node.js is installed.</value>
   <data name="notify.noLink" xml:space="preserve">
     <value>Cannot open the link</value>
   </data>
-  <data name="notify.noPiwebTitle" xml:space="preserve">
-    <value>Pi Web not found</value>
-  </data>
-  <data name="notify.noPiwebBody" xml:space="preserve">
-    <value>Use the menu to install or update the service.</value>
-  </data>
   <data name="notify.cannotStart" xml:space="preserve">
     <value>Cannot start the service</value>
   </data>

@@ -931,7 +931,7 @@ namespace PiWebTray
             // npm cannot replace a globally installed package while its node process runs.
             // The tray's install path stops pi-web first (TrayApp.BeginInstall); the CLI
             // path must do the same. The stop is performed from RunInConsole after its
-            // own probe proves that npm will run, so a failed HasInstallWork probe cannot
+            // own probe proves that npm will run, so a failed or stale earlier probe cannot
             // let npm race a running service.
             bool stopped = false;
             bool legacyStop = false;
@@ -1227,7 +1227,9 @@ namespace PiWebTray
             while (DateTime.Now < deadline)
             {
                 if (OperationLock.IsAvailable(OperationLock.StopName)) return true;
-                Thread.Sleep(100);
+                // IsAvailable probes from a fresh thread; a coarser interval keeps a
+                // long wait from creating hundreds of short-lived threads.
+                Thread.Sleep(250);
             }
             return false;
         }
@@ -1534,7 +1536,12 @@ namespace PiWebTray
                 {
                     try { if (File.Exists(temp)) File.Delete(temp); } catch (Exception) { }
                 }
-                try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
+                // Only discard the previous diag once the new one is installed. On a
+                // failed replacement the backup may be the only recoverable copy.
+                if (keep)
+                {
+                    try { if (File.Exists(backup)) File.Delete(backup); } catch (Exception) { }
+                }
             }
         }
 
