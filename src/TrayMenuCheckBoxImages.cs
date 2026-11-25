@@ -50,5 +50,22 @@ namespace PiWebTray
             }
             return bitmap;
         }
+
+        // A fully transparent image the size of a checkbox. Assigning it to a
+        // submenu item reserves the same image-margin column and row height the
+        // main menu gets from its checkbox images, without drawing anything. A
+        // ToolStripDropDownMenu sizes that column from the images its items
+        // actually carry, so ShowImageMargin alone leaves an image-less submenu
+        // narrower and shorter than the main menu.
+        internal static Image CreateBlank()
+        {
+            Size imageSize = ImageSize();
+            Bitmap bitmap = new Bitmap(imageSize.Width, imageSize.Height);
+            using (Graphics graphics = Graphics.FromImage(bitmap))
+            {
+                graphics.Clear(Color.Transparent);
+            }
+            return bitmap;
+        }
     }
 }

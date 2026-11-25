@@ -563,6 +563,53 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void LogsSubmenuPlaceholderMatchesCheckboxLayout()
+        {
+            Size scaling = TrayMenuCheckBoxImages.ImageSize();
+            const string text = "查看服务运行日志";
+
+            // The placeholder must be checkbox-sized and fully transparent.
+            using (Image blank = TrayMenuCheckBoxImages.CreateBlank())
+            {
+                Assert.AreEqual(scaling, blank.Size);
+                using (Bitmap bmp = new Bitmap(blank))
+                {
+                    Assert.AreEqual(0, bmp.GetPixel(0, 0).A, "Placeholder must be invisible.");
+                    Assert.AreEqual(0, bmp.GetPixel(scaling.Width / 2, scaling.Height / 2).A,
+                        "Placeholder must be invisible at its center.");
+                }
+            }
+
+            // With identical text, a placeholder-image item must reserve the same
+            // layout as a checkbox-image item. The logs submenu sizes its image
+            // margin and row height from the images its items carry, so this is what
+            // makes it align with the main menu instead of collapsing to a narrower,
+            // shorter image-less row.
+            using (Image checkbox = TrayMenuCheckBoxImages.Create(true))
+            using (Image blank = TrayMenuCheckBoxImages.CreateBlank())
+            {
+                ToolStripMenuItem withCheckbox = new ToolStripMenuItem(text);
+                withCheckbox.Image = checkbox;
+                withCheckbox.ImageScaling = ToolStripItemImageScaling.None;
+                ToolStripMenuItem withBlank = new ToolStripMenuItem(text);
+                withBlank.Image = blank;
+                withBlank.ImageScaling = ToolStripItemImageScaling.None;
+                ToolStripMenuItem noImage = new ToolStripMenuItem(text);
+
+                Size checkboxSize = withCheckbox.GetPreferredSize(Size.Empty);
+                Size blankSize = withBlank.GetPreferredSize(Size.Empty);
+                Size plainSize = noImage.GetPreferredSize(Size.Empty);
+
+                Assert.AreEqual(checkboxSize, blankSize,
+                    "A placeholder must reserve the same layout as a checkbox image.");
+                Assert.IsTrue(blankSize.Height > plainSize.Height,
+                    "The placeholder must restore the taller image-bearing row height.");
+                Assert.IsTrue(blankSize.Width > plainSize.Width,
+                    "The placeholder must reserve the image-margin column.");
+            }
+        }
+
+        [TestMethod]
         public void LogFilterHandlesTextAndBraces()
         {
             string filtered = LogForm.FilterLines(

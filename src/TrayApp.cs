@@ -96,6 +96,7 @@ namespace PiWebTray
         private readonly ToolStripMenuItem _exitItem;
         private readonly Image _checkboxCheckedImage;
         private readonly Image _checkboxUncheckedImage;
+        private readonly Image _logsPlaceholderImage;
         private bool _menuOpen;
 
         private Process _server;
@@ -367,6 +368,7 @@ namespace PiWebTray
 
             _checkboxCheckedImage = TrayMenuCheckBoxImages.Create(true);
             _checkboxUncheckedImage = TrayMenuCheckBoxImages.Create(false);
+            _logsPlaceholderImage = TrayMenuCheckBoxImages.CreateBlank();
             _menu.ImageScalingSize = TrayMenuCheckBoxImages.ImageSize();
 
             _statusItem = new ToolStripMenuItem(L.T("status.checkingShort"));
@@ -418,6 +420,17 @@ namespace PiWebTray
 
             _updateLogItem = new ToolStripMenuItem(L.T("menu.updateLog"));
             _updateLogItem.Click += delegate { ShowLog(_config.UpdateLogFile, L.T("log.updateTitle")); };
+
+            // The submenu sizes its image-margin column and row height from the
+            // images its items carry. A transparent placeholder the size of a
+            // checkbox makes the log items align with the main menu's text instead
+            // of sitting flush-left in shorter rows.
+            logItem.Image = _logsPlaceholderImage;
+            logItem.ImageScaling = ToolStripItemImageScaling.None;
+            _installLogItem.Image = _logsPlaceholderImage;
+            _installLogItem.ImageScaling = ToolStripItemImageScaling.None;
+            _updateLogItem.Image = _logsPlaceholderImage;
+            _updateLogItem.ImageScaling = ToolStripItemImageScaling.None;
 
             _logsItem = new ToolStripMenuItem(L.T("menu.logs"));
             _logsItem.DropDownItems.Add(logItem);
