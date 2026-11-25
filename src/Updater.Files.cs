@@ -478,7 +478,9 @@ namespace PiWebTray
             bool directoryGone = true;
             try
             {
-                if (Directory.Exists(backupRoot)) Directory.Delete(backupRoot, true);
+                if (Directory.Exists(backupRoot))
+                    directoryGone = PathSafety.DeleteTreeSafe(backupRoot)
+                        && !Directory.Exists(backupRoot);
             }
             catch (Exception)
             {
@@ -869,7 +871,7 @@ namespace PiWebTray
                     {
                         if (Directory.GetLastWriteTimeUtc(old) >= cutoff) continue;
                         if (PathSafety.ContainsReparsePoint(old)) continue;
-                        Directory.Delete(old, true);
+                        PathSafety.DeleteTreeSafe(old);
                     }
                     catch (Exception)
                     {

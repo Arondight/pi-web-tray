@@ -493,7 +493,7 @@ namespace PiWebTray
                             // State is shared by all sessions of this user. Never treat
                             // a tray from another session as the replacement we started.
                             int session = NativeProcess.SessionId(pid);
-                            if (session < 0 || session != Process.GetCurrentProcess().SessionId)
+                            if (session < 0 || session != Sys.CurrentSessionId)
                                 continue;
                             return pid;
                         }

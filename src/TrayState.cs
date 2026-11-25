@@ -138,7 +138,7 @@ namespace PiWebTray
 
         internal static string SessionStatePath(string folder)
         {
-            int session = Process.GetCurrentProcess().SessionId;
+            int session = Sys.CurrentSessionId;
             return Path.Combine(folder ?? Folder, "state." + session + ".ini");
         }
 
@@ -239,7 +239,7 @@ namespace PiWebTray
                 sb.AppendLine("Elevated=" + (elevated ? "1" : "0"));
                 sb.AppendLine("Port=" + port);
                 sb.AppendLine("Url=http://127.0.0.1:" + port);
-                sb.AppendLine("Session=" + Process.GetCurrentProcess().SessionId);
+                sb.AppendLine("Session=" + Sys.CurrentSessionId);
                 // Record the tray image, not just the PID. A CLI can be launched
                 // from another copy of the app; the live PID still belongs to the
                 // service's tray and must be trusted for port selection.
@@ -340,7 +340,7 @@ namespace PiWebTray
                 // delete another session's state when this tray exits.
                 int pid;
                 if (int.TryParse(ReadValue(path, "Pid="), out pid) && pid > 0
-                    && pid != Process.GetCurrentProcess().Id)
+                    && pid != Sys.CurrentProcessId)
                 {
                     return;
                 }
@@ -392,7 +392,7 @@ namespace PiWebTray
                     return false;
                 int session;
                 if (int.TryParse(ReadValue(path, "Session="), out session)
-                    && session != Process.GetCurrentProcess().SessionId)
+                    && session != Sys.CurrentSessionId)
                     return false;
                 port = value;
                 return true;
@@ -414,7 +414,7 @@ namespace PiWebTray
                 if (!int.TryParse(ReadValue(path, "Pid="), out pid) || pid <= 0) return false;
                 if (!Sys.ProcessAlive(pid)) return false;
 
-                int currentSession = Process.GetCurrentProcess().SessionId;
+                int currentSession = Sys.CurrentSessionId;
                 int stateSession;
                 if (int.TryParse(ReadValue(path, "Session="), out stateSession)
                     && stateSession != currentSession)
@@ -467,7 +467,7 @@ namespace PiWebTray
             // The session state file is authoritative; the legacy file is only a fallback.
             // Another session's tray must not make this session believe it has an
             // elevated single instance.
-            int currentSession = Process.GetCurrentProcess().SessionId;
+            int currentSession = Sys.CurrentSessionId;
             int stateSession;
             if (int.TryParse(ReadValue(path, "Session="), out stateSession)
                 && stateSession != currentSession)

@@ -23,6 +23,11 @@ namespace PiWebTray
         private string _lastLine = "";
         private bool _allowClose;
         private volatile bool _completed;
+        // MarkCompleted runs on the worker thread while CancelInstall runs on the
+        // UI thread. The completed check and the Cancelled flag must change
+        // atomically, or a result that becomes final between the two would be
+        // reported as cancelled by PollInstall.
+        private readonly object _completionLock = new object();
 
         internal bool Cancelled { get; private set; }
 
@@ -124,7 +129,7 @@ namespace PiWebTray
         // install into a cancelled one.
         internal void MarkCompleted()
         {
-            _completed = true;
+            lock (_completionLock) _completed = true;
         }
 
         private void RefreshProgress()
@@ -161,8 +166,11 @@ namespace PiWebTray
 
         private void CancelInstall()
         {
-            if (Cancelled || _completed) return;
-            Cancelled = true;
+            lock (_completionLock)
+            {
+                if (Cancelled || _completed) return;
+                Cancelled = true;
+            }
             _cancel.Enabled = false;
             _cancel.Text = L.T("install.cancelling");
             Installer.Abort();

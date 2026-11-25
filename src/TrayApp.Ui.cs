@@ -705,7 +705,7 @@ namespace PiWebTray
                         _lastOwnerCheck = DateTime.MinValue;
                         _lastNotified = "";
                         if (_phase == Phase.PortConflict) _phase = Phase.Stopped;
-                        if (!TrayState.Save(Process.GetCurrentProcess().Id, _elevated, _port))
+                        if (!TrayState.Save(Sys.CurrentProcessId, _elevated, _port))
                         {
                             NotifyWarningOnce("state-save",
                                 L.T("notify.stateSaveTitle"),

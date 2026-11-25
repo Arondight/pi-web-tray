@@ -438,6 +438,77 @@ namespace PiWebTray
                 return true;
             }
         }
+        // Recursively delete a directory without ever following a reparse point.
+        // A junction/symlink entry is removed as a link; its target is untouched.
+        // Directory.Delete(recursive) aborts on a child junction, so a planted link
+        // would otherwise block cleanup of that tree forever. Returns false when
+        // anything could not be removed; the caller keeps any recovery markers and
+        // retries on a later cleanup pass.
+        internal static bool DeleteTreeSafe(string directory)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(directory)) return false;
+                string root = Path.GetFullPath(directory);
+                FileAttributes rootAttributes = File.GetAttributes(root);
+                if ((rootAttributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    // The root itself is a link: remove only the link entry.
+                    if ((rootAttributes & FileAttributes.Directory) != 0)
+                        Directory.Delete(root, false);
+                    else
+                        File.Delete(root);
+                    return true;
+                }
+
+                List<string> directories = new List<string>();
+                Stack<string> pending = new Stack<string>();
+                pending.Push(root);
+                while (pending.Count > 0)
+                {
+                    string current = pending.Pop();
+                    directories.Add(current);
+                    foreach (string entry in Directory.GetFileSystemEntries(current))
+                    {
+                        FileAttributes attributes = File.GetAttributes(entry);
+                        if ((attributes & FileAttributes.ReparsePoint) != 0)
+                        {
+                            // Remove the link itself; never recurse into its target.
+                            if ((attributes & FileAttributes.Directory) != 0)
+                                Directory.Delete(entry, false);
+                            else
+                                File.Delete(entry);
+                            continue;
+                        }
+                        if ((attributes & FileAttributes.Directory) != 0) pending.Push(entry);
+                        else File.Delete(entry);
+                    }
+                }
+
+                // Children were discovered after their parents; delete in reverse so
+                // every directory is empty before it is removed. Re-check attributes
+                // at delete time: a link planted after the walk must not be followed.
+                for (int i = directories.Count - 1; i >= 0; i--)
+                {
+                    FileAttributes attributes = File.GetAttributes(directories[i]);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0
+                        && (attributes & FileAttributes.Directory) == 0)
+                    {
+                        File.Delete(directories[i]);
+                    }
+                    else
+                    {
+                        Directory.Delete(directories[i], false);
+                    }
+                }
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Recursive ACL repair must never walk through a junction. A standard user can
         // create a child junction in a user-writable installation directory and redirect
         // an elevated icacls /t operation into a protected directory. Fail closed if any

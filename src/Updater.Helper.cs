@@ -139,7 +139,7 @@ namespace PiWebTray
                 // exits, but cannot modify the already-created helper command line.
                 string restartEnvironment = EncodeRestartEnvironment();
                 string arguments = BuildApplyArguments(
-                    staging, target, Process.GetCurrentProcess().Id,
+                    staging, target, Sys.CurrentProcessId,
                     mode, elevated, logPath, L.Current, dataDir, stagingHash,
                     waitForService ? config.Port : 0, zipPath, zipChecksum,
                     gateEventName, restartEnvironment);
@@ -384,7 +384,7 @@ namespace PiWebTray
             // The log path is validated as a fixed update.log under dataDir or target
             // by TryParseApplyArgs. It is safe to write it only after the target has
             // been identified as the helper's own directory.
-            AppendLog(logPath, "apply start (pid " + Process.GetCurrentProcess().Id + ")");
+            AppendLog(logPath, "apply start (pid " + Sys.CurrentProcessId + ")");
             AppendLog(logPath, "staging: " + staging);
             if (zipPath.Length > 0) AppendLog(logPath, "archive: " + zipPath);
             AppendLog(logPath, "target : " + target);
@@ -833,7 +833,7 @@ namespace PiWebTray
                 if (!string.IsNullOrEmpty(path) && Directory.Exists(path)
                     && !PathSafety.ContainsReparsePoint(path))
                 {
-                    Directory.Delete(path, true);
+                    PathSafety.DeleteTreeSafe(path);
                 }
             }
             catch (Exception)

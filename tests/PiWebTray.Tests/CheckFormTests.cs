@@ -519,6 +519,50 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void InstallFormCompletionBlocksLateCancel()
+        {
+            // A close that arrives after the worker result is final must not turn a
+            // completed install into a cancelled one; the owner still controls the
+            // close itself.
+            using (InstallForm form = new InstallForm())
+            {
+                form.MarkCompleted();
+                FormClosingEventArgs e = new FormClosingEventArgs(CloseReason.UserClosing, false);
+                RaiseFormClosing(form, e);
+                Assert.IsTrue(e.Cancel, "The owner still controls the close.");
+                Assert.IsFalse(form.Cancelled,
+                    "A close after completion must not mark the install cancelled.");
+            }
+
+            // A close before completion still cancels the install.
+            using (InstallForm form = new InstallForm())
+            {
+                FormClosingEventArgs e = new FormClosingEventArgs(CloseReason.UserClosing, false);
+                RaiseFormClosing(form, e);
+                Assert.IsTrue(e.Cancel);
+                Assert.IsTrue(form.Cancelled,
+                    "A close before completion cancels the install.");
+            }
+            Installer.ResetAbort();
+
+            // Windows shutdown is never blocked by the install form.
+            using (InstallForm form = new InstallForm())
+            {
+                FormClosingEventArgs e = new FormClosingEventArgs(CloseReason.WindowsShutDown, false);
+                RaiseFormClosing(form, e);
+                Assert.IsFalse(e.Cancel, "Windows shutdown must not be blocked.");
+            }
+            Installer.ResetAbort();
+        }
+
+        private static void RaiseFormClosing(Form form, FormClosingEventArgs e)
+        {
+            typeof(Form).GetMethod("OnFormClosing",
+                BindingFlags.Instance | BindingFlags.NonPublic)
+                .Invoke(form, new object[] { e });
+        }
+
+        [TestMethod]
         public void LogFilterHandlesTextAndBraces()
         {
             string filtered = LogForm.FilterLines(

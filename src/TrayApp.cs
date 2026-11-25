@@ -604,7 +604,7 @@ namespace PiWebTray
             // The update helper uses this file as its first sign that the new process
             // reached a usable state. It is not a full health check, so a backup is
             // cleaned up only after the service has reached Running (see OnTick).
-            if (!TrayState.Save(Process.GetCurrentProcess().Id, elevated, _port))
+            if (!TrayState.Save(Sys.CurrentProcessId, elevated, _port))
             {
                 try
                 {

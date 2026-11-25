@@ -139,7 +139,7 @@ namespace PiWebTray
             // Another Windows session can run the same pi-web package on the same port.
             // It is never "our" service and must never be opened or stopped by this tray.
             int ownerSession = pid > 4 ? NativeProcess.SessionId(pid) : -1;
-            if (ownerSession >= 0 && ownerSession != Process.GetCurrentProcess().SessionId)
+            if (ownerSession >= 0 && ownerSession != Sys.CurrentSessionId)
             {
                 return new PortOwnerInfo
                 {

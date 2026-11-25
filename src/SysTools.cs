@@ -866,6 +866,20 @@ namespace PiWebTray
                 return false;
             }
         }
+
+        // GetCurrentProcess() opens a real process handle. The finalizer reclaims
+        // it eventually, but high-frequency callers (session checks, the
+        // per-connection bridge check) must not pile up handles between
+        // collections.
+        internal static int CurrentProcessId
+        {
+            get { using (Process process = Process.GetCurrentProcess()) return process.Id; }
+        }
+
+        internal static int CurrentSessionId
+        {
+            get { using (Process process = Process.GetCurrentProcess()) return process.SessionId; }
+        }
     }
 
     // ---------------- OS version ----------------
@@ -1129,49 +1143,63 @@ namespace PiWebTray
         // "v22.23.1" -> [22,23,1]; anything unparsable is ignored
         internal static int[] Parse(string raw)
         {
-            if (string.IsNullOrEmpty(raw)) return new int[0];
+            string[] parts = CoreParts(raw);
+            List<int> numbers = new List<int>();
+            foreach (string part in parts)
+            {
+                int value;
+                if (!int.TryParse(part, NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out value))
+                {
+                    break;
+                }
+                numbers.Add(value);
+            }
+            return numbers.ToArray();
+        }
+
+        // The numeric core as digit strings. Unlike Parse, an identifier longer
+        // than Int32 is kept: Compare orders it by magnitude instead of dropping
+        // the whole version to 0.0.0.
+        private static string[] CoreParts(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return new string[0];
             string text = raw.Trim();
             if (text.StartsWith("v", StringComparison.OrdinalIgnoreCase)) text = text.Substring(1);
 
-            List<int> numbers = new List<int>();
+            List<string> parts = new List<string>();
             foreach (string part in text.Split('.'))
             {
                 StringBuilder digits = new StringBuilder();
-                int consumed = 0;
                 foreach (char c in part)
                 {
                     if (c < '0' || c > '9') break;
                     digits.Append(c);
-                    consumed++;
                 }
 
-                int value;
-                if (digits.Length == 0
-                    || !int.TryParse(digits.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out value))
-                {
-                    break;
-                }
-
-                numbers.Add(value);
+                if (digits.Length == 0) break;
+                parts.Add(digits.ToString());
 
                 // "1-pre": the numeric part is the patch level, a pre-release suffix ends parsing
-                if (consumed < part.Length) break;
+                if (digits.Length < part.Length) break;
             }
-            return numbers.ToArray();
+            return parts.ToArray();
         }
 
         // a < b -> -1, equal -> 0, a > b -> 1
         internal static int Compare(string a, string b)
         {
-            int[] left = Parse(a);
-            int[] right = Parse(b);
+            string[] left = CoreParts(a);
+            string[] right = CoreParts(b);
             int length = Math.Max(left.Length, right.Length);
             for (int i = 0; i < length; i++)
             {
-                int l = i < left.Length ? left[i] : 0;
-                int r = i < right.Length ? right[i] : 0;
-                if (l < r) return -1;
-                if (l > r) return 1;
+                string l = i < left.Length ? left[i] : "0";
+                string r = i < right.Length ? right[i] : "0";
+                // Arbitrary-length digit comparison: an oversized core must not
+                // overflow Int32 and silently compare as 0.0.0.
+                int numeric = CompareNumericIdentifiers(l, r);
+                if (numeric != 0) return numeric;
             }
 
             // Semver pre-release ordering: for equal numeric cores a stable

@@ -348,6 +348,10 @@ namespace PiWebTray
                     catch (Exception)
                     {
                         if (_closed) return;
+                        // A persistent accept failure (socket error, resource
+                        // exhaustion) must not become a tight CPU loop; pause
+                        // briefly before retrying.
+                        try { Thread.Sleep(50); } catch (Exception) { return; }
                     }
                 }
             });
@@ -448,7 +452,7 @@ namespace PiWebTray
                 if (!IPAddress.IsLoopback(local.Address) || !IPAddress.IsLoopback(remote.Address))
                     return false;
 
-                int current = Process.GetCurrentProcess().Id;
+                int current = Sys.CurrentProcessId;
                 for (int attempt = 0; attempt < 3; attempt++)
                 {
                     int owner = TcpTable.Owner(remote.Port, local.Port);

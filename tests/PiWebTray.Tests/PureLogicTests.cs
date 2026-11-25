@@ -273,6 +273,7 @@ namespace PiWebTray
             AutostartAclTests();
             AutostartTaskXmlTests();
             PathSafetyHardLinkTests();
+            DeleteTreeSafeTests();
             TrayClickTests();
             UpdateRestartPolicyTests();
             AutoRestartStopIntentTests();
@@ -367,6 +368,21 @@ namespace PiWebTray
                 VersionUtil.Compare("1.0.0+build-1", "1.0.0"));
             CheckEqual("build metadata is ignored in version ordering", 1,
                 VersionUtil.Compare("1.0.1+build-1", "1.0.0"));
+            // A numeric core beyond Int32 must compare by magnitude, not overflow
+            // and silently drop the whole version to 0.0.0.
+            CheckEqual("huge numeric core is newer", 1,
+                VersionUtil.Compare("99999999999.0.0", "1.0.0"));
+            CheckEqual("huge numeric core is newer (reversed)", -1,
+                VersionUtil.Compare("1.0.0", "99999999999.0.0"));
+            CheckEqual("equal huge cores", 0,
+                VersionUtil.Compare("99999999999.0.0", "99999999999.0.0"));
+            CheckEqual("longer huge core is newer", -1,
+                VersionUtil.Compare("99999999999.0.0", "100000000000.0.0"));
+            CheckEqual("huge core with pre-release sorts before its stable", -1,
+                VersionUtil.Compare("99999999999.0.0-beta", "99999999999.0.0"));
+            CheckEqual("leading zeros in the core are ignored", 0,
+                VersionUtil.Compare("01.02.03", "1.2.3"));
+            Check("a huge release tag is offered as newer", Updater.IsNewer("99999999999.0.0", "0.5.2"));
         }
 
         private static void VersionParseTests()
@@ -1488,6 +1504,98 @@ namespace PiWebTray
             finally
             {
                 try { if (Directory.Exists(root)) Directory.Delete(root, true); } catch (Exception) { }
+            }
+        }
+
+        // Create a directory junction without requiring elevation (mklink /J).
+        private static bool CreateJunction(string link, string target)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo();
+                psi.FileName = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
+                psi.Arguments = "/c mklink /J \"" + link + "\" \"" + target + "\"";
+                psi.UseShellExecute = false;
+                psi.CreateNoWindow = true;
+                using (Process p = Process.Start(psi))
+                {
+                    p.WaitForExit(10000);
+                    return p.ExitCode == 0;
+                }
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static void DeleteTreeSafeTests()
+        {
+            string root = Path.Combine(Path.GetTempPath(),
+                "pi-web-tray-deltree-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(root);
+
+                // A plain tree is removed completely.
+                string plain = Path.Combine(root, "plain");
+                Directory.CreateDirectory(Path.Combine(plain, "sub"));
+                File.WriteAllText(Path.Combine(plain, "a.txt"), "a");
+                File.WriteAllText(Path.Combine(plain, "sub", "b.txt"), "b");
+                Check("delete a plain tree", PathSafety.DeleteTreeSafe(plain));
+                Check("plain tree is gone", !Directory.Exists(plain));
+
+                string target = Path.Combine(root, "target");
+                Directory.CreateDirectory(target);
+                File.WriteAllText(Path.Combine(target, "precious.txt"), "keep");
+
+                // A child junction is removed as a link; its target survives and the
+                // rest of the tree is still cleaned up (recursive Directory.Delete
+                // would abort here and block cleanup forever).
+                string parent = Path.Combine(root, "parent");
+                Directory.CreateDirectory(Path.Combine(parent, "sub"));
+                File.WriteAllText(Path.Combine(parent, "sub", "c.txt"), "c");
+                string junction = Path.Combine(parent, "link");
+                if (!CreateJunction(junction, target))
+                {
+                    Console.WriteLine("[skip] junctions are unavailable on this volume");
+                    return;
+                }
+                Check("junction was created", Directory.Exists(junction));
+                Check("delete a tree with a child junction", PathSafety.DeleteTreeSafe(parent));
+                Check("tree with junction is gone", !Directory.Exists(parent));
+                Check("junction target survived the cleanup",
+                    File.Exists(Path.Combine(target, "precious.txt")));
+
+                // A dangling junction (target missing) must not block the cleanup.
+                string dangling = Path.Combine(root, "dangling");
+                Directory.CreateDirectory(dangling);
+                if (CreateJunction(Path.Combine(dangling, "dlink"),
+                    Path.Combine(root, "missing-target")))
+                {
+                    Check("delete a tree with a dangling junction",
+                        PathSafety.DeleteTreeSafe(dangling));
+                    Check("dangling tree is gone", !Directory.Exists(dangling));
+                }
+
+                // A junction as the root: only the link entry is removed.
+                string rootLink = Path.Combine(root, "rootlink");
+                if (CreateJunction(rootLink, target))
+                {
+                    Check("delete a junction root", PathSafety.DeleteTreeSafe(rootLink));
+                    Check("junction root is gone", !Directory.Exists(rootLink));
+                    Check("junction root target survived",
+                        File.Exists(Path.Combine(target, "precious.txt")));
+                }
+
+                // A missing directory is reported as failure (fail closed), not success.
+                Check("missing directory fails closed",
+                    !PathSafety.DeleteTreeSafe(Path.Combine(root, "does-not-exist")));
+            }
+            finally
+            {
+                try { PathSafety.DeleteTreeSafe(root); } catch (Exception) { }
             }
         }
 

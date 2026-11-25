@@ -58,7 +58,7 @@ namespace PiWebTray
                 // download/staging work. The helper still accepts this layout because
                 // it is under dataDir\update.
                 string root = SafeFullPath(Path.Combine(config.DataDir, "update",
-                    "session-" + Process.GetCurrentProcess().SessionId));
+                    "session-" + Sys.CurrentSessionId));
                 string unsafePathError = L.T("update.error.unsafePath");
                 if (PathSafety.ContainsReparsePoint(root))
                 {
@@ -200,7 +200,7 @@ namespace PiWebTray
                         }
                         if (lastWrite >= cutoff) continue;
                         if (PathSafety.ContainsReparsePoint(directory)) continue;
-                        Directory.Delete(directory, true);
+                        PathSafety.DeleteTreeSafe(directory);
                     }
                     catch (Exception) { }
                 }
