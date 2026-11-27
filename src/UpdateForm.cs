@@ -90,10 +90,15 @@ namespace PiWebTray
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+            FitForDisplay();
+        }
+
+        // Separated from OnLoad so layout tests do not need an interactive desktop.
+        internal void FitForDisplay()
+        {
             // Fit before the first paint; OnShown would show the default height
             // for one frame and then visibly shrink the window.
             FitHeight();
-            FormLayout.FitToWorkingArea(this);
         }
 
         // Status messages can grow after the dialog is shown. Re-fit the initial
@@ -107,12 +112,11 @@ namespace PiWebTray
             try
             {
                 PerformLayout();
-                // The progress bar must keep its compact height even though the
-                // bottom button row stays anchored at the bottom of the dialog.
-                int desired = _root.PreferredSize.Height;
-                int chrome = Height - ClientSize.Height;
-                int height = Math.Max(1, desired + chrome);
-                if (height != Height) Height = height;
+                // The constructor minimum is a safe fallback while the controls
+                // are not laid out yet, but it is taller than the content. Lower
+                // it so the empty Percent row collapses instead of showing a
+                // blank strip below the progress bar.
+                FormLayout.FitContentHeight(this, _root.PreferredSize.Height);
             }
             catch (Exception)
             {

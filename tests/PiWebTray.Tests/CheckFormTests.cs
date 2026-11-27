@@ -508,6 +508,62 @@ namespace PiWebTray
         }
 
         [TestMethod]
+        public void UpdateFormLayoutFitsContent()
+        {
+            using (UpdateForm form = new UpdateForm(null))
+            {
+                form.CreateControl();
+                form.FitForDisplay();
+
+                List<ProgressBar> bars = FindControls<ProgressBar>(form);
+                Assert.AreEqual(1, bars.Count);
+                Button cancel = FindControls<Button>(form)[0];
+                FlowLayoutPanel buttonRow = cancel.Parent as FlowLayoutPanel;
+                Assert.IsNotNull(buttonRow, "The cancel button must live in a button row.");
+                TableLayoutPanel root = buttonRow.Parent as TableLayoutPanel;
+                Assert.IsNotNull(root, "The button row must live in the root layout.");
+
+                // The empty Percent row exists so the button row stays at the bottom
+                // when the user resizes the window. At the fitted default height it
+                // must collapse to zero; otherwise it shows as a blank strip between
+                // the progress bar and the buttons.
+                int gap = buttonRow.Top - bars[0].Bottom;
+                int expectedGap = bars[0].Margin.Bottom + buttonRow.Margin.Top;
+                Assert.IsTrue(gap <= expectedGap + 1,
+                    "The update dialog must not open with a blank strip below the progress bar (gap "
+                    + gap + "px, expected at most " + (expectedGap + 1) + "px).");
+                Assert.IsTrue(form.ClientSize.Height - buttonRow.Bottom
+                        <= root.Padding.Bottom + buttonRow.Margin.Bottom + 1,
+                    "The update dialog must not open with a large gap below the buttons.");
+                Assert.IsTrue(form.MinimumSize.Height <= form.Height,
+                    "The fitted minimum must not force the empty filler row open.");
+            }
+        }
+
+        [TestMethod]
+        public void NodePromptLayoutFitsContent()
+        {
+            using (NodePromptForm form = new NodePromptForm("Node.js is required", "A short body.", false))
+            {
+                form.CreateControl();
+                form.FitForDisplay();
+                AssertNoFillerSpace(form, "_content", "_buttons");
+            }
+        }
+
+        [TestMethod]
+        public void AdminAutostartWarningLayoutFitsContent()
+        {
+            using (AdminAutostartWarningForm form = new AdminAutostartWarningForm(
+                "Administrator start-at-login refused", "A short body."))
+            {
+                form.CreateControl();
+                form.FitToContent();
+                AssertNoFillerSpace(form, "_content", "_buttons");
+            }
+        }
+
+        [TestMethod]
         public void InstallFormCanBeConstructed()
         {
             using (InstallForm form = new InstallForm())
@@ -662,6 +718,46 @@ namespace PiWebTray
                 "Forms must scale with the real DPI, not a font baseline.");
             Assert.AreEqual(form.CurrentAutoScaleDimensions, form.AutoScaleDimensions,
                 "DPI scaling must be armed after all controls are created.");
+        }
+
+        private static void AssertNoFillerSpace(Form form, string contentFieldName,
+            string buttonsFieldName)
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            FieldInfo contentField = form.GetType().GetField(contentFieldName, flags);
+            FieldInfo buttonsField = form.GetType().GetField(buttonsFieldName, flags);
+            Assert.IsNotNull(contentField, "The content panel must exist.");
+            Assert.IsNotNull(buttonsField, "The button row must exist.");
+            Control content = (Control)contentField.GetValue(form);
+            Control buttons = (Control)buttonsField.GetValue(form);
+            Assert.IsNotNull(content);
+            Assert.IsNotNull(buttons);
+
+            int lastBottom = 0;
+            foreach (Control child in content.Controls)
+            {
+                // Controls inside a form that has never been shown report
+                // Visible=false, but their bounds are still laid out and are
+                // exactly what the production window displays once shown.
+                lastBottom = Math.Max(lastBottom, child.Bottom + child.Margin.Bottom);
+            }
+
+            // A content-fitted dialog must not leave the empty filler row open:
+            // the only space between the last child and the button row is their
+            // layout margin.
+            int gap = buttons.Top - (content.Top + lastBottom);
+            int expectedGap = content.Margin.Bottom + buttons.Margin.Top;
+            Assert.IsTrue(gap <= expectedGap + 1,
+                "The dialog must not open with a blank strip between its content and buttons (gap "
+                + gap + "px, expected at most " + (expectedGap + 1) + "px).");
+
+            TableLayoutPanel root = buttons.Parent as TableLayoutPanel;
+            Assert.IsNotNull(root, "The button row must live in the root layout.");
+            Assert.IsTrue(form.ClientSize.Height - buttons.Bottom
+                    <= root.Padding.Bottom + buttons.Margin.Bottom + 1,
+                "The dialog must not open with a large gap below the buttons.");
+            Assert.IsTrue(form.MinimumSize.Height <= form.Height,
+                "The fitted minimum must not force the empty filler row open.");
         }
 
         private static List<T> FindControls<T>(Control parent) where T : Control

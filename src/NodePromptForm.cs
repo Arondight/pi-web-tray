@@ -152,6 +152,12 @@ namespace PiWebTray
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
+            FitForDisplay();
+        }
+
+        // Separated from OnLoad so layout tests do not need an interactive desktop.
+        internal void FitForDisplay()
+        {
             try
             {
                 // Fit before the first paint, using the same content-based sizing as
@@ -162,15 +168,7 @@ namespace PiWebTray
                 int desired = contentHeight + _content.Margin.Vertical
                     + _root.Padding.Vertical + _buttons.PreferredSize.Height
                     + _buttons.Margin.Vertical;
-                int chrome = Height - ClientSize.Height;
-                int maxClient = Math.Max(200, Screen.FromControl(this).WorkingArea.Height - chrome - 20);
-                int height = Math.Max(1, Math.Min(desired, maxClient));
-                if (height != ClientSize.Height)
-                {
-                    ClientSize = new Size(ClientSize.Width, height);
-                    PerformLayout();
-                }
-                FormLayout.FitToWorkingArea(this);
+                FormLayout.FitContentHeight(this, desired);
             }
             catch (Exception)
             {

@@ -124,7 +124,6 @@ namespace PiWebTray
         {
             base.OnLoad(e);
             FitToContent();
-            FormLayout.FitToWorkingArea(this);
         }
 
         protected override void OnShown(EventArgs e)
@@ -296,7 +295,8 @@ namespace PiWebTray
             _status.Visible = !string.IsNullOrEmpty(_status.Text);
         }
 
-        private void FitToContent()
+        // Separated from OnLoad so layout tests do not need an interactive desktop.
+        internal void FitToContent()
         {
             // A user resize wins over the content-based default height; a
             // maximized window must not be restored by a status update.
@@ -313,15 +313,7 @@ namespace PiWebTray
                 int desired = contentHeight + _content.Margin.Vertical
                     + _root.Padding.Vertical + _buttons.PreferredSize.Height
                     + _buttons.Margin.Vertical;
-                int chrome = Height - ClientSize.Height;
-                int maxClient = Math.Max(220, Screen.FromControl(this).WorkingArea.Height - chrome - 20);
-                int height = Math.Max(1, Math.Min(desired, maxClient));
-                if (height != ClientSize.Height)
-                {
-                    ClientSize = new Size(ClientSize.Width, height);
-                    PerformLayout();
-                }
-                FormLayout.FitToWorkingArea(this);
+                FormLayout.FitContentHeight(this, desired);
             }
             catch (Exception)
             {
